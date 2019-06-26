@@ -1,11 +1,12 @@
 extern crate tokio;
 
 use tokio::*;
-use tokio::io;
 use tokio::prelude::*;
 
 use std::collections::*;
+use std::sync::{Arc, Mutex};
 use sync::mpsc;
+use futures::try_ready;
 
 type State = HashMap<String, String>;
 
@@ -14,29 +15,52 @@ struct InputMessages {
     input: mpsc::Receiver<State>, //Incoming messages from ROS
     output: mpsc::Sender<State>, // Outgoing to runner
     length: usize,
-    q: VecDeque<State>
+    q: Arc<Mutex<VecDeque<State>>>,
 }
 
 
 impl InputMessages {
     fn new_message(&mut self, m: State) {
         // check and merge
-        self.q.push_back(m);
+        self.q.lock().unwrap().push_back(m);
         println!("new message current que {:?}", self.q)
     }
+    fn has_message_to_send(& self) -> bool {
+        !self.q.lock().unwrap().is_empty()
+    }
     fn message_to_send(&mut self) -> Option<State> {
-        let mess = self.q.pop_front();
+        let mess = self.q.lock().unwrap().pop_front();
+        println!();
         println!("taken from que {:?}", self.q);
+        println!();
         mess
     }
 
-    fn get_message(&mut self) -> bool {
-        match self.input.poll() {
-            Ok(Async::Ready(Some(mess))) => { self.new_message(mess); true}
-            Ok(Async::NotReady) => { false }
-            _ => panic!("Incoming message channel terminated")
+    // fn send_message(&mut self) -> Result<Async<bool>, sync::mpsc::error::SendError> {
+    //         if self.has_message_to_send() {
+    //             let mess = self.message_to_send().unwrap();
+    //             self.output.try_send(mess);
+    //         } else {
+    //             return Ok(Async::Ready(false))
+    //         }
+        
+    // }
+
+    fn get_message(&mut self) -> Result<Async<()>, sync::mpsc::error::RecvError> {
+        loop {
+            let x = try_ready!(self.input.poll());
+            x.map(|mess| self.new_message(mess));
         }
+
+
+        // match self.input.poll() {
+        //     Ok(Async::Ready(Some(mess))) => { self.new_message(mess); true}
+        //     Ok(Async::NotReady) => { false }
+        //     _ => panic!("Incoming message channel terminated")
+        // }
     }
+
+
 }
 
 impl Future for InputMessages {
@@ -46,44 +70,88 @@ impl Future for InputMessages {
 
 
     fn poll(&mut self) -> Poll<(), ()> {
-        let mut sender = self.output.clone();
-        println!("A poll on  InputMessage: {:?}", self.q.len());
-        match sender.poll_ready() {
+        
+        println!();
+        println!("*******************");
+
+
+        let x = self.get_message();
+        println!("fetch {:?}", x);
+
+        match self.output.poll_ready() {
             Ok(Async::NotReady) => {
-                println!("in que, not ready");
-                if self.q.len() < self.length {
-                    self.get_message();
-                } else {
-                    println!("START BLOCKING");
-                }
-                if (!self.q.is_empty()){
-                    task::current().notify();
-                }
-                Ok(Async::NotReady)
-                
+                println!("NotReady");
+                return Ok(Async::NotReady);
             }
             Ok(Async::Ready(_)) => {
-                println!("in que, ready");
-                let res = self.get_message();
-                if let Some(m) = self.message_to_send() {
-                    // let x = sender.try_send(m); // should work since we got Ready
-                    // if let Err(e) = x {
-                    //     println!("Got an error when sending in buffer {:?}", e);
-                    // }
-                    let send = sender
-                        .send(m)
-                        .map(move |_| ())
-                        .map_err(|e| eprintln!("error = {:?}", e));
-                    tokio::spawn(send); 
-                }
-                if !res && self.q.is_empty() {Ok(Async::NotReady)}
-                else {
-                    task::current().notify();
-                    {Ok(Async::NotReady)}
-                }
+                println!("Ready");
+
+                if self.has_message_to_send() {
+                    let sendResult = self.message_to_send().map(|mess| {
+                        self.output.try_send(mess);
+                    });
+            }
+
+                if self.has_message_to_send() {task::current().notify();}
+                
+                //task::current().notify();
+                return Ok(Async::NotReady);
+
             }
             Err(_) => panic!("outgoing message channel terminated")
         }
+
+        println!();
+
+        // let fetch = self.get_message();
+        // println!("fetch: {:?}", fetch);
+        // let sendIt = self.send_message();
+        // println!("send: {:?}", sendIt);
+
+        // if fetch.is_err() || sendIt.is_err() {
+        //     println!("No! an error: {:?} or {:?}", fetch, sendIt);
+        //     return Err(());
+        // }
+
+        // Ok(Async::NotReady)
+        
+
+        // match sender.poll_ready() {
+        //     Ok(Async::NotReady) => {
+        //         println!("in que, not ready");
+        //         if self.q.len() < self.length {
+        //             self.get_message();
+        //         } else {
+        //             println!("START BLOCKING");
+        //         }
+        //         if (!self.q.is_empty()){
+        //             task::current().notify();
+        //         }
+        //         Ok(Async::NotReady)
+                
+        //     }
+        //     Ok(Async::Ready(_)) => {
+        //         println!("in que, ready");
+        //         let res = self.get_message();
+        //         if let Some(m) = self.message_to_send() {
+        //             // let x = sender.try_send(m); // should work since we got Ready
+        //             // if let Err(e) = x {
+        //             //     println!("Got an error when sending in buffer {:?}", e);
+        //             // }
+        //             let send = sender
+        //                 .send(m)
+        //                 .map(move |_| ())
+        //                 .map_err(|e| eprintln!("error = {:?}", e));
+        //             tokio::spawn(send); 
+        //         }
+        //         if !res && self.q.is_empty() {Ok(Async::NotReady)}
+        //         else {
+        //             task::current().notify();
+        //             {Ok(Async::NotReady)}
+        //         }
+        //     }
+        //     Err(_) => panic!("outgoing message channel terminated")
+        // }
 
         // if self.q.len() < self.length {
 
@@ -131,7 +199,7 @@ fn main() {
         input: incomingBuf,
         output: fromBuf,
         length: 5,
-        q: VecDeque::new(),
+        q: Arc::new(Mutex::new(VecDeque::new())),
     };
 
     use tokio::timer::Interval;
