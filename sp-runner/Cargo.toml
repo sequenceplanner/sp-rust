@@ -1,0 +1,8 @@
+[package]
+name = "sp-runner"
+version = "0.1.0"
+authors = ["Kristofer Bengtsson <kristofer@sekvensa.se>"]
+edition = "2018"
+
+[dependencies]
+tokio = "0.1"
