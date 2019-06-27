@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
+
+
+pub mod sp_value;
+pub use crate::sp_value::*;
+
+pub mod predicates;
+pub use crate::predicates::*;
+
+pub mod state;
+pub use crate::state::*;
+
+
 
 pub type SPJson = serde_json::Value;
 //pub type SPJsonError = serde_json::Error;
@@ -17,81 +28,15 @@ impl SPAttributes {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum SPValue {
-    Bool(bool),
-    //byte(u8), deprecated
-    //char(char), deprecated
-    Float32(f32),
-    Float64(f64),
-    Int8(i8),
-    Uint8(u8),
-    Int16(i16),
-    Uint16(u16),
-    Int32(i32),
-    Uint32(u32),
-    Int64(i64),
-    Uint64(u64),
-    String(String),
-    Time(u32),
-    Duration(u32),
-    ID(Uuid), // use to also find the value in a state of variable with id
-    Array(Vec<SPValue>),
-    Map(HashMap<String, SPValue>),
-}
 
-impl Default for SPValue {
-    fn default() -> Self {
-        SPValue::Bool(false)
-    }
-}
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum Predicate {
-    AND(Vec<Predicate>),
-    OR(Vec<Predicate>),
-    NOT(Box<Predicate>),
-    TRUE,
-    FALSE,
-    EQ(SPValue, SPValue), // use SPValue::ID to fetch the value from the state
-    NEQ(SPValue, SPValue),
-    INDOMAIN(SPValue, Vec<SPValue>),
-}
 
-impl Default for Predicate {
-    fn default() -> Self {
-        Predicate::TRUE
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct Action {
-    var: Uuid,
-    value: Compute,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-/// Used in actions to compute a new SPValue.
-pub enum Compute {
-    Get(SPValue),
-    //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
-    //TakeBefore(SPValue, Vec<SPValue>),
-    // Add(Box<Compute>, Box<Compute>),
-    // Sub(Box<Compute>, Box<Compute>),
-    // Join(Box<Compute>, Box<Compute>),
-}
-
-impl Default for Compute {
-    fn default() -> Self {
-        Compute::Get(SPValue::default())
-    }
-}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SPID {
     pub id: Uuid,
     pub name: String,
-    pub attributes: SPAttributes,
+    //pub attributes: SPAttributes,
 }
 
 impl SPID {
@@ -99,7 +44,7 @@ impl SPID {
         SPID {
             id: Uuid::new_v4(),
             name: String::from(name),
-            attributes: SPAttributes::empty(),
+            //attributes: SPAttributes::empty(),
         }
     }
 }
@@ -145,19 +90,7 @@ pub struct PlanningOperation {
     pub uncontrolled: Vec<Transition>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct State {
-    pub state: HashMap<Uuid, SPValue>,
-}
 
-impl State {
-    pub fn get_value<'a>(&'a self, v: &'a SPValue) -> &'a SPValue {
-        match v {
-            SPValue::ID(id) => self.state.get(id).unwrap_or(v),
-            _ => v,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct Resource {
@@ -197,9 +130,6 @@ trait IDAble {
     fn name(&self) -> &String {
         &self.spid().name
     }
-    fn attributes(&self) -> &SPAttributes {
-        &self.spid().attributes
-    }
 }
 
 enum SPModel {
@@ -234,5 +164,12 @@ mod idable_tests {
 
         // r.name = "no".to_owned();
         // println!("{:?}", r);
+    }
+
+    /// Testing show we know that SPValues and support can be used outside
+    #[test]
+    fn sp_value_testing_external() {
+        assert_eq!(true.to_spvalue(), SPValue::Bool(true));
+        let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
     }
 }
