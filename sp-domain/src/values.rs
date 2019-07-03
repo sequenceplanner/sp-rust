@@ -1,10 +1,11 @@
-
-//! SPValue represent a variable value of a specific type. The types used are
-//! matched with ROS types for easy mapping between messages and SP
+//! Variables in SP are represented by SPValue, which is a direct mapping
+//! to ROS-types. 
 //! 
 
 use serde::{Deserialize, Serialize};
 
+/// SPValue represent a variable value of a specific type. The types used are
+/// matched with ROS types for easy mapping between messages and SP
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SPValue {
     Bool(bool),
@@ -28,14 +29,53 @@ pub enum SPValue {
     //Map(HashMap<String, SPValue>), // Maybe we should not allow this and flatten in the DSL.
 }
 
-impl SPValue {
-    // pub fn get(&self, key: &str) -> Option<&SPValue> {
-    //     match self {
-    //         SPValue::Map(m) => { m.get(key) },
-    //         _ => None
-    //     }
-    // }
+/// Used by Variables for defining type. Must be the same as SPValue
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
+pub enum SPValueType {
+    Bool,
+    Float32,
+    Int32,
+    String,
+    Time,
+    Duration,
+    Array,
+}
 
+/// A trait for converting a value to SPValue
+pub trait ToSPValue {
+    fn to_spvalue(&self) -> SPValue;
+}
+
+impl SPValue {
+    pub fn is_type(&self, t: SPValueType) -> bool {
+        match self {
+            SPValue::Bool(_) => {SPValueType::Bool == t},
+            SPValue::Float32(_) => {SPValueType::Float32 == t},
+            SPValue::Int32(_) => {SPValueType::Int32 == t},
+            SPValue::String(_) => {SPValueType::String == t},
+            SPValue::Time(_) => {SPValueType::Time == t},
+            SPValue::Duration(_) => {SPValueType::Duration == t},
+            SPValue::Array(_) => {SPValueType::Array == t},
+        }
+    }
+
+    pub fn has_type(&self) -> SPValueType {
+        match self {
+            SPValue::Bool(_) => {SPValueType::Bool},
+            SPValue::Float32(_) => {SPValueType::Float32},
+            SPValue::Int32(_) => {SPValueType::Int32},
+            SPValue::String(_) => {SPValueType::String},
+            SPValue::Time(_) => {SPValueType::Time},
+            SPValue::Duration(_) => {SPValueType::Duration},
+            SPValue::Array(_) => {SPValueType::Array},
+        }
+    }
+}
+
+impl SPValueType {
+    pub fn is_type(&self, v: &SPValue) -> bool {
+        v.is_type(*self)
+    }
 }
 
 impl Default for SPValue {
@@ -44,10 +84,13 @@ impl Default for SPValue {
     }
 }
 
-/// A trait for converting a value to SPValue
-pub trait ToSPValue {
-    fn to_spvalue(&self) -> SPValue;
+impl Default for SPValueType {
+    fn default() -> Self {
+        SPValueType::Bool
+    }
 }
+
+
 
 impl ToSPValue for bool {
     fn to_spvalue(&self) -> SPValue {
@@ -125,6 +168,11 @@ impl<T> ToSPValue for Vec<T> where T: ToSPValue {
         SPValue::Array(res)
     }
 }
+impl ToSPValue for Vec<SPValue> {
+    fn to_spvalue(&self) -> SPValue {
+        SPValue::Array(self.clone())
+    }
+}
 
 // impl<T> ToSPValue for HashMap<String, T> where T: ToSPValue {
 //     fn to_spvalue(&self) -> SPValue {
@@ -188,6 +236,21 @@ mod sp_value_test {
         // let b = sp_value_map!("hej" => 1, "nu" => "ja");
         // assert!(a == b);
 
+    }
+
+    #[test]
+    fn type_handling() {
+        let x = true.to_spvalue();
+        let y = 1.to_spvalue();
+        let z = vec!("hej", "då").to_spvalue();
+
+        assert_eq!(x.has_type(), SPValueType::Bool);
+        assert_eq!(y.has_type(), SPValueType::Int32);
+        assert_eq!(z.has_type(), SPValueType::Array);
+
+        assert!(SPValueType::Bool.is_type(&x));
+        assert!(y.is_type(SPValueType::Int32));
+        assert!(z.is_type(SPValueType::Array));
     }
 
 }
