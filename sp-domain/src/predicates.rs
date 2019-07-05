@@ -131,7 +131,7 @@ pub trait EvaluatePredicate {
 }
 
 pub trait NextAction {
-    fn next(&self, state: &mut State) -> Result<(), states::StateError>;
+    fn next(&self, state: &mut State) -> Result<()>;
 }
 
 
@@ -156,14 +156,14 @@ impl EvaluatePredicate for Predicate {
 }
 
 impl NextAction for Action {
-    fn next(&self, state: &mut State) -> Result<(), states::StateError> {
+    fn next(&self, state: &mut State) -> Result<()> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => {
                 match pv.get_value(state).map(|x| { AssignStateValue::SPValue(x.clone())}) {
                     Some(x) => x,
                     None => {
                         eprintln!("The action {:?}, next did not find a value for variable: {:?}", self, pv);
-                        return Err(states::StateError::Undefined)
+                        return Err(SPError::Undefined)
                     },
                 }
             },
@@ -172,7 +172,7 @@ impl NextAction for Action {
                     Some(x) => x,
                     None => {
                         eprintln!("The action {:?}, next did not find a value for variable: {:?}", self, pv);
-                        return Err(states::StateError::Undefined)
+                        return Err(SPError::Undefined)
                     },
                 }
                 

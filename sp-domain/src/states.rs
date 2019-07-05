@@ -53,15 +53,7 @@ pub struct Next{
     pub next_value: SPValue
 }
 
-use std::error;
-use std::fmt;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum StateError{
-    OverwriteDelay(Delay, AssignStateValue),
-    OverwriteNext(Next, AssignStateValue),
-    Undefined,
-}
 
 
 
@@ -69,7 +61,7 @@ impl State {
     pub fn filter(&self, partial_name: &[String]) -> State {
         let s = self.s.iter().filter(|(k, _)| {
             partial_name.iter().all(|x|{ 
-                k.name.contains(x) 
+                k.path.contains(x) 
             })
         })
         .map(|(k, v)|{ (k.clone(), v.clone())})
@@ -91,18 +83,18 @@ impl State {
         self.s.get(var)
     }
 
-    fn make_insert(next: AssignStateValue, prev: StateValue) -> Result<StateValue, StateError> {
+    fn make_insert(next: AssignStateValue, prev: StateValue) -> Result<StateValue> {
         match (next, prev) {
             (AssignStateValue::Force(n), _) => {
                 return Ok(StateValue::SPValue(n))
             }
             (x, StateValue::Next(p)) => {
                 eprintln!("Your are trying to overwrite a next: current: {:?}, new: {:?} ", x, p);
-                return Err(StateError::OverwriteNext(p, x));
+                return Err(SPError::OverwriteNext(p, x));
             }
             (x, StateValue::Delay(p)) => {
                 eprintln!("Your are trying to overwrite a delay: current: {:?}, new: {:?} ", x, p);
-                return Err(StateError::OverwriteDelay(p, x));
+                return Err(SPError::OverwriteDelay(p, x));
             }
             (AssignStateValue::SPValue(n), StateValue::SPValue(p)) => {
                 return Ok(StateValue::Next(Next{current_value: p, next_value: n}))
@@ -119,7 +111,7 @@ impl State {
         }
     }
 
-    pub fn insert(&mut self, key: &SPPath, value: AssignStateValue) -> Result<(), StateError> {
+    pub fn insert(&mut self, key: &SPPath, value: AssignStateValue) -> Result<()> {
         let x = self.s.entry(key.clone()).or_insert(StateValue::Unknown);
         match State::make_insert(value, x.clone()) {
             Ok(v) => {
@@ -142,27 +134,7 @@ impl State {
 }
 
 
-impl fmt::Display for StateError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            StateError::OverwriteDelay(prev, next) => {
-                write!(f, "You are trying to overwrite a Delay in the State. current: {:?}, new: {:?} ", prev, next)
-            }
-            StateError::OverwriteNext(prev, next) => {
-                write!(f, "You are trying to overwrite a Next in the State. current: {:?}, new: {:?} ", prev, next)
-            }
-            StateError::Undefined  => {
-                write!(f, "An undefined State error!")
-            }
-        }
-    }
-}
 
-impl error::Error for StateError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        None
-    }
-}
 
 /// helping making states with a macro
 #[macro_export]
@@ -220,9 +192,9 @@ mod sp_value_test {
 
         assert_eq!(s, s2);
 
-        let var_a = SPPath{ name: vec!("a".to_string(), "b".to_string())};
-        let var_b = SPPath{ name: vec!("a".to_string(), "c".to_string())};
-        let var_c = SPPath{ name: vec!("k".to_string(), "l".to_string())};
+        let var_a = SPPath{ path: vec!("a".to_string(), "b".to_string())};
+        let var_b = SPPath{ path: vec!("a".to_string(), "c".to_string())};
+        let var_c = SPPath{ path: vec!("k".to_string(), "l".to_string())};
         let mut m = HashMap::new();
         m.insert(var_a, 2.to_state());
         m.insert(var_b, true.to_state());

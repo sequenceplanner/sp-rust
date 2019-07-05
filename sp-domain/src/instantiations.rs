@@ -1,11 +1,12 @@
-//!
+//! Maybe we will use this for resources
 
 use super::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct Parameter {
-    pub name: String,
+    pub path: SPPath,
     pub var_type: VariableType,
+    pub value_type: SPValueType,
 }
 
 
