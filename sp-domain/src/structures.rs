@@ -6,7 +6,7 @@ use super::*;
 /// SPStruct is used for structuring items in hierarchies. Only allows that a SPID exists at one place.
 /// If the same spid needs to be in multiple positions, divide into multiple SPStructs
 /// 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct SPStruct {
     pub spid: SPID,
     nodes: HashMap<Uuid, SPNode>

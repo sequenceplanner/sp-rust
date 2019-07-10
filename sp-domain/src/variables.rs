@@ -10,8 +10,9 @@ pub enum Variable {
     Estimated(VariableData), 
     Command(VariableData), 
     StatePredicate(VariableData, Predicate),  // Maybe have these here? 
-    StateFunction(VariableData, Action)       // Maybe have these here? 
+    StateFunction(VariableData, Action),       // Maybe have these here? 
 }
+
 
 /// Var is the attributes in all types of variables, but should not be used by itself. Use Variable
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]

@@ -22,13 +22,10 @@ pub mod transitions;
 pub use crate::transitions::{Transition};
 
 pub mod operations;
-pub use crate::operations::{Operation, Ability};
+pub use crate::operations::{Operation, Ability, OperationFunction};
 
 pub mod resources;
 pub use crate::resources::{Resource};
-
-pub mod instantiations;
-pub use crate::instantiations::{Parameter, Instantiable};
 
 pub mod structures;
 pub use crate::structures::{SPStruct};

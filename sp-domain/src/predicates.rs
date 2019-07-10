@@ -38,7 +38,8 @@ pub enum PredicateValue {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Compute {
     PredicateValue(PredicateValue),
-    Delay(PredicateValue, u64)  
+    Delay(PredicateValue, u64),
+    CancelDelay,
     // If we need more advanced functions we can add them here
     //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
     //TakeBefore(SPValue, Vec<SPValue>),
@@ -106,6 +107,7 @@ impl Action {
         match &mut self.value {
             Compute::PredicateValue(x) => { x.replace_variable_path(map) }
             Compute::Delay(x, _) => { x.replace_variable_path(map) }
+            _ => (),
         }
     }
 }
@@ -174,9 +176,17 @@ impl NextAction for Action {
                         eprintln!("The action {:?}, next did not find a value for variable: {:?}", self, pv);
                         return Err(SPError::Undefined)
                     },
-                }
-                
-            }
+                } 
+            },
+            Compute::CancelDelay => {
+                match state.get_value(&self.var).map(|x| { AssignStateValue::SPValue(x.clone())}) {
+                    Some(x) => x,
+                    None => {
+                        eprintln!("The action {:?}, did not exist in the state", self);
+                        return Err(SPError::Undefined)
+                    },
+                } 
+            },
         };
 
         state.insert(&self.var, c)     

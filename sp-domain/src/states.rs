@@ -27,6 +27,7 @@ pub enum StateValue {
 pub enum AssignStateValue {
     SPValue(SPValue),
     Delay(SPValue, u64),
+    CancelDelay,  // to cancel a Delay
     Force(SPValue) // used to overwrite Next and Delay StateValues
 }
 
@@ -88,6 +89,9 @@ impl State {
             (AssignStateValue::Force(n), _) => {
                 return Ok(StateValue::SPValue(n))
             }
+            (AssignStateValue::CancelDelay, StateValue::Delay(p)) => {
+                return Ok(StateValue::SPValue(p.current_value))
+            }
             (x, StateValue::Next(p)) => {
                 eprintln!("Your are trying to overwrite a next: current: {:?}, new: {:?} ", x, p);
                 return Err(SPError::OverwriteNext(p, x));
@@ -102,12 +106,20 @@ impl State {
             (AssignStateValue::Delay(n, ms), StateValue::SPValue(p)) => {
                 return Ok(StateValue::Delay(Delay{current_value: p, next_value: n, millis: ms}))
             }
+            (AssignStateValue::CancelDelay, StateValue::SPValue(p)) => {
+                return Ok(StateValue::SPValue(p))
+            }
             (AssignStateValue::SPValue(n), StateValue::Unknown) => {
                 return Ok(StateValue::SPValue(n))
             }
-            (AssignStateValue::Delay(n, _), StateValue::Unknown) => {  /// Can not delay if current is unknown
+            (AssignStateValue::Delay(n, _), StateValue::Unknown) => {  // Can not delay if current is unknown
                 return Ok(StateValue::SPValue(n))
             }
+            (AssignStateValue::CancelDelay, StateValue::Unknown) => {
+                eprintln!("Your are trying to cancel an unknown");
+                return Err(SPError::No("Your are trying to cancel an unknown".to_string()));
+            }
+
         }
     }
 
