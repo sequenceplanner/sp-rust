@@ -9,8 +9,7 @@ pub enum Variable {
     Measured(VariableData),
     Estimated(VariableData), 
     Command(VariableData), 
-    StatePredicate(VariableData, Predicate),  // Maybe have these here? 
-    StateFunction(VariableData, Action),       // Maybe have these here? 
+    StatePredicate(VariableData, Action),  // Maybe have these here?
 }
 
 
@@ -31,7 +30,6 @@ pub enum VariableType {
     Estimated,
     Command,
     StatePredicate,
-    StateFunction,
 }
 
 impl Variable {
@@ -41,7 +39,6 @@ impl Variable {
             Variable::Estimated(_) => { VariableType::Estimated == t },
             Variable::Command(_) => { VariableType::Command == t },
             Variable::StatePredicate(_, _) => { VariableType::StatePredicate == t },
-            Variable::StateFunction(_, _) => { VariableType::StateFunction == t },
         }
     }
     pub fn has_type(&self) -> VariableType {
@@ -50,7 +47,6 @@ impl Variable {
             Variable::Estimated(_) => { VariableType::Estimated },
             Variable::Command(_) => { VariableType::Command },
             Variable::StatePredicate(_, _) => { VariableType::StatePredicate },
-            Variable::StateFunction(_, _) => { VariableType::StateFunction },
         }
     }
 }

@@ -38,6 +38,7 @@ pub enum PredicateValue {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Compute {
     PredicateValue(PredicateValue),
+    Predicate(Predicate),   // used for boolean actions
     Delay(PredicateValue, u64),
     CancelDelay,
     // If we need more advanced functions we can add them here
@@ -106,6 +107,7 @@ impl Action {
     pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
         match &mut self.value {
             Compute::PredicateValue(x) => { x.replace_variable_path(map) }
+            Compute::Predicate(x) => { x.replace_variable_path(map) }
             Compute::Delay(x, _) => { x.replace_variable_path(map) }
             _ => (),
         }
@@ -133,7 +135,7 @@ pub trait EvaluatePredicate {
 }
 
 pub trait NextAction {
-    fn next(&self, state: &mut State) -> Result<()>;
+    fn next(&self, state: &State) -> Result<HashMap<SPPath, AssignStateValue>>;
 }
 
 
@@ -158,23 +160,27 @@ impl EvaluatePredicate for Predicate {
 }
 
 impl NextAction for Action {
-    fn next(&self, state: &mut State) -> Result<()> {
+    fn next(&self, state: &State) -> Result<HashMap<SPPath, AssignStateValue>> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => {
                 match pv.get_value(state).map(|x| { AssignStateValue::SPValue(x.clone())}) {
                     Some(x) => x,
                     None => {
                         eprintln!("The action {:?}, next did not find a value for variable: {:?}", self, pv);
-                        return Err(SPError::Undefined)
+                        return Err(SPError::No(format!("The action {:?}, next did not find a value for variable: {:?}", self, pv)))
                     },
                 }
+            },
+            Compute::Predicate(p) => {
+                let res = p.eval(state);
+                AssignStateValue::SPValue(res.to_spvalue())
             },
             Compute::Delay(pv, ms) => {
                 match pv.get_value(state).map(|x| { AssignStateValue::Delay(x.clone(), *ms)}) {
                     Some(x) => x,
                     None => {
                         eprintln!("The action {:?}, next did not find a value for variable: {:?}", self, pv);
-                        return Err(SPError::Undefined)
+                        return Err(SPError::No(format!("The action {:?}, next did not find a value for variable: {:?}", self, pv)))
                     },
                 } 
             },
@@ -182,15 +188,29 @@ impl NextAction for Action {
                 match state.get_value(&self.var).map(|x| { AssignStateValue::SPValue(x.clone())}) {
                     Some(x) => x,
                     None => {
-                        eprintln!("The action {:?}, did not exist in the state", self);
-                        return Err(SPError::Undefined)
+                        eprintln!("The delay action {:?}, did not exist in the state", self);
+                        return Err(SPError::No(format!("The delay action {:?}, did not exist in the state", self)))
                     },
                 } 
             },
         };
+        let res: HashMap<SPPath, AssignStateValue> = vec![(self.var.clone(), c)].into_iter().collect();
+        Ok(res)
 
-        state.insert(&self.var, c)     
+    }
+}
 
+impl EvaluatePredicate for Action {
+    fn eval(&self, state: &State) -> bool {
+        match state.get(&self.var) {
+            Some(StateValue::SPValue(_)) => true,
+            Some(StateValue::Unknown) => true,
+            Some(StateValue::Next(_)) => false,
+            Some(StateValue::Delay(_)) => {
+                self.value == Compute::CancelDelay
+            },
+            None => true // We allow actions to add new state variables. But maybe this is not ok?
+        }
     }
 }
 
@@ -291,6 +311,29 @@ macro_rules! pr {
 }
 
 
+#[macro_export]
+macro_rules! a { 
+    ($var:ident = $val:expr) => {
+        Action {
+            var: $var.clone(),
+            value: predicates::Compute::PredicateValue(predicates::PredicateValue::SPValue($val.to_spvalue())),
+        }
+    };
+    ($var:ident <- $val:expr) => {
+        Action {
+            var: $var.clone(),
+            value: predicates::Compute::PredicateValue(predicates::PredicateValue::SPPath($val.clone())),
+        }
+    };
+    ($var:ident ? $val:expr) => {
+        Action {
+            var: $var.clone(),
+            value: predicates::Compute::Predicate($val.clone()),
+        }
+    };
+}
+
+
 
 /// ********** TESTS ***************
 
@@ -335,6 +378,92 @@ mod sp_value_test {
         let ab = SPPath::from_str(&["a", "b"]);
         let ac = SPPath::from_str(&["a", "c"]);
         let kl = SPPath::from_str(&["k", "l"]);
+        let xy = SPPath::from_str(&["x", "y"]);
+        let mut s = state!(ab => 2, ac => true, kl => true, xy => false);
+        let p = pr!{{p!(ac)} && {p!(kl)}};
+
+        let a = Action{
+            var: ac.clone(),
+            value: Compute::PredicateValue(PredicateValue::default())
+        };
+        let a2 = Action{
+            var: ab.clone(),
+            value: Compute::PredicateValue(PredicateValue::SPPath(kl))
+        };
+        let a3 = Action{
+            var: xy.clone(),
+            value: Compute::Predicate(p)
+        };
+
+        a3.next(&s).map(|x| s.insert_map(x)).unwrap();
+        let next = StateValue::Next(states::Next{
+            current_value: false.to_spvalue(),
+            next_value: true.to_spvalue()
+        });
+        assert_eq!(s.get(&xy), Some(&next));
+
+        a.next(&s).map(|x| s.insert_map(x)).unwrap();
+        let next = StateValue::Next(states::Next{
+            current_value: true.to_spvalue(),
+            next_value: false.to_spvalue()
+        });
+        assert_eq!(s.get(&ac), Some(&next));
+
+        a2.next(&s).map(|x| s.insert_map(x)).unwrap();
+        let next = StateValue::Next(states::Next{
+            current_value: 2.to_spvalue(),
+            next_value: true.to_spvalue()
+        });
+        assert_eq!(s.get(&ab), Some(&next));
+
+        s.take_all_next();
+
+        a3.next(&s).map(|x| s.insert_map(x)).unwrap();
+        let next = StateValue::Next(states::Next{
+            current_value: true.to_spvalue(),
+            next_value: false.to_spvalue()
+        });
+        assert_eq!(s.get(&xy), Some(&next));
+
+        println!("res from action: {:?} is: {:?}", &a2, &s);
+
+    }
+     #[test]
+    fn action_macros() {
+        let ab = SPPath::from_str(&["a", "b"]);
+        let ac = SPPath::from_str(&["a", "c"]);
+        let kl = SPPath::from_str(&["k", "l"]);
+        let xy = SPPath::from_str(&["x", "y"]);
+        let mut s = state!(ab => 2, ac => true, kl => true, xy => false);
+        let p = pr!{{p!(ac)} && {p!(kl)}};
+
+        let a_m = a!(ac = false);
+        let a = Action{
+            var: ac.clone(),
+            value: Compute::PredicateValue(PredicateValue::default())
+        };
+        assert_eq!(a_m, a);
+
+        let a2_m = a!(ab <- kl);
+        let a2 = Action{
+            var: ab.clone(),
+            value: Compute::PredicateValue(PredicateValue::SPPath(kl))
+        };
+        assert_eq!(a2_m, a2);
+
+        let a3_m = a!(xy ? p);
+        let a3 = Action{
+            var: xy.clone(),
+            value: Compute::Predicate(p)
+        };
+        assert_eq!(a3_m, a3);
+    }
+
+    #[test]
+    fn action_eval() {
+        let ab = SPPath::from_str(&["a", "b"]);
+        let ac = SPPath::from_str(&["a", "c"]);
+        let kl = SPPath::from_str(&["k", "l"]);
         let mut s = state!(ab => 2, ac => true, kl => true);
 
         let a = Action{
@@ -346,21 +475,10 @@ mod sp_value_test {
             value: Compute::PredicateValue(PredicateValue::SPPath(kl))
         };
 
-        let res = a.next(&mut s);
-        let next = StateValue::Next(states::Next{
-            current_value: true.to_spvalue(),
-            next_value: false.to_spvalue()
-        });
-        assert_eq!(s.get(&ac), Some(&next));
+        a.next(&s).map(|x| s.insert_map(x)).unwrap();
 
-        let res2 = a2.next(&mut s);
-        let next = StateValue::Next(states::Next{
-            current_value: 2.to_spvalue(),
-            next_value: true.to_spvalue()
-        });
-        assert_eq!(s.get(&ab), Some(&next));
-        println!("res from action: {:?} is: {:?}", &a2, &s);
-
+        assert!(a2.eval(&s));
+        assert!(!a.eval(&s));
     }
 
         #[test]

@@ -302,7 +302,7 @@ mod sp_value_test {
                 (xn.item.id, xn.clone()),
                 (yn.item.id, yn.clone()),
                 (zn.item.id, zn.clone()),
-                ].into_iter().cloned().collect()
+                ].iter().cloned().collect()
         };
         
         assert_eq!(SPPath::from(&["y".to_string()]), str.path(yn.item.id));
@@ -372,7 +372,7 @@ mod sp_value_test {
 
         use std::collections::HashSet;
         let test: HashSet<SPID> = s.roots().into_iter().collect();
-        let expect: HashSet<SPID> = [&x, &y].into_iter().cloned().cloned().collect();
+        let expect: HashSet<SPID> = [&x, &y].iter().cloned().cloned().collect();
         assert_eq!(test, expect);
 
         let test: HashSet<SPID> = s.children(x.id).into_iter().collect();
@@ -420,7 +420,7 @@ mod sp_value_test {
 
         use std::collections::HashSet;
         let test: HashSet<SPID> = s.remove(z.id).into_iter().collect();
-        let expect: HashSet<SPID> = [&z, &k].into_iter().cloned().cloned().collect();
+        let expect: HashSet<SPID> = [&z, &k].iter().cloned().cloned().collect();
         assert_eq!(test, expect);
 
         let s2 = SPStruct::from(SPID::new("hej"), 

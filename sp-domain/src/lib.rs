@@ -67,10 +67,10 @@ pub enum SPError{
 impl fmt::Display for SPError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SPError::OverwriteDelay(prev, next) => {
+            SPError::OverwriteDelay(next, prev) => {
                 write!(f, "You are trying to overwrite a Delay in the State. current: {:?}, new: {:?} ", prev, next)
             },
-            SPError::OverwriteNext(prev, next) => {
+            SPError::OverwriteNext(next, prev) => {
                 write!(f, "You are trying to overwrite a Next in the State. current: {:?}, new: {:?} ", prev, next)
             },
             SPError::Undefined  => {

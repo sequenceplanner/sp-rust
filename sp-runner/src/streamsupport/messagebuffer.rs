@@ -33,8 +33,8 @@ where
         buffer_size: usize,
         merge: fn(&mut T, &T) -> bool,
     ) -> (MessageBuffer<T>, mpsc::Sender<T>, mpsc::Receiver<T>) {
-        let (to_buf, into_buf) = tokio::sync::mpsc::channel::<T>(1);
-        let (outof_buf, from_buf) = tokio::sync::mpsc::channel::<T>(1);
+        let (to_buf, into_buf) = tokio::sync::mpsc::channel::<T>(2);
+        let (outof_buf, from_buf) = tokio::sync::mpsc::channel::<T>(2);
 
         (
             MessageBuffer {
@@ -272,7 +272,7 @@ mod messagebuffer_test {
         use std::time::{Duration, Instant};
         use tokio::timer::Interval;
 
-        let task = Interval::new(Instant::now(), Duration::from_millis(100))
+        let task = Interval::new(Instant::now(), Duration::from_millis(50))
             .map_err(|_| ())
             .zip(from_buf.map_err(|_| ()))
             .collect()

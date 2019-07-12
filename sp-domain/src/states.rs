@@ -128,12 +128,19 @@ impl State {
         match State::make_insert(value, x.clone()) {
             Ok(v) => {
                 *x = v;
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
-                return Err(e);
+                Err(e)
             }
         }
+    }
+
+    pub fn insert_map(&mut self, map: HashMap<SPPath, AssignStateValue>) -> Result<()> {
+        for (var, value) in map.into_iter() {
+            self.insert(&var, value)?
+        };
+        Ok(())
     }
 
     pub fn take_all_next(&mut self) -> () {
@@ -142,6 +149,10 @@ impl State {
                 *v = StateValue::SPValue(n.next_value.clone());
             } 
         });
+    }
+
+    pub fn is_allowed(&self, key: &SPPath, value: AssignStateValue) -> bool {
+        self.s.get(key).map(|x| State::make_insert(value, x.clone()).is_ok()).unwrap_or(false)
     }
 }
 

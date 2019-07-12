@@ -11,60 +11,79 @@ mod runners;
 
 fn main() {
 
-    // some example how to fetch from terminal
-    //let byte_stream = codec::FramedRead::new(tokio::io::stdin(), codec::LinesCodec::new());
+    //some example how to fetch from terminal
+    let byte_stream = codec::FramedRead::new(tokio::io::stdin(), codec::LinesCodec::new());
 
-    // use tokio::timer::Interval;
-    // use std::time::{Duration, Instant};
+    use tokio::timer::Interval;
+    use std::time::{Duration, Instant};
 
-    // let task = Interval::new(Instant::now(), Duration::from_millis(500))
-    //     .map(|x|{println!("hej"); x})
-    //     .map_err(|_| ())
-    //     .zip(from_buf.map_err(|_| ()))
-    //     .for_each(|(_, res)| {
-    //         println!("fire; yes={:?}", res);
-    //         Ok(())
-    //     });
+    let (b, inC, mut outC) = MessageBuffer::new(10, |last, new| {false});
 
-    //         let inputStream = byte_stream
-    //     .map(move  |line| {
-    //         match line.as_ref() {
-    //             "a" => {
-    //                 for x in 0..20 {
-    //                     let s = state!("counter".to_string() => x);
-    //                     let send = to_buf
-    //                         .clone()
-    //                         .send(s)
-    //                         .map(move |_| ())
-    //                         .map_err(|e| eprintln!("error = {:?}", e));
-    //                     tokio::spawn(send);
-    //                 };
-    //                 println!{"Yes A"};
-    //             }
-    //             "b" => {
-    //                 println!{"Yes B"};
-    //             }
-    //             x => {println!{"You wrote: {:?}", x}}
-    //         }
-    //         line
-    //     });
+    let task = Interval::new(Instant::now(), Duration::from_millis(1000))
+        .map_err(|_| ())
+        .for_each(move |i| {
+            // println!("Yes {:?}", &i);
 
-    //     tokio::run( future::lazy(|| {
-    //         tokio::spawn(buf);
+            let res = inC.clone().try_send(format!("{:?}", i));
+            println!("Res {:?}", &res);
 
-    //         tokio::spawn(
-    //             task
-    //         );
 
-    //         tokio::spawn(
-    //             inputStream
-    //             .take_while(|x| Ok(x != "exit"))
-    //             .for_each(|x| {
-    //                 Ok(())
-    //             })
-    //             .map_err(|e| println!("Error {:?}", e))
-    //         )
+            Ok(())
 
-    //     }));
+            // let send = inC
+            //     .clone()
+            //     .send(format!("{:?}", i))
+            //     .map(|_| ())
+            //     .map_err(|e| eprintln!("error = {:?}", e));
+
+            // tokio::spawn(send)
+        });
+
+            let inputStream = byte_stream
+        .map(move  |line| {
+            match line.as_ref() {
+                "a" => {
+                    let tryMe = outC.poll();
+                    println!("WE GOT: {:?}", tryMe)
+                }
+                "b" => {
+                    loop {
+                        match outC.poll() {
+                            Ok(Async::Ready(x)) => println!("WE GOT loop: {:?}", x),
+                            Ok(Async::NotReady) => {
+                                println!("done");
+                                break;
+                            },
+                            x => {
+                                println!("Hmm, b got {:?}", x);
+                                break;
+                            }
+                        }
+                    }
+                }
+                x => {println!{"You wrote: {:?}", x}}
+            }
+            line
+        });
+
+        tokio::run( future::lazy(|| {
+            tokio::spawn(
+                b
+            );
+
+            tokio::spawn(
+                task
+            );
+
+            tokio::spawn(
+                inputStream
+                .take_while(|x| Ok(x != "exit"))
+                .for_each(|x| {
+                    Ok(())
+                })
+                .map_err(|e| println!("Error {:?}", e))
+            )
+
+        }));
 
 }
