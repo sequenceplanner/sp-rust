@@ -1,6 +1,5 @@
 extern crate tokio;
 
-use std::collections::*;
 use tokio::prelude::*;
 use tokio::*;
 
@@ -17,14 +16,14 @@ fn main() {
     use tokio::timer::Interval;
     use std::time::{Duration, Instant};
 
-    let (b, inC, mut outC) = MessageBuffer::new(10, |last, new| {false});
+    let (b, in_c, mut out_c) = MessageBuffer::new(10, |_, _| {false});
 
     let task = Interval::new(Instant::now(), Duration::from_millis(1000))
         .map_err(|_| ())
         .for_each(move |i| {
             // println!("Yes {:?}", &i);
 
-            let res = inC.clone().try_send(format!("{:?}", i));
+            let res = in_c.clone().try_send(format!("{:?}", i));
             println!("Res {:?}", &res);
 
 
@@ -39,16 +38,16 @@ fn main() {
             // tokio::spawn(send)
         });
 
-            let inputStream = byte_stream
+            let input_stream = byte_stream
         .map(move  |line| {
             match line.as_ref() {
                 "a" => {
-                    let tryMe = outC.poll();
-                    println!("WE GOT: {:?}", tryMe)
+                    let try_me = out_c.poll();
+                    println!("WE GOT: {:?}", try_me)
                 }
                 "b" => {
                     loop {
-                        match outC.poll() {
+                        match out_c.poll() {
                             Ok(Async::Ready(x)) => println!("WE GOT loop: {:?}", x),
                             Ok(Async::NotReady) => {
                                 println!("done");
@@ -76,7 +75,7 @@ fn main() {
             );
 
             tokio::spawn(
-                inputStream
+                input_stream
                 .take_while(|x| Ok(x != "exit"))
                 .for_each(|x| {
                     Ok(())

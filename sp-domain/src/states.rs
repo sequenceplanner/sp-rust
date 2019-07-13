@@ -46,6 +46,7 @@ pub struct Delay{
     pub current_value: SPValue,
     pub next_value: SPValue,
     pub millis: u64,
+    pub has_been_spawned: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -104,7 +105,7 @@ impl State {
                 return Ok(StateValue::Next(Next{current_value: p, next_value: n}))
             }
             (AssignStateValue::Delay(n, ms), StateValue::SPValue(p)) => {
-                return Ok(StateValue::Delay(Delay{current_value: p, next_value: n, millis: ms}))
+                return Ok(StateValue::Delay(Delay{current_value: p, next_value: n, millis: ms, has_been_spawned: false}))
             }
             (AssignStateValue::CancelDelay, StateValue::SPValue(p)) => {
                 return Ok(StateValue::SPValue(p))
@@ -147,7 +148,9 @@ impl State {
         self.s.iter_mut().for_each(|(k, v)| {
             if let StateValue::Next(n) = v {
                 *v = StateValue::SPValue(n.next_value.clone());
-            } 
+            } else if let StateValue::Delay(d) = v {
+                d.has_been_spawned = true;
+            }
         });
     }
 
@@ -269,7 +272,11 @@ mod sp_value_test {
         let x = s.insert(v, AssignStateValue::Delay(0.to_spvalue(), 1000));
         assert_eq!(Ok(()), x);
         assert_eq!(s.get_value(v), Some(&10.to_spvalue()));
-        assert_eq!(s.get(v), Some(&StateValue::Delay(Delay{current_value: 10.to_spvalue(), next_value: 0.to_spvalue(), millis: 1000})));
+        assert_eq!(s.get(v), Some(&StateValue::Delay(Delay{
+            current_value: 10.to_spvalue(), 
+            next_value: 0.to_spvalue(), 
+            millis: 1000, 
+            has_been_spawned: false})));
 
         println!("{:?}", e);
         println!("{:?}", s);
@@ -284,9 +291,15 @@ mod sp_value_test {
         
         s.insert(ab, AssignStateValue::SPValue(5.to_spvalue())).expect("Oh no");
         s.insert(ac, AssignStateValue::Delay(false.to_spvalue(), 1000)).expect("oh no");
+        println!("The state before: {:?}", s);
         s.take_all_next();
 
-        assert_eq!(s.get(ac), Some(&StateValue::Delay(Delay{current_value: true.to_spvalue(), next_value: false.to_spvalue(), millis: 1000})));
+        assert_eq!(s.get(ac), Some(&StateValue::Delay(Delay{
+            current_value: true.to_spvalue(), 
+            next_value: false.to_spvalue(), 
+            millis: 1000,
+            has_been_spawned: true
+            })));
         assert_eq!(s.get(ab), Some(&StateValue::SPValue(5.to_spvalue())));
 
         println!("The state: {:?}", s);
