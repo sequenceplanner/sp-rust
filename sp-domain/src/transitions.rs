@@ -41,6 +41,47 @@ impl NextAction for Transition {
     }
 }
 
+/// A helper macro when creating transitions
+/// # Example
+/// ```
+/// use sp_domain::*;
+/// 
+/// let ab = SPPath::from_str(&["a", "b"]);
+/// let kl = SPPath::from_str(&["k", "l"]);
+/// let t = transition!("hej1", Predicate::TRUE);
+/// let t = transition!("hej2", p!(ab), a!(ab), a!(!kl));
+/// let t = transition!("hej3", p!(ab), a!(ab) ; a!(!kl));
+/// let t = transition!("hej4", p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
+/// ```
+/// 
+#[macro_export]
+macro_rules! transition { 
+    ($name:expr, $guard: expr) => {
+        Transition{
+            spid: SPID::new($name),
+            guard: $guard.clone(),
+            action: vec!(),
+            effects: vec!(),
+        }
+    };
+    ($name:expr, $guard: expr, $($action: expr),*) => {
+        Transition{
+            spid: SPID::new($name),
+            guard: $guard.clone(),
+            action: vec!($($action.clone()),*),
+            effects: vec!(),
+        }
+    };
+    ($name:expr, $guard: expr, $($action: expr),* ; $($effect: expr),* )=> {
+        Transition{
+            spid: SPID::new($name),
+            guard: $guard.clone(),
+            action: vec!($($action.clone()),*),
+            effects: vec!($($effect.clone()),*),
+        }
+    };
+}
+
 
 /// ********** TESTS ***************
 
@@ -88,4 +129,47 @@ mod runner_tests {
 
     }
 
+    #[test]
+    fn transition_macros() {
+        let ab = SPPath::from_str(&["a", "b"]);
+        let ac = SPPath::from_str(&["a", "c"]);
+        let kl = SPPath::from_str(&["k", "l"]);
+        let xy = SPPath::from_str(&["x", "y"]);
+
+        let t = transition!("t", Predicate::TRUE);
+        let res = Transition {
+            spid: t.spid.clone(),
+            guard: Predicate::TRUE,
+            action: vec!(),
+            effects: vec!(),
+        };
+        assert_eq!(t, res);
+
+        let t = transition!("t", p!(ab), a!(ab), a!(!kl));
+        let res = Transition {
+            spid: t.spid.clone(),
+            guard: p!(ab),
+            action: vec!(a!(ab), a!(!kl)),
+            effects: vec!(),
+        };
+        assert_eq!(t, res);
+
+        let t = transition!("t", p!(ab), a!(ab) ; a!(!kl));
+        let res = Transition {
+            spid: t.spid.clone(),
+            guard: p!(ab),
+            action: vec!(a!(ab)),
+            effects: vec!(a!(!kl)),
+        };
+        assert_eq!(t, res);
+
+        let t = transition!("t", p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
+        let res = Transition {
+            spid: t.spid.clone(),
+            guard: p!(ab),
+            action: vec!(a!(ab), a!(ab)),
+            effects: vec!(a!(!kl), a!(!kl)),
+        };
+        assert_eq!(t, res);
+    }
 }

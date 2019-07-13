@@ -12,6 +12,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+type StateInput = HashMap<SPPath, AssignStateValue>;
+
 
 #[derive(Debug)]
 pub struct Runner {
@@ -25,7 +27,7 @@ pub struct Runner {
     op_function: Vec<OperationFunction>,
     comm: RunnerCommInternal,
     external_comm: RunnerComm,
-    // tick: Interval
+    delayed_ticks: timer::DelayQueue<RunnerTicker>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -53,7 +55,7 @@ struct RunnerPlans {
 
 #[derive(Debug)]
 struct RunnerCommInternal {
-    state_input: mpsc::Receiver<State>,
+    state_input: mpsc::Receiver<StateInput>,
     command_input: mpsc::Receiver<RunnerCommand>,
     planner_input: mpsc::Receiver<PlannerResult>,
     state_output: mpsc::Sender<State>,
@@ -63,7 +65,7 @@ struct RunnerCommInternal {
 
 #[derive(Debug)]
 pub struct RunnerComm {
-    state_input: mpsc::Sender<State>,
+    state_input: mpsc::Sender<StateInput>,
     command_input: mpsc::Sender<RunnerCommand>,
     planner_input: mpsc::Sender<PlannerResult>,
     state_output: mpsc::Receiver<State>,
@@ -71,14 +73,15 @@ pub struct RunnerComm {
     planner_output: mpsc::Receiver<PlannerCommand>,
 }
 
-enum TimeForTransitions {
-    OP,
-    AB
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+enum RunnerTicker {
+    Tick,
+    Delay(states::Delay)
 }
 
 impl RunnerCommInternal {
     fn new() -> (RunnerCommInternal, RunnerComm) {
-        let (state_to, state_input) = tokio::sync::mpsc::channel::<State>(2);
+        let (state_to, state_input) = tokio::sync::mpsc::channel::<StateInput>(2);
         let (command_to, command_input) = tokio::sync::mpsc::channel::<RunnerCommand>(2);
         let (planner_to, planner_input) = tokio::sync::mpsc::channel::<PlannerResult>(2);
         let (state_output, state_from) = tokio::sync::mpsc::channel::<State>(2);
@@ -110,7 +113,8 @@ enum RunnerCommand {
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 enum PlannerResult {
-    ToDO,
+    op_plan(Vec<Uuid>),
+    ab_plan(Vec<Uuid>)
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 enum RunnerInfo {
@@ -125,9 +129,9 @@ enum PlannerCommand {
 
 
 impl Runner {
-
-    fn new() -> Runner {
+    pub fn new() -> Runner {
         let (comm, external_comm) = RunnerCommInternal::new();
+
         Runner {
             variables: RunnerVariables::default(),
             op_transitions: RunnerTransitions::default(),
@@ -138,7 +142,8 @@ impl Runner {
             state_functions: Vec::default(),
             op_function: Vec::default(),
             comm,
-            external_comm   
+            external_comm,
+            delayed_ticks: timer::DelayQueue::new(),
         }
     }
 
@@ -149,12 +154,43 @@ impl Runner {
 
     /// Upd the runner based on incoming plans
     fn upd_plan(&mut self, cmd: Option<PlannerResult>) {
-
+        // for now we always take the plan. Soon we should do it smart
+        if let Some(p) = cmd {
+            match p {
+                PlannerResult::op_plan(x) => self.plans.op_plan = x,
+                PlannerResult::ab_plan(x) => self.plans.ab_plan = x,
+            }
+        }
     }
 
     /// Upd the runner based on incoming state
-    fn upd_state(&mut self, s: Option<State>) {
+    fn upd_state(&mut self, state: Option<StateInput>) {
+        if let Some(s) = state {
+            let res = self.state.insert_map(s);
+            if res.is_err() {
+                println!("Tried to overwrite in upd_state in runner: {:?}", res);
+            }
+        }
+    }
 
+    /// Upd the runner based on the tick
+    fn upd_from_tick(&mut self, cmd: Option<timer::delay_queue::Expired<RunnerTicker>>) {
+        if let Some(x) = cmd {
+            println!("Got a tick: {:?}", x)
+        };
+    }
+
+    /// Tick tick the runner one step trying to run the transitions that are enabled.
+    /// Returns an updated state, updated plans and the transitions that was fired
+    fn tick(&self, mut state: State, mut plans: RunnerPlans) -> (State, RunnerPlans, Vec<SPID>) {
+        let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.op_transitions);
+
+        let (goal, inv) = self.op_functions(&state);
+        // validate plan with new goals here and if needed, clear the plan
+
+        fired.extend(self.tick_transitions(&mut state, &mut plans.ab_plan, &self.ab_transitions));
+
+        (state, plans, fired)
     }
 
     /// Ticks all transitions that are enabled, starting first with the controlled that is first in the 
@@ -167,9 +203,8 @@ impl Runner {
         });
         let mut fired = match first {
             Some(t) if t.eval(&state) => {
-                let n = t.next(&state).unwrap(); // Must return Ok, else somthing is bad
+                let n = t.next(&state).unwrap(); // Must return Ok, else something is bad
                 self.insert_into_state(state, n);
-                //self.insert_into_state(n);  // shoul also always work, else t.eval is no ok
                 plan.remove(0);
                 vec!(t.spid.clone())
             },
@@ -179,7 +214,7 @@ impl Runner {
         for t in un_ctrl.iter() {
             if t.eval(&state) {
                 let n = t.next(&state).unwrap(); // should always work since eval works
-                self.insert_into_state(state, n);    // should always work
+                self.insert_into_state(state, n);  
                 fired.push(t.spid.clone());
             }
         };
@@ -188,11 +223,26 @@ impl Runner {
 
     }
 
-    fn insert_into_state(&self, state: &mut State, map: HashMap<SPPath, AssignStateValue>) {
-        state.insert_map(map);
-        self.upd_state_functions(state);
+    fn op_functions(&self, state: &State) -> (Vec<Predicate>, Vec<Predicate>) {
+        self.op_function.iter().fold((Vec::new(), Vec::new()), |(mut goal, mut inv), x| match x {
+            OperationFunction::Goal(p, g) if p.eval(state) => {
+                goal.push(g.clone());
+                (goal, inv)
+            },
+            OperationFunction::Invariant(p, i) if p.eval(state) => {
+                inv.push(i.clone());
+                (goal, inv)
+            }
+            _ => (goal, inv)
+         })
     }
 
+    
+
+    fn insert_into_state(&self, state: &mut State, map: HashMap<SPPath, AssignStateValue>) {
+        state.insert_map(map).unwrap();  // should always work here, else eval is not ok
+        self.upd_state_functions(state);
+    }
 
     fn upd_state_functions(&self,state: &mut State) {
         let mut res = HashMap::new(); 
@@ -209,14 +259,21 @@ impl Runner {
             };
             (key, new_value)
         }).collect();
-        state.insert_map(force);
+        state.insert_map(force).unwrap();  // state functions will always work
     }
 
 
 
 }
 
-fn extr_option<T>(x: Result<Async<Option<T>>, mpsc::error::RecvError>) -> Option<T> {
+fn extr_option<T>(x: Async<Option<T>>) -> Option<T> {
+    match x {
+        Async::Ready(x) => x,
+        _ => None,
+    }
+} 
+
+fn extr_option_res<T, U>(x: Result<Async<Option<T>>, U>) -> Option<T> {
     x.ok().and_then(|y| {
         match y {
             Async::Ready(x) => x,
@@ -238,29 +295,41 @@ impl Future for Runner {
     type Error = ();
 
     fn poll(&mut self) -> Poll<(), ()> {
-        let upd_s = self.comm.state_input.poll();
-        let upd_cmd = self.comm.command_input.poll();
-        let upd_plan = self.comm.planner_input.poll();
+        // We will terminate if any of the channels fail. Maybe not in the future. Let us test
+        let upd_s = self.comm.state_input.poll().unwrap();
+        let upd_cmd = self.comm.command_input.poll().unwrap();
+        let upd_plan = self.comm.planner_input.poll().unwrap();
+        let tick = self.delayed_ticks.poll().unwrap();
         // add ticker here
 
-        if is_not_ready(&upd_s) && is_not_ready(&upd_cmd) && is_not_ready(&upd_plan) {
+        if upd_s.is_not_ready() && upd_cmd.is_not_ready() && upd_plan.is_not_ready() && tick.is_not_ready() {
             return Ok(Async::NotReady)
         }
 
         self.upd_state(extr_option(upd_s));
         self.upd_command(extr_option(upd_cmd));
         self.upd_plan(extr_option(upd_plan));
-
-        let mut state = self.state.clone();
-        let mut plans = self.plans.clone();
-
-        let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.op_transitions);
-
-        
+        self.upd_from_tick(extr_option(tick));
 
 
+        let (mut state, plans, fired) = self.tick(self.state.clone(), self.plans.clone());
 
-        Ok(Async::Ready(()))
+        self.comm.state_output.try_send(state.clone())
+            .expect("For now the consumer after the runner must keep up");
+
+
+        // handle delay here. add them to the delayQueue
+        self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(1000));
+
+        state.take_all_next();
+        self.state = state;
+        self.plans = plans;
+        println!("Fired: {:?}", &fired);
+
+        // Since one of the inputs wa ready we will poll again. We should terminate 
+        // later when we get a command above
+        task::current().notify();
+        Ok(Async::NotReady)
     }
 }
 
@@ -281,45 +350,66 @@ mod runner_tests {
         let kl = SPPath::from_str(&["k", "l"]);
         let xy = SPPath::from_str(&["x", "y"]);
 
-        let s = state!(ab => 2, ac => true, kl => true, xy => false);
+        let s = state!(
+            ab => false, 
+            ac => false, 
+            kl => false, 
+            xy => false
+        );
+
         r.state = s.clone();
-        let p = pr!{{p!(ac)} && {p!(kl)}};
 
-        let a = a!(ac = false);
-        let a2 = a!(ab <- kl);
-        let a3 = a!(xy ? p);
+        let p_ab = p!(ab);
+        let p_ac = p!(ac);
+        let p_kl = p!(kl);
+        let p_xy = p!(xy);
+        let p_ab_not = p!(!ab);
+        let p_ac_not = p!(!ac);
+        let p_kl_not = p!(!kl);
+        let p_xy_not = p!(!xy);
 
-        let t1 = Transition {
-            spid: SPID::new("t1"),
-            guard: Predicate::TRUE,
-            action: vec!(a.clone()),
-            effects: vec!(),
-        };
-        let t2 = Transition {
-            spid: SPID::new("t2"),
-            guard: p,
-            action: vec!(a2.clone()),
-            effects: vec!(),
-        };
+        let a_ab = a!(ab);
+        let a_ac = a!(ac);
+        let a_kl = a!(kl);
+        let a_xy = a!(xy);
+        let a_ab_not = a!(!ab);
+        let a_ac_not = a!(!ac);
+        let a_kl_not = a!(!kl);
+        let a_xy_not = a!(!xy);
+
+        let t_ab = transition!("t_ab", &p_ab_not, &a_ab);
+        let t_ab_not = transition!("t_ab", &p_ab, &a_ab_not);
+        let t_ab_ac = transition!("t_ab", &p_ab, &a_ac);
+        let t_ac_kl = transition!("t_ab", &p_ac, &a_kl);
+        let t_kl_xy = transition!("t_ab", &p_kl, &a_xy);
+        let t_reset = transition!("t_ab", &p_xy, &a_ab_not, &a_ac_not, &a_kl_not, &a_xy_not);
+
         let ts = RunnerTransitions{
-            ctrl: vec!(t1.clone()),
-            un_ctrl: vec!(t2.clone())
+            ctrl: vec!(t_ab, t_reset),
+            un_ctrl: vec!(
+                t_ab_not,
+                t_ab_ac,
+                t_ac_kl,
+                t_kl_xy,
+            )
         };
-        let mut plan = vec!();
-        let mut state = r.state.clone();
-        let res = r.tick_transitions(&mut state, &mut plan, &ts);
-        assert_eq!(res, vec!(t2.spid));
-        println!("{:?}", res);
-        println!("{:?}", state);
 
-        r.state = s.clone();
+        // let sp_p = pr!(ab && ac);
+        // let sf = vec!(variable!(SP "test", sp_p));
 
-        plan.push(t1.spid.id);
+        // let mut plan = vec!();
+        // let mut state = r.state.clone();
+        // let res = r.tick_transitions(&mut state, &mut plan, &ts);
+        // assert_eq!(res, vec!());
 
-        let res = r.tick_transitions(&mut state, &mut plan, &ts);
-        assert_eq!(res, vec!(t1.spid));
-        println!("{:?}", res);
-        println!("{:?}", r.state);
+        // r.state = s.clone();
+
+        // plan.push(t1.spid.id);
+
+        // let res = r.tick_transitions(&mut state, &mut plan, &ts);
+        // assert_eq!(res, vec!(t1.spid));
+        // println!("{:?}", res);
+        // println!("{:?}", r.state);
 
     }
 

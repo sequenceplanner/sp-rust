@@ -313,6 +313,18 @@ macro_rules! pr {
 
 #[macro_export]
 macro_rules! a { 
+    ($var:ident) => {
+        Action {
+            var: $var.clone(),
+            value: predicates::Compute::PredicateValue(predicates::PredicateValue::SPValue(true.to_spvalue())),
+        }
+    };
+    (!$var:ident) => {
+        Action {
+            var: $var.clone(),
+            value: predicates::Compute::PredicateValue(predicates::PredicateValue::SPValue(false.to_spvalue())),
+        }
+    };
     ($var:ident = $val:expr) => {
         Action {
             var: $var.clone(),
@@ -441,6 +453,20 @@ mod sp_value_test {
         let a = Action{
             var: ac.clone(),
             value: Compute::PredicateValue(PredicateValue::default())
+        };
+        assert_eq!(a_m, a);
+        
+        let a_m = a!(!ac);
+        let a = Action{
+            var: ac.clone(),
+            value: Compute::PredicateValue(PredicateValue::default())
+        };
+        assert_eq!(a_m, a);
+        
+        let a_m = a!(ac);
+        let a = Action{
+            var: ac.clone(),
+            value: Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue()))
         };
         assert_eq!(a_m, a);
 
