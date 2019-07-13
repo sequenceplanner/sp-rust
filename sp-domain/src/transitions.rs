@@ -10,6 +10,7 @@ pub struct Transition {
     pub guard: Predicate,
     pub action: Vec<Action>,
     pub effects: Vec<Action>,
+    // E, TODO: maybe, for alternative effects add probabilty
 }
 
 impl Transition {
