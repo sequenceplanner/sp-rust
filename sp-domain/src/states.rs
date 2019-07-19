@@ -1,14 +1,27 @@
-//! State represents a state in SP
+//! SPState represents a state in SP
 //! 
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use super::*;
 
-/// Representing a State in SP with variables and their values.
+/// Representing a State in SP with variables and their values. This is used by the runner
+/// and predicates and actions. This should not be sent out, instead use State
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct State{
+pub struct SPState{
     pub s: HashMap<SPPath, StateValue>
+}
+
+/// Representing a State in SP that is shared to others and is used for sending state 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct StateExternal{
+    pub s: HashMap<SPPath, SPValue>
+}
+
+/// Representing variables that should be assigned to a stateState. Just a wrapper to simplify life
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct AssignState {
+    pub s: HashMap<SPPath, AssignStateValue>
 }
 
 /// StateValue wrapps the value of a variable in a state. SPValue are the normal type
@@ -59,66 +72,93 @@ pub struct Next{
 
 
 
-impl State {
-    pub fn filter(&self, partial_name: &[String]) -> State {
-        let s = self.s.iter().filter(|(k, _)| {
-            partial_name.iter().all(|x|{ 
-                k.path.contains(x) 
-            })
-        })
-        .map(|(k, v)|{ (k.clone(), v.clone())})
-        .collect();
-        State{s}
-    }
+impl SPState {
+    // pub fn filter(&self, partial_name: &[String]) -> SPState {
+    //     let s = self.s.iter().filter(|(k, _)| {
+    //         partial_name.iter().all(|x|{ 
+    //             k.path.contains(x) 
+    //         })
+    //     })
+    //     .map(|(k, v)|{ (k.clone(), v.clone())})
+    //     .collect();
+    //     SPState{s}
+    // }
 
     pub fn get_value(&self, var: &SPPath) -> Option<&SPValue> {
-        self.s.get(var).and_then(|x| {
-            match x {
-                StateValue::SPValue(v) => Some(v),
-                StateValue::Delay(d) => Some(&d.current_value),
-                StateValue::Next(n) => Some(&n.next_value),
-                StateValue::Unknown => None
-            }
+        self.s.get(var).map(|x| {
+            x.get_value()
         })
     }
     pub fn get(&self, var: &SPPath) -> Option<&StateValue> {
         self.s.get(var)
     }
 
+    /// Extract a clone of the sub part of the state where the variables are children to the path
+    /// 
+    /// ["a", "b"] is a child of ["a"]
+    /// 
+    pub fn sub_state(&self, path: &SPPath) -> SPState {
+        let s = self.s.iter().filter(|(key, _)| {
+            key.is_child_of(path)
+        }).map(|(key, value)| (key.clone(), value.clone())).collect();
+
+        SPState {s}
+    }
+
+    /// Checks if a sub state is the same as another states sub state given the same path
+    /// This is used to check this so we do not need to create a clone with sub_state.
+    pub fn is_sub_state_the_same(&self, state: &SPState, path: &SPPath) -> bool {
+        self.s.iter().filter(|(key, _)| {
+            key.is_child_of(path)
+        }).all(|(key, value)| {
+            state.get(key).map(|x| x == value).unwrap_or(false)
+        })
+    }
+
+
+
+    pub fn external(&self) -> StateExternal {
+        let res = self.s.iter().map(|(key, value)| {
+            (key.clone(), value.get_value().clone())
+        }).collect();
+
+        StateExternal{s: res}
+    }
+
     fn make_insert(next: AssignStateValue, prev: StateValue) -> Result<StateValue> {
         match (next, prev) {
             (AssignStateValue::Force(n), _) => {
-                return Ok(StateValue::SPValue(n))
+                Ok(StateValue::SPValue(n))
             }
             (AssignStateValue::CancelDelay, StateValue::Delay(p)) => {
-                return Ok(StateValue::SPValue(p.current_value))
+                Ok(StateValue::SPValue(p.current_value))
             }
             (x, StateValue::Next(p)) => {
                 eprintln!("Your are trying to overwrite a next: current: {:?}, new: {:?} ", x, p);
-                return Err(SPError::OverwriteNext(p, x));
+                Err(SPError::OverwriteNext(p, x))
             }
             (x, StateValue::Delay(p)) => {
                 eprintln!("Your are trying to overwrite a delay: current: {:?}, new: {:?} ", x, p);
-                return Err(SPError::OverwriteDelay(p, x));
+                Err(SPError::OverwriteDelay(p, x))
             }
             (AssignStateValue::SPValue(n), StateValue::SPValue(p)) => {
-                return Ok(StateValue::Next(Next{current_value: p, next_value: n}))
+                Ok(StateValue::Next(Next{current_value: p, next_value: n}))
             }
             (AssignStateValue::Delay(n, ms), StateValue::SPValue(p)) => {
-                return Ok(StateValue::Delay(Delay{current_value: p, next_value: n, millis: ms, has_been_spawned: false}))
+                Ok(StateValue::Delay(Delay{current_value: p, next_value: n, millis: ms, has_been_spawned: false}))
             }
             (AssignStateValue::CancelDelay, StateValue::SPValue(p)) => {
-                return Ok(StateValue::SPValue(p))
+                Ok(StateValue::SPValue(p))
             }
             (AssignStateValue::SPValue(n), StateValue::Unknown) => {
-                return Ok(StateValue::SPValue(n))
+                Ok(StateValue::SPValue(n))
             }
             (AssignStateValue::Delay(n, _), StateValue::Unknown) => {  // Can not delay if current is unknown
-                return Ok(StateValue::SPValue(n))
+                Ok(StateValue::SPValue(n))
             }
             (AssignStateValue::CancelDelay, StateValue::Unknown) => {
                 eprintln!("Your are trying to cancel an unknown");
-                return Err(SPError::No("Your are trying to cancel an unknown".to_string()));
+                Err(SPError::No("Your are trying to cancel an unknown".to_string()))
             }
 
         }
@@ -126,7 +166,7 @@ impl State {
 
     pub fn insert(&mut self, key: &SPPath, value: AssignStateValue) -> Result<()> {
         let x = self.s.entry(key.clone()).or_insert(StateValue::Unknown);
-        match State::make_insert(value, x.clone()) {
+        match SPState::make_insert(value, x.clone()) {
             Ok(v) => {
                 *x = v;
                 Ok(())
@@ -137,8 +177,8 @@ impl State {
         }
     }
 
-    pub fn insert_map(&mut self, map: HashMap<SPPath, AssignStateValue>) -> Result<()> {
-        for (var, value) in map.into_iter() {
+    pub fn insert_map(&mut self, map: AssignState) -> Result<()> {
+        for (var, value) in map.s.into_iter() {
             self.insert(&var, value)?
         };
         Ok(())
@@ -155,10 +195,43 @@ impl State {
     }
 
     pub fn is_allowed(&self, key: &SPPath, value: AssignStateValue) -> bool {
-        self.s.get(key).map(|x| State::make_insert(value, x.clone()).is_ok()).unwrap_or(false)
+        self.s.get(key).map(|x| SPState::make_insert(value, x.clone()).is_ok()).unwrap_or(false)
     }
 }
 
+impl StateExternal {
+    pub fn internal(&self) -> SPState {
+        let res = self.s.iter().map(|(key, value)| {
+            (key.clone(), StateValue::SPValue(value.clone()))
+        }).collect();
+
+        SPState{s: res}
+    }
+}
+
+
+impl StateValue {
+    fn get_value(&self) -> &SPValue {
+        match self {
+                StateValue::SPValue(v) => v,
+                StateValue::Delay(d) => &d.current_value,
+                StateValue::Next(n) => &n.next_value,
+                StateValue::Unknown => &SPValue::Unknown
+            }
+    }
+}
+
+impl AssignState {
+    /// Consumes and merges the AssignState into this. Return true if a key was overwritten
+    pub fn merge(&mut self, x: AssignState) {
+        self.s.extend(x.s);
+    }
+
+    /// Checks if the two AssignStates overlap. Not very good if they do. Check before merge
+    pub fn will_overwrite(&self, x: &AssignState) -> bool {
+        self.s.keys().all(|k| x.s.contains_key(k))
+    }
+}
 
 
 
@@ -170,7 +243,7 @@ macro_rules! state {
         $(
             s.insert($key.clone(), StateValue::SPValue($val.to_spvalue())); 
         )*
-        State{s}
+        SPState{s}
     }};
     ($( $key: expr => $val: expr ),*) => {{
         let mut s = std::collections::HashMap::<SPPath, StateValue>::new();
@@ -178,7 +251,7 @@ macro_rules! state {
             let xs: Vec<String> = $key.iter().map(|x|x.to_string()).collect();
             s.insert(SPPath::from(&xs), StateValue::SPValue($val.to_spvalue())); 
         )*
-        State{s}
+        SPState{s}
     }}
 }
 
@@ -227,7 +300,7 @@ mod sp_value_test {
         m.insert(var_c, true.to_state());
 
 
-        assert_eq!(s, State{s:m});
+        assert_eq!(s, SPState{s:m});
 
     }
 
@@ -242,15 +315,15 @@ mod sp_value_test {
         assert_eq!(res, Some(&2.to_spvalue()));
     }
 
-    #[test]
-    fn get_substate() {
-        let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
+    // #[test]
+    // fn get_substate() {
+    //     let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
 
-        let a = &vec!("a".to_string());
-        let sub = s.filter(a);
+    //     let a = &vec!("a".to_string());
+    //     let sub = s.filter(a);
 
-        assert_eq!(sub, state!(["a", "b"] => 2, ["a", "c"] => true));
-    }
+    //     assert_eq!(sub, state!(["a", "b"] => 2, ["a", "c"] => true));
+    // }
 
     #[test]
     fn insert() {
@@ -304,6 +377,30 @@ mod sp_value_test {
 
         println!("The state: {:?}", s);
 
+
+    }
+
+    #[test]
+    fn sub_state_testing() {
+        let a = SPPath::from_str(&["a"]);
+        let ab = SPPath::from_str(&["a", "b"]);
+        let ax = SPPath::from_str(&["a", "x"]);
+        let abc = SPPath::from_str(&["a", "b", "c"]);
+        let abx = SPPath::from_str(&["a", "b", "x"]);
+        let b = SPPath::from_str(&["b"]);
+        let mut s = state!(abc => false, abx => false, ax => true);
+
+        assert_eq!(s.sub_state(&ab), state!(abc => false, abx => false));
+        assert_eq!(s.sub_state(&abc), state!(abc => false));
+        assert_eq!(s.sub_state(&b), state!());
+        assert_eq!(s.sub_state(&a), s.clone());
+
+        let mut s2 = s.clone();
+        assert!(s.is_sub_state_the_same(&s2, &ab));
+        s2.insert(&ax, AssignStateValue::SPValue(false.to_spvalue()));
+        assert!(s.is_sub_state_the_same(&s2, &ab));
+        s2.insert(&abc, AssignStateValue::SPValue(true.to_spvalue()));
+        assert!(!s.is_sub_state_the_same(&s2, &ab));
 
     }
 }

@@ -170,6 +170,10 @@ mod runner_tests {
         };
         assert_eq!(v_sp, Variable::StatePredicate(vd, a!(ab)));
 
+        //let xs = vec!(v_m, v_c, v_sp).iter().map(|x| serde_json::to_string(x));
+
+        println!("Test json: {}", serde_json::to_string(&vec!(v_m, v_c, v_sp)).unwrap());
+
     }
 
 }

@@ -15,6 +15,7 @@ pub enum SPValue {
     Time(u32),
     Duration(u32),
     Array(Vec<SPValue>),
+    Unknown,
     //byte(u8), //deprecated
     //char(char), //deprecated
     //Float64(f64), // Let us add these back if we need them. Just to simplify matching 
@@ -39,6 +40,7 @@ pub enum SPValueType {
     Time,
     Duration,
     Array,
+    Unknown,
 }
 
 /// A trait for converting a value to SPValue
@@ -49,13 +51,14 @@ pub trait ToSPValue {
 impl SPValue {
     pub fn is_type(&self, t: SPValueType) -> bool {
         match self {
-            SPValue::Bool(_) => {SPValueType::Bool == t},
-            SPValue::Float32(_) => {SPValueType::Float32 == t},
-            SPValue::Int32(_) => {SPValueType::Int32 == t},
-            SPValue::String(_) => {SPValueType::String == t},
-            SPValue::Time(_) => {SPValueType::Time == t},
-            SPValue::Duration(_) => {SPValueType::Duration == t},
-            SPValue::Array(_) => {SPValueType::Array == t},
+            SPValue::Bool(_) => SPValueType::Bool == t,
+            SPValue::Float32(_) => SPValueType::Float32 == t,
+            SPValue::Int32(_) => SPValueType::Int32 == t,
+            SPValue::String(_) => SPValueType::String == t,
+            SPValue::Time(_) => SPValueType::Time == t,
+            SPValue::Duration(_) => SPValueType::Duration == t,
+            SPValue::Array(_) => SPValueType::Array == t,
+            SPValue::Unknown => SPValueType::Unknown == t
         }
     }
 
@@ -68,6 +71,7 @@ impl SPValue {
             SPValue::Time(_) => {SPValueType::Time},
             SPValue::Duration(_) => {SPValueType::Duration},
             SPValue::Array(_) => {SPValueType::Array},
+            SPValue::Unknown => {SPValueType::Unknown},
         }
     }
 }

@@ -19,32 +19,37 @@ use petgraph::visit::Dfs;
 
 use serde::{Deserialize, Serialize};
 
-type StateInput = HashMap<SPPath, AssignStateValue>;
-
 
 #[derive(Debug)]
 pub struct Runner {
-    variables: RunnerVariables,
-    op_transitions: RunnerTransitions,
-    ab_transitions: RunnerTransitions,
-    state: State,
-    plans: RunnerPlans,
+    model: RunnerModel,
+    state: SPState,
     ctrl: RunnerCtrl,
-    state_functions: Vec<Variable>,
-    op_function: Vec<OperationFunction>,
     comm: RunnerCommInternal,
-    external_comm: RunnerComm,
     delayed_ticks: timer::DelayQueue<RunnerTicker>,
+    tick_in_que: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-struct RunnerVariables {
-    variables: Vec<Variable>,
-    paths: SPStruct,
+pub struct RunnerModel {
+    pub variables: Vec<Variable>,
+    pub paths: SPStruct,
+    pub op_transitions: RunnerTransitions,
+    pub ab_transitions: RunnerTransitions,
+    pub plans: RunnerPlans,
+    pub state_functions: Vec<Variable>,
+    pub op_functions: Vec<OperationFunction>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-struct RunnerTransitions {
+pub struct RunnerPlans {
+    pub op_plan: Vec<Uuid>,         // maybe have spids here?
+    pub ab_plan: Vec<Uuid>,
+}
+
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct RunnerTransitions {
     ctrl: Vec<Transition>,
     un_ctrl: Vec<Transition>
 }
@@ -54,30 +59,25 @@ struct RunnerCtrl {
     pause: bool
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-struct RunnerPlans {
-    op_plan: Vec<Uuid>,         // maybe have spids here?
-    ab_plan: Vec<Uuid>,
-}
 
 #[derive(Debug)]
 struct RunnerCommInternal {
-    state_input: mpsc::Receiver<StateInput>,
+    state_input: mpsc::Receiver<AssignState>,
     command_input: mpsc::Receiver<RunnerCommand>,
     planner_input: mpsc::Receiver<PlannerResult>,
-    state_output: mpsc::Sender<State>,
+    state_output: mpsc::Sender<SPState>,
     runner_output: mpsc::Sender<RunnerInfo>,
     planner_output: mpsc::Sender<PlannerCommand>,
 }
 
 #[derive(Debug)]
 pub struct RunnerComm {
-    state_input: mpsc::Sender<StateInput>,
-    command_input: mpsc::Sender<RunnerCommand>,
-    planner_input: mpsc::Sender<PlannerResult>,
-    state_output: mpsc::Receiver<State>,
-    runner_output: mpsc::Receiver<RunnerInfo>,
-    planner_output: mpsc::Receiver<PlannerCommand>,
+    pub state_input: mpsc::Sender<AssignState>,
+    pub command_input: mpsc::Sender<RunnerCommand>,
+    pub planner_input: mpsc::Sender<PlannerResult>,
+    pub state_output: mpsc::Receiver<SPState>,
+    pub runner_output: mpsc::Receiver<RunnerInfo>,
+    pub planner_output: mpsc::Receiver<PlannerCommand>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -86,12 +86,13 @@ enum RunnerTicker {
     Delay(states::Delay)
 }
 
+#[allow(dead_code)]
 impl RunnerCommInternal {
     fn new() -> (RunnerCommInternal, RunnerComm) {
-        let (state_to, state_input) = tokio::sync::mpsc::channel::<StateInput>(2);
+        let (state_to, state_input) = tokio::sync::mpsc::channel::<AssignState>(2);
         let (command_to, command_input) = tokio::sync::mpsc::channel::<RunnerCommand>(2);
         let (planner_to, planner_input) = tokio::sync::mpsc::channel::<PlannerResult>(2);
-        let (state_output, state_from) = tokio::sync::mpsc::channel::<State>(2);
+        let (state_output, state_from) = tokio::sync::mpsc::channel::<SPState>(2);
         let (runner_output, command_from) = tokio::sync::mpsc::channel::<RunnerInfo>(2);
         let (planner_output, planner_from) = tokio::sync::mpsc::channel::<PlannerCommand>(2);
 
@@ -115,20 +116,20 @@ impl RunnerCommInternal {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-enum RunnerCommand {
+pub enum RunnerCommand {
     ToDO,
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-enum PlannerResult {
-    op_plan(Vec<Uuid>),
-    ab_plan(Vec<Uuid>)
+pub enum PlannerResult {
+    OpPlan(Vec<Uuid>),
+    AbPlan(Vec<Uuid>)
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-enum RunnerInfo {
+pub enum RunnerInfo {
     ToDO,
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-enum PlannerCommand {
+pub enum PlannerCommand {
     ToDO,
 }
 
@@ -136,22 +137,19 @@ enum PlannerCommand {
 
 
 impl Runner {
-    pub fn new() -> Runner {
+    pub fn new(model: RunnerModel, initial_state: SPState) -> (Runner, RunnerComm) {
         let (comm, external_comm) = RunnerCommInternal::new();
 
-        Runner {
-            variables: RunnerVariables::default(),
-            op_transitions: RunnerTransitions::default(),
-            ab_transitions: RunnerTransitions::default(),
-            state: State::default(),
-            plans: RunnerPlans::default(),
-            ctrl:  RunnerCtrl::default(),
-            state_functions: Vec::default(),
-            op_function: Vec::default(),
+        let r = Runner {
+            model,
+            state: initial_state,
+            ctrl: RunnerCtrl::default(),
             comm,
-            external_comm,
             delayed_ticks: timer::DelayQueue::new(),
-        }
+            tick_in_que: false,
+        };
+
+        (r, external_comm)
     }
 
     /// Upd the runner based on incoming command
@@ -164,14 +162,14 @@ impl Runner {
         // for now we always take the plan. Soon we should do it smart
         if let Some(p) = cmd {
             match p {
-                PlannerResult::op_plan(x) => self.plans.op_plan = x,
-                PlannerResult::ab_plan(x) => self.plans.ab_plan = x,
+                PlannerResult::OpPlan(x) => self.model.plans.op_plan = x,
+                PlannerResult::AbPlan(x) => self.model.plans.ab_plan = x,
             }
         }
     }
 
     /// Upd the runner based on incoming state
-    fn upd_state(&mut self, state: Option<StateInput>) {
+    fn upd_state(&mut self, state: Option<AssignState>) {
         if let Some(s) = state {
             let res = self.state.insert_map(s);
             if res.is_err() {
@@ -183,26 +181,32 @@ impl Runner {
     /// Upd the runner based on the tick
     fn upd_from_tick(&mut self, cmd: Option<timer::delay_queue::Expired<RunnerTicker>>) {
         if let Some(x) = cmd {
-            println!("Got a tick: {:?}", x)
+            println!("Got a tick: {:?}", x);
+            match x.into_inner() {
+                RunnerTicker::Tick => self.tick_in_que = false,
+                RunnerTicker::Delay(x) => {
+                    // TODO: do something here
+                }
+            }
         };
     }
 
     /// Tick tick the runner one step trying to run the transitions that are enabled.
     /// Returns an updated state, updated plans and the transitions that was fired
-    fn tick(&self, mut state: State, mut plans: RunnerPlans) -> (State, RunnerPlans, Vec<SPID>) {
-        let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.op_transitions);
+    fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPID>) {
+        let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions);
 
-        let (goal, inv) = self.op_functions(&state);
+        let (goal, inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
 
-        fired.extend(self.tick_transitions(&mut state, &mut plans.ab_plan, &self.ab_transitions));
+        fired.extend(self.tick_transitions(&mut state, &mut plans.ab_plan, &self.model.ab_transitions));
 
         (state, plans, fired)
     }
 
     /// Ticks all transitions that are enabled, starting first with the controlled that is first in the 
     /// plan. Mutates the runner state
-    fn tick_transitions(&self, state: &mut State, plan: &mut Vec<Uuid>, trans: &RunnerTransitions) -> Vec<SPID> {
+    fn tick_transitions(&self, state: &mut SPState, plan: &mut Vec<Uuid>, trans: &RunnerTransitions) -> Vec<SPID> {
         let (ctrl, un_ctrl) = (&trans.ctrl, &trans.un_ctrl);
 
         let first = plan.first().and_then(|id| {
@@ -230,8 +234,8 @@ impl Runner {
 
     }
 
-    fn op_functions(&self, state: &State) -> (Vec<Predicate>, Vec<Predicate>) {
-        self.op_function.iter().fold((Vec::new(), Vec::new()), |(mut goal, mut inv), x| match x {
+    fn next_op_functions(&self, state: &SPState) -> (Vec<Predicate>, Vec<Predicate>) {
+        self.model.op_functions.iter().fold((Vec::new(), Vec::new()), |(mut goal, mut inv), x| match x {
             OperationFunction::Goal(p, g) if p.eval(state) => {
                 goal.push(g.clone());
                 (goal, inv)
@@ -246,27 +250,29 @@ impl Runner {
 
     
 
-    fn insert_into_state(&self, state: &mut State, map: HashMap<SPPath, AssignStateValue>) {
+    fn insert_into_state(&self, state: &mut SPState, map: AssignState) {
         state.insert_map(map).unwrap();  // should always work here, else eval is not ok
         self.upd_state_functions(state);
     }
 
-    fn upd_state_functions(&self,state: &mut State) {
-        let mut res = HashMap::new(); 
-        for v in self.state_functions.iter() {
-            if let Variable::StatePredicate(_, a) = v {
-                let n = a.next(&self.state).unwrap();       // A state functions should always work
-                res.extend(n);
-            }
-        };
-        let force: HashMap<SPPath, AssignStateValue> = res.into_iter().map(|(key, value)| {
-            let new_value = match value {
-                AssignStateValue::SPValue(x) => AssignStateValue::Force(x),
-                x => x,
-            };
-            (key, new_value)
-        }).collect();
-        state.insert_map(force).unwrap();  // state functions will always work
+    fn upd_state_functions(&self,state: &mut SPState) {
+        let s = self.model.state_functions.iter()
+            .fold(HashMap::new(), |mut aggr, v| {
+                match v {
+                    Variable::StatePredicate(_, a) => {
+                        aggr.extend( a.next(&self.state).unwrap().s.into_iter().map(|(key, value)| {
+                                (key, match value {
+                                    AssignStateValue::SPValue(x) => AssignStateValue::Force(x),
+                                    x => x,
+                                })
+                            }
+                        ).collect::<HashMap<SPPath, AssignStateValue>>());
+                        aggr
+                    },
+                    _ => aggr
+                }
+        });
+        state.insert_map(AssignState{s}).unwrap();
     }
 
 
@@ -296,13 +302,20 @@ fn is_not_ready<T, E>(p: &Poll<T, E>) -> bool {
     }
 }
 
+fn is_completed<T>(x: &Async<Option<T>>) -> bool {
+    match x {
+        Async::Ready(None) => true,
+        _ => false,
+    }
+}
+
 // fn generate_graph(states: Vec<State>, trans: Vec<Transition>) -> Graph<>{
     // let mut graph = Graph::<State, Transition>::new();
 // }
 
-fn validate_plan(states: Vec<State>, curr: State, goal: State, trans: RunnerTransitions) -> (Vec<SPID>, Vec<State>) {
+fn validate_plan(states: Vec<SPState>, curr: SPState, goal: SPState, trans: RunnerTransitions) -> (Vec<SPID>, Vec<SPState>) {
 
-    let mut graph = Graph::<State, Transition>::new();
+    let mut graph = Graph::<SPState, Transition>::new();
 
     // Add nodes to the graph
     let current_state = graph.add_node(curr);
@@ -386,10 +399,16 @@ impl Future for Runner {
         let upd_cmd = self.comm.command_input.poll().unwrap();
         let upd_plan = self.comm.planner_input.poll().unwrap();
         let tick = self.delayed_ticks.poll().unwrap();
-        // add ticker here
 
+        // Do nothing if no stream is ready
         if upd_s.is_not_ready() && upd_cmd.is_not_ready() && upd_plan.is_not_ready() && tick.is_not_ready() {
             return Ok(Async::NotReady)
+        }
+
+        // Terminate runner if all streams have completed
+        if is_completed(&upd_s) && is_completed(&upd_cmd) && is_completed(&upd_plan) && is_completed(&tick) {
+            println!("The runner comleted since all streams completed. If this happened unexpected, maybe remove this");
+            return Ok(Async::Ready(()))
         }
 
         self.upd_state(extr_option(upd_s));
@@ -398,21 +417,24 @@ impl Future for Runner {
         self.upd_from_tick(extr_option(tick));
 
 
-        let (mut state, plans, fired) = self.tick(self.state.clone(), self.plans.clone());
+        let (mut state, plans, fired) = self.tick(self.state.clone(), self.model.plans.clone());
 
         self.comm.state_output.try_send(state.clone())
-            .expect("For now the consumer after the runner must keep up");
+            .expect("For now, the consumer after the runner must keep up");
 
 
-        // handle delay here. add them to the delayQueue
-        self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(1000));
+        // TODO: handle delay here. add them to the delayQueue
+        if !self.tick_in_que {
+            self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(1000));
+            self.tick_in_que = true;
+        }
 
         state.take_all_next();
         self.state = state;
-        self.plans = plans;
+        self.model.plans = plans;
         println!("Fired: {:?}", &fired);
 
-        // Since one of the inputs wa ready we will poll again. We should terminate 
+        // Since one of the inputs was ready we will poll again. We should terminate 
         // later when we get a command above
         task::current().notify();
         Ok(Async::NotReady)
@@ -445,7 +467,7 @@ fn validate(){
     let st5 = state!(ab => 5);
     let st6 = state!(ab => 6);
 
-    let mut all_states: Vec<State> = Vec::new();
+    let mut all_states: Vec<SPState> = Vec::new();
     all_states.push(st1.clone());
     all_states.push(st2.clone());
     all_states.push(st3.clone());
@@ -574,7 +596,7 @@ mod runner_tests {
     use super::*;
     #[test]
     fn create_a_runner() {
-        let mut r = Runner::new();
+        
 
         let ab = SPPath::from_str(&["a", "b"]);
         let ac = SPPath::from_str(&["a", "c"]);
@@ -587,8 +609,6 @@ mod runner_tests {
             kl => false, 
             xy => false
         );
-
-        r.state = s.clone();
 
         let p_ab = p!(ab);
         let p_ac = p!(ac);

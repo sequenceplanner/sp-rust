@@ -1,5 +1,4 @@
 
-extern crate sp_domain;
 use sp_domain::*;
 
 

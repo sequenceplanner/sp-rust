@@ -13,7 +13,7 @@ pub mod predicates;
 pub use crate::predicates::{Predicate, Action, EvaluatePredicate, NextAction};
 
 pub mod states;
-pub use crate::states::{State, StateValue, AssignStateValue, ToStateValue};
+pub use crate::states::{SPState, StateValue, StateExternal, AssignState, AssignStateValue, ToStateValue};
 
 pub mod variables;
 pub use crate::variables::{Variable, VariableData, VariableType};

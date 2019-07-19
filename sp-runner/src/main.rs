@@ -77,7 +77,7 @@ fn main() {
             tokio::spawn(
                 input_stream
                 .take_while(|x| Ok(x != "exit"))
-                .for_each(|x| {
+                .for_each(|_| {
                     Ok(())
                 })
                 .map_err(|e| println!("Error {:?}", e))

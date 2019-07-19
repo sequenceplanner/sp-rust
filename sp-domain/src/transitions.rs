@@ -26,19 +26,19 @@ impl Transition {
 }
 
 impl EvaluatePredicate for Transition {
-    fn eval(&self, state: &State) -> bool {
+    fn eval(&self, state: &SPState) -> bool {
         self.guard.eval(state) && self.action.iter().all(|a| a.eval(state))
     }
 }
 
 impl NextAction for Transition {
-    fn next(&self, state: &State) -> Result<HashMap<SPPath, AssignStateValue>> {
-        let mut res: HashMap<SPPath, AssignStateValue> = HashMap::new();
+    fn next(&self, state: &SPState) -> Result<AssignState> {
+        let mut s: HashMap<SPPath, AssignStateValue> = HashMap::new();
         for a in self.action.iter() {
             let next = a.next(state)?;
-            res.extend(next);
+            s.extend(next.s);
         }
-        Ok(res)
+        Ok(AssignState{s})
     }
 }
 

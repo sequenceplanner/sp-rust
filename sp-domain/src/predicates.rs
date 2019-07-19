@@ -51,7 +51,7 @@ pub enum Compute {
 
 
 impl<'a> PredicateValue {
-    pub fn get_value(&'a self, state: &'a State) -> Option<&'a SPValue> {
+    pub fn get_value(&'a self, state: &'a SPState) -> Option<&'a SPValue> {
         match self {
             PredicateValue::SPValue(x) => Some(x),
             PredicateValue::SPPath(name) => state.get_value(&name)
@@ -131,16 +131,16 @@ impl Default for Compute {
 
 /// Eval is used to evaluate a predicate (or an operation ). 
 pub trait EvaluatePredicate {
-    fn eval(&self, state: &State) -> bool;
+    fn eval(&self, state: &SPState) -> bool;
 }
 
 pub trait NextAction {
-    fn next(&self, state: &State) -> Result<HashMap<SPPath, AssignStateValue>>;
+    fn next(&self, state: &SPState) -> Result<AssignState>;
 }
 
 
 impl EvaluatePredicate for Predicate {
-    fn eval(&self, state: &State) -> bool {
+    fn eval(&self, state: &SPState) -> bool {
         match self {
             Predicate::AND(ps) => { ps.iter().all(|p| p.eval(state)) }
             Predicate::OR(ps) => { ps.iter().any(|p| p.eval(state)) }
@@ -160,7 +160,7 @@ impl EvaluatePredicate for Predicate {
 }
 
 impl NextAction for Action {
-    fn next(&self, state: &State) -> Result<HashMap<SPPath, AssignStateValue>> {
+    fn next(&self, state: &SPState) -> Result<AssignState> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => {
                 match pv.get_value(state).map(|x| { AssignStateValue::SPValue(x.clone())}) {
@@ -194,14 +194,14 @@ impl NextAction for Action {
                 } 
             },
         };
-        let res: HashMap<SPPath, AssignStateValue> = vec![(self.var.clone(), c)].into_iter().collect();
-        Ok(res)
+        let s: HashMap<SPPath, AssignStateValue> = vec![(self.var.clone(), c)].into_iter().collect();
+        Ok(AssignState{s})
 
     }
 }
 
 impl EvaluatePredicate for Action {
-    fn eval(&self, state: &State) -> bool {
+    fn eval(&self, state: &SPState) -> bool {
         match state.get(&self.var) {
             Some(StateValue::SPValue(_)) => true,
             Some(StateValue::Unknown) => true,
@@ -351,6 +351,9 @@ macro_rules! a {
 
 #[cfg(test)]
 mod sp_value_test {
+#![warn(unused_must_use)]
+#![warn(unused_variables)]
+
     use super::*;
     #[test]
     fn create_predicate() {

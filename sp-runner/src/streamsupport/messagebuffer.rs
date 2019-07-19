@@ -119,7 +119,7 @@ where
             //println!("kö Ready: {:?}", self.has_message_to_send());
             if self.has_message_to_send() {
                 let mess = self.message_to_send().unwrap();
-                self.out_s.try_send(mess); // should always work
+                self.out_s.try_send(mess).unwrap(); // should always work
             }
             if self.has_message_to_send() {
                 task::current().notify();
@@ -150,7 +150,7 @@ mod messagebuffer_test {
     fn create() {
         tokio::run(future::lazy(move || {
             let (buf, to_buf, from_buf) =
-                MessageBuffer::new(2, |last: &mut String, next: &String| {
+                MessageBuffer::new(2, |_: &mut String, _: &String| {
                     false // no merge
                 });
 

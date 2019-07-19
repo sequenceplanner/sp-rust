@@ -39,4 +39,31 @@ impl SPPath {
         let v: Vec<String> = n.iter().map(|s| s.to_string()).collect();
         SPPath{path: v}
     }
+    pub fn is_child_of(&self, path: &SPPath) -> bool {
+        (self.path.len() >= path.path.len()) && path.path.iter().zip(self.path.iter()).all(|(a, b)| a == b)
+    }
+}
+
+/// ********** TESTS ***************
+
+#[cfg(test)]
+mod sppath_test {
+    use super::*;
+    #[test]
+    fn is_child_of() {
+        let a = SPPath::from_str(&["a"]);
+        let ab = SPPath::from_str(&["a", "b"]);
+        let abc = SPPath::from_str(&["a", "b", "c"]);
+        let abcd = SPPath::from_str(&["a", "b", "c", "d"]);
+        let abcx = SPPath::from_str(&["a", "b", "c", "x"]);
+
+        assert!(ab.is_child_of(&a));
+        assert!(abcd.is_child_of(&a));
+        assert!(!a.is_child_of(&ab));
+        assert!(!a.is_child_of(&abcd));
+        assert!(!abcd.is_child_of(&abcx));
+        assert!(!abcx.is_child_of(&abcd));
+        assert!(abcd.is_child_of(&abc));
+        assert!(abcx.is_child_of(&abc));
+    }
 }
