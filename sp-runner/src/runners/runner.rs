@@ -9,13 +9,6 @@ use tokio::*;
 use sync::mpsc;
 
 use std::collections::HashMap;
-use petgraph::Graph;
-use petgraph::prelude::*;
-use petgraph::graph::node_index as n;
-use petgraph::visit::depth_first_search;
-use petgraph::visit::{DfsEvent, Control};
-use petgraph::visit::Bfs;
-use petgraph::visit::Dfs;
 
 use serde::{Deserialize, Serialize};
 
@@ -191,7 +184,7 @@ impl Runner {
         };
     }
 
-    /// Tick tick the runner one step trying to run the transitions that are enabled.
+    /// Tick the runner one step trying to run the transitions that are enabled.
     /// Returns an updated state, updated plans and the transitions that was fired
     fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPID>) {
         let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions);
@@ -309,92 +302,13 @@ fn is_completed<T>(x: &Async<Option<T>>) -> bool {
     }
 }
 
-// fn generate_graph(states: Vec<State>, trans: Vec<Transition>) -> Graph<>{
-    // let mut graph = Graph::<State, Transition>::new();
-// }
-
-fn validate_plan(states: Vec<SPState>, curr: SPState, goal: SPState, trans: RunnerTransitions) -> (Vec<SPID>, Vec<SPState>) {
-
-    let mut graph = Graph::<SPState, Transition>::new();
-
-    // Add nodes to the graph
-    let current_state = graph.add_node(curr);
-    let goal_state = graph.add_node(goal);
-
-    let ctrl_trans: Vec<Transition> = trans.ctrl;
-    let unctrl_trans: Vec<Transition> = trans.un_ctrl;
-
-    let mut all_trans: Vec<Transition> = Vec::new();
-
-    for trans in ctrl_trans{
-        all_trans.push(trans);
-    }
-
-    for trans in unctrl_trans{
-        all_trans.push(trans);
-    }
-    
-    // return the edge repr from trans and states
-    let mut edges = vec!();
-
-    for state in states {
-        graph.add_node(state.clone());
-        for tr in &all_trans {
-            if tr.guard.eval(&state){
-                let source = state.clone();
-                if tr.action.iter().all(|a| a.eval(&state)) {
-                    let sink = state.clone();
-                    edges.push((source, sink));
-                }
-            }
-        }
-    }
-
-    //This part is the thing left to make it work (hopefully)...
-    //graph.extend_with_edges(&edges);
-
-    // Collect this in the dfs later and return
-    let mut state_trace = Vec::new();
-    let mut trans_spid_trace_to_goal: Vec<SPID> = Vec::new();
-
-    let mut predecessor = vec![NodeIndex::end(); graph.node_count()];
-
-    let start = current_state;
-    let goal = goal_state;
-
-    depth_first_search(&graph, Some(start), |event| {
-        if let DfsEvent::TreeEdge(u, v) = event {
-            predecessor[v.index()] = u;
-            if v == goal {
-                return Control::Break(v);
-            }
-        }
-        Control::Continue
-    });
-
-    let mut next = goal;
-    let mut path = vec![next];
-    while next != start {
-        let pred = predecessor[next.index()];
-        path.push(pred);
-        next = pred;
-    }
-    path.reverse();
-
-    //Just to test some prints...
-    // for trans in all_trans{
-        // trans_spid_trace_to_goal.push(trans.spid);
-    // }
-    
-    return (trans_spid_trace_to_goal, state_trace)
-} 
 
 impl Future for Runner {
     type Item = ();
     type Error = ();
 
     fn poll(&mut self) -> Poll<(), ()> {
-        // We will terminate if any of the channels fail. Maybe not in the future. Let us test
+        // curretly will crash / terminate if any of the channels fail. Maybe we should not do that. Let us test
         let upd_s = self.comm.state_input.poll().unwrap();
         let upd_cmd = self.comm.command_input.poll().unwrap();
         let upd_plan = self.comm.planner_input.poll().unwrap();
@@ -419,7 +333,8 @@ impl Future for Runner {
 
         let (mut state, plans, fired) = self.tick(self.state.clone(), self.model.plans.clone());
 
-        self.comm.state_output.try_send(state.clone())
+        self.comm.state_output
+            .try_send(state.clone())
             .expect("For now, the consumer after the runner must keep up");
 
 
@@ -446,158 +361,38 @@ impl Future for Runner {
 
 /// ********** TESTS ***************
 
-// ***** E: Testing the validate_plan****
-// maybe have to create a runner first, not really
-
-#[test]
-fn validate(){
-    let ab = SPPath::from_str(&["a", "b"]);
-    let ac = SPPath::from_str(&["a", "c"]);
-    let kl = SPPath::from_str(&["k", "l"]);
-    let xy = SPPath::from_str(&["x", "y"]);
-
-    let s = state!(ab => 2, ac => true, kl => true, xy => false);
-    let s2 = state!(ab => 3, ac => false, kl => true, xy => false);
-
-    // some simple states
-    let st1 = state!(ab => 1);
-    let st2 = state!(ab => 2);
-    let st3 = state!(ab => 3);
-    let st4 = state!(ab => 4);
-    let st5 = state!(ab => 5);
-    let st6 = state!(ab => 6);
-
-    let mut all_states: Vec<SPState> = Vec::new();
-    all_states.push(st1.clone());
-    all_states.push(st2.clone());
-    all_states.push(st3.clone());
-    all_states.push(st4.clone());
-    all_states.push(st5.clone());
-    all_states.push(st6.clone());
-
-    let asdf = all_states.clone();
-
-    let ac1 = a!(ab = 2);
-    let ac2 = a!(ab = 3);
-    let ac3 = a!(ab = 4);
-    let ac4 = a!(ab = 5);
-    let ac5 = a!(ab = 6);
-
-    let pr1 = p!(ab == 1);
-    let pr2 = p!(ab == 2);
-    let pr3 = p!(ab == 3);
-    let pr4 = p!(ab == 2);
-    let pr5 = p!(ab == 3);
-
-    let tr1 = Transition {
-        spid: SPID::new("tr1"),
-        guard: pr1.clone(),
-        action: vec!(ac1.clone()),
-        effects: vec!(),
-    };
-
-    let tr2 = Transition {
-        spid: SPID::new("tr2"),
-        guard: pr2.clone(),
-        action: vec!(ac2.clone()),
-        effects: vec!(),
-    };
-
-    let tr3 = Transition {
-        spid: SPID::new("tr3"),
-        guard: pr3.clone(),
-        action: vec!(ac3.clone()),
-        effects: vec!(),
-    };
-
-    let tr4 = Transition {
-        spid: SPID::new("tr4"),
-        guard: pr2.clone(),
-        action: vec!(ac4.clone()),
-        effects: vec!(),
-    };
-
-    let tr5 = Transition {
-        spid: SPID::new("tr5"),
-        guard: pr3.clone(),
-        action: vec!(ac5.clone()),
-        effects: vec!(),
-    };
-
-    // let t2 = Transition {
-        // spid: SPID::new("t2"),
-        // guard: p.clone(),
-        // action: vec!(a2.clone()),
-        // effects: vec!(),
-    // };
-// 
-    // let t3 = Transition {
-        // spid: SPID::new("t3"),
-        // guard: Predicate::TRUE,
-        // action: vec!(a3.clone()),
-        // effects: vec!(),
-    // };
-
-    // let p = pr!{{p!(ac)} && {p!(kl)}};
-    // let p2 = pr!{{p!(ac)} && {p!(kl)}};
-    // let a = a!(ac = false);
-    // let a2 = a!(ab <- kl);
-    // let a3 = a!(xy ? p);
-    // let a4 = a!(kl ? p2);
-// 
-    // let t1 = Transition {
-        // spid: SPID::new("t1"),
-        // guard: Predicate::TRUE,
-        // action: vec!(a.clone()),
-        // effects: vec!(),
-    // };
-// 
-    // let t2 = Transition {
-        // spid: SPID::new("t2"),
-        // guard: p.clone(),
-        // action: vec!(a2.clone()),
-        // effects: vec!(),
-    // };
-// 
-    // let t3 = Transition {
-        // spid: SPID::new("t3"),
-        // guard: Predicate::TRUE,
-        // action: vec!(a3.clone()),
-        // effects: vec!(),
-    // };
-// 
-    // let t4 = Transition {
-        // spid: SPID::new("t4"),
-        // guard: p2.clone(),
-        // action: vec!(a4.clone()),
-        // effects: vec!(),
-    // };
-
-    let ts = RunnerTransitions{
-        ctrl: vec!(tr1.clone(), tr2.clone(), tr3.clone(), tr4.clone(), tr5.clone()),
-        un_ctrl: vec!(),
-    };
-    println!("EEEEEEEEEEEEEEEEEE");
-    println!("{:?}", validate_plan(all_states, st1, st4, ts));
-    //println!("EEEEEEEEEEEEEEEEEE");
-    //println!("{:?}", asdf);
-    // println!("EEEEEEEEEEEEEEEEEE");
-    // println!("{:?}", p2);
-    // println!("EEEEEEEEEEEEEEEEEE");
-    // println!("{:?}", a);
-    // println!("EEEEEEEEEEEEEEEEEE");
-    // println!("{:?}", a4);
-    // println!("EEEEEEEEEEEEEEEEEE");
-    println!("{:?}", tr1);
-}
 
 #[cfg(test)]
 mod runner_tests {
     use super::*;
+
+    fn test_model() {
+        fn make_robot(name: &str) {
+            let r = Variable::Command(VariableData{
+                spid: SPID::new(&[name, "_ref"].concat()),
+                initial_value: 0.to_spvalue(),
+                domain: vec!()
+            });
+            let a = Variable::Measured(VariableData{
+                spid: SPID::new(&[name, "_act"].concat()),
+                initial_value: SPValue::Unknown,
+                domain: vec!()
+            });
+            let activate = Variable::Command(VariableData{
+                spid: SPID::new(&[name, "_activate"].concat()),
+                initial_value: false.to_spvalue(),
+                domain: vec!()
+            });
+            let activated = Variable::Measured(VariableData{
+                spid: SPID::new(&[name, "_activated"].concat()),
+                initial_value: SPValue::Unknown,
+                domain: vec!()
+            });
+        }
+    }
+
     #[test]
     fn create_a_runner() {
-        
-
         let ab = SPPath::from_str(&["a", "b"]);
         let ac = SPPath::from_str(&["a", "c"]);
         let kl = SPPath::from_str(&["k", "l"]);

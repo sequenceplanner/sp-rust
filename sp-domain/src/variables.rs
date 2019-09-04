@@ -18,7 +18,7 @@ pub enum Variable {
 pub struct VariableData {
     pub spid: SPID,
     pub initial_value: SPValue, 
-    pub domain: Vec<SPValue>,
+    pub domain: Vec<SPValue>
 }
 
 

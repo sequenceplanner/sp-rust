@@ -14,6 +14,15 @@ pub struct Transition {
 }
 
 impl Transition {
+    pub fn new(name: String, guard: Predicate, actions: Vec<Action>, effects: Vec<Action) -> Transition {
+        Transition{
+            spid: SPID::new($name),
+            guard,
+            action,
+            effects,
+        }
+    }
+
     pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(map);
         self.action.iter_mut().for_each(|a|{

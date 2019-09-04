@@ -22,7 +22,7 @@ pub struct Structure {
 
 impl SPStruct {
 
-    /// Creates a new Struct if the Structure does not contains any loops and does not have any duplicates
+    /// Creates a new empty Struct.
     pub fn new(spid: SPID) -> SPStruct {
         SPStruct {
             spid,
@@ -40,9 +40,9 @@ impl SPStruct {
         })
     }
 
-    /// Returns the path to the SPID
+    /// Returns the path to the id
     pub fn path(&self, id: Uuid) -> SPPath {
-        let xs: Vec<String> = self.req_find_name(id, Vec::new()).into_iter().rev().collect();
+        let xs: Vec<String> = self.rec_find_name(id, Vec::new()).into_iter().rev().collect();
         SPPath::from(&xs)
     }
 
@@ -194,12 +194,12 @@ impl SPStruct {
 
 
 
-    fn req_find_name(&self, node_id: Uuid, mut aggr: Vec<String>) -> Vec<String> {
+    fn rec_find_name(&self, node_id: Uuid, mut aggr: Vec<String>) -> Vec<String> {
         match self.nodes.get(&node_id) {
             Some(n) => {
                 aggr.push(n.item.name.clone());
                 if let Some(p) = n.parent_id {
-                    self.req_find_name(p, aggr)
+                    self.rec_find_name(p, aggr)
                 } else {
                     aggr
                 }
