@@ -2,7 +2,7 @@
 
 use super::*;
 
-/// SPID is used by things in the model that needs to be identified 
+/// SPID is used by things in the model that needs to be identified
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
 pub struct SPID {
     pub id: Uuid,
@@ -27,6 +27,12 @@ impl Default for SPID {
 #[derive(Debug, Hash, Eq, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct SPPath{
     pub path: Vec<String>,
+}
+
+impl fmt::Display for SPPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,"{}",self.path.join("|"))
+    }
 }
 
 impl SPPath {

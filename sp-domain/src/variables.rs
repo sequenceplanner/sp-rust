@@ -7,8 +7,8 @@ use super::*;
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Variable {
     Measured(VariableData),
-    Estimated(VariableData), 
-    Command(VariableData), 
+    Estimated(VariableData),
+    Command(VariableData),
     StatePredicate(VariableData, Action),  // Maybe have these here?
 }
 
@@ -16,8 +16,8 @@ pub enum Variable {
 /// Var is the attributes in all types of variables, but should not be used by itself. Use Variable
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct VariableData {
-    pub spid: SPID,
-    pub initial_value: SPValue, 
+    pub type_: SPValueType,
+    pub initial_value: Option<SPValue>,
     pub domain: Vec<SPValue>,
 }
 
@@ -49,10 +49,7 @@ impl Variable {
             Variable::StatePredicate(_, _) => { VariableType::StatePredicate },
         }
     }
-    pub fn spid(&self) -> SPID {
-        self.variable_data().spid.clone()
-    }
-    pub fn initial_value(&self) -> SPValue {
+    pub fn initial_value(&self) -> Option<SPValue> {
         self.variable_data().initial_value.clone()
     }
     pub fn domain(&self) -> Vec<SPValue> {
@@ -66,7 +63,7 @@ impl Variable {
         }
     }
 
-    fn variable_data(&self) -> &VariableData {
+    pub fn variable_data(&self) -> &VariableData {
         match self {
             Variable::Measured(d) => d,
             Variable::Command(d) => d,
@@ -92,18 +89,18 @@ impl Default for VariableType {
 /// # Example
 /// ```
 /// use sp_domain::*;
-/// 
+///
 /// let v_c = variable!(C "v", 0, 0, 1, 2, 3, 4);
 /// let v_e = variable!(E "v");
-/// 
+///
 /// ```
-/// 
+///
 #[macro_export]
 macro_rules! variable {
     ($name:expr, $init:expr, $($domain: expr),*) => {
         VariableData {
-            spid: SPID::new($name),
-            initial_value: $init.to_spvalue(),
+            type_: $init.to_spvalue().has_type(),
+            initial_value: Some($init.to_spvalue()),
             domain: vec!($($domain.to_spvalue()),*)
         }
     };
@@ -153,8 +150,8 @@ mod runner_tests {
         let v_e = variable!(E "v");
         let v_sp = variable!(SP "v", a!(ab));
         let vd = VariableData {
-            spid: v_m.spid(),
-            initial_value: false.to_spvalue(),
+            type_: false.to_spvalue().has_type(),
+            initial_value: Some(false.to_spvalue()),
             domain: vec!(false.to_spvalue(), true.to_spvalue()),
         };
         assert_eq!(v_m, Variable::Measured(vd));
@@ -164,8 +161,8 @@ mod runner_tests {
         let v_e = variable!(E "v", 0, 0, 1, 2, 3, 4);
         let v_sp = variable!(SP "v", a!(ab), 0, 0, 1, 2, 3, 4);
         let vd = VariableData {
-            spid: v_sp.spid(),
-            initial_value: 0.to_spvalue(),
+            type_: 0.to_spvalue().has_type(),
+            initial_value: Some(0.to_spvalue()),
             domain: vec!(0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue(), 4.to_spvalue()),
         };
         assert_eq!(v_sp, Variable::StatePredicate(vd, a!(ab)));

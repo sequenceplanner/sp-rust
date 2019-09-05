@@ -1,6 +1,6 @@
 //! Variables in SP are represented by SPValue, which is a direct mapping
-//! to ROS-types. 
-//! 
+//! to ROS-types.
+//!
 
 use serde::{Deserialize, Serialize};
 
@@ -14,11 +14,11 @@ pub enum SPValue {
     String(String),
     Time(u32),
     Duration(u32),
-    Array(Vec<SPValue>),
+    Array(SPValueType, Vec<SPValue>),
     Unknown,
     //byte(u8), //deprecated
     //char(char), //deprecated
-    //Float64(f64), // Let us add these back if we need them. Just to simplify matching 
+    //Float64(f64), // Let us add these back if we need them. Just to simplify matching
     //Int8(i8),
     //Uint8(u8),
     //Int16(i16),
@@ -57,21 +57,28 @@ impl SPValue {
             SPValue::String(_) => SPValueType::String == t,
             SPValue::Time(_) => SPValueType::Time == t,
             SPValue::Duration(_) => SPValueType::Duration == t,
-            SPValue::Array(_) => SPValueType::Array == t,
+            SPValue::Array(at, _) => at == &t,
             SPValue::Unknown => SPValueType::Unknown == t
+        }
+    }
+
+    pub fn is_array(&self) -> bool {
+        match self {
+            SPValue::Array(_, _) => true,
+            _ => false,
         }
     }
 
     pub fn has_type(&self) -> SPValueType {
         match self {
-            SPValue::Bool(_) => {SPValueType::Bool},
-            SPValue::Float32(_) => {SPValueType::Float32},
-            SPValue::Int32(_) => {SPValueType::Int32},
-            SPValue::String(_) => {SPValueType::String},
-            SPValue::Time(_) => {SPValueType::Time},
-            SPValue::Duration(_) => {SPValueType::Duration},
-            SPValue::Array(_) => {SPValueType::Array},
-            SPValue::Unknown => {SPValueType::Unknown},
+            SPValue::Bool(_) => SPValueType::Bool,
+            SPValue::Float32(_) => SPValueType::Float32,
+            SPValue::Int32(_) => SPValueType::Int32,
+            SPValue::String(_) => SPValueType::String,
+            SPValue::Time(_) => SPValueType::Time,
+            SPValue::Duration(_) => SPValueType::Duration,
+            SPValue::Array(t, _) => *t,
+            SPValue::Unknown => SPValueType::Unknown,
         }
     }
 }
@@ -169,12 +176,18 @@ impl ToSPValue for &str {
 impl<T> ToSPValue for Vec<T> where T: ToSPValue {
     fn to_spvalue(&self) -> SPValue {
         let res = self.iter().map(|x| x.to_spvalue()).collect::<Vec<SPValue>>();
-        SPValue::Array(res)
+        res.to_spvalue()
     }
 }
 impl ToSPValue for Vec<SPValue> {
     fn to_spvalue(&self) -> SPValue {
-        SPValue::Array(self.clone())
+        if self.len() == 0 {
+            SPValue::Array(SPValueType::Unknown, self.clone())
+        } else {
+            let spvaltype = self[0].has_type();
+            assert!(self.iter().all(|e|e.has_type() == spvaltype));
+            SPValue::Array(spvaltype, self.clone())
+        }
     }
 }
 
@@ -222,7 +235,7 @@ mod sp_value_test {
         assert_eq!(String::from("hej").to_spvalue(), SPValue::String("hej".to_string()));
         //let id = Uuid::new_v4();
         //assert_eq!(id.to_spvalue(), SPValue::ID(id));
-        assert_eq!(vec!("hej", "1", "id").to_spvalue(), SPValue::Array(vec!(SPValue::String("hej".to_string()), SPValue::String("1".to_string()), SPValue::String("id".to_string()))));
+        assert_eq!(vec!("hej", "1", "id").to_spvalue(), SPValue::Array(SPValueType::String, vec!(SPValue::String("hej".to_string()), SPValue::String("1".to_string()), SPValue::String("id".to_string()))));
 
         // let map = sp_value_map!("hej" => 1, "nu" => "ja");
         // if let SPValue::Map(m) = map {
@@ -250,11 +263,13 @@ mod sp_value_test {
 
         assert_eq!(x.has_type(), SPValueType::Bool);
         assert_eq!(y.has_type(), SPValueType::Int32);
-        assert_eq!(z.has_type(), SPValueType::Array);
+        assert_eq!(z.has_type(), SPValueType::String);
+        assert!(z.is_array());
+
 
         assert!(SPValueType::Bool.is_type(&x));
         assert!(y.is_type(SPValueType::Int32));
-        assert!(z.is_type(SPValueType::Array));
+        assert!(z.is_type(SPValueType::String));
     }
 
 }

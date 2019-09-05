@@ -1,5 +1,5 @@
 //! SPState represents a state in SP
-//! 
+//!
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ pub struct SPState{
     pub s: HashMap<SPPath, StateValue>
 }
 
-/// Representing a State in SP that is shared to others and is used for sending state 
+/// Representing a State in SP that is shared to others and is used for sending state
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct StateExternal{
     pub s: HashMap<SPPath, SPValue>
@@ -50,10 +50,10 @@ pub trait ToStateValue {
 
 /// Delaying a next value change in actions. This will be included in the state
 /// and after the delay, the Delay will be replaced by the new_value in the state.
-/// 
+///
 /// Use the Delay action in the action to tell the runner to delay the change. The
 /// Runner will create a future that can be canceled
-/// 
+///
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Delay{
     pub current_value: SPValue,
@@ -75,8 +75,8 @@ pub struct Next{
 impl SPState {
     // pub fn filter(&self, partial_name: &[String]) -> SPState {
     //     let s = self.s.iter().filter(|(k, _)| {
-    //         partial_name.iter().all(|x|{ 
-    //             k.path.contains(x) 
+    //         partial_name.iter().all(|x|{
+    //             k.path.contains(x)
     //         })
     //     })
     //     .map(|(k, v)|{ (k.clone(), v.clone())})
@@ -94,9 +94,9 @@ impl SPState {
     }
 
     /// Extract a clone of the sub part of the state where the variables are children to the path
-    /// 
+    ///
     /// ["a", "b"] is a child of ["a"]
-    /// 
+    ///
     pub fn sub_state(&self, path: &SPPath) -> SPState {
         let s = self.s.iter().filter(|(key, _)| {
             key.is_child_of(path)
@@ -200,6 +200,10 @@ impl SPState {
 }
 
 impl StateExternal {
+    pub fn new() -> StateExternal {
+        StateExternal { s: HashMap::new() }
+    }
+
     pub fn internal(&self) -> SPState {
         let res = self.s.iter().map(|(key, value)| {
             (key.clone(), StateValue::SPValue(value.clone()))
@@ -208,6 +212,17 @@ impl StateExternal {
         SPState{s: res}
     }
 }
+
+impl fmt::Display for StateExternal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buf = Vec::new();
+        for (p,val) in &self.s {
+            buf.push(format!("{}: {:?}", p, val));
+        }
+        write!(f,"{}",buf.join("\n"))
+    }
+}
+
 
 
 impl StateValue {
@@ -241,7 +256,7 @@ macro_rules! state {
     ($( $key: ident => $val: expr ),*) => {{
         let mut s = std::collections::HashMap::<SPPath, StateValue>::new();
         $(
-            s.insert($key.clone(), StateValue::SPValue($val.to_spvalue())); 
+            s.insert($key.clone(), StateValue::SPValue($val.to_spvalue()));
         )*
         SPState{s}
     }};
@@ -249,7 +264,7 @@ macro_rules! state {
         let mut s = std::collections::HashMap::<SPPath, StateValue>::new();
         $(
             let xs: Vec<String> = $key.iter().map(|x|x.to_string()).collect();
-            s.insert(SPPath::from(&xs), StateValue::SPValue($val.to_spvalue())); 
+            s.insert(SPPath::from(&xs), StateValue::SPValue($val.to_spvalue()));
         )*
         SPState{s}
     }}
@@ -329,7 +344,7 @@ mod sp_value_test {
     fn insert() {
         let mut s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
         let v = &SPPath::from_str(&["a", "b"]);
-        
+
         let x = s.insert(v, AssignStateValue::SPValue(5.to_spvalue()));
         assert_eq!(Ok(()), x);
         assert_eq!(s.get_value(v), Some(&5.to_spvalue()));
@@ -346,9 +361,9 @@ mod sp_value_test {
         assert_eq!(Ok(()), x);
         assert_eq!(s.get_value(v), Some(&10.to_spvalue()));
         assert_eq!(s.get(v), Some(&StateValue::Delay(Delay{
-            current_value: 10.to_spvalue(), 
-            next_value: 0.to_spvalue(), 
-            millis: 1000, 
+            current_value: 10.to_spvalue(),
+            next_value: 0.to_spvalue(),
+            millis: 1000,
             has_been_spawned: false})));
 
         println!("{:?}", e);
@@ -361,15 +376,15 @@ mod sp_value_test {
         let mut s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
         let ab = &SPPath::from_str(&["a", "b"]);
         let ac = &SPPath::from_str(&["a", "c"]);
-        
+
         s.insert(ab, AssignStateValue::SPValue(5.to_spvalue())).expect("Oh no");
         s.insert(ac, AssignStateValue::Delay(false.to_spvalue(), 1000)).expect("oh no");
         println!("The state before: {:?}", s);
         s.take_all_next();
 
         assert_eq!(s.get(ac), Some(&StateValue::Delay(Delay{
-            current_value: true.to_spvalue(), 
-            next_value: false.to_spvalue(), 
+            current_value: true.to_spvalue(),
+            next_value: false.to_spvalue(),
             millis: 1000,
             has_been_spawned: true
             })));

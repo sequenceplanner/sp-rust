@@ -1,5 +1,5 @@
 //! # Sequence Planner domain
-//! 
+//!
 //! This crate represents a modeling domain used by SP
 
 
@@ -25,30 +25,46 @@ pub mod operations;
 pub use crate::operations::{Operation, Ability, OperationFunction};
 
 pub mod resources;
-pub use crate::resources::{Resource};
+pub use crate::resources::*;
 
 pub mod structures;
-pub use crate::structures::{SPStruct};
+pub use crate::structures::{SPStruct, Structure};
 
 pub mod sops;
 pub use crate::sops::{SOP};
 
-
+mod utils;
+use utils::*;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::collections::HashMap;
 
 
-
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SPItem {
-    Resource(Resource),
-    Operation(Operation),
-    Ability(Ability),
-    SOP(SOP)
+    Topic{topic: String},
+    MessageType{msg_type: String},
+    Variable{field_name: String, var: Variable},
 }
+
+impl SPItem {
+    pub fn name(&self) -> &str {
+        match self {
+            SPItem::Topic{topic} => &topic,
+            SPItem::MessageType{msg_type} => &msg_type,
+            SPItem::Variable{field_name, var: _} => &field_name,
+        }
+    }
+}
+
+// #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+// pub enum SPItem {
+//     Resource(Resource),
+//     Operation(Operation),
+//     Ability(Ability),
+//     SOP(SOP)
+// }
 
 
 use std::error;
