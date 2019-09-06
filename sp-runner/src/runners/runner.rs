@@ -25,8 +25,6 @@ pub struct Runner {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerModel {
-    pub variables: Vec<Variable>,
-    pub paths: SPStruct,
     pub op_transitions: RunnerTransitions,
     pub ab_transitions: RunnerTransitions,
     pub plans: RunnerPlans,
@@ -43,8 +41,15 @@ pub struct RunnerPlans {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerTransitions {
-    ctrl: Vec<Transition>,
-    un_ctrl: Vec<Transition>
+    pub ctrl: Vec<Transition>,
+    pub un_ctrl: Vec<Transition>
+}
+
+impl RunnerTransitions {
+    pub fn extend(&mut self, other: RunnerTransitions) {
+        self.ctrl.extend(other.ctrl);
+        self.un_ctrl.extend(other.un_ctrl)
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -215,7 +220,9 @@ impl Runner {
             _ => Vec::new()
         };
 
+        println!("state: {:?}", &state);
         for t in un_ctrl.iter() {
+            println!("{:?}, t: {:?}", t.eval(&state), t);
             if t.eval(&state) {
                 let n = t.next(&state).unwrap(); // should always work since eval works
                 self.insert_into_state(state, n);  
@@ -360,35 +367,89 @@ impl Future for Runner {
 
 
 /// ********** TESTS ***************
+/// 
+
 
 
 #[cfg(test)]
 mod runner_tests {
     use super::*;
 
-    fn test_model() {
-        fn make_robot(name: &str) {
-            let r = Variable::Command(VariableData{
-                spid: SPID::new(&[name, "_ref"].concat()),
-                initial_value: 0.to_spvalue(),
-                domain: vec!()
-            });
-            let a = Variable::Measured(VariableData{
-                spid: SPID::new(&[name, "_act"].concat()),
-                initial_value: SPValue::Unknown,
-                domain: vec!()
-            });
-            let activate = Variable::Command(VariableData{
-                spid: SPID::new(&[name, "_activate"].concat()),
-                initial_value: false.to_spvalue(),
-                domain: vec!()
-            });
-            let activated = Variable::Measured(VariableData{
-                spid: SPID::new(&[name, "_activated"].concat()),
-                initial_value: SPValue::Unknown,
-                domain: vec!()
-            });
+    fn test_model() -> (Runner, RunnerComm) {
+        fn make_robot(name: &str, upper: i32) -> (SPState, RunnerTransitions) {
+            let r = SPPath::from_str(&[name, "ref"]);
+            let a = SPPath::from_str(&[name, "act"]);
+            let activate = SPPath::from_str(&[name, "activ"]);
+            let activated = SPPath::from_str(&[name, "activ"]);
+
+            let to_upper = Transition::new(
+                format!("{}_to_upper", name),
+                p!(r == 0), // p!(r != upper), // added req on r == 0 just for testing
+                vec!(a!(r = upper)),
+                vec!(a!(a = upper)),
+            );
+            let to_lower = Transition::new(
+                format!("{}_to_lower", name),
+                p!(r == upper), // p!(r != 0), // added req on r == upper just for testing
+                vec!(a!(r = 0)),
+                vec!(a!(a = 0)),
+            );
+            let t_activate = Transition::new(
+                format!("{}_activate", name),
+                p!(!activated),
+                vec!(a!(activate)),
+                vec!(a!(activated)),
+            );
+            let t_deactivate = Transition::new(
+                format!("{}_activate", name),
+                p!(activated),
+                vec!(a!(!activate)),
+                vec!(a!(!activated)),
+            );
+
+            let s = state!(
+                r => 0,
+                a => 0,
+                activate => false,
+                activated => false
+            );
+
+            let rt = RunnerTransitions{
+                ctrl: vec!(t_activate, t_deactivate),
+                un_ctrl: vec!(to_lower, to_upper)
+            };
+
+            (s, rt)
         }
+
+        let r1 = make_robot("r1", 10);
+        let r2 = make_robot("r2", 10);
+
+        let mut s = r1.0; s.extend(r2.0);
+        let mut tr = r1.1; tr.extend(r2.1);
+
+        let rm = RunnerModel {
+            op_transitions: RunnerTransitions::default(),
+            ab_transitions: tr,
+            plans: RunnerPlans::default() ,
+            state_functions: vec!(),
+            op_functions: vec!() ,
+        };
+
+        Runner::new(rm, s)
+
+
+    }
+
+    #[test]
+    fn dummy_robot_tests() {
+        let (runner, comm) = test_model();
+
+        println!("{:?}", runner.state);
+
+        let res = runner.tick(runner.state.clone(), runner.model.plans.clone());
+        println!("{:?}", res);
+
     }
 
     #[test]
