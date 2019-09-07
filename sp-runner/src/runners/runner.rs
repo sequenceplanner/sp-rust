@@ -375,80 +375,34 @@ impl Future for Runner {
 mod runner_tests {
     use super::*;
 
-    fn test_model() -> (Runner, RunnerComm) {
-        fn make_robot(name: &str, upper: i32) -> (SPState, RunnerTransitions) {
-            let r = SPPath::from_str(&[name, "ref"]);
-            let a = SPPath::from_str(&[name, "act"]);
-            let activate = SPPath::from_str(&[name, "activ"]);
-            let activated = SPPath::from_str(&[name, "activ"]);
-
-            let to_upper = Transition::new(
-                format!("{}_to_upper", name),
-                p!(r == 0), // p!(r != upper), // added req on r == 0 just for testing
-                vec!(a!(r = upper)),
-                vec!(a!(a = upper)),
-            );
-            let to_lower = Transition::new(
-                format!("{}_to_lower", name),
-                p!(r == upper), // p!(r != 0), // added req on r == upper just for testing
-                vec!(a!(r = 0)),
-                vec!(a!(a = 0)),
-            );
-            let t_activate = Transition::new(
-                format!("{}_activate", name),
-                p!(!activated),
-                vec!(a!(activate)),
-                vec!(a!(activated)),
-            );
-            let t_deactivate = Transition::new(
-                format!("{}_activate", name),
-                p!(activated),
-                vec!(a!(!activate)),
-                vec!(a!(!activated)),
-            );
-
-            let s = state!(
-                r => 0,
-                a => 0,
-                activate => false,
-                activated => false
-            );
-
-            let rt = RunnerTransitions{
-                ctrl: vec!(t_activate, t_deactivate),
-                un_ctrl: vec!(to_lower, to_upper)
-            };
-
-            (s, rt)
-        }
-
-        let r1 = make_robot("r1", 10);
-        let r2 = make_robot("r2", 10);
-
-        let mut s = r1.0; s.extend(r2.0);
-        let mut tr = r1.1; tr.extend(r2.1);
-
-        let rm = RunnerModel {
-            op_transitions: RunnerTransitions::default(),
-            ab_transitions: tr,
-            plans: RunnerPlans::default() ,
-            state_functions: vec!(),
-            op_functions: vec!() ,
-        };
-
-        Runner::new(rm, s)
-
-
-    }
+    
 
     #[test]
-    fn dummy_robot_tests() {
+    fn dummy_robot_model_tests() {
         let (runner, comm) = test_model();
-
         println!("{:?}", runner.state);
 
-        let res = runner.tick(runner.state.clone(), runner.model.plans.clone());
+        assert_eq!(runner.state.get_value(
+            &SPPath::from_str(&["r1", "ref"])), 
+            Some(&0.to_spvalue())
+        );
+
+        let mut res = runner.tick(runner.state.clone(), runner.model.plans.clone());
         println!("{:?}", res);
+        res.0.take_all_next();
+
+        let newS = res.0;
+        assert_eq!(newS.get_value(
+            &SPPath::from_str(&["r1", "ref"])), 
+            Some(&10.to_spvalue())
+        );
+
+        let res = runner.tick(newS.clone(), runner.model.plans.clone());
+        assert_eq!(res.0, 
+            newS
+        );
+
+
 
     }
 
@@ -517,6 +471,75 @@ mod runner_tests {
         // assert_eq!(res, vec!(t1.spid));
         // println!("{:?}", res);
         // println!("{:?}", r.state);
+
+    }
+
+
+
+
+    fn test_model() -> (Runner, RunnerComm) {
+        fn make_robot(name: &str, upper: i32) -> (SPState, RunnerTransitions) {
+            let r = SPPath::from_str(&[name, "ref"]);
+            let a = SPPath::from_str(&[name, "act"]);
+            let activate = SPPath::from_str(&[name, "activ"]);
+            let activated = SPPath::from_str(&[name, "activ"]);
+
+            let to_upper = Transition::new(
+                format!("{}_to_upper", name),
+                p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
+                vec!(a!(r = upper)),
+                vec!(a!(a = upper)),
+            );
+            let to_lower = Transition::new(
+                format!("{}_to_lower", name),
+                p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
+                vec!(a!(r = 0)),
+                vec!(a!(a = 0)),
+            );
+            let t_activate = Transition::new(
+                format!("{}_activate", name),
+                p!(!activated),
+                vec!(a!(activate)),
+                vec!(a!(activated)),
+            );
+            let t_deactivate = Transition::new(
+                format!("{}_activate", name),
+                p!(activated),
+                vec!(a!(!activate)),
+                vec!(a!(!activated)),
+            );
+
+            let s = state!(
+                r => 0,
+                a => 0,
+                activate => false,
+                activated => false
+            );
+
+            let rt = RunnerTransitions{
+                ctrl: vec!(t_activate, t_deactivate),
+                un_ctrl: vec!(to_lower, to_upper)
+            };
+
+            (s, rt)
+        }
+
+        let r1 = make_robot("r1", 10);
+        let r2 = make_robot("r2", 10);
+
+        let mut s = r1.0; s.extend(r2.0);
+        let mut tr = r1.1; tr.extend(r2.1);
+
+        let rm = RunnerModel {
+            op_transitions: RunnerTransitions::default(),
+            ab_transitions: tr,
+            plans: RunnerPlans::default() ,
+            state_functions: vec!(),
+            op_functions: vec!() ,
+        };
+
+        Runner::new(rm, s)
+
 
     }
 
