@@ -9,21 +9,7 @@ use futures::try_ready;
 use std::collections::HashMap;
 
 use serde::{Serialize, Deserialize};
-
-/// The resource sink must be implemented by each type of outgoing interface we need in SP.
-/// It is initialize with a receiver channel that the implementer must store and use.
-/// TODO: Maybe we should send out StateExternal instead
-pub trait ResourceSink {
-    fn sink_channel(&mut self, channel: mpsc::Receiver<SPState>);
-}
-
-/// The resource source must be implemented by each type of incoming interfaces used in SP.
-/// It is initialized with a sender channel into the runner buffer.
-pub trait ResourceSource {
-    fn source_channel(&mut self, channel: mpsc::Sender<AssignState>);
-}
-
-
+use std::sync::{Arc, Mutex};
 
 
 /// The Mockresource is used for testing and maybe also internal SP resources that connects
@@ -31,54 +17,163 @@ pub trait ResourceSource {
 /// includit here to make a internal resource.
 #[derive(Debug)]
 pub struct MockResource<T> {
-    resource: T,
-    source: Option<mpsc::Sender<AssignState>>,
-    sink: Option<mpsc::Receiver<SPState>>,
+    send: MockSend,
+    recv: MockReceive<T>,
 }
 
-pub trait MockResourcePoll {
-    fn upd_state(&mut self, state: &SPState) -> AssignState;
-}
-
-impl<T> ResourceSink for MockResource<T> {
-    fn sink_channel(&mut self, channel: mpsc::Receiver<SPState>) {
-        self.sink = Some(channel);
-    }
-}
-
-impl<T> ResourceSource for MockResource<T> {
-    fn source_channel(&mut self, channel: mpsc::Sender<AssignState>) {
-        self.source = Some(channel);
-    }
-}
-
-impl<T: MockResourcePoll> Future for MockResource<T> {
-    type Item = Option<()>;
-    type Error = SPError;
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match (self.sink.as_mut(), self.source.as_ref()) {
-            (Some(sink), Some(source)) => {
-                match try_ready!(sink.poll().map_err(|e| SPError::No(format!("{:?}", e)))) {
-                    Some(s) => {
-                        let upd_s = self.resource.upd_state(&s);
-                        let send = source
-                            .clone()
-                            .send(upd_s)
-                            .map(move |_| ())
-                            .map_err(|e| eprintln!("error = {:?}", e));
-                        tokio::spawn(send);
-                        task::current().notify();
-                        Ok(Async::NotReady)
-                    },
-                    None => Ok(Async::Ready(None)),
-                }
-            },
-            _ => return Err(SPError::No("The resource has not been initialized".to_string()))
+impl<T> MockResource<T> where T: MockTransform + Clone + Sync + Send {
+    pub fn new(t: T) -> MockResource<T> {
+        let s = Arc::new(Mutex::new(SPState::default()));
+        let send = MockSend{
+            internal_state: s.clone()
+        };
+        let recv = MockReceive{
+            resource: t,
+            internal_state: s.clone()
+        };
+        MockResource {
+            send, recv
         }
     }
 }
 
+#[derive(Debug)]
+pub struct MockSend {
+    internal_state: Arc<Mutex<SPState>>,
+}
 
+impl MockSend {
+    pub fn make_future(mut self, sink: mpsc::Receiver<SPState>) -> impl Future<Item = (), Error = ()> {
+        sink
+        .for_each(move |s| {
+            //println!("I am in send: {:?}", s);
+            let mut x = self.internal_state.lock().unwrap();
+            *x = s;
+            Ok(())
+        })
+        .map_err(|e| eprintln!("error = {:?}", e))
+    }
+}
+
+
+
+#[derive(Debug)]
+pub struct MockReceive<T> {
+    resource: T,
+    internal_state: Arc<Mutex<SPState>>,
+}
+
+use std::time::{Duration, Instant};
+use tokio::timer::Interval;
+
+impl<T> MockReceive<T> where T: MockTransform + Clone + Sync + Send {
+    pub fn make_future(mut self, source: mpsc::Sender<AssignState>) -> impl Future<Item = (), Error = ()> {
+        let task = Interval::new(Instant::now(), Duration::from_secs(1))
+            .map_err(|_| ())
+            .for_each(move |x| {
+                let x = self.internal_state.lock().unwrap();
+                let upd = self.resource.upd_state(&x);
+                
+                let send = source
+                    .clone()
+                    .send(upd)
+                    .map_err(|_| ())
+                    .map(|_| ());
+                tokio::spawn(send)
+            });
+        task
+    }
+}
+
+
+pub trait MockTransform {
+    fn upd_state(&mut self, state: &SPState) -> AssignState;
+}
+
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+struct DummyRobot {
+    pub ref_path: SPPath,
+    pub act_path: SPPath,
+    pub act: SPValue
+}
+
+impl MockTransform for DummyRobot {
+    fn upd_state(&mut self, state: &SPState) -> AssignState {
+        
+        let ref_value = match state.get_value(&self.ref_path) {
+            Some(SPValue::Int32(x)) => *x,
+            _ => 0
+        };
+        let mut act_value = match self.act {
+            SPValue::Int32(x) => x,
+            _ => 0
+        };
+        println!("ref {:?}, act {:?}", ref_value, act_value);
+        if ref_value > act_value {
+            act_value = act_value + 1;
+        } else if ref_value < act_value {
+            act_value = act_value - 1;
+        };
+
+        let mut s = HashMap::new();
+        let act_v = act_value.to_spvalue();
+        s.insert(self.act_path.clone(), AssignStateValue::SPValue(act_v.clone()));
+        self.act = act_v;
+        AssignState{s}
+    }
+}
+
+
+/// ********** TESTS ***************
+/// 
+
+
+#[cfg(test)]
+mod mock_resource_test {
+    use super::*;
+    #[test]
+    fn test_me() {
+        let r = MockResource::new(DummyRobot{
+            ref_path: SPPath::from_str(&["ref"]),
+            act_path: SPPath::from_str(&["act"]),
+            act: 0.to_spvalue(),
+        });
+        println!("{:?}", r);
+
+        let (to_buf, into_buf) = tokio::sync::mpsc::channel::<SPState>(1);
+        let (outof_buf, from_buf) = tokio::sync::mpsc::channel::<AssignState>(1);
+
+        let init_state = state!(
+            ["ref"] => 10,
+            ["act"] => 0
+        );
+
+
+        tokio::run(future::lazy(move || { 
+            tokio::spawn(r.send.make_future(into_buf));
+            tokio::spawn(r.recv.make_future(outof_buf));
+
+            let res = from_buf
+                .for_each(|x| {
+                    println!("{:?}", x);
+                    Ok(())
+                })
+                .map_err(|_| ())
+                .map(|_| ());
+            tokio::spawn(res);
+
+            let send = to_buf
+                    .clone()
+                    .send(init_state)
+                    .map(move |_| ())
+                    .map_err(|e| eprintln!("error = {:?}", e));
+            tokio::spawn(send)
+
+        }));
+    }
+
+}
 
 
 

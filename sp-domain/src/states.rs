@@ -19,7 +19,7 @@ pub struct StateExternal{
     pub s: HashMap<SPPath, SPValue>
 }
 
-/// Representing variables that should be assigned to a stateState. Just a wrapper to simplify life
+/// Representing variables that should be assigned to a SPState. Just a wrapper to simplify life
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AssignState {
     pub s: HashMap<SPPath, AssignStateValue>
