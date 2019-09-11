@@ -13,6 +13,12 @@
 //! can be used. The paths of all variables must also be updated based on
 //! the overall structure of the system
 //!
+//!
+//! Paths includes the structure of the messages, the local variables and the parameters
+//! The local variables are named under the local/... path branch and the paramteters
+//! under the param/... branch. Before running the resource, all abilities must be instanciated
+//! where the local and parameters get a global path.
+//!
 
 use super::*;
 

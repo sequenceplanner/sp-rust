@@ -8,15 +8,24 @@ use super::*;
 pub struct Transition {
     pub spid: SPID,
     pub guard: Predicate,
-    pub action: Vec<Action>,
+    pub actions: Vec<Action>,
     pub effects: Vec<Action>,
     // E, TODO: maybe, for alternative effects add probabilty
 }
 
 impl Transition {
+    pub fn new(name: String, guard: Predicate, actions: Vec<Action>, effects: Vec<Action>) -> Transition {
+        Transition{
+            spid: SPID::new(&name),
+            guard,
+            actions,
+            effects,
+        }
+    }
+
     pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(map);
-        self.action.iter_mut().for_each(|a|{
+        self.actions.iter_mut().for_each(|a|{
             a.replace_variable_path(map)
         });
         self.effects.iter_mut().for_each(|a|{
@@ -27,14 +36,14 @@ impl Transition {
 
 impl EvaluatePredicate for Transition {
     fn eval(&self, state: &SPState) -> bool {
-        self.guard.eval(state) && self.action.iter().all(|a| a.eval(state))
+        self.guard.eval(state) && self.actions.iter().all(|a| a.eval(state))
     }
 }
 
 impl NextAction for Transition {
     fn next(&self, state: &SPState) -> Result<AssignState> {
         let mut s: HashMap<SPPath, AssignStateValue> = HashMap::new();
-        for a in self.action.iter() {
+        for a in self.actions.iter() {
             let next = a.next(state)?;
             s.extend(next.s);
         }
@@ -61,7 +70,7 @@ macro_rules! transition {
         Transition{
             spid: SPID::new($name),
             guard: $guard.clone(),
-            action: vec!(),
+            actions: vec!(),
             effects: vec!(),
         }
     };
@@ -69,7 +78,7 @@ macro_rules! transition {
         Transition{
             spid: SPID::new($name),
             guard: $guard.clone(),
-            action: vec!($($action.clone()),*),
+            actions: vec!($($action.clone()),*),
             effects: vec!(),
         }
     };
@@ -77,7 +86,7 @@ macro_rules! transition {
         Transition{
             spid: SPID::new($name),
             guard: $guard.clone(),
-            action: vec!($($action.clone()),*),
+            actions: vec!($($action.clone()),*),
             effects: vec!($($effect.clone()),*),
         }
     };
@@ -106,7 +115,7 @@ mod runner_tests {
         let t1 = Transition {
             spid: SPID::new("t1"),
             guard: Predicate::TRUE,
-            action: vec!(a, b, c),
+            actions: vec!(a, b, c),
             effects: vec!(),
         };
 
@@ -141,7 +150,7 @@ mod runner_tests {
         let res = Transition {
             spid: t.spid.clone(),
             guard: Predicate::TRUE,
-            action: vec!(),
+            actions: vec!(),
             effects: vec!(),
         };
         assert_eq!(t, res);
@@ -150,7 +159,7 @@ mod runner_tests {
         let res = Transition {
             spid: t.spid.clone(),
             guard: p!(ab),
-            action: vec!(a!(ab), a!(!kl)),
+            actions: vec!(a!(ab), a!(!kl)),
             effects: vec!(),
         };
         assert_eq!(t, res);
@@ -159,7 +168,7 @@ mod runner_tests {
         let res = Transition {
             spid: t.spid.clone(),
             guard: p!(ab),
-            action: vec!(a!(ab)),
+            actions: vec!(a!(ab)),
             effects: vec!(a!(!kl)),
         };
         assert_eq!(t, res);
@@ -168,7 +177,7 @@ mod runner_tests {
         let res = Transition {
             spid: t.spid.clone(),
             guard: p!(ab),
-            action: vec!(a!(ab), a!(ab)),
+            actions: vec!(a!(ab), a!(ab)),
             effects: vec!(a!(!kl), a!(!kl)),
         };
         assert_eq!(t, res);

@@ -197,6 +197,10 @@ impl SPState {
     pub fn is_allowed(&self, key: &SPPath, value: AssignStateValue) -> bool {
         self.s.get(key).map(|x| SPState::make_insert(value, x.clone()).is_ok()).unwrap_or(false)
     }
+
+    pub fn extend(&mut self, other_state: SPState) {
+        self.s.extend(other_state.s)
+    }
 }
 
 impl StateExternal {
