@@ -31,7 +31,7 @@ pub struct SPPath{
 
 impl fmt::Display for SPPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"{}",self.path.join("|"))
+        write!(f,"{}",self.path.join("/"))
     }
 }
 

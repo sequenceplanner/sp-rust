@@ -52,6 +52,13 @@ impl RosMsgDefinition {
             .map(|(path, var)| (SPPath::from_str(path), *var))
             .collect()
     }
+
+    pub fn toplevel_msg_type(&self) -> Option<String> {
+        match self {
+            RosMsgDefinition::Message(msg_type, _) => Some(msg_type.to_string()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -70,6 +77,7 @@ pub struct RosPublisherDefinition {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RosComm {
     pub node_name: String,
+    pub node_namespace: String,
     pub subscribers: Vec<RosSubscriberDefinition>,
     pub publishers: Vec<RosPublisherDefinition>,
 }
@@ -210,7 +218,7 @@ impl ResourceComm {
                 .publishers
                 .iter()
                 .map(|p| {
-                    let cb = move |state: &StateExternal| state_to_json(state, &p.definition, &p.topic); // serde_json::json!("test");
+                    let cb = move |state: &StateExternal| state_to_json(state, &p.definition, &p.topic);
                     Box::new(cb) as Box<dyn Fn(&StateExternal) -> serde_json::Value + 'a>
                 })
                 .collect(),
