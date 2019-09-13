@@ -1,7 +1,7 @@
 //! Variables in SP are represented by SPValue, which is a direct mapping
 //! to ROS-types.
 //!
-
+use std::fmt;
 use serde::{Deserialize, Serialize};
 
 /// SPValue represent a variable value of a specific type. The types used are
@@ -101,6 +101,24 @@ impl Default for SPValueType {
     }
 }
 
+impl fmt::Display for SPValue {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SPValue::Bool(b) if *b => write!(fmtr,"true"),
+            SPValue::Bool(b) => write!(fmtr,"false"),
+            SPValue::Float32(f) => write!(fmtr,"{}", f),
+            SPValue::Int32(i) => write!(fmtr,"{}", i),
+            SPValue::String(s) => write!(fmtr,"{}", s),
+            SPValue::Time(t) => write!(fmtr,"{:?}", t),
+            SPValue::Duration(d) => write!(fmtr,"{:?}", d),
+            SPValue::Array(at, a) => write!(fmtr,"{:?}", a),
+            SPValue::Unknown => write!(fmtr,"[unknown]"),
+        }
+    }
+}
+
+
+
 
 
 impl ToSPValue for bool {
@@ -108,6 +126,7 @@ impl ToSPValue for bool {
         SPValue::Bool(*self)
     }
 }
+
 impl ToSPValue for f32 {
     fn to_spvalue(&self) -> SPValue {
         SPValue::Float32(*self)
