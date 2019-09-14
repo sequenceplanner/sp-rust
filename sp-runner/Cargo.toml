@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 tokio = "0.1"
+tokio-threadpool = "0.1.15"
 futures = "0.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 serde = { version = "1.0", features = ["derive"] }

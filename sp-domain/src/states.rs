@@ -209,12 +209,20 @@ impl StateExternal {
         StateExternal { s: HashMap::new() }
     }
 
-    pub fn internal(&self) -> SPState {
+    pub fn to_spstate(&self) -> SPState {
         let res = self.s.iter().map(|(key, value)| {
             (key.clone(), StateValue::SPValue(value.clone()))
         }).collect();
 
         SPState{s: res}
+    }
+
+    pub fn to_assignstate(&self) -> AssignState {
+        let res = self.s.iter().map(|(key, value)| {
+            (key.clone(), AssignStateValue::SPValue(value.clone()))
+        }).collect();
+
+        AssignState{s: res}
     }
 }
 

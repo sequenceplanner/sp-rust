@@ -295,16 +295,18 @@ fn extr_option_res<T, U>(x: Result<Async<Option<T>>, U>) -> Option<T> {
     })
 } 
 
-fn is_not_ready<T, E>(p: &Poll<T, E>) -> bool {
-    match p {
-        Ok(Async::NotReady) => true,
+
+fn is_not_ready<T>(x: &Async<Option<T>>) -> bool {
+    match x {
+        Async::NotReady => true,
+        Async::Ready(None) => true,
         _ => false,
     }
 }
 
 fn is_completed<T>(x: &Async<Option<T>>) -> bool {
     match x {
-        Async::Ready(None) => true,
+        Async::Ready(_) => true,
         _ => false,
     }
 }
@@ -321,16 +323,33 @@ impl Future for Runner {
         let upd_plan = self.comm.planner_input.poll().unwrap();
         let tick = self.delayed_ticks.poll().unwrap();
 
+
+        println!("******************************");
+        println!("******************************");
+        println!("state_input: {:?}", upd_s);
+        println!("upd_cmd: {:?}", upd_cmd);
+        println!("upd_plan: {:?}", upd_plan);
+        println!("tick: {:?}", tick);
+        println!("-----------------------------");
+
+        if !self.tick_in_que || is_completed(&tick) {
+            self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(10000));
+            self.tick_in_que = true;
+        }
+
+        // If all have completed, trigger again since tick needs to be polled
+        if (is_completed(&upd_s) && is_completed(&upd_cmd) && is_completed(&upd_plan) && is_completed(&tick)) 
+        {
+            println!("WE ARE TRIGGERING");
+            task::current().notify();
+        } 
+
         // Do nothing if no stream is ready
-        if upd_s.is_not_ready() && upd_cmd.is_not_ready() && upd_plan.is_not_ready() && tick.is_not_ready() {
+        if is_not_ready(&upd_s) && is_not_ready(&upd_cmd) && is_not_ready(&upd_plan) && is_not_ready(&tick) {
+            println!("none is ready!");
             return Ok(Async::NotReady)
         }
 
-        // Terminate runner if all streams have completed
-        if is_completed(&upd_s) && is_completed(&upd_cmd) && is_completed(&upd_plan) && is_completed(&tick) {
-            println!("The runner comleted since all streams completed. If this happened unexpected, maybe remove this");
-            return Ok(Async::Ready(()))
-        }
 
         self.upd_state(extr_option(upd_s));
         self.upd_command(extr_option(upd_cmd));
@@ -340,25 +359,21 @@ impl Future for Runner {
 
         let (mut state, plans, fired) = self.tick(self.state.clone(), self.model.plans.clone());
 
-        self.comm.state_output
-            .try_send(state.clone())
-            .expect("For now, the consumer after the runner must keep up");
+        let can_not_send = self.comm.state_output
+            .try_send(state.clone());
+            //.expect("For now, the consumer after the runner must keep up");
 
+
+        println!("COULD WE SEND? {:?}", can_not_send);
 
         // TODO: handle delay here. add them to the delayQueue
-        if !self.tick_in_que {
-            self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(1000));
-            self.tick_in_que = true;
-        }
+        
 
         state.take_all_next();
         self.state = state;
         self.model.plans = plans;
         println!("Fired: {:?}", &fired);
 
-        // Since one of the inputs was ready we will poll again. We should terminate 
-        // later when we get a command above
-        task::current().notify();
         Ok(Async::NotReady)
     }
 }
@@ -538,7 +553,7 @@ mod runner_tests {
             op_functions: vec!() ,
         };
 
-        Runner::new(rm, s)
+        Runner::new(rm, s);
 
 
     }
