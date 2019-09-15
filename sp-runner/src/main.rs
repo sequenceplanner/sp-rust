@@ -119,13 +119,8 @@ fn main() -> Result<(), Error> {
     let tx_out = roscomm_setup(&mut node, &rc, tx_in)?;
 
 
-    thread::spawn(move || {
-        // "runner"
-        launch_tokio(rx_in, tx_out);
-        // let state = rx_in.recv().unwrap();
-        // println!("got sp state\n===============");
-        // println!("{}", state);
-    });
+    // "runner"
+    launch_tokio(rx_in, tx_out);
 
     // thread::spawn(move || loop {
     //     // "runner"
@@ -156,7 +151,7 @@ use tokio_threadpool;
 fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mpsc::Sender<StateExternal>) {
 
     let (runner, comm) = test_model();
-    
+
 
     tokio::run(future::lazy(move || {
         let (buf, to_buf, from_buf) =
@@ -179,7 +174,7 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
         .map_err(|e| eprintln!("error = {:?}", e));
         tokio::spawn(getting);
 
-        
+
         let from_runner = comm.state_output
         //.take(5)
         .for_each(|result| {
@@ -190,7 +185,7 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
         .map_err(|e| eprintln!("error = {:?}", e));
         tokio::spawn(from_runner);
 
-        
+
 
         tokio::spawn(buf);
 
@@ -201,7 +196,7 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
                 let res = tokio_threadpool::blocking(|| {
                     let msg = rx.recv().unwrap();
                     println!("message = {}", msg);
-                    
+
                     let send = to_buf
                         .clone()
                         .send(msg)
@@ -217,7 +212,7 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
         Ok(())
 
 
-    
+
 }));
 }
 
