@@ -120,7 +120,9 @@ fn main() -> Result<(), Error> {
 
 
     // "runner"
-    launch_tokio(rx_in, tx_out);
+    thread::spawn(move || {
+        launch_tokio(rx_in, tx_out);
+    });
 
     // thread::spawn(move || loop {
     //     // "runner"
@@ -189,13 +191,12 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
 
         tokio::spawn(buf);
 
-        let pool = tokio_threadpool::ThreadPool::new();
+        // let pool = tokio_threadpool::ThreadPool::new();
 
-        pool.spawn(future::lazy(move || {
+        tokio::spawn(future::lazy(move || {
             loop {
                 let res = tokio_threadpool::blocking(|| {
                     let msg = rx.recv().unwrap();
-                    println!("message = {}", msg);
 
                     let send = to_buf
                         .clone()
