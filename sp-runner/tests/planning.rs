@@ -6,6 +6,11 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
+use std::error::Error;
+use std::io::prelude::*;
+use std::process::{Command, Stdio};
+
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerModel {
     pub vars: HashMap<SPPath, Variable>,
@@ -343,14 +348,54 @@ fn planner() {
         n = ctrl_names_sep
     ));
 
+    // finally, print out the ltl spec
+    lines.push_str("\n\n");
+
+    let goal = "r1#activated";  // TODO: make a predicate...
+    lines.push_str(&format!("LTLSPEC ! F ( {} );", goal));
+
     println!("{}", lines);
 
     let v = find_actions_modifying_path(&model.un_ctrl, &SPPath::from_str(&["r1", "ref"]));
     println!("{:?}", v);
+
 
     let out_fn = PathBuf::from("/home/martin/tests/bmc/slash.bmc");
     let mut f = File::create(out_fn).unwrap();
     write!(f, "{}", lines).unwrap();
 
     println!("{}", state);
+
+    let process = match Command::new("nuxmv")
+        .arg("-int")
+        .arg("/home/martin/tests/bmc/slash.bmc")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn() {
+            Err(why) => panic!("couldn't spawn nuxmv command: {}", why.description()),
+            Ok(process) => process,
+        };
+
+    let command = "go_bmc\ncheck_ltlspec_bmc_inc -k 20\nshow_traces -v\nquit\n";
+    match process.stdin.unwrap().write_all(command.as_bytes()) {
+        Err(why) => panic!("couldn't write to stdin: {}",
+                           why.description()),
+        Ok(_) => println!("sent command to nuxmv"),
+    }
+
+    let mut s = String::new();
+    match process.stdout.unwrap().read_to_string(&mut s) {
+        Err(why) => panic!("couldn't read stdout: {}",
+                           why.description()),
+        _ => ()
+    }
+
+    let lines = s.lines();
+    let s = lines.rev().take_while(|l|!l.contains("Trace Type: Counterexample"));
+    let mut s: Vec<String> = s.map(|s|s.to_owned()).collect();
+    s.reverse();
+
+    println!("result\n{}", s.join("\n"));
+
+
 }
