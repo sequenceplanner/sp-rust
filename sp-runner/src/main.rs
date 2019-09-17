@@ -153,15 +153,35 @@ use tokio_threadpool;
 fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mpsc::Sender<StateExternal>) {
 
     let (runner, comm) = test_model();
+    let (buf, to_buf, from_buf) =
+        MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
+            false // no merge
+        });
+
+    let (runner, mut comm) = test_model();
+
+    let pool = tokio_threadpool::ThreadPool::new();
+
+    pool.spawn(future::lazy(move || {
+        loop {
+            let res = tokio_threadpool::blocking(|| {
+                let msg = rx.recv().unwrap();
+
+                let send = to_buf
+                    .clone()
+                    .send(msg)
+                    .map(move |_| ())
+                    .map_err(|e| eprintln!("error = {:?}", e));
+                tokio::spawn(send)
+
+            }).map_err(|_| panic!("the threadpool shut down"));
+        }
+        Ok(())
+    }));
 
 
     tokio::run(future::lazy(move || {
-        let (buf, to_buf, from_buf) =
-            MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
-                false // no merge
-            });
 
-        let (runner, mut comm) = test_model();
 
         tokio::spawn(runner);
 
@@ -187,34 +207,10 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
         .map_err(|e| eprintln!("error = {:?}", e));
         tokio::spawn(from_runner);
 
-
-
         tokio::spawn(buf);
 
-        // let pool = tokio_threadpool::ThreadPool::new();
-
-        tokio::spawn(future::lazy(move || {
-            loop {
-                let res = tokio_threadpool::blocking(|| {
-                    let msg = rx.recv().unwrap();
-
-                    let send = to_buf
-                        .clone()
-                        .send(msg)
-                        .map(move |_| ())
-                        .map_err(|e| eprintln!("error = {:?}", e));
-                    tokio::spawn(send)
-
-                }).map_err(|_| panic!("the threadpool shut down"));
-            }
-            Ok(())
-        }));
-
         Ok(())
-
-
-
-}));
+    }));
 }
 
 

@@ -168,6 +168,7 @@ impl Runner {
 
     /// Upd the runner based on incoming state
     fn upd_state(&mut self, state: Option<AssignState>) {
+        println!("upd state: {:?}", state);
         if let Some(s) = state {
             let res = self.state.insert_map(s);
             if res.is_err() {
@@ -220,9 +221,9 @@ impl Runner {
             _ => Vec::new()
         };
 
-        println!("state: {:?}", &state);
+        //println!("state: {:?}", &state);
         for t in un_ctrl.iter() {
-            println!("{:?}, t: {:?}", t.eval(&state), t);
+            //println!("{:?}, t: {:?}", t.eval(&state), t);
             if t.eval(&state) {
                 let n = t.next(&state).unwrap(); // should always work since eval works
                 self.insert_into_state(state, n);  
@@ -304,6 +305,14 @@ fn is_not_ready<T>(x: &Async<Option<T>>) -> bool {
     }
 }
 
+fn got_something<T>(x: &Async<Option<T>>) -> bool {
+    match x {
+        Async::Ready(None) => false,
+        Async::Ready(x) => true,
+        _ => false,
+    }
+}
+
 fn is_completed<T>(x: &Async<Option<T>>) -> bool {
     match x {
         Async::Ready(_) => true,
@@ -332,23 +341,25 @@ impl Future for Runner {
         println!("tick: {:?}", tick);
         println!("-----------------------------");
 
-        if !self.tick_in_que || is_completed(&tick) {
-            self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(10000));
-            self.tick_in_que = true;
-        }
+        // // Do nothing if no stream is ready
+        // if is_not_ready(&upd_s) && is_not_ready(&upd_cmd) && is_not_ready(&upd_plan) && is_not_ready(&tick) {
+        //     println!("none is ready!");
+        //     return Ok(Async::NotReady)
+        // }
 
         // If all have completed, trigger again since tick needs to be polled
-        if (is_completed(&upd_s) && is_completed(&upd_cmd) && is_completed(&upd_plan) && is_completed(&tick)) 
+        // Also if one channel had something, check again now
+        if (is_completed(&tick)) || 
+           (got_something(&upd_s) || got_something(&upd_cmd) || got_something(&upd_plan) || got_something(&tick)) 
         {
             println!("WE ARE TRIGGERING");
             task::current().notify();
-        } 
-
-        // Do nothing if no stream is ready
-        if is_not_ready(&upd_s) && is_not_ready(&upd_cmd) && is_not_ready(&upd_plan) && is_not_ready(&tick) {
-            println!("none is ready!");
-            return Ok(Async::NotReady)
         }
+
+        if !self.tick_in_que || is_completed(&tick) {
+            self.delayed_ticks.insert(RunnerTicker::Tick, std::time::Duration::from_millis(30000));
+            self.tick_in_que = true;
+        } 
 
 
         self.upd_state(extr_option(upd_s));
@@ -373,6 +384,7 @@ impl Future for Runner {
         self.state = state;
         self.model.plans = plans;
         println!("Fired: {:?}", &fired);
+
 
         Ok(Async::NotReady)
     }

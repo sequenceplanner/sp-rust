@@ -230,7 +230,7 @@ impl fmt::Display for StateExternal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut buf = Vec::new();
         for (p,val) in &self.s {
-            buf.push(format!("{}: {}", p, val));
+            buf.push(format!("{}: {:?}", p, val));
         }
         write!(f,"{}",buf.join("\n"))
     }
