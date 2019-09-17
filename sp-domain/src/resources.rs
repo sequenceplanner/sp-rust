@@ -138,10 +138,13 @@ pub fn json_to_state(
     ) {
         match md {
             RosMsgDefinition::Message(msg_type, members) => {
-                p.push(&msg_type); // keep message type in path?
+                //p.push(&msg_type); // keep message type in path?
                 for (field_name, md) in members.iter() {
                     if let Some(json_child) = json.get(field_name) {
-                        p.push(field_name);
+                        if field_name != "data" {  // Maybe not do this...
+                            p.push(field_name);
+                        }
+                        println!("path field_name: {:?}", field_name);
                         json_to_state_(json_child, md, p, a);
                         p.pop();
                     }
@@ -155,7 +158,9 @@ pub fn json_to_state(
         }
     }
 
-    let mut p = vec!(topic);
+    let mut p: Vec<&str> = topic.split("/").filter(|x| !x.is_empty()).collect();
+
+    //let mut p = vec!(topic);
     let mut a = Vec::new();
     json_to_state_(json, md, &mut p, &mut a);
     StateExternal {
