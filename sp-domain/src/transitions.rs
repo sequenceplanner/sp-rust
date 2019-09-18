@@ -6,7 +6,7 @@ use super::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct Transition {
-    pub spid: SPID,
+    pub path: SPPath,     // TODO: this is temporary...
     pub guard: Predicate,
     pub actions: Vec<Action>,
     pub effects: Vec<Action>,
@@ -14,9 +14,9 @@ pub struct Transition {
 }
 
 impl Transition {
-    pub fn new(name: String, guard: Predicate, actions: Vec<Action>, effects: Vec<Action>) -> Transition {
+    pub fn new(path: SPPath, guard: Predicate, actions: Vec<Action>, effects: Vec<Action>) -> Transition {
         Transition{
-            spid: SPID::new(&name),
+            path,
             guard,
             actions,
             effects,
@@ -55,7 +55,7 @@ impl NextAction for Transition {
 /// # Example
 /// ```
 /// use sp_domain::*;
-/// 
+///
 /// let ab = SPPath::from_str(&["a", "b"]);
 /// let kl = SPPath::from_str(&["k", "l"]);
 /// let t = transition!("hej1", Predicate::TRUE);
@@ -63,28 +63,28 @@ impl NextAction for Transition {
 /// let t = transition!("hej3", p!(ab), a!(ab) ; a!(!kl));
 /// let t = transition!("hej4", p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
 /// ```
-/// 
+///
 #[macro_export]
-macro_rules! transition { 
-    ($name:expr, $guard: expr) => {
+macro_rules! transition {
+    ($path:expr, $guard: expr) => {
         Transition{
-            spid: SPID::new($name),
+            path: $path.clone(),
             guard: $guard.clone(),
             actions: vec!(),
             effects: vec!(),
         }
     };
-    ($name:expr, $guard: expr, $($action: expr),*) => {
+    ($path:expr, $guard: expr, $($action: expr),*) => {
         Transition{
-            spid: SPID::new($name),
+            path: $path.clone(),
             guard: $guard.clone(),
             actions: vec!($($action.clone()),*),
             effects: vec!(),
         }
     };
-    ($name:expr, $guard: expr, $($action: expr),* ; $($effect: expr),* )=> {
+    ($path:expr, $guard: expr, $($action: expr),* ; $($effect: expr),* )=> {
         Transition{
-            spid: SPID::new($name),
+            path: $path.clone(),
             guard: $guard.clone(),
             actions: vec!($($action.clone()),*),
             effects: vec!($($effect.clone()),*),
@@ -113,7 +113,7 @@ mod runner_tests {
         let c = a!(xy ? p);
 
         let t1 = Transition {
-            spid: SPID::new("t1"),
+            path: SPPath::from_str(&["t1"]),
             guard: Predicate::TRUE,
             actions: vec!(a, b, c),
             effects: vec!(),
@@ -146,36 +146,36 @@ mod runner_tests {
         let kl = SPPath::from_str(&["k", "l"]);
         let xy = SPPath::from_str(&["x", "y"]);
 
-        let t = transition!("t", Predicate::TRUE);
+        let t = transition!(SPPath::from_str(&["t"]), Predicate::TRUE);
         let res = Transition {
-            spid: t.spid.clone(),
+            path: t.path.clone(),
             guard: Predicate::TRUE,
             actions: vec!(),
             effects: vec!(),
         };
         assert_eq!(t, res);
 
-        let t = transition!("t", p!(ab), a!(ab), a!(!kl));
+        let t = transition!(SPPath::from_str(&["t"]), p!(ab), a!(ab), a!(!kl));
         let res = Transition {
-            spid: t.spid.clone(),
+            path: t.path.clone(),
             guard: p!(ab),
             actions: vec!(a!(ab), a!(!kl)),
             effects: vec!(),
         };
         assert_eq!(t, res);
 
-        let t = transition!("t", p!(ab), a!(ab) ; a!(!kl));
+        let t = transition!(SPPath::from_str(&["t"]), p!(ab), a!(ab) ; a!(!kl));
         let res = Transition {
-            spid: t.spid.clone(),
+            path: t.path.clone(),
             guard: p!(ab),
             actions: vec!(a!(ab)),
             effects: vec!(a!(!kl)),
         };
         assert_eq!(t, res);
 
-        let t = transition!("t", p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
+        let t = transition!(SPPath::from_str(&["t"]), p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
         let res = Transition {
-            spid: t.spid.clone(),
+            path: t.path.clone(),
             guard: p!(ab),
             actions: vec!(a!(ab), a!(ab)),
             effects: vec!(a!(!kl), a!(!kl)),

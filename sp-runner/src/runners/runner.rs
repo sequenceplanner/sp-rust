@@ -1,4 +1,4 @@
-//! The runners in sp-runner 
+//! The runners in sp-runner
 
 
 use sp_domain::*;
@@ -34,8 +34,8 @@ pub struct RunnerModel {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerPlans {
-    pub op_plan: Vec<Uuid>,         // maybe have spids here?
-    pub ab_plan: Vec<Uuid>,
+    pub op_plan: Vec<SPPath>,         // maybe have spids here?
+    pub ab_plan: Vec<SPPath>,
 }
 
 
@@ -119,8 +119,8 @@ pub enum RunnerCommand {
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PlannerResult {
-    OpPlan(Vec<Uuid>),
-    AbPlan(Vec<Uuid>)
+    OpPlan(Vec<SPPath>),
+    AbPlan(Vec<SPPath>)
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum RunnerInfo {
@@ -152,7 +152,7 @@ impl Runner {
 
     /// Upd the runner based on incoming command
     fn upd_command(&mut self, cmd: Option<RunnerCommand>) {
-        
+
     }
 
     /// Upd the runner based on incoming plans
@@ -191,7 +191,7 @@ impl Runner {
 
     /// Tick the runner one step trying to run the transitions that are enabled.
     /// Returns an updated state, updated plans and the transitions that was fired
-    fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPID>) {
+    fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPPath>) {
         let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions);
 
         let (goal, inv) = self.next_op_functions(&state);
@@ -202,20 +202,20 @@ impl Runner {
         (state, plans, fired)
     }
 
-    /// Ticks all transitions that are enabled, starting first with the controlled that is first in the 
+    /// Ticks all transitions that are enabled, starting first with the controlled that is first in the
     /// plan. Mutates the runner state
-    fn tick_transitions(&self, state: &mut SPState, plan: &mut Vec<Uuid>, trans: &RunnerTransitions) -> Vec<SPID> {
+    fn tick_transitions(&self, state: &mut SPState, plan: &mut Vec<SPPath>, trans: &RunnerTransitions) -> Vec<SPPath> {
         let (ctrl, un_ctrl) = (&trans.ctrl, &trans.un_ctrl);
 
-        let first = plan.first().and_then(|id| {
-            ctrl.iter().find(|t| t.spid.id == *id)
+        let first = plan.first().and_then(|path| {
+            ctrl.iter().find(|t| t.path == *path)
         });
         let mut fired = match first {
             Some(t) if t.eval(&state) => {
                 let n = t.next(&state).unwrap(); // Must return Ok, else something is bad
                 self.insert_into_state(state, n);
                 plan.remove(0);
-                vec!(t.spid.clone())
+                vec!(t.path.clone())
             },
             _ => Vec::new()
         };
@@ -225,8 +225,8 @@ impl Runner {
             println!("{:?}, t: {:?}", t.eval(&state), t);
             if t.eval(&state) {
                 let n = t.next(&state).unwrap(); // should always work since eval works
-                self.insert_into_state(state, n);  
-                fired.push(t.spid.clone());
+                self.insert_into_state(state, n);
+                fired.push(t.path.clone());
             }
         };
 
@@ -248,7 +248,7 @@ impl Runner {
          })
     }
 
-    
+
 
     fn insert_into_state(&self, state: &mut SPState, map: AssignState) {
         state.insert_map(map).unwrap();  // should always work here, else eval is not ok
@@ -284,7 +284,7 @@ fn extr_option<T>(x: Async<Option<T>>) -> Option<T> {
         Async::Ready(x) => x,
         _ => None,
     }
-} 
+}
 
 fn extr_option_res<T, U>(x: Result<Async<Option<T>>, U>) -> Option<T> {
     x.ok().and_then(|y| {
@@ -293,7 +293,7 @@ fn extr_option_res<T, U>(x: Result<Async<Option<T>>, U>) -> Option<T> {
             _ => None,
         }
     })
-} 
+}
 
 fn is_not_ready<T, E>(p: &Poll<T, E>) -> bool {
     match p {
@@ -356,7 +356,7 @@ impl Future for Runner {
         self.model.plans = plans;
         println!("Fired: {:?}", &fired);
 
-        // Since one of the inputs was ready we will poll again. We should terminate 
+        // Since one of the inputs was ready we will poll again. We should terminate
         // later when we get a command above
         task::current().notify();
         Ok(Async::NotReady)
@@ -367,7 +367,7 @@ impl Future for Runner {
 
 
 /// ********** TESTS ***************
-/// 
+///
 
 
 
@@ -375,7 +375,7 @@ impl Future for Runner {
 mod runner_tests {
     use super::*;
 
-    
+
 
     #[test]
     fn dummy_robot_model_tests() {
@@ -383,7 +383,7 @@ mod runner_tests {
         println!("{:?}", runner.state);
 
         assert_eq!(runner.state.get_value(
-            &SPPath::from_str(&["r1", "ref"])), 
+            &SPPath::from_str(&["r1", "ref"])),
             Some(&0.to_spvalue())
         );
 
@@ -393,12 +393,12 @@ mod runner_tests {
 
         let newS = res.0;
         assert_eq!(newS.get_value(
-            &SPPath::from_str(&["r1", "ref"])), 
+            &SPPath::from_str(&["r1", "ref"])),
             Some(&10.to_spvalue())
         );
 
         let res = runner.tick(newS.clone(), runner.model.plans.clone());
-        assert_eq!(res.0, 
+        assert_eq!(res.0,
             newS
         );
 
@@ -414,9 +414,9 @@ mod runner_tests {
         let xy = SPPath::from_str(&["x", "y"]);
 
         let s = state!(
-            ab => false, 
-            ac => false, 
-            kl => false, 
+            ab => false,
+            ac => false,
+            kl => false,
             xy => false
         );
 
@@ -438,12 +438,13 @@ mod runner_tests {
         let a_kl_not = a!(!kl);
         let a_xy_not = a!(!xy);
 
-        let t_ab = transition!("t_ab", &p_ab_not, &a_ab);
-        let t_ab_not = transition!("t_ab", &p_ab, &a_ab_not);
-        let t_ab_ac = transition!("t_ab", &p_ab, &a_ac);
-        let t_ac_kl = transition!("t_ab", &p_ac, &a_kl);
-        let t_kl_xy = transition!("t_ab", &p_kl, &a_xy);
-        let t_reset = transition!("t_ab", &p_xy, &a_ab_not, &a_ac_not, &a_kl_not, &a_xy_not);
+        let p = SPPath::from_str(&["t_ab"]);
+        let t_ab = transition!(p, &p_ab_not, &a_ab);
+        let t_ab_not = transition!(p, &p_ab, &a_ab_not);
+        let t_ab_ac = transition!(p, &p_ab, &a_ac);
+        let t_ac_kl = transition!(p, &p_ac, &a_kl);
+        let t_kl_xy = transition!(p, &p_kl, &a_xy);
+        let t_reset = transition!(p, &p_xy, &a_ab_not, &a_ac_not, &a_kl_not, &a_xy_not);
 
         let ts = RunnerTransitions{
             ctrl: vec!(t_ab, t_reset),
@@ -485,25 +486,25 @@ mod runner_tests {
             let activated = SPPath::from_str(&[name, "activ"]);
 
             let to_upper = Transition::new(
-                format!("{}_to_upper", name),
+                SPPath::from_str(&[name, "trans", "to_upper"]),
                 p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
                 vec!(a!(r = upper)),
                 vec!(a!(a = upper)),
             );
             let to_lower = Transition::new(
-                format!("{}_to_lower", name),
+                SPPath::from_str(&[name, "trans", "to_lower"]),
                 p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
                 vec!(a!(r = 0)),
                 vec!(a!(a = 0)),
             );
             let t_activate = Transition::new(
-                format!("{}_activate", name),
+                SPPath::from_str(&[name, "trans", "activate"]),
                 p!(!activated),
                 vec!(a!(activate)),
                 vec!(a!(activated)),
             );
             let t_deactivate = Transition::new(
-                format!("{}_activate", name),
+                SPPath::from_str(&[name, "trans", "deactivate"]),
                 p!(activated),
                 vec!(a!(!activate)),
                 vec!(a!(!activated)),

@@ -10,6 +10,13 @@ use std::error::Error;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct PlanningFrame {
+    pub state: HashMap<SPPath, SPValue>,
+    // The controllable transition taken, if one was taken.
+    pub ctrl: Option<SPPath>,
+}
+
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerModel {
@@ -49,25 +56,25 @@ fn make_robot(name: &str, upper: i32) -> (SPState, RunnerModel) {
     });
 
     let to_upper = Transition::new(
-        format!("{}_to_upper", name),
+        SPPath::from_str(&[name, "trans", "to_upper"]),
         p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
         vec![a!(r = upper)],
         vec![a!(a = upper)],
     );
     let to_lower = Transition::new(
-        format!("{}_to_lower", name),
+        SPPath::from_str(&[name, "trans", "to_lower"]),
         p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
         vec![a!(r = 0)],
         vec![a!(a = 0)],
     );
     let t_activate = Transition::new(
-        format!("{}_activate", name),
+        SPPath::from_str(&[name, "trans", "activate"]),
         p!(!activated),
         vec![a!(activate)],
         vec![a!(activated)],
     );
     let t_deactivate = Transition::new(
-        format!("{}_deactivate", name),
+        SPPath::from_str(&[name, "trans", "deactivate"]),
         p!(activated),
         vec![a!(!activate)],
         vec![a!(!activated)],
@@ -217,11 +224,8 @@ fn action_to_string(a: &Action) -> Option<String> {
     }
 }
 
-#[test]
-fn planner() {
-    let (state, model) = make_robot("r1", 10);
-    let state = state.external();
-
+// TODO: goal should be predicate
+fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) -> String {
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
@@ -249,9 +253,9 @@ fn planner() {
 
     // add a control variable for each controllable transition
     for ct in &model.ctrl {
-        // TODO: maybe use the id later but nice with human readable output
-        let name = &ct.spid.name;
-        lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = name));
+        let path = NuXMVPath(&ct.path);
+        lines.push_str(&format!("{i}{v} : boolean;\n",
+                                i = indent(2), v = path));
     }
 
     lines.push_str("\n\n");
@@ -273,14 +277,13 @@ fn planner() {
     lines.push_str("-- CONTROL VARIABLE STATE --\n");
     // add a control variable for each controllable transition
     for ct in &model.ctrl {
-        // TODO: maybe use the id later but nice with human readable output
-        let name = &ct.spid.name;
+        let path = NuXMVPath(&ct.path);
         let false_ = false.to_spvalue();
         let value = NuXMVValue(&false_); // they're all false
         lines.push_str(&format!(
             "{i}init({v}) := {spv};\n",
             i = indent(2),
-            v = name,
+            v = path,
             spv = value
         ));
     }
@@ -289,7 +292,7 @@ fn planner() {
     lines.push_str("-- TRANSITIONS --\n");
     lines.push_str("");
 
-    for (path, variable) in &model.vars {
+    for path in model.vars.keys() {
         let path = NuXMVPath(path);
 
         lines.push_str(&format!("{i}next({v}) := case\n", i = indent(2), v = path));
@@ -309,7 +312,7 @@ fn planner() {
                 i = indent(4),
                 p = p,
                 a = v,
-                c = t.spid.name
+                c = t.path
             ));
         }
 
@@ -324,10 +327,10 @@ fn planner() {
             lines.push_str(&format!(
                 "{i}{t} & {p} : {a};  -- {c} (controllable)\n",
                 i = indent(4),
-                t = t.spid.name,
+                t = NuXMVPath(&t.path),
                 p = p,
                 a = v,
-                c = t.spid.name
+                c = t.path
             ));
         }
 
@@ -340,7 +343,7 @@ fn planner() {
     // add invariant stating only one controllable event can be active at a time
     lines.push_str("\n\n");
     lines.push_str("INVAR\n");
-    let ctrl_names: Vec<_> = model.ctrl.iter().map(|c| c.spid.name.clone()).collect();
+    let ctrl_names: Vec<_> = model.ctrl.iter().map(|c| NuXMVPath(&c.path).to_string()).collect();
     let ctrl_names_sep = ctrl_names.join(",");
     lines.push_str(&format!(
         "{i}count({n}) <= 1;\n",
@@ -351,14 +354,19 @@ fn planner() {
     // finally, print out the ltl spec
     lines.push_str("\n\n");
 
-    let goal = "r1#activated";  // TODO: make a predicate...
     lines.push_str(&format!("LTLSPEC ! F ( {} );", goal));
 
-    println!("{}", lines);
+    return lines;
+}
 
-    let v = find_actions_modifying_path(&model.un_ctrl, &SPPath::from_str(&["r1", "ref"]));
-    println!("{:?}", v);
 
+
+#[test]
+fn planner() {
+    let (state, model) = make_robot("r1", 10);
+    let state = state.external();
+
+    let lines = create_nuxmv_problem("r1#activated", &state, &model);
 
     let out_fn = PathBuf::from("/home/martin/tests/bmc/slash.bmc");
     let mut f = File::create(out_fn).unwrap();
@@ -387,15 +395,56 @@ fn planner() {
     match process.stdout.unwrap().read_to_string(&mut s) {
         Err(why) => panic!("couldn't read stdout: {}",
                            why.description()),
-        _ => ()
+        _ => println!("read output from nuxmv")
     }
 
     let lines = s.lines();
     let s = lines.rev().take_while(|l|!l.contains("Trace Type: Counterexample"));
     let mut s: Vec<String> = s.map(|s|s.to_owned()).collect();
+    s.pop(); // skip first state label
     s.reverse();
 
-    println!("result\n{}", s.join("\n"));
+    let mut trace = Vec::new();
+    let mut last = PlanningFrame::default();
 
+    for l in &s {
+        if l.contains("  -> State: ") || l.contains("nuXmv >") {
+            trace.push(last);
+            last = PlanningFrame::default();
+        } else {
+            let path_val: Vec<_> = l.split("=").map(|s|s.trim()).collect();
+            let path = SPPath::from_str(path_val[0].split("#").collect::<Vec<&str>>().as_ref());
+
+            let val = path_val.get(1).expect("no value!");
+
+            // check for controllable actions
+            if model.ctrl.iter().find(|t|t.path==path).is_some() {
+                if val == &"TRUE" {
+                    assert!(last.ctrl.is_none());
+                    last.ctrl = Some(path);
+                }
+            } else {
+                // get SP type from path
+                let spt = model.vars.get(&path).expect(&format!("path mismatch! {}", path))
+                    .variable_data().type_;
+
+
+                let spval = if spt == SPValueType::Bool {
+                    if val == &"TRUE" {
+                        true.to_spvalue()
+                    } else {
+                        false.to_spvalue()
+                    }
+                } else {
+                    0.to_spvalue()
+                };
+
+                last.state.insert(path, spval);
+            }
+        }
+    }
+
+    println!("result\n{}", s.join("\n"));
+    println!("result\n{:#?}", trace);
 
 }
