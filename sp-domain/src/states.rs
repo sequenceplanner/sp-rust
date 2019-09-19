@@ -2,7 +2,7 @@
 //!
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap,BTreeMap};
 use std::fmt;
 use super::*;
 
@@ -220,6 +220,7 @@ impl StateExternal {
 
 impl fmt::Display for StateExternal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ordered: BTreeMap<_, _> = self.s.iter().collect();
         let mut buf = Vec::new();
         for (p,val) in &self.s {
             buf.push(format!("{}: {}", p, val));

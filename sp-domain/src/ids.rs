@@ -25,7 +25,7 @@ impl Default for SPID {
 }
 
 /// Representing a variable in a hiearchy
-#[derive(Debug, Hash, Eq, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
 pub struct SPPath{
     pub path: Vec<String>,
 }

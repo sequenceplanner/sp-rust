@@ -12,8 +12,8 @@ use std::process::{Command, Stdio};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct PlanningFrame {
-    pub state: HashMap<SPPath, SPValue>,
-    // The controllable transition taken, if one was taken.
+    pub state: StateExternal,
+    // The controllable transition taken this frame, if one was taken.
     pub ctrl: Option<SPPath>,
 }
 
@@ -200,7 +200,7 @@ fn find_actions_modifying_path(
         assert!(!(a.is_some() && e.is_some()));
 
         if let Some(a) = a {
-            println!("match!: {}", NuXMVPredicate(&t.guard));
+            // println!("match!: {}", NuXMVPredicate(&t.guard));
             r.push((t.clone(), a.clone()));
         }
         if let Some(e) = e {
@@ -359,6 +359,32 @@ fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) 
     return lines;
 }
 
+fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
+    // as we have more options than json we switch on the spval type
+    let tm = |msg: &str| {
+        format!("type mismatch! got {}, expected {}!", nuxmv_val, msg)
+    };
+    match spv_t {
+        SPValueType::Bool =>
+            if nuxmv_val == "TRUE" {
+                true.to_spvalue()
+            } else {
+                false.to_spvalue()
+            },
+        SPValueType::Int32 => {
+            let intval: i32 = nuxmv_val.parse().expect(&tm("int32"));
+            intval.to_spvalue()
+        },
+        SPValueType::Float32 => {
+            let fval: f32 = nuxmv_val.parse().expect(&tm("float32"));
+            fval.to_spvalue()
+        },
+        SPValueType::String =>
+            nuxmv_val.to_spvalue(),
+        // todo: check is_array
+        _ => unimplemented!("TODO"),
+    }
+}
 
 
 #[test]
@@ -366,13 +392,12 @@ fn planner() {
     let (state, model) = make_robot("r1", 10);
     let state = state.external();
 
-    let lines = create_nuxmv_problem("r1#activated", &state, &model);
+    let goal = "r1#activated";
+    let lines = create_nuxmv_problem(goal, &state, &model);
 
     let out_fn = PathBuf::from("/home/martin/tests/bmc/slash.bmc");
     let mut f = File::create(out_fn).unwrap();
     write!(f, "{}", lines).unwrap();
-
-    println!("{}", state);
 
     let process = match Command::new("nuxmv")
         .arg("-int")
@@ -388,14 +413,14 @@ fn planner() {
     match process.stdin.unwrap().write_all(command.as_bytes()) {
         Err(why) => panic!("couldn't write to stdin: {}",
                            why.description()),
-        Ok(_) => println!("sent command to nuxmv"),
+        Ok(_) => ()
     }
 
     let mut s = String::new();
     match process.stdout.unwrap().read_to_string(&mut s) {
         Err(why) => panic!("couldn't read stdout: {}",
                            why.description()),
-        _ => println!("read output from nuxmv")
+        _ => ()
     }
 
     let lines = s.lines();
@@ -428,23 +453,23 @@ fn planner() {
                 let spt = model.vars.get(&path).expect(&format!("path mismatch! {}", path))
                     .variable_data().type_;
 
-
-                let spval = if spt == SPValueType::Bool {
-                    if val == &"TRUE" {
-                        true.to_spvalue()
-                    } else {
-                        false.to_spvalue()
-                    }
-                } else {
-                    0.to_spvalue()
-                };
-
-                last.state.insert(path, spval);
+                let spval = spval_from_nuxvm(val, spt);
+                last.state.s.insert(path, spval);
             }
         }
     }
 
-    println!("result\n{}", s.join("\n"));
-    println!("result\n{:#?}", trace);
+    println!("INITIAL STATE");
+    println!("{}", state);
+    println!("PREDICATE: {}", goal);
+    println!("-------\n");
+
+    println!("RESULTING PLAN");
+
+    for (i,f) in trace.iter().enumerate() {
+        println!("FRAME ID: {}\n{}", i, f.state);
+        println!("ACTION: {:?}", f.ctrl);
+        println!("-------");
+    }
 
 }
