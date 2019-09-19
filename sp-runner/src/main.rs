@@ -9,7 +9,10 @@ use r2r;
 use sp_domain::*;
 use std::collections::HashMap;
 use std::env;
-use std::sync::mpsc;
+
+extern crate crossbeam;
+use crossbeam::channel as channel;
+//use std::sync::mpsc;
 use std::thread;
 
 #[macro_use]
@@ -65,8 +68,8 @@ lazy_static! {
 fn roscomm_setup(
     node: &mut r2r::Node,
     rc: &'static RosComm,
-    tx_in: mpsc::Sender<StateExternal>,
-) -> Result<mpsc::Sender<StateExternal>, Error> {
+    tx_in: channel::Sender<StateExternal>,
+) -> Result<channel::Sender<StateExternal>, Error> {
     // setup ros subscribers
     for s in &rc.subscribers {
         // todo: fix lifetime issue when R is not static...
@@ -94,7 +97,7 @@ fn roscomm_setup(
         })
         .collect();
 
-    let (tx_out, rx_out) = mpsc::channel::<StateExternal>();
+    let (tx_out, rx_out) = channel::unbounded();
     thread::spawn(move || loop {
         let state = rx_out.recv().unwrap();
         for rp in &ros_pubs {
@@ -113,7 +116,7 @@ fn main() -> Result<(), Error> {
     let mut node = r2r::Node::create(ctx, &rc.node_name, &rc.node_namespace)?;
 
     // data from resources to runner
-    let (tx_in, rx_in) = mpsc::channel::<StateExternal>();
+    let (tx_in, rx_in) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
     let tx_out = roscomm_setup(&mut node, &rc, tx_in)?;
@@ -150,11 +153,11 @@ use futures::Future;
 use futures::future::{lazy, poll_fn};
 use tokio_threadpool;
 
-fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mpsc::Sender<StateExternal>) {
+fn launch_tokio(rx: channel::Receiver<StateExternal>, tx: channel::Sender<StateExternal>) {
 
     let (runner, comm) = test_model();
-    let (buf, to_buf, from_buf) =
-        MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
+    let (buf, mut to_buf, from_buf) =
+        streamsupport::messagebuffer::MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
             false // no merge
         });
 
@@ -166,14 +169,7 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
         loop {
             let res = tokio_threadpool::blocking(|| {
                 let msg = rx.recv().unwrap();
-
-                let send = to_buf
-                    .clone()
-                    .send(msg)
-                    .map(move |_| ())
-                    .map_err(|e| eprintln!("error = {:?}", e));
-                tokio::spawn(send)
-
+                to_buf.try_send(msg);
             }).map_err(|_| panic!("the threadpool shut down"));
         }
         Ok(())
@@ -189,7 +185,7 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
         let getting = from_buf
         .for_each(move |result| {
             println!("into runner: {:?}", result);
-            runner_in.try_send(result.to_assignstate());
+            runner_in.try_send(result.to_assignstate()).unwrap();  // if we fail, the runner do not keep up
             Ok(())
         })
         .map(move |_| ())
@@ -199,8 +195,9 @@ fn launch_tokio(rx: std::sync::mpsc::Receiver<StateExternal>, tx: std::sync::mps
 
         let from_runner = comm.state_output
         //.take(5)
-        .for_each(|result| {
+        .for_each(move |result| {
             println!("From runner: {:?}", result);
+            tx.clone().try_send(result.external()).unwrap(); // if we fail the ROS side to do not keep up
             Ok(())
         })
         .map(move |_| ())
