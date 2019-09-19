@@ -1,14 +1,24 @@
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
-
-use std::error::Error;
 use std::io::prelude::*;
+use std::io::Write;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+use std::time::SystemTime;
+use chrono::offset::Local;
+use chrono::DateTime;
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct PlanningResult {
+    plan_found: bool,
+    trace: Vec<PlanningFrame>,
+    time_to_solve: std::time::Duration,
+    raw_output: String,
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct PlanningFrame {
@@ -16,7 +26,6 @@ pub struct PlanningFrame {
     // The controllable transition taken this frame, if one was taken.
     pub ctrl: Option<SPPath>,
 }
-
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerModel {
@@ -218,14 +227,12 @@ fn action_to_string(a: &Action) -> Option<String> {
             PredicateValue::SPValue(spval) => Some(format!("{}", NuXMVValue(&spval))),
             PredicateValue::SPPath(path) => Some(format!("{}", NuXMVPath(&path))),
         },
-        Compute::Predicate(p) =>
-            Some(format!("{}", NuXMVPredicate(&p))),
+        Compute::Predicate(p) => Some(format!("{}", NuXMVPredicate(&p))),
         _ => None,
     }
 }
 
-// TODO: goal should be predicate
-fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) -> String {
+fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel) -> String {
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
@@ -254,8 +261,7 @@ fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) 
     // add a control variable for each controllable transition
     for ct in &model.ctrl {
         let path = NuXMVPath(&ct.path);
-        lines.push_str(&format!("{i}{v} : boolean;\n",
-                                i = indent(2), v = path));
+        lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
 
     lines.push_str("\n\n");
@@ -343,7 +349,11 @@ fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) 
     // add invariant stating only one controllable event can be active at a time
     lines.push_str("\n\n");
     lines.push_str("INVAR\n");
-    let ctrl_names: Vec<_> = model.ctrl.iter().map(|c| NuXMVPath(&c.path).to_string()).collect();
+    let ctrl_names: Vec<_> = model
+        .ctrl
+        .iter()
+        .map(|c| NuXMVPath(&c.path).to_string())
+        .collect();
     let ctrl_names_sep = ctrl_names.join(",");
     lines.push_str(&format!(
         "{i}count({n}) <= 1;\n",
@@ -354,6 +364,7 @@ fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) 
     // finally, print out the ltl spec
     lines.push_str("\n\n");
 
+    let goal = NuXMVPredicate(goal);
     lines.push_str(&format!("LTLSPEC ! F ( {} );", goal));
 
     return lines;
@@ -361,71 +372,65 @@ fn create_nuxmv_problem(goal: &str, state: &StateExternal, model: &RunnerModel) 
 
 fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
     // as we have more options than json we switch on the spval type
-    let tm = |msg: &str| {
-        format!("type mismatch! got {}, expected {}!", nuxmv_val, msg)
-    };
+    let tm = |msg: &str| format!("type mismatch! got {}, expected {}!", nuxmv_val, msg);
     match spv_t {
-        SPValueType::Bool =>
+        SPValueType::Bool => {
             if nuxmv_val == "TRUE" {
                 true.to_spvalue()
             } else {
                 false.to_spvalue()
-            },
+            }
+        }
         SPValueType::Int32 => {
             let intval: i32 = nuxmv_val.parse().expect(&tm("int32"));
             intval.to_spvalue()
-        },
+        }
         SPValueType::Float32 => {
             let fval: f32 = nuxmv_val.parse().expect(&tm("float32"));
             fval.to_spvalue()
-        },
-        SPValueType::String =>
-            nuxmv_val.to_spvalue(),
+        }
+        SPValueType::String => nuxmv_val.to_spvalue(),
         // todo: check is_array
         _ => unimplemented!("TODO"),
     }
 }
 
-
-#[test]
-fn planner() {
-    let (state, model) = make_robot("r1", 10);
-    let state = state.external();
-
-    let goal = "r1#activated";
-    let lines = create_nuxmv_problem(goal, &state, &model);
-
-    let out_fn = PathBuf::from("/home/martin/tests/bmc/slash.bmc");
-    let mut f = File::create(out_fn).unwrap();
-    write!(f, "{}", lines).unwrap();
-
+fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<String> {
     let process = match Command::new("nuxmv")
         .arg("-int")
-        .arg("/home/martin/tests/bmc/slash.bmc")
+        .arg(filename)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn() {
-            Err(why) => panic!("couldn't spawn nuxmv command: {}", why.description()),
-            Ok(process) => process,
-        };
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Err(why) => panic!("couldn't spawn nuxmv command: {}", why.description()),
+        Ok(process) => process,
+    };
 
-    let command = "go_bmc\ncheck_ltlspec_bmc_inc -k 20\nshow_traces -v\nquit\n";
-    match process.stdin.unwrap().write_all(command.as_bytes()) {
-        Err(why) => panic!("couldn't write to stdin: {}",
-                           why.description()),
-        Ok(_) => ()
+    let command = format!(
+        "go_bmc\ncheck_ltlspec_bmc_inc -k {}\nshow_traces -v\nquit\n",
+        max_steps
+    );
+
+    process.stdin.unwrap().write_all(command.as_bytes())?;
+
+    let mut raw = String::new();
+    process.stdout.unwrap().read_to_string(&mut raw)?;
+
+    Ok(raw)
+}
+
+fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<PlanningFrame>> {
+    if !raw.contains("Trace Type: Counterexample") {
+        return None;
     }
 
-    let mut s = String::new();
-    match process.stdout.unwrap().read_to_string(&mut s) {
-        Err(why) => panic!("couldn't read stdout: {}",
-                           why.description()),
-        _ => ()
-    }
-
-    let lines = s.lines();
-    let s = lines.rev().take_while(|l|!l.contains("Trace Type: Counterexample"));
-    let mut s: Vec<String> = s.map(|s|s.to_owned()).collect();
+    let lines = raw.lines();
+    let s = lines
+        .rev()
+        .take_while(|l| !l.contains("Trace Type: Counterexample"));
+    let mut s: Vec<String> = s.map(|s| s.to_owned()).collect();
     s.pop(); // skip first state label
     s.reverse();
 
@@ -437,21 +442,25 @@ fn planner() {
             trace.push(last);
             last = PlanningFrame::default();
         } else {
-            let path_val: Vec<_> = l.split("=").map(|s|s.trim()).collect();
+            let path_val: Vec<_> = l.split("=").map(|s| s.trim()).collect();
             let path = SPPath::from_str(path_val[0].split("#").collect::<Vec<&str>>().as_ref());
 
             let val = path_val.get(1).expect("no value!");
 
             // check for controllable actions
-            if model.ctrl.iter().find(|t|t.path==path).is_some() {
+            if model.ctrl.iter().find(|t| t.path == path).is_some() {
                 if val == &"TRUE" {
                     assert!(last.ctrl.is_none());
                     last.ctrl = Some(path);
                 }
             } else {
                 // get SP type from path
-                let spt = model.vars.get(&path).expect(&format!("path mismatch! {}", path))
-                    .variable_data().type_;
+                let spt = model
+                    .vars
+                    .get(&path)
+                    .expect(&format!("path mismatch! {}", path))
+                    .variable_data()
+                    .type_;
 
                 let spval = spval_from_nuxvm(val, spt);
                 last.state.s.insert(path, spval);
@@ -459,17 +468,60 @@ fn planner() {
         }
     }
 
+    Some(trace)
+}
+
+fn solve_nuxmv_problem(
+    goal: &Predicate,
+    state: &StateExternal,
+    model: &RunnerModel,
+) -> PlanningResult {
+    let lines = create_nuxmv_problem(&goal, &state, &model);
+
+    let datetime: DateTime<Local> = SystemTime::now().into();
+    // todo: use non platform way of getting temporary folder
+    // or maybe just output to a subfolder 'plans'
+    let filename = &format!("/tmp/planner {}.bmc", datetime);
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
+
+    let start = Instant::now();
+    let raw = call_nuxmv(20, filename).expect("PANIC! SOLVER PROBLEM!");
+    let duration = start.elapsed();
+
+    let trace = postprocess_nuxmv_problem(&raw, model);
+
+    PlanningResult {
+        plan_found: trace.is_some(),
+        trace: trace.unwrap_or_default(),
+        time_to_solve: duration,
+        raw_output: raw.to_owned(),
+    }
+}
+
+#[test]
+fn planner() {
+    let (state, model) = make_robot("r1", 10);
+    let state = state.external();
+
+    let activated = SPPath::from_str(&["r1", "activated"]);
+    let goal = p!(activated);
+
+    let result = solve_nuxmv_problem(&goal, &state, &model);
+
     println!("INITIAL STATE");
     println!("{}", state);
-    println!("PREDICATE: {}", goal);
+    println!("GOAL PREDICATE: {:?}", goal);
     println!("-------\n");
 
+    println!("TIME TO SOLVE: {}ms", result.time_to_solve.as_millis());
+
+    if ! result.plan_found { return }
     println!("RESULTING PLAN");
 
-    for (i,f) in trace.iter().enumerate() {
+    for (i, f) in result.trace.iter().enumerate() {
         println!("FRAME ID: {}\n{}", i, f.state);
         println!("ACTION: {:?}", f.ctrl);
         println!("-------");
     }
-
 }
