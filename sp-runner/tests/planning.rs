@@ -1,3 +1,5 @@
+use chrono::offset::Local;
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
 use std::collections::HashMap;
@@ -7,10 +9,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 use std::time::SystemTime;
-use chrono::offset::Local;
-use chrono::DateTime;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct PlanningResult {
@@ -475,6 +475,7 @@ fn solve_nuxmv_problem(
     goal: &Predicate,
     state: &StateExternal,
     model: &RunnerModel,
+    max_steps: u32,
 ) -> PlanningResult {
     let lines = create_nuxmv_problem(&goal, &state, &model);
 
@@ -486,7 +487,7 @@ fn solve_nuxmv_problem(
     write!(f, "{}", lines).unwrap();
 
     let start = Instant::now();
-    let raw = call_nuxmv(20, filename).expect("PANIC! SOLVER PROBLEM!");
+    let raw = call_nuxmv(max_steps, filename).expect("PANIC! SOLVER PROBLEM!");
     let duration = start.elapsed();
 
     let trace = postprocess_nuxmv_problem(&raw, model);
@@ -500,14 +501,52 @@ fn solve_nuxmv_problem(
 }
 
 #[test]
-fn planner() {
+fn plan_fail_1_step() {
     let (state, model) = make_robot("r1", 10);
     let state = state.external();
 
     let activated = SPPath::from_str(&["r1", "activated"]);
     let goal = p!(activated);
 
-    let result = solve_nuxmv_problem(&goal, &state, &model);
+    // requires at least step = 2 to find a plan
+    let result = solve_nuxmv_problem(&goal, &state, &model, 1);
+
+    assert!(!result.plan_found);
+
+    assert_ne!(
+        result.trace.last().and_then(|f| f.state.s.get(&activated)),
+        Some(&true.to_spvalue())
+    );
+}
+
+#[test]
+fn plan_success_2_steps() {
+    let (state, model) = make_robot("r1", 10);
+    let state = state.external();
+
+    let activated = SPPath::from_str(&["r1", "activated"]);
+    let goal = p!(activated);
+
+    // requires at least step = 2 to find a plan
+    let result = solve_nuxmv_problem(&goal, &state, &model, 2);
+
+    assert!(result.plan_found);
+
+    assert_eq!(
+        result.trace.last().and_then(|f| f.state.s.get(&activated)),
+        Some(&true.to_spvalue())
+    );
+}
+
+#[test]
+fn planner_debug_printouts() {
+    let (state, model) = make_robot("r1", 10);
+    let state = state.external();
+
+    let activated = SPPath::from_str(&["r1", "activated"]);
+    let goal = p!(activated);
+
+    let result = solve_nuxmv_problem(&goal, &state, &model, 20);
 
     println!("INITIAL STATE");
     println!("{}", state);
@@ -516,7 +555,9 @@ fn planner() {
 
     println!("TIME TO SOLVE: {}ms", result.time_to_solve.as_millis());
 
-    if ! result.plan_found { return }
+    if !result.plan_found {
+        return;
+    }
     println!("RESULTING PLAN");
 
     for (i, f) in result.trace.iter().enumerate() {
