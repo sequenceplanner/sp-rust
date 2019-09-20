@@ -24,6 +24,9 @@ pub use crate::transitions::{Transition};
 pub mod operations;
 pub use crate::operations::{Operation, Ability, OperationFunction};
 
+pub mod solvers;
+pub use crate::solvers::{Config};
+
 pub mod resources;
 pub use crate::resources::*;
 
