@@ -92,6 +92,7 @@ fn roscomm_setup(
             let rp = node.create_publisher_untyped(&p.topic, &msg_type).unwrap();
             move |state: &StateExternal| {
                 let to_send = state_to_json(state, &p.definition, &p.topic);
+                println!("publishing {:#?} to {}", to_send, &p.topic);
                 rp.publish(to_send).unwrap();
             }
         })
@@ -213,31 +214,31 @@ fn launch_tokio(rx: channel::Receiver<StateExternal>, tx: channel::Sender<StateE
 
     fn test_model() -> (runners::Runner, runners::RunnerComm) {
         fn make_robot(name: &str, upper: i32) -> (SPState, runners::RunnerTransitions) {
-            let r = SPPath::from_str(&[name, "ref"]);
-            let a = SPPath::from_str(&[name, "act"]);
-            let activate = SPPath::from_str(&[name, "activ"]);
-            let activated = SPPath::from_str(&[name, "activated"]);
+            let r = SPPath::from_str(&[name, "ref", "data"]);
+            let a = SPPath::from_str(&[name, "act", "data"]);
+            let activate = SPPath::from_str(&[name, "activ", "data"]);
+            let activated = SPPath::from_str(&[name, "activated", "data"]);
 
             let to_upper = Transition::new(
-                format!("{}_to_upper", name),
+                SPPath::from_str(&[name, "trans", "to_upper"]),
                 p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
                 vec!(a!(r = upper)),
                 vec!(a!(a = upper)),
             );
             let to_lower = Transition::new(
-                format!("{}_to_lower", name),
+                SPPath::from_str(&[name, "trans", "to_lower"]),
                 p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
                 vec!(a!(r = 0)),
                 vec!(a!(a = 0)),
             );
             let t_activate = Transition::new(
-                format!("{}_activate", name),
+                SPPath::from_str(&[name, "trans", "activate"]),
                 p!(!activated),
                 vec!(a!(activate)),
                 vec!(a!(activated)),
             );
             let t_deactivate = Transition::new(
-                format!("{}_activate", name),
+                SPPath::from_str(&[name, "trans", "deactivate"]),
                 p!(activated),
                 vec!(a!(!activate)),
                 vec!(a!(!activated)),

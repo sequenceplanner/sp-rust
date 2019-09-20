@@ -18,6 +18,7 @@ r2r = { path = "../../r2r/" }
 failure = "0.1.5"
 failure_derive = "0.1.5"
 lazy_static = "1.4.0"
+chrono = { version = "0.4.9", features = ["serde"] }
 
 [dependencies.sp-domain]
 path = "../sp-domain/"

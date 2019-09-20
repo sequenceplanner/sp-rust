@@ -10,7 +10,7 @@ pub mod values;
 pub use crate::values::{SPValue, SPValueType, ToSPValue};
 
 pub mod predicates;
-pub use crate::predicates::{Predicate, Action, EvaluatePredicate, NextAction};
+pub use crate::predicates::{Predicate, Action, PredicateValue, Compute, EvaluatePredicate, NextAction};
 
 pub mod states;
 pub use crate::states::{SPState, StateValue, StateExternal, AssignState, AssignStateValue, ToStateValue};

@@ -1,6 +1,7 @@
 //! Support to handle identification of items in SP and in the states
 
 use super::*;
+use std::fmt;
 
 /// SPID is used by things in the model that needs to be identified
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
@@ -24,7 +25,7 @@ impl Default for SPID {
 }
 
 /// Representing a variable in a hiearchy
-#[derive(Debug, Hash, Eq, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
 pub struct SPPath{
     pub path: Vec<String>,
 }
