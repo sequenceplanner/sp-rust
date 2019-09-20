@@ -19,7 +19,7 @@ pub struct StateExternal{
     pub s: HashMap<SPPath, SPValue>
 }
 
-/// Representing variables that should be assigned to a stateState. Just a wrapper to simplify life
+/// Representing variables that should be assigned to a SPState. Just a wrapper to simplify life
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AssignState {
     pub s: HashMap<SPPath, AssignStateValue>
@@ -209,12 +209,20 @@ impl StateExternal {
         StateExternal { s: HashMap::new() }
     }
 
-    pub fn internal(&self) -> SPState {
+    pub fn to_spstate(&self) -> SPState {
         let res = self.s.iter().map(|(key, value)| {
             (key.clone(), StateValue::SPValue(value.clone()))
         }).collect();
 
         SPState{s: res}
+    }
+
+    pub fn to_assignstate(&self) -> AssignState {
+        let res = self.s.iter().map(|(key, value)| {
+            (key.clone(), AssignStateValue::SPValue(value.clone()))
+        }).collect();
+
+        AssignState{s: res}
     }
 }
 
@@ -223,7 +231,7 @@ impl fmt::Display for StateExternal {
         let ordered: BTreeMap<_, _> = self.s.iter().collect();
         let mut buf = Vec::new();
         for (p,val) in &self.s {
-            buf.push(format!("{}: {}", p, val));
+            buf.push(format!("{}: {:?}", p, val));
         }
         write!(f,"{}",buf.join("\n"))
     }

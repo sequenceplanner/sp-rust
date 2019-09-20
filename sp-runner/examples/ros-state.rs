@@ -11,13 +11,13 @@ extern crate lazy_static;
 
 fn make_resource() -> Resource {
     let command_var_data = Variable::Command(VariableData {
-        type_: "on".to_spvalue().has_type(),
-        initial_value: Some("off".to_spvalue()),
-        domain: vec!["off".to_spvalue(), "on".to_spvalue()],
+        type_: 0.to_spvalue().has_type(),
+        initial_value: Some(0.to_spvalue()),
+        domain: vec![0.to_spvalue(), 10.to_spvalue()],
     });
 
     let state_var_data = Variable::Measured(VariableData {
-        type_: SPValueType::String,
+        type_: SPValueType::Int32,
         initial_value: None,
         domain: Vec::new(),
     });
@@ -26,18 +26,18 @@ fn make_resource() -> Resource {
         node_name: "resource".into(),
         node_namespace: "".into(),
         publishers: vec![RosPublisherDefinition {
-            topic: "/hopp".into(),
+            topic: "/out".into(),
             qos: "".into(),
             definition: RosMsgDefinition::Message(
-                "std_msgs/msg/String".into(),
+                "std_msgs/msg/Int32".into(),
                 hashmap![
                         "data".into() => RosMsgDefinition::Field(command_var_data.clone())],
             ),
         }],
         subscribers: vec![RosSubscriberDefinition {
-            topic: "/hej".into(),
+            topic: "/in".into(),
             definition: RosMsgDefinition::Message(
-                "std_msgs/msg/String".into(),
+                "std_msgs/msg/Int32".into(),
                 hashmap![
                     "data".into() => RosMsgDefinition::Field(state_var_data.clone())
                 ],
@@ -133,4 +133,62 @@ fn main() -> Result<(), Error> {
         // blocking ros spinning
         node.spin_once(std::time::Duration::from_millis(100));
     }
+}
+
+use tokio::prelude::*;
+use tokio::*;
+
+use futures::try_ready;
+use std::collections::*;
+
+use futures::Future;
+use futures::future::{lazy, poll_fn};
+
+fn launch_tokio() {
+
+    tokio::run(future::lazy(move || {
+    let (buf, to_buf, from_buf) =
+        MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
+            false // no merge
+        });
+
+
+    poll_fn(move || {
+        loop {
+            let res = blocking(|| {
+                let msg = rx.recv().unwrap();
+                println!("message = {}", msg);
+                
+                let send = to_buf
+                    .clone()
+                    .send(msg)
+                    .map(move |_| ())
+                    .map_err(|e| eprintln!("error = {:?}", e));
+                tokio::spawn(send)
+
+            }).map_err(|_| panic!("the threadpool shut down"));
+        }
+    });
+
+    let sending = stream::iter_ok(range).for_each(move |s| {
+        let send = to_buf
+            .clone()
+            .send(s.to_string())
+            .map(move |_| ())
+            .map_err(|e| eprintln!("error = {:?}", e));
+        tokio::spawn(send)
+    });
+    tokio::spawn(sending);
+
+    let getting = from_buf
+        .for_each(|result| {
+            println!("Yes: {:?}", result);
+            Ok(())
+        })
+        .map(move |_| ())
+        .map_err(|e| eprintln!("error = {:?}", e));
+    tokio::spawn(getting);
+
+    tokio::spawn(buf)
+}));
 }

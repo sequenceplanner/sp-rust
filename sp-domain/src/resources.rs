@@ -138,10 +138,10 @@ pub fn json_to_state(
     ) {
         match md {
             RosMsgDefinition::Message(msg_type, members) => {
-                p.push(&msg_type); // keep message type in path?
+                //p.push(&msg_type); // keep message type in path?
                 for (field_name, md) in members.iter() {
                     if let Some(json_child) = json.get(field_name) {
-                        p.push(field_name);
+                        println!("path field_name: {:?}", field_name);
                         json_to_state_(json_child, md, p, a);
                         p.pop();
                     }
@@ -155,7 +155,9 @@ pub fn json_to_state(
         }
     }
 
-    let mut p = vec!(topic);
+    let mut p: Vec<&str> = topic.split("/").filter(|x| !x.is_empty()).collect();
+
+    //let mut p = vec!(topic);
     let mut a = Vec::new();
     json_to_state_(json, md, &mut p, &mut a);
     StateExternal {
@@ -178,13 +180,13 @@ pub fn state_to_json(
         match md {
             RosMsgDefinition::Message(msg_type, members) => {
                 let mut map = serde_json::Map::new();
-                p.push(&msg_type); // keep message type in path?
+                // p.push(&msg_type); // keep message type in path?
                 for (field_name, md) in members.iter() {
                     p.push(field_name);
                     map.insert(field_name.to_string(), state_to_json_(state, md, p));
                     p.pop();
                 }
-                p.pop();
+                // p.pop();
                 serde_json::Value::Object(map)
             }
             RosMsgDefinition::Field(var) => {
@@ -197,7 +199,7 @@ pub fn state_to_json(
         }
     }
 
-    let mut p = vec!(topic);
+    let mut p: Vec<&str> = topic.split("/").filter(|x| !x.is_empty()).collect();
     state_to_json_(state, md, &mut p)
 }
 
