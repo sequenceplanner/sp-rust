@@ -2,7 +2,6 @@
 
 
 use sp_domain::*;
-use uuid::Uuid;
 
 use tokio::prelude::*;
 use tokio::*;
@@ -566,7 +565,7 @@ mod runner_tests {
             op_functions: vec!() ,
         };
 
-        Runner::new(rm, s);
+        Runner::new(rm, s)
 
 
     }

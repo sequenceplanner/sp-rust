@@ -1,9 +1,10 @@
 use failure::Error;
 use r2r;
 use sp_domain::*;
+use sp_runner::*;
 use std::collections::HashMap;
 use std::env;
-use std::sync::mpsc;
+use crossbeam::channel;
 use std::thread;
 
 #[macro_use]
@@ -26,7 +27,7 @@ fn make_resource() -> Resource {
         node_name: "resource".into(),
         node_namespace: "".into(),
         publishers: vec![RosPublisherDefinition {
-            topic: "/out".into(),
+            topic: "/r1/ref".into(),
             qos: "".into(),
             definition: RosMsgDefinition::Message(
                 "std_msgs/msg/Int32".into(),
@@ -35,7 +36,7 @@ fn make_resource() -> Resource {
             ),
         }],
         subscribers: vec![RosSubscriberDefinition {
-            topic: "/in".into(),
+            topic: "/r1/act".into(),
             definition: RosMsgDefinition::Message(
                 "std_msgs/msg/Int32".into(),
                 hashmap![
@@ -59,8 +60,8 @@ lazy_static! {
 fn roscomm_setup(
     node: &mut r2r::Node,
     rc: &'static RosComm,
-    tx_in: mpsc::Sender<StateExternal>,
-) -> Result<mpsc::Sender<StateExternal>, Error> {
+    tx_in: channel::Sender<StateExternal>,
+) -> Result<channel::Sender<StateExternal>, Error> {
     // setup ros subscribers
     for s in &rc.subscribers {
         // todo: fix lifetime issue when R is not static...
@@ -83,12 +84,13 @@ fn roscomm_setup(
             let rp = node.create_publisher_untyped(&p.topic, &msg_type).unwrap();
             move |state: &StateExternal| {
                 let to_send = state_to_json(state, &p.definition, &p.topic);
+                println!("publishing {:#?} to {}", to_send, &p.topic);
                 rp.publish(to_send).unwrap();
             }
         })
         .collect();
 
-    let (tx_out, rx_out) = mpsc::channel::<StateExternal>();
+    let (tx_out, rx_out) = channel::unbounded();
     thread::spawn(move || loop {
         let state = rx_out.recv().unwrap();
         for rp in &ros_pubs {
@@ -107,26 +109,14 @@ fn main() -> Result<(), Error> {
     let mut node = r2r::Node::create(ctx, &rc.node_name, &rc.node_namespace)?;
 
     // data from resources to runner
-    let (tx_in, rx_in) = mpsc::channel::<StateExternal>();
+    let (tx_in, rx_in) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
     let tx_out = roscomm_setup(&mut node, &rc, tx_in)?;
 
-    thread::spawn(move || loop {
-        // "runner"
-        let state = rx_in.recv().unwrap();
-        println!("got sp state\n===============");
-        println!("{}", state);
-    });
-
-    thread::spawn(move || loop {
-        // "runner"
-        let p = SPPath::from_str(&["/hopp", "std_msgs/msg/String", "data"]);
-        let dummy_state = StateExternal {
-            s: hashmap![p => "hello2".to_spvalue()],
-        };
-        tx_out.send(dummy_state);
-        thread::sleep_ms(1000);
+    // "runner"
+    thread::spawn(move || {
+        launch_tokio(rx_in, tx_out);
     });
 
     loop {
@@ -141,54 +131,128 @@ use tokio::*;
 use futures::try_ready;
 use std::collections::*;
 
-use futures::Future;
 use futures::future::{lazy, poll_fn};
+use futures::Future;
+use tokio_threadpool;
 
-fn launch_tokio() {
+fn launch_tokio(rx: channel::Receiver<StateExternal>, tx: channel::Sender<StateExternal>) {
+    let (runner, comm) = test_model();
+    let (buf, mut to_buf, from_buf) = MessageBuffer::new(
+        2,
+        |_: &mut StateExternal, _: &StateExternal| {
+            false // no merge
+        },
+    );
+
+    let (runner, mut comm) = test_model();
+
+    let pool = tokio_threadpool::ThreadPool::new();
+
+    pool.spawn(future::lazy(move || {
+        loop {
+            let res = tokio_threadpool::blocking(|| {
+                let msg = rx.recv().unwrap();
+                to_buf.try_send(msg);
+            })
+            .map_err(|_| panic!("the threadpool shut down"));
+        }
+        Ok(())
+    }));
 
     tokio::run(future::lazy(move || {
-    let (buf, to_buf, from_buf) =
-        MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
-            false // no merge
-        });
+        tokio::spawn(runner);
 
-
-    poll_fn(move || {
-        loop {
-            let res = blocking(|| {
-                let msg = rx.recv().unwrap();
-                println!("message = {}", msg);
-                
-                let send = to_buf
-                    .clone()
-                    .send(msg)
-                    .map(move |_| ())
-                    .map_err(|e| eprintln!("error = {:?}", e));
-                tokio::spawn(send)
-
-            }).map_err(|_| panic!("the threadpool shut down"));
-        }
-    });
-
-    let sending = stream::iter_ok(range).for_each(move |s| {
-        let send = to_buf
-            .clone()
-            .send(s.to_string())
+        let mut runner_in = comm.state_input.clone();
+        let getting = from_buf
+            .for_each(move |result| {
+                println!("into runner: {:?}", result);
+                runner_in.try_send(result.to_assignstate()).unwrap(); // if we fail, the runner do not keep up
+                Ok(())
+            })
             .map(move |_| ())
             .map_err(|e| eprintln!("error = {:?}", e));
-        tokio::spawn(send)
-    });
-    tokio::spawn(sending);
+        tokio::spawn(getting);
 
-    let getting = from_buf
-        .for_each(|result| {
-            println!("Yes: {:?}", result);
-            Ok(())
-        })
-        .map(move |_| ())
-        .map_err(|e| eprintln!("error = {:?}", e));
-    tokio::spawn(getting);
+        let from_runner = comm
+            .state_output
+            //.take(5)
+            .for_each(move |result| {
+                println!("From runner: {:?}", result);
+                tx.clone().try_send(result.external()).unwrap(); // if we fail the ROS side to do not keep up
+                Ok(())
+            })
+            .map(move |_| ())
+            .map_err(|e| eprintln!("error = {:?}", e));
+        tokio::spawn(from_runner);
 
-    tokio::spawn(buf)
-}));
+        tokio::spawn(buf);
+
+        Ok(())
+    }));
+}
+
+fn test_model() -> (Runner, RunnerComm) {
+    fn make_robot(name: &str, upper: i32) -> (SPState, RunnerTransitions) {
+        let r = SPPath::from_str(&[name, "ref", "data"]);
+        let a = SPPath::from_str(&[name, "act", "data"]);
+        let activate = SPPath::from_str(&[name, "activ", "data"]);
+        let activated = SPPath::from_str(&[name, "activated", "data"]);
+
+        let to_upper = Transition::new(
+            SPPath::from_str(&[name, "trans", "to_upper"]),
+            p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
+            vec![a!(r = upper)],
+            vec![a!(a = upper)],
+        );
+        let to_lower = Transition::new(
+            SPPath::from_str(&[name, "trans", "to_lower"]),
+            p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
+            vec![a!(r = 0)],
+            vec![a!(a = 0)],
+        );
+        let t_activate = Transition::new(
+            SPPath::from_str(&[name, "trans", "activate"]),
+            p!(!activated),
+            vec![a!(activate)],
+            vec![a!(activated)],
+        );
+        let t_deactivate = Transition::new(
+            SPPath::from_str(&[name, "trans", "deactivate"]),
+            p!(activated),
+            vec![a!(!activate)],
+            vec![a!(!activated)],
+        );
+
+        let h = hashmap!(
+            r => 0.to_state(),
+            a => 0.to_state(),
+            activate => false.to_state(),
+            activated => false.to_state()
+        );
+
+        let rt = RunnerTransitions {
+            ctrl: vec![t_activate, t_deactivate],
+            un_ctrl: vec![to_lower, to_upper],
+        };
+
+        (SPState { s: h }, rt)
+    }
+
+    let r1 = make_robot("r1", 10);
+    let r2 = make_robot("r2", 10);
+
+    let mut s = r1.0;
+    s.extend(r2.0);
+    let mut tr = r1.1;
+    tr.extend(r2.1);
+
+    let rm = RunnerModel {
+        op_transitions: RunnerTransitions::default(),
+        ab_transitions: tr,
+        plans: RunnerPlans::default(),
+        state_functions: vec![],
+        op_functions: vec![],
+    };
+
+    Runner::new(rm, s)
 }
