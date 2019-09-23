@@ -7,25 +7,57 @@ use std::fmt;
 use super::*;
 
 /// TODO: add Sort struct and include it in the generalized var struct
-pub struct IntVar<'ctx, 'a> {
+pub struct IntVar<'ctx, 'isrt, 'a> {
     pub ctx: &'ctx Context,
+    pub isrt: &'isrt IntSort<'ctx>,
     pub name: &'a str,
     pub var: Z3_ast,
-    // pub sort: Z3_sort,
+}
+
+pub struct BoolVar<'ctx, 'bsrt, 'a> {
+    pub ctx: &'ctx Context,
+    pub bsrt: &'bsrt BoolSort<'ctx>,
+    pub name: &'a str,
+    pub var: Z3_ast,
+}
+
+pub struct RealVar<'ctx, 'bsrt, 'a> {
+    pub ctx: &'ctx Context,
+    pub bsrt: &'bsrt BoolSort<'ctx>,
+    pub name: &'a str,
+    pub var: Z3_ast,
 }
 
 ///Create an integer variable (took some time to figure out the lifetime stuff)
-impl <'ctx, 'a> IntVar<'ctx, 'a> {
-    pub fn new(ctx: &'ctx Context, name: &'a str) -> IntVar<'ctx, 'a> {
+impl <'ctx, 'isrt, 'a> IntVar<'ctx, 'isrt, 'a> {
+    pub fn new(ctx: &'ctx Context, isrt: &'isrt IntSort<'ctx>, name: &'a str) -> IntVar<'ctx, 'isrt, 'a> {
         IntVar {
             ctx,
+            isrt,
             name,
             var: unsafe {
-                let int_sort = Z3_mk_int_sort(ctx.context);
+                let int_sort = isrt.sort;
                 let str_name = CString::new(name).unwrap();
                 let sym_name = Z3_mk_string_symbol(ctx.context, str_name.as_ptr());
                 let int_var = Z3_mk_const(ctx.context, sym_name, int_sort);
                 int_var
+            }
+        }
+    }
+}
+
+impl <'ctx, 'bsrt, 'a> BoolVar<'ctx, 'bsrt, 'a> {
+    pub fn new(ctx: &'ctx Context, bsrt: &'bsrt BoolSort<'ctx>, name: &'a str) -> BoolVar<'ctx, 'bsrt, 'a> {
+        BoolVar {
+            ctx,
+            bsrt,
+            name,
+            var: unsafe {
+                let bool_sort = bsrt.sort;
+                let str_name = CString::new(name).unwrap();
+                let sym_name = Z3_mk_string_symbol(ctx.context, str_name.as_ptr());
+                let bool_var = Z3_mk_const(ctx.context, sym_name, bool_sort);
+                bool_var
             }
         }
     }
@@ -43,7 +75,8 @@ fn test_new_int_var(){
     unsafe {
         let _conf = Config::new();
         let _ctx = Context::new(&_conf);
-        let _var = IntVar::new(&_ctx, "x");
+        let _sort = IntSort::new(&_ctx);
+        let _var = IntVar::new(&_ctx, &_sort, "x");
         let _str_var = Z3_ast_to_string(_ctx.context, _var.var);
         println!("{:?}", CStr::from_ptr(_str_var).to_str().unwrap());
     }

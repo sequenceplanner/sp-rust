@@ -2,34 +2,61 @@
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
-use std::ptr;
-use std::fmt;
 use super::*;
 
-pub struct EQ<'ctx> {
+pub struct BoolSort<'ctx> {
     pub ctx: &'ctx Context,
-    pub left: Z3_ast,
-    pub right: Z3_ast,
-    pub rel: Z3_ast
+    pub sort: Z3_sort
 }
 
-impl <'ctx> EQ<'ctx> {
-    pub fn new(ctx: &'ctx Context, left: Z3_ast, right: Z3_ast) -> EQ {
-        EQ {
+pub struct IntSort<'ctx> {
+    pub ctx: &'ctx Context,
+    pub sort: Z3_sort
+}
+
+pub struct RealSort<'ctx> {
+    pub ctx: &'ctx Context,
+    pub sort: Z3_sort
+}
+
+impl <'ctx> BoolSort<'ctx> {
+    pub fn new(ctx: &'ctx Context) -> BoolSort {
+        BoolSort {
             ctx,
-            left,
-            right,
-            rel: unsafe {
-                let _eq = Z3_mk_eq(ctx.context, left, right);
-                _eq
+            sort: unsafe {
+                let _sort = Z3_mk_bool_sort(ctx.context);
+                _sort
             }
         }
     }
 }
 
+impl <'ctx> IntSort<'ctx> {
+    pub fn new(ctx: &'ctx Context) -> IntSort {
+        IntSort {
+            ctx,
+            sort: unsafe {
+                let _sort = Z3_mk_int_sort(ctx.context);
+                _sort
+            }
+        }
+    }
+}
+
+impl <'ctx> RealSort<'ctx> {
+    pub fn new(ctx: &'ctx Context) -> RealSort {
+        RealSort {
+            ctx,
+            sort: unsafe {
+                let _sort = Z3_mk_real_sort(ctx.context);
+                _sort
+            }
+        }
+    }
+}
 
 #[test]
-fn test_new_eq(){
+fn test_int_sort(){
     unsafe {
         let _conf = Config::new();
         let _ctx = Context::new(&_conf);
