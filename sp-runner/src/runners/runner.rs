@@ -29,6 +29,7 @@ pub struct RunnerModel {
     pub plans: RunnerPlans,
     pub state_functions: Vec<Variable>,
     pub op_functions: Vec<OperationFunction>,
+    pub vars: HashMap<SPPath, Variable>,  // for planning
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]

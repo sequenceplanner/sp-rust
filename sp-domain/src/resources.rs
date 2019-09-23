@@ -82,8 +82,6 @@ pub struct RosPublisherDefinition {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RosComm {
-    pub node_name: String,
-    pub node_namespace: String,
     pub subscribers: Vec<RosSubscriberDefinition>,
     pub publishers: Vec<RosPublisherDefinition>,
 }

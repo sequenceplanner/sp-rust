@@ -1,122 +1,31 @@
+use crossbeam::channel;
 use failure::Error;
+use futures::Future;
 use r2r;
 use sp_domain::*;
 use sp_runner::*;
 use std::collections::HashMap;
-use std::env;
-use crossbeam::channel;
 use std::thread;
-
-#[macro_use]
-extern crate lazy_static;
-
-fn make_resource() -> Resource {
-    let command_var_data = Variable::Command(VariableData {
-        type_: 0.to_spvalue().has_type(),
-        initial_value: Some(0.to_spvalue()),
-        domain: vec![0.to_spvalue(), 10.to_spvalue()],
-    });
-
-    let state_var_data = Variable::Measured(VariableData {
-        type_: SPValueType::Int32,
-        initial_value: None,
-        domain: Vec::new(),
-    });
-
-    let comm = ResourceComm::RosComm(RosComm {
-        node_name: "resource".into(),
-        node_namespace: "".into(),
-        publishers: vec![RosPublisherDefinition {
-            topic: "/r1/ref".into(),
-            qos: "".into(),
-            definition: RosMsgDefinition::Message(
-                "std_msgs/msg/Int32".into(),
-                hashmap![
-                        "data".into() => RosMsgDefinition::Field(command_var_data.clone())],
-            ),
-        }],
-        subscribers: vec![RosSubscriberDefinition {
-            topic: "/r1/act".into(),
-            definition: RosMsgDefinition::Message(
-                "std_msgs/msg/Int32".into(),
-                hashmap![
-                    "data".into() => RosMsgDefinition::Field(state_var_data.clone())
-                ],
-            ),
-        }],
-    });
-
-    Resource {
-        abilities: Vec::new(),
-        parameters: Vec::new(),
-        comm: comm,
-    }
-}
-
-lazy_static! {
-    static ref R: Resource = make_resource();
-}
-
-fn roscomm_setup(
-    node: &mut r2r::Node,
-    rc: &'static RosComm,
-    tx_in: channel::Sender<StateExternal>,
-) -> Result<channel::Sender<StateExternal>, Error> {
-    // setup ros subscribers
-    for s in &rc.subscribers {
-        // todo: fix lifetime issue when R is not static...
-        let msg_type = s.definition.toplevel_msg_type().unwrap();
-        let tx = tx_in.clone();
-        let cb = move |msg: r2r::Result<serde_json::Value>| {
-            let json = msg.unwrap();
-            let state = json_to_state(&json, &s.definition, &s.topic);
-            tx.send(state).unwrap();
-        };
-        let _subref = node.subscribe_untyped(&s.topic, &msg_type, Box::new(cb))?;
-    }
-
-    // setup ros publishers
-    let ros_pubs: Vec<_> = rc
-        .publishers
-        .iter()
-        .map(|p| {
-            let msg_type = p.definition.toplevel_msg_type().unwrap();
-            let rp = node.create_publisher_untyped(&p.topic, &msg_type).unwrap();
-            move |state: &StateExternal| {
-                let to_send = state_to_json(state, &p.definition, &p.topic);
-                println!("publishing {:#?} to {}", to_send, &p.topic);
-                rp.publish(to_send).unwrap();
-            }
-        })
-        .collect();
-
-    let (tx_out, rx_out) = channel::unbounded();
-    thread::spawn(move || loop {
-        let state = rx_out.recv().unwrap();
-        for rp in &ros_pubs {
-            (rp)(&state);
-        }
-    });
-
-    Ok(tx_out)
-}
+use tokio::prelude::*;
+use tokio_threadpool;
 
 fn main() -> Result<(), Error> {
-    let rc = R.comm.as_ros_comm().unwrap();
+    let (runner_model, initial_state, resources) = test_model();
 
     // start ros node
     let ctx = r2r::Context::create()?;
-    let mut node = r2r::Node::create(ctx, &rc.node_name, &rc.node_namespace)?;
+    let mut node = r2r::Node::create(ctx, "spnode", "")?;
 
     // data from resources to runner
     let (tx_in, rx_in) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
-    let tx_out = roscomm_setup(&mut node, &rc, tx_in)?;
+    let tx_out = roscomm_setup(&mut node, resources, tx_in.clone())?;
 
     // "runner"
     thread::spawn(move || {
-        launch_tokio(rx_in, tx_out);
+        let (runner, comm) = Runner::new(runner_model, initial_state);
+        launch_tokio(runner, comm, rx_in, tx_out);
     });
 
     loop {
@@ -125,40 +34,32 @@ fn main() -> Result<(), Error> {
     }
 }
 
-use tokio::prelude::*;
-use tokio::*;
-
-use futures::try_ready;
-use std::collections::*;
-
-use futures::future::{lazy, poll_fn};
-use futures::Future;
-use tokio_threadpool;
-
-fn launch_tokio(rx: channel::Receiver<StateExternal>, tx: channel::Sender<StateExternal>) {
-    let (runner, comm) = test_model();
-    let (buf, mut to_buf, from_buf) = MessageBuffer::new(
-        2,
-        |_: &mut StateExternal, _: &StateExternal| {
+fn launch_tokio(
+    runner: Runner,
+    comm: RunnerComm,
+    rx: channel::Receiver<StateExternal>,
+    tx: channel::Sender<StateExternal>,
+) {
+    let (buf, mut to_buf, from_buf) =
+        MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
             false // no merge
-        },
-    );
-
-    let (runner, mut comm) = test_model();
+        });
 
     let pool = tokio_threadpool::ThreadPool::new();
 
+    #[allow(unreachable_code)]
     pool.spawn(future::lazy(move || {
         loop {
-            let res = tokio_threadpool::blocking(|| {
+            let _res = tokio_threadpool::blocking(|| {
                 let msg = rx.recv().unwrap();
-                to_buf.try_send(msg);
+                let _res = to_buf.try_send(msg);
             })
             .map_err(|_| panic!("the threadpool shut down"));
         }
         Ok(())
     }));
 
+    #[allow(unreachable_code)]
     tokio::run(future::lazy(move || {
         tokio::spawn(runner);
 
@@ -191,12 +92,100 @@ fn launch_tokio(rx: channel::Receiver<StateExternal>, tx: channel::Sender<StateE
     }));
 }
 
-fn test_model() -> (Runner, RunnerComm) {
-    fn make_robot(name: &str, upper: i32) -> (SPState, RunnerTransitions) {
+fn roscomm_setup(
+    node: &mut r2r::Node,
+    rcs: Vec<Resource>,
+    tx_in: channel::Sender<StateExternal>,
+) -> Result<channel::Sender<StateExternal>, Error> {
+    let mut all_ros_pubs = Vec::new();
+
+    for r in rcs {
+        if let Some(rc) = r.comm.as_ros_comm() {
+            // setup ros subscribers
+            for s in &rc.subscribers {
+                // todo: fix lifetime issue when R is not static...
+                let msg_type = s.definition.toplevel_msg_type().unwrap();
+                let tx = tx_in.clone();
+                let def = s.definition.clone();
+                let topic = s.topic.to_owned();
+                let cb = move |msg: r2r::Result<serde_json::Value>| {
+                    let json = msg.unwrap();
+                    let state = json_to_state(&json, &def, &topic);
+                    tx.send(state).unwrap();
+                };
+                let _subref = node.subscribe_untyped(&s.topic, &msg_type, Box::new(cb))?;
+            }
+
+            // setup ros publishers
+            let ros_pubs: Vec<_> = rc
+                .publishers
+                .iter()
+                .map(|p| {
+                    let msg_type = p.definition.toplevel_msg_type().unwrap();
+                    let rp = node.create_publisher_untyped(&p.topic, &msg_type).unwrap();
+                    let def = p.definition.clone();
+                    let topic = p.topic.to_owned();
+                    move |state: &StateExternal| {
+                        let to_send = state_to_json(state, &def, &topic);
+                        println!("publishing {:#?} to {}", to_send, &topic);
+                        rp.publish(to_send).unwrap();
+                    }
+                })
+                .collect();
+
+            all_ros_pubs.extend(ros_pubs);
+        }
+    }
+
+    let (tx_out, rx_out) = channel::unbounded();
+    thread::spawn(move || loop {
+        let state = rx_out.recv().unwrap();
+        for rp in &all_ros_pubs {
+            (rp)(&state);
+        }
+    });
+
+    Ok(tx_out)
+}
+
+#[derive(Debug)]
+pub struct TempModel {
+    pub initial_state: SPState,
+    pub variables: HashMap<SPPath, Variable>,
+    pub runner_transitions: RunnerTransitions,
+    pub resource: Resource,
+}
+
+fn test_model() -> (RunnerModel, SPState, Vec<Resource>) {
+    fn make_robot(name: &str, upper: i32) -> TempModel {
         let r = SPPath::from_str(&[name, "ref", "data"]);
         let a = SPPath::from_str(&[name, "act", "data"]);
-        let activate = SPPath::from_str(&[name, "activ", "data"]);
+        let activate = SPPath::from_str(&[name, "activate", "data"]);
         let activated = SPPath::from_str(&[name, "activated", "data"]);
+
+        let r_c = Variable::Command(VariableData {
+            type_: SPValueType::Int32,
+            initial_value: None,
+            domain: (0..upper + 1).map(|v| v.to_spvalue()).collect(),
+        });
+
+        let a_m = Variable::Measured(VariableData {
+            type_: SPValueType::Int32,
+            initial_value: None,
+            domain: (0..upper + 1).map(|v| v.to_spvalue()).collect(),
+        });
+
+        let act_c = Variable::Command(VariableData {
+            type_: SPValueType::Bool,
+            initial_value: None,
+            domain: Vec::new(),
+        });
+
+        let act_m = Variable::Measured(VariableData {
+            type_: SPValueType::Bool,
+            initial_value: None,
+            domain: Vec::new(),
+        });
 
         let to_upper = Transition::new(
             SPPath::from_str(&[name, "trans", "to_upper"]),
@@ -223,28 +212,93 @@ fn test_model() -> (Runner, RunnerComm) {
             vec![a!(!activated)],
         );
 
-        let h = hashmap!(
-            r => 0.to_state(),
-            a => 0.to_state(),
-            activate => false.to_state(),
-            activated => false.to_state()
+        let s = state!(
+            r => 0,
+            a => 0,
+            activate => false,
+            activated => false
         );
 
-        let rt = RunnerTransitions {
-            ctrl: vec![t_activate, t_deactivate],
-            un_ctrl: vec![to_lower, to_upper],
+        let vars = hashmap![
+            r => r_c.clone(),
+            a => a_m.clone(),
+            activate => act_c.clone(),
+            activated => act_m.clone()
+        ];
+
+        // ros comm stuff
+        let comm = ResourceComm::RosComm(RosComm {
+            publishers: vec![RosPublisherDefinition {
+                topic: format!("/{}/ref", name),
+                qos: "".into(),
+                definition: RosMsgDefinition::Message(
+                    "std_msgs/msg/Int32".into(),
+                    hashmap![
+                        "data".into() => RosMsgDefinition::Field(r_c.clone())],
+                ),
+            },
+            RosPublisherDefinition {
+                topic: format!("/{}/activate", name),
+                qos: "".into(),
+                definition: RosMsgDefinition::Message(
+                    "std_msgs/msg/Bool".into(),
+                    hashmap![
+                        "data".into() => RosMsgDefinition::Field(act_c.clone())],
+                ),
+            }
+            ],
+            subscribers: vec![
+                RosSubscriberDefinition {
+                    topic: format!("/{}/act", name),
+                    definition: RosMsgDefinition::Message(
+                        "std_msgs/msg/Int32".into(),
+                        hashmap![
+                            "data".into() => RosMsgDefinition::Field(a_m.clone())
+                        ],
+                    ),
+                },
+                RosSubscriberDefinition {
+                    topic: format!("/{}/activated", name),
+                    definition: RosMsgDefinition::Message(
+                        "std_msgs/msg/Bool".into(),
+                        hashmap![
+                            "data".into() => RosMsgDefinition::Field(act_m.clone())
+                        ],
+                    ),
+                },
+            ],
+        });
+
+        let r = Resource {
+            abilities: Vec::new(),
+            parameters: Vec::new(),
+            comm: comm,
         };
 
-        (SPState { s: h }, rt)
+        TempModel {
+            initial_state: s,
+            variables: vars,
+            runner_transitions: RunnerTransitions {
+                ctrl: vec![t_activate, t_deactivate],
+                un_ctrl: vec![to_lower, to_upper],
+            },
+            resource: r,
+        }
     }
 
     let r1 = make_robot("r1", 10);
     let r2 = make_robot("r2", 10);
 
-    let mut s = r1.0;
-    s.extend(r2.0);
-    let mut tr = r1.1;
-    tr.extend(r2.1);
+    let mut s = r1.initial_state;
+    s.extend(r2.initial_state);
+    let mut tr = r1.runner_transitions;
+    tr.extend(r2.runner_transitions);
+    let mut vars = r1.variables;
+    vars.extend(r2.variables.into_iter());
+
+    let r = vec![r1.resource, r2.resource];
+
+    println!("Model initial state:\n{}", s.external());
 
     let rm = RunnerModel {
         op_transitions: RunnerTransitions::default(),
@@ -252,7 +306,8 @@ fn test_model() -> (Runner, RunnerComm) {
         plans: RunnerPlans::default(),
         state_functions: vec![],
         op_functions: vec![],
+        vars: vars,
     };
 
-    Runner::new(rm, s)
+    (rm, s, r)
 }
