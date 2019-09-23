@@ -24,9 +24,6 @@ pub use crate::transitions::{Transition};
 pub mod operations;
 pub use crate::operations::{Operation, Ability, OperationFunction};
 
-pub mod solvers;
-pub use crate::solvers::{Config};
-
 pub mod resources;
 pub use crate::resources::*;
 
@@ -35,6 +32,18 @@ pub use crate::structures::{SPStruct, Structure};
 
 pub mod sops;
 pub use crate::sops::{SOP};
+
+pub mod z3setup;
+pub use crate::z3setup::{Config, Context, Solver};
+
+pub mod z3values;
+pub use crate::z3values::{Int};
+
+pub mod z3variables;
+pub use crate::z3variables::{IntVar};
+
+pub mod z3relations;
+pub use crate::z3relations::{EQ};
 
 mod utils;
 use utils::*;
