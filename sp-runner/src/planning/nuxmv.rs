@@ -299,17 +299,13 @@ fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
 }
 
 fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)> {
-    let process = match Command::new("nuxmv")
+    let process = Command::new("nuxmv")
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-    {
-        Err(why) => panic!("couldn't spawn nuxmv command: {}", why.description()),
-        Ok(process) => process,
-    };
+        .spawn()?;
 
     let command = format!(
         "go_bmc\ncheck_ltlspec_bmc_inc -k {}\nshow_traces -v\nquit\n",
@@ -394,16 +390,29 @@ pub fn compute_plan(
     write!(f, "{}", lines).unwrap();
 
     let start = Instant::now();
-    let (raw, raw_error) = call_nuxmv(max_steps, filename).expect("PANIC! SOLVER PROBLEM!");
-    let duration = start.elapsed();
 
-    let trace = postprocess_nuxmv_problem(&raw, model);
+    match call_nuxmv(max_steps, filename) {
+        Ok((raw, raw_error)) => {
+            let duration = start.elapsed();
+            let trace = postprocess_nuxmv_problem(&raw, model);
 
-    PlanningResult {
-        plan_found: trace.is_some(),
-        trace: trace.unwrap_or_default(),
-        time_to_solve: duration,
-        raw_output: raw.to_owned(),
-        raw_error_output: raw_error.to_owned(),
+            PlanningResult {
+                plan_found: trace.is_some(),
+                trace: trace.unwrap_or_default(),
+                time_to_solve: duration,
+                raw_output: raw.to_owned(),
+                raw_error_output: raw_error.to_owned(),
+            }
+        }
+        Err(e) => {
+            let duration = start.elapsed();
+            PlanningResult {
+                plan_found: false,
+                trace: Vec::new(),
+                time_to_solve: duration,
+                raw_output: "".into(),
+                raw_error_output: e.to_string(),
+            }
+        }
     }
 }
