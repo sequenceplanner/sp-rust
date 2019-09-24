@@ -2,7 +2,6 @@
 
 
 use sp_domain::*;
-
 use tokio::prelude::*;
 use tokio::*;
 use sync::mpsc;
@@ -198,6 +197,14 @@ impl Runner {
         let (goal, inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
         println!("we have a goal! {:?}", goal);
+        let state_ext = state.external();
+        let pred = Predicate::AND(goal);
+        let result = crate::planning::compute_plan(&pred, &state_ext, &self.model, 20);
+        println!("we have a plan? {} -- got it in {}ms",
+                 result.plan_found, result.time_to_solve.as_millis());
+        let new_ab_plan: Vec<_> = result.trace.into_iter().flat_map(|f|f.ctrl).collect();
+        println!("plan is: {:?}", new_ab_plan);
+        plans.ab_plan = new_ab_plan;
 
         fired.extend(self.tick_transitions(&mut state, &mut plans.ab_plan, &self.model.ab_transitions));
 
