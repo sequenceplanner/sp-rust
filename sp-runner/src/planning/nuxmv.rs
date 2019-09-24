@@ -2,6 +2,8 @@ use chrono::offset::Local;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
+use crate::planning::*;
+use crate::runners::*;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -12,105 +14,6 @@ use std::process::{Command, Stdio};
 use std::time::SystemTime;
 use std::time::{Duration, Instant};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct PlanningResult {
-    plan_found: bool,
-    trace: Vec<PlanningFrame>,
-    time_to_solve: std::time::Duration,
-    raw_output: String,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct PlanningFrame {
-    pub state: StateExternal,
-    // The controllable transition taken this frame, if one was taken.
-    pub ctrl: Option<SPPath>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct RunnerModel {
-    pub vars: HashMap<SPPath, Variable>,
-    pub ctrl: Vec<Transition>,
-    pub un_ctrl: Vec<Transition>,
-}
-
-fn make_robot(name: &str, upper: i32) -> (SPState, RunnerModel) {
-    let r = SPPath::from_str(&[name, "ref"]);
-    let a = SPPath::from_str(&[name, "act"]);
-    let activate = SPPath::from_str(&[name, "activate"]);
-    let activated = SPPath::from_str(&[name, "activated"]);
-
-    let r_c = Variable::Command(VariableData {
-        type_: SPValueType::Int32,
-        initial_value: None,
-        domain: (0..upper + 1).map(|v| v.to_spvalue()).collect(),
-    });
-
-    let a_m = Variable::Measured(VariableData {
-        type_: SPValueType::Int32,
-        initial_value: None,
-        domain: (0..upper + 1).map(|v| v.to_spvalue()).collect(),
-    });
-
-    let act_c = Variable::Command(VariableData {
-        type_: SPValueType::Bool,
-        initial_value: None,
-        domain: Vec::new(),
-    });
-
-    let act_m = Variable::Measured(VariableData {
-        type_: SPValueType::Bool,
-        initial_value: None,
-        domain: Vec::new(),
-    });
-
-    let to_upper = Transition::new(
-        SPPath::from_str(&[name, "trans", "to_upper"]),
-        p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
-        vec![a!(r = upper)],
-        vec![a!(a = upper)],
-    );
-    let to_lower = Transition::new(
-        SPPath::from_str(&[name, "trans", "to_lower"]),
-        p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
-        vec![a!(r = 0)],
-        vec![a!(a = 0)],
-    );
-    let t_activate = Transition::new(
-        SPPath::from_str(&[name, "trans", "activate"]),
-        p!(!activated),
-        vec![a!(activate)],
-        vec![a!(activated)],
-    );
-    let t_deactivate = Transition::new(
-        SPPath::from_str(&[name, "trans", "deactivate"]),
-        p!(activated),
-        vec![a!(!activate)],
-        vec![a!(!activated)],
-    );
-
-    let s = state!(
-        r => 0,
-        a => 0,
-        activate => false,
-        activated => false
-    );
-
-    let vars = hashmap![
-        r => r_c,
-        a => a_m,
-        activate => act_c,
-        activated => act_m
-    ];
-
-    let rt = RunnerModel {
-        vars,
-        ctrl: vec![t_activate, t_deactivate],
-        un_ctrl: vec![to_lower, to_upper],
-    };
-
-    (s, rt)
-}
 
 fn indent(n: u32) -> String {
     (0..n).map(|_| " ").collect::<Vec<&str>>().concat()
@@ -259,7 +162,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     }
 
     // add a control variable for each controllable transition
-    for ct in &model.ctrl {
+    for ct in &model.ab_transitions.ctrl {
         let path = NuXMVPath(&ct.path);
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
@@ -282,7 +185,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     lines.push_str("\n\n");
     lines.push_str("-- CONTROL VARIABLE STATE --\n");
     // add a control variable for each controllable transition
-    for ct in &model.ctrl {
+    for ct in &model.ab_transitions.ctrl {
         let path = NuXMVPath(&ct.path);
         let false_ = false.to_spvalue();
         let value = NuXMVValue(&false_); // they're all false
@@ -306,7 +209,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
         // here we need to find all relevant transitions, which are:
         // either A) actions that change the current path or B)
         // effects that change the current path
-        let relevant = find_actions_modifying_path(&model.un_ctrl, &path.0);
+        let relevant = find_actions_modifying_path(&model.ab_transitions.un_ctrl, &path.0);
         for (t, a) in &relevant {
             let p = NuXMVPredicate(&t.guard);
 
@@ -324,7 +227,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
 
         // controllable events (for now go by name)
         // copy pasted from above....... .....
-        let relevant = find_actions_modifying_path(&model.ctrl, &path.0);
+        let relevant = find_actions_modifying_path(&model.ab_transitions.ctrl, &path.0);
         for (t, a) in &relevant {
             let p = NuXMVPredicate(&t.guard);
 
@@ -349,7 +252,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     // add invariant stating only one controllable event can be active at a time
     lines.push_str("\n\n");
     lines.push_str("INVAR\n");
-    let ctrl_names: Vec<_> = model
+    let ctrl_names: Vec<_> = model.ab_transitions
         .ctrl
         .iter()
         .map(|c| NuXMVPath(&c.path).to_string())
@@ -395,18 +298,14 @@ fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
     }
 }
 
-fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<String> {
-    let process = match Command::new("nuxmv")
+fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)> {
+    let process = Command::new("nuxmv")
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-    {
-        Err(why) => panic!("couldn't spawn nuxmv command: {}", why.description()),
-        Ok(process) => process,
-    };
+        .spawn()?;
 
     let command = format!(
         "go_bmc\ncheck_ltlspec_bmc_inc -k {}\nshow_traces -v\nquit\n",
@@ -418,7 +317,11 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<String> {
     let mut raw = String::new();
     process.stdout.unwrap().read_to_string(&mut raw)?;
 
-    Ok(raw)
+    let mut raw_error = String::new();
+    process.stderr.unwrap().read_to_string(&mut raw_error)?;
+
+
+    Ok((raw,raw_error))
 }
 
 fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<PlanningFrame>> {
@@ -448,7 +351,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<Pl
             let val = path_val.get(1).expect("no value!");
 
             // check for controllable actions
-            if model.ctrl.iter().find(|t| t.path == path).is_some() {
+            if model.ab_transitions.ctrl.iter().find(|t| t.path == path).is_some() {
                 if val == &"TRUE" {
                     assert!(last.ctrl.is_none());
                     last.ctrl = Some(path);
@@ -471,7 +374,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<Pl
     Some(trace)
 }
 
-fn solve_nuxmv_problem(
+pub fn compute_plan(
     goal: &Predicate,
     state: &StateExternal,
     model: &RunnerModel,
@@ -487,82 +390,29 @@ fn solve_nuxmv_problem(
     write!(f, "{}", lines).unwrap();
 
     let start = Instant::now();
-    let raw = call_nuxmv(max_steps, filename).expect("PANIC! SOLVER PROBLEM!");
-    let duration = start.elapsed();
 
-    let trace = postprocess_nuxmv_problem(&raw, model);
+    match call_nuxmv(max_steps, filename) {
+        Ok((raw, raw_error)) => {
+            let duration = start.elapsed();
+            let trace = postprocess_nuxmv_problem(&raw, model);
 
-    PlanningResult {
-        plan_found: trace.is_some(),
-        trace: trace.unwrap_or_default(),
-        time_to_solve: duration,
-        raw_output: raw.to_owned(),
-    }
-}
-
-#[test]
-fn plan_fail_1_step() {
-    let (state, model) = make_robot("r1", 10);
-    let state = state.external();
-
-    let activated = SPPath::from_str(&["r1", "activated"]);
-    let goal = p!(activated);
-
-    // requires at least step = 2 to find a plan
-    let result = solve_nuxmv_problem(&goal, &state, &model, 1);
-
-    assert!(!result.plan_found);
-
-    assert_ne!(
-        result.trace.last().and_then(|f| f.state.s.get(&activated)),
-        Some(&true.to_spvalue())
-    );
-}
-
-#[test]
-fn plan_success_2_steps() {
-    let (state, model) = make_robot("r1", 10);
-    let state = state.external();
-
-    let activated = SPPath::from_str(&["r1", "activated"]);
-    let goal = p!(activated);
-
-    // requires at least step = 2 to find a plan
-    let result = solve_nuxmv_problem(&goal, &state, &model, 2);
-
-    assert!(result.plan_found);
-
-    assert_eq!(
-        result.trace.last().and_then(|f| f.state.s.get(&activated)),
-        Some(&true.to_spvalue())
-    );
-}
-
-#[test]
-fn planner_debug_printouts() {
-    let (state, model) = make_robot("r1", 10);
-    let state = state.external();
-
-    let activated = SPPath::from_str(&["r1", "activated"]);
-    let goal = p!(activated);
-
-    let result = solve_nuxmv_problem(&goal, &state, &model, 20);
-
-    println!("INITIAL STATE");
-    println!("{}", state);
-    println!("GOAL PREDICATE: {:?}", goal);
-    println!("-------\n");
-
-    println!("TIME TO SOLVE: {}ms", result.time_to_solve.as_millis());
-
-    if !result.plan_found {
-        return;
-    }
-    println!("RESULTING PLAN");
-
-    for (i, f) in result.trace.iter().enumerate() {
-        println!("FRAME ID: {}\n{}", i, f.state);
-        println!("ACTION: {:?}", f.ctrl);
-        println!("-------");
+            PlanningResult {
+                plan_found: trace.is_some(),
+                trace: trace.unwrap_or_default(),
+                time_to_solve: duration,
+                raw_output: raw.to_owned(),
+                raw_error_output: raw_error.to_owned(),
+            }
+        }
+        Err(e) => {
+            let duration = start.elapsed();
+            PlanningResult {
+                plan_found: false,
+                trace: Vec::new(),
+                time_to_solve: duration,
+                raw_output: "".into(),
+                raw_error_output: e.to_string(),
+            }
+        }
     }
 }

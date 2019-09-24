@@ -82,8 +82,6 @@ pub struct RosPublisherDefinition {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RosComm {
-    pub node_name: String,
-    pub node_namespace: String,
     pub subscribers: Vec<RosSubscriberDefinition>,
     pub publishers: Vec<RosPublisherDefinition>,
 }
@@ -141,12 +139,12 @@ pub fn json_to_state(
                 //p.push(&msg_type); // keep message type in path?
                 for (field_name, md) in members.iter() {
                     if let Some(json_child) = json.get(field_name) {
-                        println!("path field_name: {:?}", field_name);
+                        p.push(field_name);
                         json_to_state_(json_child, md, p, a);
                         p.pop();
                     }
                 }
-                p.pop();
+                //p.pop();
             }
             RosMsgDefinition::Field(var) => {
                 let sp_val = spval_from_json(json, var.variable_data().type_);
