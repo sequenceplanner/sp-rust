@@ -33,6 +33,21 @@ pub use crate::structures::{SPStruct, Structure};
 pub mod sops;
 pub use crate::sops::{SOP};
 
+pub mod z3tools;
+pub use crate::z3tools::{Config, Context, Solver};
+
+pub mod z3sorts;
+pub use crate::z3sorts::{IntSort, BoolSort, RealSort};
+
+pub mod z3values;
+pub use crate::z3values::{Int};
+
+pub mod z3variables;
+pub use crate::z3variables::{IntVar};
+
+pub mod z3relations;
+pub use crate::z3relations::{EQ};
+
 mod utils;
 use utils::*;
 
