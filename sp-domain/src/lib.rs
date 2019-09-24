@@ -37,7 +37,7 @@ pub mod z3tools;
 pub use crate::z3tools::{Config, Context, Solver};
 
 pub mod z3sorts;
-pub use crate::z3sorts::{IntSort, BoolSort, RealSort};
+pub use crate::z3sorts::{IntSort, BoolSort, RealSort, StringSort};
 
 pub mod z3values;
 pub use crate::z3values::{Int};
@@ -47,6 +47,9 @@ pub use crate::z3variables::{IntVar};
 
 pub mod z3relations;
 pub use crate::z3relations::{EQ};
+
+pub mod z3operations;
+pub use crate::z3operations::{MUL};
 
 mod utils;
 use utils::*;

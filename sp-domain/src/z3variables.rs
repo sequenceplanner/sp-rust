@@ -1,4 +1,4 @@
-//! Z3 stuff for SP
+//! Some Z3 variables for SP
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
@@ -11,21 +11,21 @@ pub struct IntVar<'ctx, 'isrt, 'a> {
     pub ctx: &'ctx Context,
     pub isrt: &'isrt IntSort<'ctx>,
     pub name: &'a str,
-    pub var: Z3_ast,
+    pub r: Z3_ast,
 }
 
 pub struct BoolVar<'ctx, 'bsrt, 'a> {
     pub ctx: &'ctx Context,
     pub bsrt: &'bsrt BoolSort<'ctx>,
     pub name: &'a str,
-    pub var: Z3_ast,
+    pub r: Z3_ast,
 }
 
 pub struct RealVar<'ctx, 'bsrt, 'a> {
     pub ctx: &'ctx Context,
     pub bsrt: &'bsrt BoolSort<'ctx>,
     pub name: &'a str,
-    pub var: Z3_ast,
+    pub r: Z3_ast,
 }
 
 ///Create an integer variable (took some time to figure out the lifetime stuff)
@@ -35,8 +35,8 @@ impl <'ctx, 'isrt, 'a> IntVar<'ctx, 'isrt, 'a> {
             ctx,
             isrt,
             name,
-            var: unsafe {
-                let int_sort = isrt.sort;
+            r: unsafe {
+                let int_sort = isrt.r;
                 let str_name = CString::new(name).unwrap();
                 let sym_name = Z3_mk_string_symbol(ctx.context, str_name.as_ptr());
                 let int_var = Z3_mk_const(ctx.context, sym_name, int_sort);
@@ -52,8 +52,8 @@ impl <'ctx, 'bsrt, 'a> BoolVar<'ctx, 'bsrt, 'a> {
             ctx,
             bsrt,
             name,
-            var: unsafe {
-                let bool_sort = bsrt.sort;
+            r: unsafe {
+                let bool_sort = bsrt.r;
                 let str_name = CString::new(name).unwrap();
                 let sym_name = Z3_mk_string_symbol(ctx.context, str_name.as_ptr());
                 let bool_var = Z3_mk_const(ctx.context, sym_name, bool_sort);
@@ -73,12 +73,12 @@ impl <'ctx, 'bsrt, 'a> BoolVar<'ctx, 'bsrt, 'a> {
 #[test]
 fn test_new_int_var(){
     unsafe {
-        let _conf = Config::new();
-        let _ctx = Context::new(&_conf);
-        let _sort = IntSort::new(&_ctx);
-        let _var = IntVar::new(&_ctx, &_sort, "x");
-        let _str_var = Z3_ast_to_string(_ctx.context, _var.var);
-        println!("{:?}", CStr::from_ptr(_str_var).to_str().unwrap());
+        let conf = Config::new();
+        let ctx = Context::new(&conf);
+        let sort = IntSort::new(&ctx);
+        let x = IntVar::new(&ctx, &sort, "x");
+        let string = Z3_ast_to_string(ctx.context, x.r);
+        println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
     }
 }
 
