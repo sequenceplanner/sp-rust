@@ -49,7 +49,7 @@ pub mod z3relations;
 pub use crate::z3relations::{EQ};
 
 pub mod z3operations;
-pub use crate::z3operations::{MUL};
+pub use crate::z3operations::{MUL, DIV, MOD, ADD, SUB};
 
 mod utils;
 use utils::*;
