@@ -29,7 +29,7 @@ pub struct RunnerModel {
     pub plans: RunnerPlans,
     pub state_functions: Vec<Variable>,
     pub op_functions: Vec<OperationFunction>,
-    pub vars: HashMap<SPPath, Variable>,  // for planning
+    pub vars: HashMap<SPPath, Variable>,  // needed for planning
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -197,6 +197,7 @@ impl Runner {
 
         let (goal, inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
+        println!("we have a goal! {:?}", goal);
 
         fired.extend(self.tick_transitions(&mut state, &mut plans.ab_plan, &self.model.ab_transitions));
 
@@ -238,6 +239,7 @@ impl Runner {
     fn next_op_functions(&self, state: &SPState) -> (Vec<Predicate>, Vec<Predicate>) {
         self.model.op_functions.iter().fold((Vec::new(), Vec::new()), |(mut goal, mut inv), x| match x {
             OperationFunction::Goal(p, g) if p.eval(state) => {
+                println!("pushin goal!");
                 goal.push(g.clone());
                 (goal, inv)
             },
@@ -333,13 +335,13 @@ impl Future for Runner {
         let tick = self.delayed_ticks.poll().unwrap();
 
 
-        println!("******************************");
-        println!("******************************");
-        println!("state_input: {:?}", upd_s);
-        println!("upd_cmd: {:?}", upd_cmd);
-        println!("upd_plan: {:?}", upd_plan);
-        println!("tick: {:?}", tick);
-        println!("-----------------------------");
+        // println!("******************************");
+        // println!("******************************");
+        // println!("state_input: {:?}", upd_s);
+        // println!("upd_cmd: {:?}", upd_cmd);
+        // println!("upd_plan: {:?}", upd_plan);
+        // println!("tick: {:?}", tick);
+        // println!("-----------------------------");
 
         // // Do nothing if no stream is ready
         // if is_not_ready(&upd_s) && is_not_ready(&upd_cmd) && is_not_ready(&upd_plan) && is_not_ready(&tick) {
@@ -406,8 +408,9 @@ mod runner_tests {
 
     #[test]
     fn dummy_robot_model_tests() {
-        let (runner, comm) = test_model();
-        println!("{:?}", runner.state);
+        let (model, state, resources) = crate::testing::two_robots();
+        let (runner, comm) = Runner::new(model.clone(), state.clone());
+        println!("{:?}", state);
 
         assert_eq!(runner.state.get_value(
             &SPPath::from_str(&["r1", "ref"])),
@@ -499,75 +502,6 @@ mod runner_tests {
         // assert_eq!(res, vec!(t1.spid));
         // println!("{:?}", res);
         // println!("{:?}", r.state);
-
-    }
-
-
-
-
-    fn test_model() -> (Runner, RunnerComm) {
-        fn make_robot(name: &str, upper: i32) -> (SPState, RunnerTransitions) {
-            let r = SPPath::from_str(&[name, "ref"]);
-            let a = SPPath::from_str(&[name, "act"]);
-            let activate = SPPath::from_str(&[name, "activ"]);
-            let activated = SPPath::from_str(&[name, "activ"]);
-
-            let to_upper = Transition::new(
-                SPPath::from_str(&[name, "trans", "to_upper"]),
-                p!(a == 0), // p!(r != upper), // added req on a == 0 just for testing
-                vec!(a!(r = upper)),
-                vec!(a!(a = upper)),
-            );
-            let to_lower = Transition::new(
-                SPPath::from_str(&[name, "trans", "to_lower"]),
-                p!(a == upper), // p!(r != 0), // added req on a == upper just for testing
-                vec!(a!(r = 0)),
-                vec!(a!(a = 0)),
-            );
-            let t_activate = Transition::new(
-                SPPath::from_str(&[name, "trans", "activate"]),
-                p!(!activated),
-                vec!(a!(activate)),
-                vec!(a!(activated)),
-            );
-            let t_deactivate = Transition::new(
-                SPPath::from_str(&[name, "trans", "deactivate"]),
-                p!(activated),
-                vec!(a!(!activate)),
-                vec!(a!(!activated)),
-            );
-
-            let s = state!(
-                r => 0,
-                a => 0,
-                activate => false,
-                activated => false
-            );
-
-            let rt = RunnerTransitions{
-                ctrl: vec!(t_activate, t_deactivate),
-                un_ctrl: vec!(to_lower, to_upper)
-            };
-
-            (s, rt)
-        }
-
-        let r1 = make_robot("r1", 10);
-        let r2 = make_robot("r2", 10);
-
-        let mut s = r1.0; s.extend(r2.0);
-        let mut tr = r1.1; tr.extend(r2.1);
-
-        let rm = RunnerModel {
-            op_transitions: RunnerTransitions::default(),
-            ab_transitions: tr,
-            plans: RunnerPlans::default() ,
-            state_functions: vec!(),
-            op_functions: vec!() ,
-        };
-
-        Runner::new(rm, s)
-
 
     }
 
