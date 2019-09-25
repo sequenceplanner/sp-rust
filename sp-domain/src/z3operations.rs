@@ -4,121 +4,121 @@ use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
-pub struct MUL<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct MULZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub args: Vec<Z3_ast>,
     pub r: Z3_ast
 }
 
-pub struct DIV<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct DIVZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub a: Z3_ast,
     pub b: Z3_ast,
     pub r: Z3_ast
 }
 
-pub struct MOD<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct MODZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub a: Z3_ast,
     pub b: Z3_ast,
     pub r: Z3_ast
 }
 
-pub struct ADD<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct ADDZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub args: Vec<Z3_ast>,
     pub r: Z3_ast
 }
 
-pub struct SUB<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct SUBZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub args: Vec<Z3_ast>,
     pub r: Z3_ast
 }
 
-impl<'ctx> MUL<'ctx> {
-    pub fn new(ctx: &'ctx Context, args: Vec<Z3_ast>) -> MUL {
-        MUL {
+impl<'ctx> MULZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> MULZ3 {
+        MULZ3 {
             ctx,
             r: unsafe {
                 let args_slice = &args;
-                let _mul = Z3_mk_mul(ctx.context, args_slice.len() as u32, args_slice.as_ptr());
-                _mul
+                let mul = Z3_mk_mul(ctx.r, args_slice.len() as u32, args_slice.as_ptr());
+                mul
             },
             args
         }        
     }
 }
 
-impl <'ctx> DIV<'ctx> {
-    pub fn new(ctx: &'ctx Context, a: Z3_ast, b: Z3_ast) -> DIV {
-        DIV {
+impl <'ctx> DIVZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, a: Z3_ast, b: Z3_ast) -> DIVZ3 {
+        DIVZ3 {
             ctx,
             a,
             b,
             r: unsafe {
-                let _eq = Z3_mk_div(ctx.context, a, b);
-                _eq
+                let eq = Z3_mk_div(ctx.r, a, b);
+                eq
             }
         }
     }
 }
 
-impl <'ctx> MOD<'ctx> {
-    pub fn new(ctx: &'ctx Context, a: Z3_ast, b: Z3_ast) -> MOD {
-        MOD {
+impl <'ctx> MODZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, a: Z3_ast, b: Z3_ast) -> MODZ3 {
+        MODZ3 {
             ctx,
             a,
             b,
             r: unsafe {
-                let _eq = Z3_mk_mod(ctx.context, a, b);
-                _eq
+                let eq = Z3_mk_mod(ctx.r, a, b);
+                eq
             }
         }
     }
 }
 
-impl<'ctx> ADD<'ctx> {
-    pub fn new(ctx: &'ctx Context, args: Vec<Z3_ast>) -> ADD {
-        ADD {
+impl<'ctx> ADDZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> ADDZ3 {
+        ADDZ3 {
             ctx,
             r: unsafe {
                 let args_slice = &args;
-                let _add = Z3_mk_add(ctx.context, args_slice.len() as u32, args_slice.as_ptr());
-                _add
+                let add = Z3_mk_add(ctx.r, args_slice.len() as u32, args_slice.as_ptr());
+                add
             },
             args
         }        
     }
 }
 
-impl<'ctx> SUB<'ctx> {
-    pub fn new(ctx: &'ctx Context, args: Vec<Z3_ast>) -> SUB {
-        SUB {
+impl<'ctx> SUBZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> SUBZ3 {
+        SUBZ3 {
             ctx,
             r: unsafe {
                 let args_slice = &args;
-                let _sub = Z3_mk_sub(ctx.context, args_slice.len() as u32, args_slice.as_ptr());
-                _sub
+                let sub = Z3_mk_sub(ctx.r, args_slice.len() as u32, args_slice.as_ptr());
+                sub
             },
             args
         }        
     }
 }
 
-#[test]
-fn test_new_mul_with_ints() {
-    unsafe{
-        let conf = Config::new();
-        let ctx = Context::new(&conf);
-        let sort = IntSort::new(&ctx);
-        let eight = Int::new(&ctx, &sort, 8);
-        let x = IntVar::new(&ctx, &sort, "x");
-        let eightx = MUL::new(&ctx, vec!(eight.r, x.r));
-        let string = Z3_ast_to_string(ctx.context, eightx.r);
-        println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
-    }
-}
+// #[test]
+// fn test_new_mul_with_ints() {
+//     unsafe{
+//         let conf = Config::new();
+//         let ctx = Context::new(&conf);
+//         let sort = IntSort::new(&ctx);
+//         let eight = Int::new(&ctx, &sort, 8);
+//         let x = IntVar::new(&ctx, &sort, "x");
+//         let eightx = MUL::new(&ctx, vec!(eight.r, x.r));
+//         let string = Z3_ast_to_string(ctx.context, eightx.r);
+//         println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
+//     }
+// }
 
 // #[test]
 // fn test_new_mul(){

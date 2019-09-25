@@ -1,72 +1,72 @@
-//! Z3 stuff for SP
+//! Z3 sorts
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
-pub struct BoolSort<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct BoolSortZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub r: Z3_sort
 }
 
-pub struct IntSort<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct IntSortZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub r: Z3_sort
 }
 
-pub struct RealSort<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct RealSortZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub r: Z3_sort
 }
 
-pub struct StringSort<'ctx> {
-    pub ctx: &'ctx Context,
+pub struct StringSortZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
     pub r: Z3_sort
 }
 
-impl <'ctx> BoolSort<'ctx> {
-    pub fn new(ctx: &'ctx Context) -> BoolSort {
-        BoolSort {
+impl <'ctx> BoolSortZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3) -> BoolSortZ3 {
+        BoolSortZ3 {
             ctx,
             r: unsafe {
-                let _sort = Z3_mk_bool_sort(ctx.context);
-                _sort
+                let sort = Z3_mk_bool_sort(ctx.r);
+                sort
             }
         }
     }
 }
 
-impl <'ctx> IntSort<'ctx> {
-    pub fn new(ctx: &'ctx Context) -> IntSort {
-        IntSort {
+impl <'ctx> IntSortZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3) -> IntSortZ3 {
+        IntSortZ3 {
             ctx,
             r: unsafe {
-                let _sort = Z3_mk_int_sort(ctx.context);
-                _sort
+                let sort = Z3_mk_int_sort(ctx.r);
+                sort
             }
         }
     }
 }
 
-impl <'ctx> RealSort<'ctx> {
-    pub fn new(ctx: &'ctx Context) -> RealSort {
-        RealSort {
+impl <'ctx> RealSortZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3) -> RealSortZ3 {
+        RealSortZ3 {
             ctx,
             r: unsafe {
-                let _sort = Z3_mk_real_sort(ctx.context);
-                _sort
+                let sort = Z3_mk_real_sort(ctx.r);
+                sort
             }
         }
     }
 }
 
-impl <'ctx> StringSort<'ctx> {
-    pub fn new(ctx: &'ctx Context) -> StringSort {
-        StringSort {
+impl <'ctx> StringSortZ3<'ctx> {
+    pub fn new(ctx: &'ctx ContextZ3) -> StringSortZ3 {
+        StringSortZ3 {
             ctx,
             r: unsafe {
-                let _sort = Z3_mk_string_sort(ctx.context);
-                _sort
+                let sort = Z3_mk_string_sort(ctx.r);
+                sort
             }
         }
     }
