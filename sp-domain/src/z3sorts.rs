@@ -1,4 +1,4 @@
-//! Z3 sorts
+//! Z3 sorts for SP
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
@@ -25,6 +25,9 @@ pub struct StringSortZ3<'ctx> {
 }
 
 impl <'ctx> BoolSortZ3<'ctx> {
+    /// Create the Boolean type.
+    ///
+    /// This type is used to create propositional variables and predicates.
     pub fn new(ctx: &'ctx ContextZ3) -> BoolSortZ3 {
         BoolSortZ3 {
             ctx,
@@ -37,6 +40,15 @@ impl <'ctx> BoolSortZ3<'ctx> {
 }
 
 impl <'ctx> IntSortZ3<'ctx> {
+    /// Create the integer type.
+    ///
+    /// This type is not the int type found in programming languages.
+    /// A machine integer can be represented using bit-vectors. The function
+    /// [`Z3_mk_bv_sort`](fn.Z3_mk_bv_sort.html) creates a bit-vector type.
+    ///
+    /// # See also:
+    ///
+    /// - [`Z3_mk_bv_sort`](fn.Z3_mk_bv_sort.html)
     pub fn new(ctx: &'ctx ContextZ3) -> IntSortZ3 {
         IntSortZ3 {
             ctx,
@@ -49,6 +61,9 @@ impl <'ctx> IntSortZ3<'ctx> {
 }
 
 impl <'ctx> RealSortZ3<'ctx> {
+    /// Create the real type.
+    ///
+    /// Note that this type is not a floating point number.
     pub fn new(ctx: &'ctx ContextZ3) -> RealSortZ3 {
         RealSortZ3 {
             ctx,
@@ -61,6 +76,10 @@ impl <'ctx> RealSortZ3<'ctx> {
 }
 
 impl <'ctx> StringSortZ3<'ctx> {
+    /// Create a sort for 8 bit strings.
+    ///
+    /// This function creates a sort for ASCII strings.
+    /// Each character is 8 bits.
     pub fn new(ctx: &'ctx ContextZ3) -> StringSortZ3 {
         StringSortZ3 {
             ctx,
@@ -72,28 +91,46 @@ impl <'ctx> StringSortZ3<'ctx> {
     }
 }
 
-// #[test]
-// fn test_int_sort(){
-//     unsafe {
-//         let _conf = Config::new();
-//         let _ctx = Context::new(&_conf);
-//         let _sort = IntSort::new(&_ctx);
-//         let _var = IntVar::new(&_ctx, &_sort, "x");
-//         let _val = Int::new(&_ctx, &_sort, 7);
-//         let _eq = EQ::new(&_ctx, _var.var, _val.val);
+#[test]
+fn test_bool_sort(){
+    unsafe {
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let sort = BoolSortZ3::new(&ctx);
+        let string = Z3_sort_to_string(ctx.r, sort.r);
+        println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
+    }
+}
 
-//         let _solv = Solver::new(&_ctx);
-//         let _assert = Z3_solver_assert(_ctx.context, _solv.solver, _eq.rel);
-//         let solv_str = Z3_solver_to_string(_ctx.context, _solv.solver);
-//         println!("{}", CStr::from_ptr(solv_str).to_str().unwrap());
-        
-//         Z3_solver_check(_ctx.context, _solv.solver);
+#[test]
+fn test_int_sort(){
+    unsafe {
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let sort = IntSortZ3::new(&ctx);
+        let string = Z3_sort_to_string(ctx.r, sort.r);
+        println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
+    }
+}
 
-//         let solv_check_str = Z3_solver_to_string(_ctx.context, _solv.solver);
-//         println!("{}", CStr::from_ptr(solv_check_str).to_str().unwrap());
+#[test]
+fn test_real_sort(){
+    unsafe {
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let sort = RealSortZ3::new(&ctx);
+        let string = Z3_sort_to_string(ctx.r, sort.r);
+        println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
+    }
+}
 
-//         let _sgm = Z3_solver_get_model(_ctx.context, _solv.solver);
-//         let _msgm = Z3_model_to_string(_ctx.context, _sgm);
-//         println!("{}", CStr::from_ptr(_msgm).to_str().unwrap());
-//     }
-// }
+#[test]
+fn test_string_sort(){
+    unsafe {
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let sort = StringSortZ3::new(&ctx);
+        let string = Z3_sort_to_string(ctx.r, sort.r);
+        println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
+    }
+}

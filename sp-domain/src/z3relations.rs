@@ -1,9 +1,7 @@
-//! Z3 stuff for SP
+//! Z3 realtions for SP
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
-use std::ptr;
-use std::fmt;
 use super::*;
 
 pub struct EQZ3<'ctx> {
@@ -14,6 +12,9 @@ pub struct EQZ3<'ctx> {
 }
 
 impl <'ctx> EQZ3<'ctx> {
+    /// Create an AST node representing `left = right`.
+    ///
+    /// The nodes `left` and `right` must have the same type.
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> EQZ3 {
         EQZ3 {
             ctx,
@@ -28,31 +29,20 @@ impl <'ctx> EQZ3<'ctx> {
 }
 
 
-// #[test]
-// fn test_new_eq(){
-//     unsafe {
-//         let conf = Config::new();
-//         let ctx = Context::new(&conf);
-//         let sort = IntSort::new(&ctx);
-//         let x = IntVar::new(&ctx, &sort, "x");
-//         let seven = Int::new(&ctx, &sort, 7);
-//         let eq = EQ::new(&ctx, x.r, seven.r);
+ #[test]
+fn test_new_eq(){
+    unsafe{
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let intsort = IntSortZ3::new(&ctx);
 
-//         let string = Z3_ast_to_string(ctx.context, eq.r);
-//         println!("{:?}", CStr::from_ptr(string).to_str().unwrap());
+        let x = IntVarZ3::new(&ctx, &intsort, "x");
+        let int1 = IntZ3::new(&ctx, &intsort, 7);
 
-//         // let _solv = Solver::new(&_ctx);
-//         // let _assert = Z3_solver_assert(_ctx.context, _solv.solver, _eq.rel);
-//         // let solv_str = Z3_solver_to_string(_ctx.context, _solv.solver);
-//         // println!("{}", CStr::from_ptr(solv_str).to_str().unwrap());
-        
-//         // Z3_solver_check(_ctx.context, _solv.solver);
+        let rel1 = EQZ3::new(&ctx, x.r, int1.r);
 
-//         // let solv_check_str = Z3_solver_to_string(_ctx.context, _solv.solver);
-//         // println!("{}", CStr::from_ptr(solv_check_str).to_str().unwrap());
+        let string1 = CStr::from_ptr(Z3_ast_to_string(ctx.r, rel1.r)).to_str().unwrap().to_owned();
 
-//         // let _sgm = Z3_solver_get_model(_ctx.context, _solv.solver);
-//         // let _msgm = Z3_model_to_string(_ctx.context, _sgm);
-//         // println!("{}", CStr::from_ptr(_msgm).to_str().unwrap());
-//     }
-// }
+        assert_eq!("(= x 7)", string1);
+    }
+}
