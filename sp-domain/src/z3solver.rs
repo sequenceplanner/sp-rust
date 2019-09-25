@@ -2,8 +2,6 @@
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
-use std::ptr;
-use std::fmt;
 use super::*;
 
 pub struct SolverZ3<'ctx> {
@@ -68,7 +66,7 @@ impl <'ctx> Drop for SolverZ3<'ctx> {
 /// Run test with -- --nocapture to see prints.
 #[test]
 fn test_solver(){
-    let mut conf = ConfigZ3::new();
+    let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let solv = SolverZ3::new(&ctx);
     unsafe{

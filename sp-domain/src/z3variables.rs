@@ -2,8 +2,6 @@
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
-use std::ptr;
-use std::fmt;
 use super::*;
 
 pub struct BoolVarZ3<'ctx, 'bsrt, 'a> {

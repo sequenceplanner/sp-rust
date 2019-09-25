@@ -149,9 +149,6 @@ fn test_new_real_val(){
         let real1 = RealZ3::new(&ctx, &realsort, r1);
         let real2 = RealZ3::new(&ctx, &realsort, r2);
 
-        let string1 = CStr::from_ptr(Z3_ast_to_string(ctx.r, real1.r)).to_str().unwrap().to_owned();
-        let string2 = CStr::from_ptr(Z3_ast_to_string(ctx.r, real2.r)).to_str().unwrap().to_owned();
-
         let real1numast = Z3_get_numerator(ctx.r, real1.r);
         let real2numast = Z3_get_numerator(ctx.r, real2.r);
         let real1denast = Z3_get_denominator(ctx.r, real1.r);
@@ -174,11 +171,6 @@ fn test_new_real_val(){
         real2numstring.retain(|c| c!=' ');
         real1denstring.retain(|c| c!=' ');
         real2denstring.retain(|c| c!=' ');
-
-        println!("{}", real1numstring);
-        println!("{}", real2numstring);
-        println!("{}", real1denstring);
-        println!("{}", real2denstring);
 
         let real1num: i64 = real1numstring.parse().unwrap();
         let real2num: i64 = real2numstring.parse().unwrap();

@@ -1,9 +1,6 @@
 //! Z3 config
 
-use std::ffi::{CStr, CString};
 use z3_sys::*;
-use std::ptr;
-use std::fmt;
 
 pub struct ConfigZ3 {
     pub r: Z3_config
@@ -77,10 +74,10 @@ impl Drop for ConfigZ3 {
 
 #[test]
 fn test_new_cfg(){
-    let conf = ConfigZ3::new();
+    ConfigZ3::new();
 }
 
 #[test]
 fn test_default_cfg(){
-    let conf = ConfigZ3::default();
+    ConfigZ3::default();
 }

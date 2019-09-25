@@ -1,9 +1,6 @@
 //! Z3 context
 
-use std::ffi::{CStr, CString};
 use z3_sys::*;
-use std::ptr;
-use std::fmt;
 use super::*;
 
 pub struct ContextZ3 {
@@ -75,10 +72,10 @@ impl Drop for ContextZ3 {
 #[test]
 fn test_ctx(){
     let conf = ConfigZ3::new();
-    let ctx = ContextZ3::new(&conf);
+    ContextZ3::new(&conf);
 }
 
 #[test]
 fn test_default_ctx(){
-    let ctx = ContextZ3::default();
+    ContextZ3::default();
 }
