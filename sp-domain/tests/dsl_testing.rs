@@ -101,8 +101,6 @@ fn make_resource() -> Resource {
     });
 
     let comm = ResourceComm::RosComm(RosComm {
-        node_name: "resource".into(),
-        node_namespace: "hej".into(),
         publishers: vec![RosPublisherDefinition {
             topic: "/r1/command".into(),
             qos: "deault".into(),

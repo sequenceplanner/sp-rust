@@ -58,10 +58,10 @@ impl NextAction for Transition {
 ///
 /// let ab = SPPath::from_str(&["a", "b"]);
 /// let kl = SPPath::from_str(&["k", "l"]);
-/// let t = transition!("hej1", Predicate::TRUE);
-/// let t = transition!("hej2", p!(ab), a!(ab), a!(!kl));
-/// let t = transition!("hej3", p!(ab), a!(ab) ; a!(!kl));
-/// let t = transition!("hej4", p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
+/// let t = transition!(SPPath::from_str(&["hej1"]), Predicate::TRUE);
+/// let t = transition!(SPPath::from_str(&["hej2"]), p!(ab), a!(ab), a!(!kl));
+/// let t = transition!(SPPath::from_str(&["hej3"]), p!(ab), a!(ab) ; a!(!kl));
+/// let t = transition!(SPPath::from_str(&["hej4"]), p!(ab), a!(ab), a!(ab); a!(!kl), a!(!kl));
 /// ```
 ///
 #[macro_export]
