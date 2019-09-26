@@ -9,6 +9,19 @@ pub struct SolverZ3<'ctx> {
     pub r: Z3_solver,
 }
 
+pub struct SolvAssertZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub cst: Z3_ast,
+    pub r: ()
+}
+
+pub struct SolvCheckZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: Z3_lbool
+}
+
 impl <'ctx> SolverZ3<'ctx> {
     /// Create a new solver. This solver is a "combined solver" (see
     /// combined_solver module) that internally uses a non-incremental (solver1) and an
@@ -54,6 +67,50 @@ impl <'ctx> SolverZ3<'ctx> {
     }
 }
 
+impl <'ctx, 'slv> SolvAssertZ3<'ctx, 'slv> {
+    /// Assert a new constraint into the solver.
+    ///
+    /// The functions [`SCheckZ3::check()`](#method.check) and
+    /// [`SCheckZ3::check_assumptions()`](#method.check_assumptions) should be
+    /// used to check whether the logical context is consistent or not.
+    ///
+    /// # See also:
+    ///
+    /// - [`Solver::assert_and_track()`](#method.assert_and_track)
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, cst: Z3_ast) -> SolvAssertZ3<'ctx, 'slv> {
+        SolvAssertZ3 {
+            ctx,
+            slv,
+            cst,
+            r: unsafe {
+                Z3_solver_assert(ctx.r, slv.r, cst);
+            }
+        }
+    }
+}
+
+impl <'ctx, 'slv> SolvCheckZ3<'ctx, 'slv> {
+    /// Check whether the assertions in a given solver are consistent or not.
+    ///
+    /// The function [`Solver::get_model()`](#method.get_model)
+    /// retrieves a model if the assertions is satisfiable (i.e., the
+    /// result is `SatResult::Sat`) and [model construction is enabled].
+    /// Note that if the call returns `SatResult::Unknown`, Z3 does not
+    /// ensure that calls to [`Solver::get_model()`](#method.get_model)
+    /// succeed and any models produced in this case are not guaranteed
+    /// to satisfy the assertions.
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> SolvCheckZ3<'ctx, 'slv> {
+        SolvCheckZ3 {
+            ctx,
+            slv,
+            r: unsafe {
+                let chk = Z3_solver_check(ctx.r, slv.r);
+                chk
+            }
+        }
+    }
+}
+
 impl <'ctx> Drop for SolverZ3<'ctx> {
     /// Decrement the reference counter of the given solver.
     fn drop(&mut self) {
@@ -65,7 +122,7 @@ impl <'ctx> Drop for SolverZ3<'ctx> {
 
 /// Run test with -- --nocapture to see prints.
 #[test]
-fn test_solver(){
+fn test_new_solver(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let solv = SolverZ3::new(&ctx);
@@ -76,29 +133,60 @@ fn test_solver(){
     }
 }
 
+#[test]
+fn test_new_sassert(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let solv = SolverZ3::new(&ctx);
 
-// #[test]
-// fn test_int_sort(){
-//     unsafe {
-//         let _conf = Config::new();
-//         let _ctx = Context::new(&_conf);
-//         let _sort = IntSort::new(&_ctx);
-//         let _var = IntVar::new(&_ctx, &_sort, "x");
-//         let _val = Int::new(&_ctx, &_sort, 7);
-//         let _eq = EQ::new(&_ctx, _var.var, _val.val);
+    let realsort = RealSortZ3::new(&ctx);
+    let y = RealVarZ3::new(&ctx, &realsort, "y");
+    let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-//         let _solv = Solver::new(&_ctx);
-//         let _assert = Z3_solver_assert(_ctx.context, _solv.solver, _eq.rel);
-//         let solv_str = Z3_solver_to_string(_ctx.context, _solv.solver);
-//         println!("{}", CStr::from_ptr(solv_str).to_str().unwrap());
-        
-//         Z3_solver_check(_ctx.context, _solv.solver);
+    let rel1 = EQZ3::new(&ctx, y.r, real1.r);
 
-//         let solv_check_str = Z3_solver_to_string(_ctx.context, _solv.solver);
-//         println!("{}", CStr::from_ptr(solv_check_str).to_str().unwrap());
+    SolvAssertZ3::new(&ctx, &solv, rel1.r);
 
-//         let _sgm = Z3_solver_get_model(_ctx.context, _solv.solver);
-//         let _msgm = Z3_model_to_string(_ctx.context, _sgm);
-//         println!("{}", CStr::from_ptr(_msgm).to_str().unwrap());
-//     }
-// }
+    unsafe {
+        let solv_str = Z3_solver_to_string(ctx.r, solv.r);
+        println!("{}", CStr::from_ptr(solv_str).to_str().unwrap());
+    }
+}
+
+#[test]
+fn test_new_scheck(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let solv = SolverZ3::new(&ctx);
+
+    let realsort = RealSortZ3::new(&ctx);
+    let y = RealVarZ3::new(&ctx, &realsort, "y");
+    let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
+
+    let rel1 = EQZ3::new(&ctx, y.r, real1.r);
+
+    unsafe {
+        let s1 = CStr::from_ptr(Z3_solver_to_string(ctx.r, solv.r)).to_str().unwrap().to_owned();
+        println!("This is the solver without any assertions:");
+        println!("{}", s1);
+
+        SolvAssertZ3::new(&ctx, &solv, rel1.r);
+
+        let s2 = CStr::from_ptr(Z3_solver_to_string(ctx.r, solv.r)).to_str().unwrap().to_owned();
+        println!("This is the solver with an assertion before the check:");
+        println!("{}", s2);
+
+        let res1 = SolvCheckZ3::new(&ctx, &solv);
+        println!("This is the return of the check:");
+        println!("{}", res1.r);
+
+        let s3 = CStr::from_ptr(Z3_solver_to_string(ctx.r, solv.r)).to_str().unwrap().to_owned();
+        println!("This is the solver with an assertion after the check:");
+        println!("{}", s3);
+
+        let model = Z3_solver_get_model(ctx.r, solv.r);
+        let s4 = CStr::from_ptr(Z3_model_to_string(ctx.r, model)).to_str().unwrap().to_owned();
+        println!("This is the solution");
+        println!("{}", s4);
+    }
+}

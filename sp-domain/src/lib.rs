@@ -40,7 +40,10 @@ pub mod z3context;
 pub use crate::z3context::{ContextZ3};
 
 pub mod z3solver;
-pub use crate::z3solver::{SolverZ3};
+pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvCheckZ3};
+
+pub mod z3optimizer;
+pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3};
 
 pub mod z3sorts;
 pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3};
@@ -52,10 +55,10 @@ pub mod z3variables;
 pub use crate::z3variables::{BoolVarZ3, IntVarZ3, RealVarZ3};
 
 pub mod z3relations;
-pub use crate::z3relations::{EQZ3};
+pub use crate::z3relations::{EQZ3, LEZ3, LTZ3, GEZ3, GTZ3};
 
 pub mod z3operations;
-pub use crate::z3operations::{MULZ3, DIVZ3, MODZ3, ADDZ3, SUBZ3};
+pub use crate::z3operations::{MULZ3, DIVZ3, MODZ3, ADDZ3, SUBZ3, ANDZ3, ORZ3, NOTZ3};
 
 mod utils;
 use utils::*;
