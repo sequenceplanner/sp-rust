@@ -58,7 +58,11 @@ pub mod z3relations;
 pub use crate::z3relations::{EQZ3, LEZ3, LTZ3, GEZ3, GTZ3};
 
 pub mod z3operations;
-pub use crate::z3operations::{MULZ3, DIVZ3, MODZ3, ADDZ3, SUBZ3, ANDZ3, ORZ3, NOTZ3};
+pub use crate::z3operations::{MULZ3, DIVZ3, MODZ3, ADDZ3, SUBZ3};
+
+pub mod z3logics;
+pub use crate::z3logics::{ANDZ3, ORZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, XORZ3};
+
 
 mod utils;
 use utils::*;
