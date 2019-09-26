@@ -36,13 +36,14 @@ impl <'ctx> OptimizerZ3<'ctx> {
     /// [`Z3_optimize_dec_ref`]: fn.Z3_optimize_dec_ref.html)
     /// [`Z3_optimize_inc_ref`]: fn.Z3_optimize_inc_ref.html)
     pub fn new(ctx: &ContextZ3) -> OptimizerZ3 {
+        let z3 = unsafe {
+            let opt = Z3_mk_optimize(ctx.r);
+            Z3_optimize_inc_ref(ctx.r, opt);
+            opt
+        };
         OptimizerZ3 {
             ctx,
-            r: unsafe {
-                let opt = Z3_mk_optimize(ctx.r);
-                Z3_optimize_inc_ref(ctx.r, opt);
-                opt
-            }
+            r: z3
         }
     }
 }
@@ -106,11 +107,8 @@ fn test_new_optimizer(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let opt = OptimizerZ3::new(&ctx);
-    unsafe{
-        let opt_str = Z3_optimize_to_string(ctx.r, opt.r);
-        println!("Should print empty string, opt context is still empty.");
-        println!("{:?}", CStr::from_ptr(opt_str).to_str().unwrap());
-    }
+    println!("Should print empty string, opt context is still empty.");
+    println!("{}", GetOptStringZ3::new(&ctx, &opt).s);
 }
 
 #[test]
@@ -127,14 +125,11 @@ fn test_new_oassert(){
 
     OptAssertZ3::new(&ctx, &opt, rel1.r);
 
-    unsafe {
-        let s1 = Z3_optimize_to_string(ctx.r, opt.r);
-        println!("{}", CStr::from_ptr(s1).to_str().unwrap());
+    println!("Now we have an assert in the opt context, should print it.");
+    println!("{}", GetOptStringZ3::new(&ctx, &opt).s);
 
-        let model = Z3_optimize_get_model(ctx.r, opt.r);
-        let s2 = Z3_model_to_string(ctx.r, model);
-        println!("{}", CStr::from_ptr(s2).to_str().unwrap());
-    }
+    println!("Model: Should print empty string, no check yet.");
+    println!("{}", GetOptModelZ3::new(&ctx, &opt).s);
 }
 
 #[test]
@@ -148,29 +143,22 @@ fn test_new_ocheck(){
     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
  
     let rel1 = EQZ3::new(&ctx, y.r, real1.r);
- 
-    unsafe {
-        let s1 = CStr::from_ptr(Z3_optimize_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned();
-        println!("This is the opt context without any assertions:");
-        println!("{}", s1);
- 
-        OptAssertZ3::new(&ctx, &opt, rel1.r);
- 
-        let s2 = CStr::from_ptr(Z3_optimize_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned();
-        println!("This is the opt context with an assertion before the check:");
-        println!("{}", s2);
- 
-        let res1 = OptCheckZ3::new(&ctx, &opt, vec!());
-        println!("This is the return of the check:");
-        println!("{}", res1.r);
- 
-        let s3 = CStr::from_ptr(Z3_optimize_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned();
-        println!("This is the opt context with an assertion after the check:");
-        println!("{}", s3);
- 
-        let model = Z3_optimize_get_model(ctx.r, opt.r);
-        let s4 = CStr::from_ptr(Z3_model_to_string(ctx.r, model)).to_str().unwrap().to_owned();
-        println!("This is the solution");
-        println!("{}", s4);
-    }
+
+    println!("Should print empty string, opt context is still empty.");
+    println!("{}", GetOptStringZ3::new(&ctx, &opt).s);
+
+    OptAssertZ3::new(&ctx, &opt, rel1.r);
+
+    println!("Now we have an assert in the opt context, should print it.");
+    println!("{}", GetOptStringZ3::new(&ctx, &opt).s);
+
+    let res1 = OptCheckZ3::new(&ctx, &opt, vec!());
+    println!("This is the return of the check:");
+    println!("{}", res1.r);
+
+    println!("This is the opt context with an assertion after the check:");
+    println!("{}", GetOptStringZ3::new(&ctx, &opt).s);
+
+    println!("Model: Should print the solution, we did a check.");
+    println!("{}", GetOptModelZ3::new(&ctx, &opt).s);
 }

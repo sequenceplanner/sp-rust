@@ -56,13 +56,14 @@ impl <'ctx> SolverZ3<'ctx> {
     /// NOTE: User must use [`Z3_solver_inc_ref`](fn.Z3_solver_inc_ref.html) and [`Z3_solver_dec_ref`](fn.Z3_solver_dec_ref.html) to manage solver objects.
     /// Even if the context was created using [`Z3_mk_context`](fn.Z3_mk_context.html) instead of [`Z3_mk_context_rc`](fn.Z3_mk_context_rc.html).
     pub fn new(ctx: &ContextZ3) -> SolverZ3 {
+        let z3 = unsafe {
+            let solv = Z3_mk_solver(ctx.r);
+            Z3_solver_inc_ref(ctx.r, solv);
+            solv
+        };
         SolverZ3 {
             ctx,
-            r: unsafe {
-                let solv = Z3_mk_solver(ctx.r);
-                Z3_solver_inc_ref(ctx.r, solv);
-                solv
-            }
+            r: z3
         }
     }
 }
@@ -120,17 +121,13 @@ impl <'ctx> Drop for SolverZ3<'ctx> {
     }
 }
 
-/// Run test with -- --nocapture to see prints.
 #[test]
 fn test_new_solver(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let solv = SolverZ3::new(&ctx);
-    unsafe{
-        let solv_str = Z3_solver_to_string(ctx.r, solv.r);
-        println!("Should print empty string, no assertions yet.");
-        println!("{:?}", CStr::from_ptr(solv_str).to_str().unwrap());
-    }
+    println!("Should print empty string, no assertions yet.");
+    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 }
 
 #[test]
@@ -146,11 +143,8 @@ fn test_new_sassert(){
     let rel1 = EQZ3::new(&ctx, y.r, real1.r);
 
     SolvAssertZ3::new(&ctx, &solv, rel1.r);
-
-    unsafe {
-        let solv_str = Z3_solver_to_string(ctx.r, solv.r);
-        println!("{}", CStr::from_ptr(solv_str).to_str().unwrap());
-    }
+    println!("Should print stuff now, we have asserted constraints.");
+    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 }
 
 #[test]
@@ -165,28 +159,22 @@ fn test_new_scheck(){
 
     let rel1 = EQZ3::new(&ctx, y.r, real1.r);
 
-    unsafe {
-        let s1 = CStr::from_ptr(Z3_solver_to_string(ctx.r, solv.r)).to_str().unwrap().to_owned();
-        println!("This is the solver without any assertions:");
-        println!("{}", s1);
+    println!("This is the solvers context without any assertions:");
+    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 
-        SolvAssertZ3::new(&ctx, &solv, rel1.r);
+    SolvAssertZ3::new(&ctx, &solv, rel1.r);
+    
+    println!("This is the solvers context with an assertion before the check:");
+    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 
-        let s2 = CStr::from_ptr(Z3_solver_to_string(ctx.r, solv.r)).to_str().unwrap().to_owned();
-        println!("This is the solver with an assertion before the check:");
-        println!("{}", s2);
+    let res1 = SolvCheckZ3::new(&ctx, &solv);
 
-        let res1 = SolvCheckZ3::new(&ctx, &solv);
-        println!("This is the return of the check:");
-        println!("{}", res1.r);
+    println!("This is the return of the check:");
+    println!("{}", res1.r);
 
-        let s3 = CStr::from_ptr(Z3_solver_to_string(ctx.r, solv.r)).to_str().unwrap().to_owned();
-        println!("This is the solver with an assertion after the check:");
-        println!("{}", s3);
+    println!("This is the solver with an assertion after the check:");
+    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 
-        let model = Z3_solver_get_model(ctx.r, solv.r);
-        let s4 = CStr::from_ptr(Z3_model_to_string(ctx.r, model)).to_str().unwrap().to_owned();
-        println!("This is the solution");
-        println!("{}", s4);
-    }
+    println!("This is the solution (model retreived from the solver):");
+    println!("{}", GetSolvModelZ3::new(&ctx, &solv).s);
 }
