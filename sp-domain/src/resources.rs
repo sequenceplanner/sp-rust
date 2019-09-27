@@ -55,7 +55,7 @@ impl RosMsgDefinition {
         let mut a = Vec::new();
         self.flatten_to_paths_(&mut p, &mut a);
         a.iter()
-            .map(|(path, var)| (SPPath::from_str(path), *var))
+            .map(|(path, var)| (SPPath::from_array(path), *var))
             .collect()
     }
 
@@ -147,7 +147,7 @@ pub fn json_to_state(
                 //p.pop();
             }
             RosMsgDefinition::Field(var) => {
-                let sp_val = spval_from_json(json, var.variable_data().type_);
+                let sp_val = spval_from_json(json, var.value_type());
                 a.push((p.clone(), sp_val));
             }
         }
@@ -160,7 +160,7 @@ pub fn json_to_state(
     json_to_state_(json, md, &mut p, &mut a);
     StateExternal {
         s: a.iter()
-            .map(|(path, spval)| (SPPath::from_str(path), spval.clone()))
+            .map(|(path, spval)| (SPPath::from_array(path), spval.clone()))
             .collect(),
     }
 }
@@ -188,7 +188,7 @@ pub fn state_to_json(
                 serde_json::Value::Object(map)
             }
             RosMsgDefinition::Field(var) => {
-                if let Some(spval) = state.s.get(&SPPath::from_str(p)) {
+                if let Some(spval) = state.s.get(&SPPath::from_array(p)) {
                     // TODO
                     let json = spval_to_json(spval); // , var.variable_data().type_);
                     json
@@ -244,7 +244,7 @@ impl ResourceComm {
                         .iter()
                         .map(|(p, v)| {
                             let mut np = p.clone();
-                            np.path.insert(0, sub.topic.clone());
+                            np.add_root(sub.topic.clone());
                             (np, v.clone())
                         })
                         .collect();
@@ -257,7 +257,7 @@ impl ResourceComm {
                         .iter()
                         .map(|(p, v)| {
                             let mut np = p.clone();
-                            np.path.insert(0, pub_.topic.clone());
+                            np.add_root(pub_.topic.clone());
                             (np, v.clone())
                         })
                         .collect();

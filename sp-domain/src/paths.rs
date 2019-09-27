@@ -47,6 +47,12 @@ impl SPPath {
             SPPath::GlobalPath(ref mut xs) => xs.add(name)
         }
     }
+    pub fn add_root(&mut self, name: String) {
+        match self {
+            SPPath::LocalPath(ref mut xs) => xs.add_root(name),
+            SPPath::GlobalPath(ref mut xs) => xs.add_root(name)
+        }
+    }
     pub fn from(xs: &[String]) -> SPPath {
         let v: Vec<String> = xs.iter().map(|s| s.to_string()).collect();
         SPPath::LocalPath(LocalPath::from(v))
@@ -142,6 +148,9 @@ impl LocalPath {
     pub fn add(&mut self, name: String) {
         self.path.push(name);
     }
+    pub fn add_root(&mut self, name: String) {
+        self.path.insert(0,name);
+    }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
     }
@@ -184,6 +193,9 @@ impl GlobalPath {
     }
     pub fn add(&mut self, name: String) {
         self.path.push(name);
+    }
+    pub fn add_root(&mut self, name: String) {
+        self.path.insert(0,name);
     }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()

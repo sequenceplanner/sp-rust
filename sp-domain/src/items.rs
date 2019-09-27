@@ -399,6 +399,18 @@ impl Variable {
             vec!(false.to_spvalue(), true.to_spvalue()),
         )
     }
+    pub fn variable_type(&self) -> VariableType {
+        self.type_.clone()
+    }
+    pub fn value_type(&self) -> SPValueType {
+        self.value_type.clone()
+    }
+    pub fn initial_value(&self) -> SPValue {
+        self.initial_value.clone()
+    }
+    pub fn domain(&self) -> &[SPValue] {
+        self.domain.as_slice()
+    }
 }
 
 /// The possible variable types used by operations to define parameters
