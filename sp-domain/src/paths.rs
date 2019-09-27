@@ -112,7 +112,7 @@ impl SPPath {
         }
     }
 
-    pub fn as_sp(&self) -> SPPath {
+    pub fn to_sp(&self) -> SPPath {
         self.clone()
     }
 
@@ -154,7 +154,7 @@ impl LocalPath {
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
     }
-    pub fn as_sp(&self) -> SPPath {
+    pub fn to_sp(&self) -> SPPath {
         SPPath::LocalPath(self.clone())
     }
     pub fn is_child_of(&self, other: &LocalPath) -> bool {
@@ -200,7 +200,7 @@ impl GlobalPath {
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
     }
-    pub fn as_sp(&self) -> SPPath {
+    pub fn to_sp(&self) -> SPPath {
         SPPath::GlobalPath(self.clone())
     }
     pub fn is_child_of(&self, other: &GlobalPath) -> bool {

@@ -22,7 +22,7 @@ fn indent(n: u32) -> String {
 struct NuXMVPath<'a>(&'a SPPath);
 impl fmt::Display for NuXMVPath<'_> {
     fn fmt<'a>(&'a self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.path.join("#"))
+        write!(f, "{}", self.0.path().join("#"))
     }
 }
 
@@ -105,8 +105,8 @@ fn find_actions_modifying_path(
     let mut r = Vec::new();
 
     for t in transitions {
-        let a = t.actions.iter().find(|a| &a.var == path);
-        let e = t.effects.iter().find(|a| &a.var == path);
+        let a = t.actions().iter().find(|a| &a.var == path);
+        let e = t.effects().iter().find(|a| &a.var == path);
 
         // can not modify the same path twice... I think.
         assert!(!(a.is_some() && e.is_some()));
@@ -142,12 +142,11 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
 
     for (path, variable) in &model.vars {
         let path = NuXMVPath(&path);
-        if variable.variable_data().type_ == SPValueType::Bool {
+        if variable.value_type() == SPValueType::Bool {
             lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
         } else {
             let domain: Vec<_> = variable
-                .variable_data()
-                .domain
+                .domain()
                 .iter()
                 .map(|v| NuXMVValue(v).to_string())
                 .collect();
@@ -163,7 +162,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
 
     // add a control variable for each controllable transition
     for ct in &model.ab_transitions.ctrl {
-        let path = NuXMVPath(&ct.path);
+        let path = NuXMVPath(&ct.path);   // Hmm, path är numera SPPaths eftersom alla har både en global och en local.
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
 

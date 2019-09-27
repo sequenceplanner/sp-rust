@@ -237,7 +237,7 @@ macro_rules! p {
     // EQ
     ($name:ident == $value:expr) => {
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath($name.as_sp()),
+            $crate::predicates::PredicateValue::SPPath($name.to_sp()),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     };
@@ -279,13 +279,13 @@ macro_rules! p {
     // Boolean variable
     ($name:ident) => {
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath($name.as_sp()),
+            $crate::predicates::PredicateValue::SPPath($name.to_sp()),
             $crate::predicates::PredicateValue::SPValue(true.to_spvalue()),
         )
     };
     (!$name:ident) => {
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath($name.as_sp()),
+            $crate::predicates::PredicateValue::SPPath($name.to_sp()),
             $crate::predicates::PredicateValue::SPValue(false.to_spvalue()),
         )
     };
@@ -358,7 +358,7 @@ macro_rules! pr {
 macro_rules! a {
     ($var:ident) => {
         Action {
-            var: $var.as_sp(),
+            var: $var.to_sp(),
             value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPValue(
                 true.to_spvalue(),
             )),
@@ -366,7 +366,7 @@ macro_rules! a {
     };
     (!$var:ident) => {
         Action {
-            var: $var.as_sp(),
+            var: $var.to_sp(),
             value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPValue(
                 false.to_spvalue(),
             )),
@@ -374,7 +374,7 @@ macro_rules! a {
     };
     ($var:ident = $val:expr) => {
         Action {
-            var: $var.as_sp(),
+            var: $var.to_sp(),
             value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPValue(
                 $val.to_spvalue(),
             )),

@@ -12,10 +12,10 @@ pub struct TempModel {
 }
 
 fn make_robot(name: &str, upper: i32) -> TempModel {
-    let r = SPPath::from_str(&[name, "ref", "data"]);
-    let a = SPPath::from_str(&[name, "act", "data"]);
-    let activate = SPPath::from_str(&[name, "activate", "data"]);
-    let activated = SPPath::from_str(&[name, "activated", "data"]);
+    let r = SPPath::from_array(&[name, "ref", "data"]);
+    let a = SPPath::from_array(&[name, "act", "data"]);
+    let activate = SPPath::from_array(&[name, "activate", "data"]);
+    let activated = SPPath::from_array(&[name, "activated", "data"]);
 
     let r_c = Variable::Command(VariableData {
         type_: SPValueType::Int32,
@@ -42,25 +42,25 @@ fn make_robot(name: &str, upper: i32) -> TempModel {
     });
 
     let to_upper = Transition::new(
-        SPPath::from_str(&[name, "trans", "to_upper"]),
+        SPPath::from_array(&[name, "trans", "to_upper"]),
         pr!{{p!{activated}} && {p!{a != upper}}},
         vec![a!(r = upper)],
         vec![a!(a = upper)],
     );
     let to_lower = Transition::new(
-        SPPath::from_str(&[name, "trans", "to_lower"]),
+        SPPath::from_array(&[name, "trans", "to_lower"]),
         pr!{{p!{activated}} && {p!{a != 0}}},
         vec![a!(r = 0)],
         vec![a!(a = 0)],
     );
     let t_activate = Transition::new(
-        SPPath::from_str(&[name, "trans", "activate"]),
+        SPPath::from_array(&[name, "trans", "activate"]),
         p!(!activated),
         vec![a!(activate)],
         vec![a!(activated)],
     );
     let t_deactivate = Transition::new(
-        SPPath::from_str(&[name, "trans", "deactivate"]),
+        SPPath::from_array(&[name, "trans", "deactivate"]),
         p!(activated),
         vec![a!(!activate)],
         vec![a!(!activated)],

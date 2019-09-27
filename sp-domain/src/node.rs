@@ -79,8 +79,28 @@ pub trait Noder {
     fn find_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>>;
     fn update_path_children(&mut self, paths: &SPPaths);
     fn as_ref<'a>(&'a self) -> SPItemRef<'a>;
+    fn paths(&self) -> &SPPaths {
+        self.node().paths()
+    }
+    fn is_eq(&self, path: &SPPath) -> bool {
+        self.paths().is_eq(path)
+    }
+    fn has_global(&self) -> bool {
+        self.paths().global_path().is_some()
+    }
+    fn get_path(&self) -> SPPath {
+        if let Some(g) = self.paths().global_path() {
+            return g.to_sp().clone()
+        }
+        if let Some(l) = self.paths().local_path() {
+            return l.to_sp().clone()
+        }
+        panic!("We do not have a path in {} and get_path", self.node());
+    }
 
-    fn name(&self) -> &str {&self.node().name}
+    fn name(&self) -> &str {
+        &self.node().name
+    }
 
     /// Finds the item with a specific SPPath. Will only find locals if asked from the
     /// correct resource (or below)

@@ -465,6 +465,16 @@ impl Transition {
             effects
         }
     }
+
+    pub fn guard(&self) -> &Predicate {
+        &self.guard
+    }
+    pub fn actions(&self) -> &[Action] {
+        self.actions.as_slice()
+    }
+    pub fn effects(&self) -> &[Action] {
+        self.effects.as_slice()
+    }
 }
 
 impl EvaluatePredicate for Transition {
@@ -631,6 +641,13 @@ impl IfThen {
             if_,
             then_
         }
+    }
+
+    pub fn if_(&self) -> &Predicate {
+        &self.if_
+    }
+    pub fn then_(&self) -> &Predicate {
+        &self.then_
     }
 }
 

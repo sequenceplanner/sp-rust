@@ -26,8 +26,9 @@ pub struct RunnerModel {
     pub op_transitions: RunnerTransitions,
     pub ab_transitions: RunnerTransitions,
     pub plans: RunnerPlans,
-    pub state_functions: Vec<Variable>,
-    pub op_functions: Vec<OperationFunction>,
+    pub state_predicates: Vec<Variable>,
+    pub goals: Vec<IfThen>,
+    pub invariants: Vec<IfThen>,
     pub vars: HashMap<SPPath, Variable>,  // needed for planning
 }
 
@@ -191,14 +192,16 @@ impl Runner {
 
     /// Tick the runner one step trying to run the transitions that are enabled.
     /// Returns an updated state, updated plans and the transitions that was fired
-    fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPPath>) {
+    fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPPaths>) {
         let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions);
 
         let (goal, inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
-        println!("we have a goal! {:?}", goal);
+        if !goal.is_empty() {
+            println!("we have a goal! {:?}", goal);
+        }
         let state_ext = state.external();
-        let pred = Predicate::AND(goal);
+        let pred = Predicate::AND(goal.iter().map(|x|x.then_().clone()).collect());
         let result = crate::planning::compute_plan(&pred, &state_ext, &self.model, 20);
         println!("we have a plan? {} -- got it in {}ms",
                  result.plan_found, result.time_to_solve.as_millis());
@@ -213,18 +216,18 @@ impl Runner {
 
     /// Ticks all transitions that are enabled, starting first with the controlled that is first in the
     /// plan. Mutates the runner state
-    fn tick_transitions(&self, state: &mut SPState, plan: &mut Vec<SPPath>, trans: &RunnerTransitions) -> Vec<SPPath> {
+    fn tick_transitions(&self, state: &mut SPState, plan: &mut Vec<SPPath>, trans: &RunnerTransitions) -> Vec<SPPaths> {
         let (ctrl, un_ctrl) = (&trans.ctrl, &trans.un_ctrl);
 
         let first = plan.first().and_then(|path| {
-            ctrl.iter().find(|t| t.path == *path)
+            ctrl.iter().find(|t| t.is_eq(path))
         });
         let mut fired = match first {
             Some(t) if t.eval(&state) => {
                 let n = t.next(&state).unwrap(); // Must return Ok, else something is bad
                 self.insert_into_state(state, n);
                 plan.remove(0);
-                vec!(t.path.clone())
+                vec!(t.paths().clone())
             },
             _ => Vec::new()
         };
@@ -235,7 +238,7 @@ impl Runner {
             if t.eval(&state) {
                 let n = t.next(&state).unwrap(); // should always work since eval works
                 self.insert_into_state(state, n);
-                fired.push(t.path.clone());
+                fired.push(t.paths().clone());
             }
         };
 
@@ -243,46 +246,26 @@ impl Runner {
 
     }
 
-    fn next_op_functions(&self, state: &SPState) -> (Vec<Predicate>, Vec<Predicate>) {
-        self.model.op_functions.iter().fold((Vec::new(), Vec::new()), |(mut goal, mut inv), x| match x {
-            OperationFunction::Goal(p, g) if p.eval(state) => {
-                println!("pushin goal!");
-                goal.push(g.clone());
-                (goal, inv)
-            },
-            OperationFunction::Invariant(p, i) if p.eval(state) => {
-                inv.push(i.clone());
-                (goal, inv)
-            }
-            _ => (goal, inv)
-         })
+    fn next_op_functions(&self, state: &SPState) -> (Vec<IfThen>, Vec<IfThen>) {
+        let goals: Vec<IfThen> = self.model.goals.iter().filter(|x| x.if_().eval(state)).cloned().collect();
+        let inv: Vec<IfThen> = self.model.invariants.iter().filter(|x| x.if_().eval(state)).cloned().collect();
+        (goals, inv)
     }
 
 
 
     fn insert_into_state(&self, state: &mut SPState, map: AssignState) {
         state.insert_map(map).unwrap();  // should always work here, else eval is not ok
-        self.upd_state_functions(state);
+        self.upd_state_predicates(state);
     }
 
-    fn upd_state_functions(&self,state: &mut SPState) {
-        let s = self.model.state_functions.iter()
-            .fold(HashMap::new(), |mut aggr, v| {
-                match v {
-                    Variable::StatePredicate(_, a) => {
-                        aggr.extend( a.next(&self.state).unwrap().s.into_iter().map(|(key, value)| {
-                                (key, match value {
-                                    AssignStateValue::SPValue(x) => AssignStateValue::Force(x),
-                                    x => x,
-                                })
-                            }
-                        ).collect::<HashMap<SPPath, AssignStateValue>>());
-                        aggr
-                    },
-                    _ => aggr
-                }
+    fn upd_state_predicates(&self,state: &mut SPState) {
+        self.model.state_predicates.iter().for_each(|v| match v.variable_type() {
+            VariableType::Predicate(p) if v.has_global() => {
+                state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
+            }, 
+            _ => {},
         });
-        state.insert_map(AssignState{s}).unwrap();
     }
 
 
@@ -420,7 +403,7 @@ mod runner_tests {
         println!("{:?}", state);
 
         assert_eq!(runner.state.get_value(
-            &SPPath::from_str(&["r1", "ref"])),
+            &SPPath::from_array(&["r1", "ref"])),
             Some(&0.to_spvalue())
         );
 
@@ -430,7 +413,7 @@ mod runner_tests {
 
         let newS = res.0;
         assert_eq!(newS.get_value(
-            &SPPath::from_str(&["r1", "ref"])),
+            &SPPath::from_array(&["r1", "ref"])),
             Some(&10.to_spvalue())
         );
 
@@ -443,73 +426,5 @@ mod runner_tests {
 
     }
 
-    #[test]
-    fn create_a_runner() {
-        let ab = SPPath::from_str(&["a", "b"]);
-        let ac = SPPath::from_str(&["a", "c"]);
-        let kl = SPPath::from_str(&["k", "l"]);
-        let xy = SPPath::from_str(&["x", "y"]);
-
-        let s = state!(
-            ab => false,
-            ac => false,
-            kl => false,
-            xy => false
-        );
-
-        let p_ab = p!(ab);
-        let p_ac = p!(ac);
-        let p_kl = p!(kl);
-        let p_xy = p!(xy);
-        let p_ab_not = p!(!ab);
-        let p_ac_not = p!(!ac);
-        let p_kl_not = p!(!kl);
-        let p_xy_not = p!(!xy);
-
-        let a_ab = a!(ab);
-        let a_ac = a!(ac);
-        let a_kl = a!(kl);
-        let a_xy = a!(xy);
-        let a_ab_not = a!(!ab);
-        let a_ac_not = a!(!ac);
-        let a_kl_not = a!(!kl);
-        let a_xy_not = a!(!xy);
-
-        let p = SPPath::from_str(&["t_ab"]);
-        let t_ab = transition!(p, &p_ab_not, &a_ab);
-        let t_ab_not = transition!(p, &p_ab, &a_ab_not);
-        let t_ab_ac = transition!(p, &p_ab, &a_ac);
-        let t_ac_kl = transition!(p, &p_ac, &a_kl);
-        let t_kl_xy = transition!(p, &p_kl, &a_xy);
-        let t_reset = transition!(p, &p_xy, &a_ab_not, &a_ac_not, &a_kl_not, &a_xy_not);
-
-        let ts = RunnerTransitions{
-            ctrl: vec!(t_ab, t_reset),
-            un_ctrl: vec!(
-                t_ab_not,
-                t_ab_ac,
-                t_ac_kl,
-                t_kl_xy,
-            )
-        };
-
-        // let sp_p = pr!(ab && ac);
-        // let sf = vec!(variable!(SP "test", sp_p));
-
-        // let mut plan = vec!();
-        // let mut state = r.state.clone();
-        // let res = r.tick_transitions(&mut state, &mut plan, &ts);
-        // assert_eq!(res, vec!());
-
-        // r.state = s.clone();
-
-        // plan.push(t1.spid.id);
-
-        // let res = r.tick_transitions(&mut state, &mut plan, &ts);
-        // assert_eq!(res, vec!(t1.spid));
-        // println!("{:?}", res);
-        // println!("{:?}", r.state);
-
-    }
 
 }

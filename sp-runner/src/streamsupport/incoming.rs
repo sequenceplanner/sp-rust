@@ -43,8 +43,8 @@ mod incoming_test {
     use std::collections::HashMap;
     use tokio::prelude::*;
 
-    fn ab() -> SPPath { SPPath::from_str(&["a", "b"])}
-    fn ac() -> SPPath { SPPath::from_str(&["a", "c"])}
+    fn ab() -> SPPath { SPPath::from_array(&["a", "b"])}
+    fn ac() -> SPPath { SPPath::from_array(&["a", "c"])}
     fn initial_ab() -> AssignState {
         let s: HashMap<SPPath, AssignStateValue> = [
             (ab(), AssignStateValue::SPValue(false.to_spvalue())),

@@ -135,8 +135,8 @@ mod mock_resource_test {
     #[test]
     fn test_me() {
         let r = MockResource::new(DummyRobot{
-            ref_path: SPPath::from_str(&["ref"]),
-            act_path: SPPath::from_str(&["act"]),
+            ref_path: SPPath::from_array(&["ref"]),
+            act_path: SPPath::from_array(&["act"]),
             act: 0.to_spvalue(),
         });
         println!("{:?}", r);
