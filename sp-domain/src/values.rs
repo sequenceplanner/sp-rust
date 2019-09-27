@@ -3,7 +3,6 @@
 //!
 use std::fmt;
 use serde::{Deserialize, Serialize};
-use z3_sys::*;
 
 /// SPValue represent a variable value of a specific type. The types used are
 /// matched with ROS types for easy mapping between messages and SP
