@@ -35,7 +35,7 @@ impl std::fmt::Debug for SPPath {
 }
 
 impl serde::ser::Serialize for SPPath {
-    fn serialize<S>(&self, serializer: S) -> SPResult<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
     {
@@ -44,7 +44,7 @@ impl serde::ser::Serialize for SPPath {
     }
 }
 impl<'de> serde::de::Deserialize<'de> for SPPath {
-    fn deserialize<D>(deserializer: D) -> SPResult<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
