@@ -5,7 +5,7 @@ use super::*;
 
 /// The SPPath is used for identifying all objects in a model. The path will be defined
 /// based on where the item is in the model hierarchy
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone)]
 pub enum SPPath {
     LocalPath(LocalPath),
     GlobalPath(GlobalPath),
@@ -31,6 +31,25 @@ impl std::fmt::Debug for SPPath {
             SPPath::LocalPath(x) => write!(f, "{}", x),
             SPPath::GlobalPath(x) => write!(f, "{}", x),
         }
+    }
+}
+
+impl serde::ser::Serialize for SPPath {
+    fn serialize<S>(&self, serializer: S) -> SPResult<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(&format!("{}", self))
+
+    }
+}
+impl<'de> serde::de::Deserialize<'de> for SPPath {
+    fn deserialize<D>(deserializer: D) -> SPResult<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        SPPath::from_string(&s).map_err(serde::de::Error::custom)
     }
 }
 
@@ -61,7 +80,7 @@ impl SPPath {
         let v: Vec<String> = xs.iter().map(|s| s.to_string()).collect();
         SPPath::LocalPath(LocalPath::from(v))
     }
-    pub fn from_string(s: &str) -> Result<SPPath> {
+    pub fn from_string(s: &str) -> SPResult<SPPath> {
         let what_type: Vec<&str> = s.split(":").collect();
 
         match what_type.as_slice() {
@@ -351,5 +370,17 @@ mod tests_paths {
         assert_eq!(l_ab.next_node_in_path(&g_b), Some("c".to_string()));
         assert_eq!(l_ab.next_node_in_path(&l_k), None);
 
+    }
+
+    #[test]
+    fn jsonify() {
+        let p = SPPath::from_array(&["a", "b"]);
+
+        let json = serde_json::to_string(&p);
+        println!("{:?}", json);
+
+        let mut m = HashMap::new();
+        m.insert(p, 1);
+        println!("{:?}", m);
     }
 }

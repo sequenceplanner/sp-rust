@@ -484,7 +484,7 @@ impl EvaluatePredicate for Transition {
 }
 
 impl NextAction for Transition {
-    fn next(&self, state: &SPState) -> Result<AssignState> {
+    fn next(&self, state: &SPState) -> SPResult<AssignState> {
         let mut s: HashMap<SPPath, AssignStateValue> = HashMap::new();
         for a in self.actions.iter() {
             let next = a.next(state)?;

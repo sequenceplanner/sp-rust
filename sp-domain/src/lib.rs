@@ -34,7 +34,7 @@ use std::error;
 use std::fmt;
 
 
-type Result<T> = std::result::Result<T, SPError>;
+type SPResult<T> = std::result::Result<T, SPError>;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SPError {

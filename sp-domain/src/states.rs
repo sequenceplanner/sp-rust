@@ -122,7 +122,7 @@ impl SPState {
         StateExternal { s: res }
     }
 
-    fn make_insert(next: AssignStateValue, prev: StateValue) -> Result<StateValue> {
+    fn make_insert(next: AssignStateValue, prev: StateValue) -> SPResult<StateValue> {
         match (next, prev) {
             (AssignStateValue::Force(n), _) => Ok(StateValue::SPValue(n)),
             (AssignStateValue::CancelDelay, StateValue::Delay(p)) => {
@@ -169,7 +169,7 @@ impl SPState {
         }
     }
 
-    pub fn insert(&mut self, key: &SPPath, value: AssignStateValue) -> Result<()> {
+    pub fn insert(&mut self, key: &SPPath, value: AssignStateValue) -> SPResult<()> {
         let x = self.s.entry(key.clone()).or_insert(StateValue::Unknown);
         match SPState::make_insert(value, x.clone()) {
             Ok(v) => {
@@ -180,7 +180,7 @@ impl SPState {
         }
     }
 
-    pub fn insert_map(&mut self, map: AssignState) -> Result<()> {
+    pub fn insert_map(&mut self, map: AssignState) -> SPResult<()> {
         for (var, value) in map.s.into_iter() {
             self.insert(&var, value)?
         }

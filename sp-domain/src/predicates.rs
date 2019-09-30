@@ -126,7 +126,7 @@ pub trait EvaluatePredicate {
 }
 
 pub trait NextAction {
-    fn next(&self, state: &SPState) -> Result<AssignState>;
+    fn next(&self, state: &SPState) -> SPResult<AssignState>;
 }
 
 impl EvaluatePredicate for Predicate {
@@ -153,7 +153,7 @@ impl EvaluatePredicate for Predicate {
 }
 
 impl NextAction for Action {
-    fn next(&self, state: &SPState) -> Result<AssignState> {
+    fn next(&self, state: &SPState) -> SPResult<AssignState> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => {
                 match pv
