@@ -261,9 +261,9 @@ impl Runner {
 
     fn upd_state_predicates(&self,state: &mut SPState) {
         self.model.state_predicates.iter().for_each(|v| match v.variable_type() {
-            VariableType::Predicate(p) if v.has_global() => {
+            VariableType::Predicate(ref p) if v.has_global() => {
                 state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
-            }, 
+            },
             _ => {},
         });
     }

@@ -90,6 +90,12 @@ impl SPPath {
             SPPath::GlobalPath(x) => x.path(),
         }
     }
+    pub fn as_global(&self) -> Option<&GlobalPath> {
+        match self {
+            SPPath::GlobalPath(x) => Some(x),
+            _ => None
+        }
+    }
     pub fn string_path(&self) -> String {
         format!("{}", self)
     }
@@ -145,6 +151,10 @@ impl LocalPath {
     pub fn from(path: Vec<String>) -> LocalPath {
         LocalPath{path}
     }
+    pub fn from_str(n: &[&str]) -> LocalPath {
+        let path: Vec<String> = n.iter().map(|s|s.to_string()).collect();
+        LocalPath{path}
+    }
     pub fn add(&mut self, name: String) {
         self.path.push(name);
     }
@@ -189,6 +199,10 @@ impl GlobalPath {
         self.path.clone()
     }
     pub fn from(path: Vec<String>) -> GlobalPath {
+        GlobalPath{path}
+    }
+    pub fn from_str(n: &[&str]) -> GlobalPath {
+        let path: Vec<String> = n.iter().map(|s|s.to_string()).collect();
         GlobalPath{path}
     }
     pub fn add(&mut self, name: String) {
@@ -281,7 +295,7 @@ impl SPPaths {
                 SPPath::GlobalPath(x) => {
                     Some(x.as_slice()[g_len].clone())
                 }
-            }      
+            }
         } else {
             None
         }

@@ -1,5 +1,5 @@
 //!
-//! 
+//!
 use super::*;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -187,10 +187,10 @@ impl Noder for Resource {
         let res = find_in_list(self.parameters.as_slice(), next, path);
         if res.is_some() {return res};
         let res = find_in_list(self.messages.as_slice(), next, path);
-        
+
         return res
     }
-    fn update_path_children(&mut self, _paths: &SPPaths) { 
+    fn update_path_children(&mut self, _paths: &SPPaths) {
         let mut local = LocalPath::from(vec!(self.node.name().to_string()));
         self.node.paths_mut().upd_local(Some(local));
         let paths = self.node.paths();
@@ -252,7 +252,7 @@ impl Noder for Topic {
         if self.msg.name() != next {return None}
         self.msg.find(path)
     }
-    fn update_path_children(&mut self, paths: &SPPaths) { 
+    fn update_path_children(&mut self, paths: &SPPaths) {
         self.msg.update_path(paths);
     }
     fn as_ref<'a>(&'a self) -> SPItemRef<'a> {
@@ -284,7 +284,7 @@ impl Noder for Message {
     fn find_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
         find_in_list(self.fields.as_slice(), next, path)
     }
-    fn update_path_children(&mut self, paths: &SPPaths) { 
+    fn update_path_children(&mut self, paths: &SPPaths) {
         update_path_in_list(self.fields.as_mut_slice(), paths);
     }
     fn as_ref<'a>(&'a self) -> SPItemRef<'a> {
@@ -322,14 +322,14 @@ impl Noder for MessageField {
             MessageField::Var(ref mut x) => x.node_mut()
         }
     }
-    
+
     fn find_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
         match self {
             MessageField::Msg(ref x) => x.find_child(next, path),
             MessageField::Var(ref x) => x.find_child(next, path),
         }
     }
-    fn update_path_children(&mut self, paths: &SPPaths) { 
+    fn update_path_children(&mut self, paths: &SPPaths) {
         match self {
             MessageField::Msg(ref mut x) => x.update_path_children(paths),
             MessageField::Var(ref mut x) => x.update_path_children(paths),
@@ -373,7 +373,7 @@ impl Noder for Variable {
 }
 
 impl Variable {
-    pub fn new(name: &str, 
+    pub fn new(name: &str,
                 type_: VariableType,
                 value_type: SPValueType,
                 initial_value: SPValue,
@@ -388,7 +388,7 @@ impl Variable {
             domain,
         }
     }
-    pub fn new_boolean(name: &str, 
+    pub fn new_boolean(name: &str,
                 type_: VariableType,
     ) -> Variable {
         Variable::new(
@@ -453,7 +453,7 @@ impl Noder for Transition {
 }
 
 impl Transition {
-    pub fn new(name: &str, 
+    pub fn new(name: &str,
                guard: Predicate,
                actions: Vec<Action>,
                effects: Vec<Action> ) -> Transition {
@@ -515,7 +515,7 @@ impl Noder for Ability {
         let res = find_in_list(self.predicates.as_slice(), next, path);
         return res;
     }
-    fn update_path_children(&mut self, paths: &SPPaths) { 
+    fn update_path_children(&mut self, paths: &SPPaths) {
         update_path_in_list(self.controlled.as_mut_slice(), paths);
         update_path_in_list(self.uncontrolled.as_mut_slice(), paths);
         update_path_in_list(self.predicates.as_mut_slice(), paths);
@@ -571,7 +571,7 @@ impl Noder for Operation {
         let res = self.invariant.as_ref().and_then(|ref x| x.find(path));
         return res;
     }
-    fn update_path_children(&mut self, paths: &SPPaths) { 
+    fn update_path_children(&mut self, paths: &SPPaths) {
         update_path_in_list(self.precondition.as_mut_slice(), paths);
         update_path_in_list(self.postcondition.as_mut_slice(), paths);
         update_path_in_list(self.uncontrolled.as_mut_slice(), paths);
