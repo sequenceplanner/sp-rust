@@ -61,7 +61,7 @@ impl SPPath {
         let v: Vec<String> = xs.iter().map(|s| s.to_string()).collect();
         SPPath::LocalPath(LocalPath::from(v))
     }
-    pub fn from_string(s: &str) -> Result<SPPath> {
+    pub fn from_string(s: &str) -> SPResult<SPPath> {
         let what_type: Vec<&str> = s.split(":").collect();
 
         match what_type.as_slice() {

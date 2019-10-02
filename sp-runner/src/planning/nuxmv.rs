@@ -144,12 +144,12 @@ fn action_to_string(a: &Action) -> Option<String> {
     }
 }
 
-fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel) -> String {
+fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel, vars: &HashMap<SPPath, Variable>) -> String {
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
 
-    for (path, variable) in &model.vars {
+    for (path, variable) in vars {
         let path = NuXMVPath(g_path_or_panic_path(path));
         if variable.value_type() == SPValueType::Bool {
             lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
@@ -209,7 +209,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     lines.push_str("-- TRANSITIONS --\n");
     lines.push_str("");
 
-    for path in model.vars.keys() {
+    for path in vars.keys() {
         let path = NuXMVPath(g_path_or_panic_path(path));
 
         lines.push_str(&format!("{i}next({v}) := case\n", i = indent(2), v = path));
@@ -332,7 +332,7 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)
     Ok((raw,raw_error))
 }
 
-fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<PlanningFrame>> {
+fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<SPPath, Variable>) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
         return None;
     }
@@ -367,8 +367,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<Pl
                 }
             } else {
                 // get SP type from path
-                let spt = model
-                    .vars
+                let spt = vars
                     .get(&sppath)
                     .expect(&format!("path mismatch! {}", path))
                     .value_type();
@@ -388,7 +387,16 @@ pub fn compute_plan(
     model: &RunnerModel,
     max_steps: u32,
 ) -> PlanningResult {
-    let lines = create_nuxmv_problem(&goal, &state, &model);
+    // create variable definitions based on the state
+    let vars: HashMap<SPPath, Variable> = state.s.iter().flat_map(|(k,v)| match k {
+        SPPath::GlobalPath(gp) => {
+            let v = model.model.get(&gp.to_sp()).expect("variable must exist!");
+            Some((gp.to_sp(),v.unwrap_variable()))
+        }
+        _ => None
+    }).collect();
+
+    let lines = create_nuxmv_problem(&goal, &state, &model, &vars);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
@@ -402,7 +410,7 @@ pub fn compute_plan(
     match call_nuxmv(max_steps, filename) {
         Ok((raw, raw_error)) => {
             let duration = start.elapsed();
-            let trace = postprocess_nuxmv_problem(&raw, model);
+            let trace = postprocess_nuxmv_problem(&raw, model, &vars);
 
             PlanningResult {
                 plan_found: trace.is_some(),

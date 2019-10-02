@@ -29,7 +29,7 @@ pub struct RunnerModel {
     pub state_predicates: Vec<Variable>,
     pub goals: Vec<IfThen>,
     pub invariants: Vec<IfThen>,
-    pub vars: HashMap<SPPath, Variable>,  // needed for planning
+    pub model: Model,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -398,7 +398,7 @@ mod runner_tests {
 
     #[test]
     fn dummy_robot_model_tests() {
-        let (model, state, resources) = crate::testing::two_robots();
+        let (model, state) = crate::testing::two_robots();
         let (runner, comm) = Runner::new(model.clone(), state.clone());
         println!("{:?}", state);
 

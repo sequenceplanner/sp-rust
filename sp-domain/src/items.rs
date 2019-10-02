@@ -334,6 +334,28 @@ impl Resource {
         self.messages.push(message);
         paths
     }
+
+    pub fn make_initial_state(&self) -> SPState {
+        fn r(m: &MessageField, acum: &mut SPState) {
+            match m {
+                MessageField::Msg(msg) => {
+                    for f in &msg.fields {
+                        r(f, acum);
+                    }
+                },
+                MessageField::Var(var) => {
+                    acum.insert(&var.node().global_path().as_ref().unwrap().to_sp(),
+                                AssignStateValue::SPValue(var.initial_value.clone()));
+                },
+            }
+        }
+
+        let mut s = SPState::default();
+        for t in &self.messages {
+            r(&t.msg, &mut s);
+        }
+        return s;
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -663,9 +685,9 @@ impl NextAction for Transition {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Ability {
     node: SPNode,
-    controlled: Vec<Transition>,
-    uncontrolled: Vec<Transition>,
-    predicates: Vec<Variable>,
+    pub controlled: Vec<Transition>,
+    pub uncontrolled: Vec<Transition>,
+    pub predicates: Vec<Variable>,
 }
 
 impl Noder for Ability {

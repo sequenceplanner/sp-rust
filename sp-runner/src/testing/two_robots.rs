@@ -20,28 +20,28 @@ fn make_robot(name: &str, upper: i32) -> Resource {
     let r_c = Variable::new("data",
         VariableType::Command,
         SPValueType::Int32,
-        SPValue::Unknown,
+        0.to_spvalue(),
         (0..upper + 1).map(|v| v.to_spvalue()).collect(),
     );
 
     let a_m = Variable::new("data",
         VariableType::Measured,
         SPValueType::Int32,
-        SPValue::Unknown,
+        0.to_spvalue(),
         (0..upper + 1).map(|v| v.to_spvalue()).collect(),
     );
 
     let act_c = Variable::new("data",
         VariableType::Command,
         SPValueType::Bool,
-        SPValue::Unknown,
+        false.to_spvalue(),
         Vec::new(),
     );
 
     let act_m = Variable::new("data",
         VariableType::Measured,
         SPValueType::Bool,
-        SPValue::Unknown,
+        false.to_spvalue(),
         Vec::new(),
     );
 
@@ -73,7 +73,6 @@ fn make_robot(name: &str, upper: i32) -> Resource {
     let deactivate_ab = Ability::new("deactivate", vec![t_deactivate], vec![], vec![]);
 
     let opf = IfThen::new("to_upper", p!(a != upper), p!(a == upper));
-
     let opfs = vec!(opf);
 
     let s = state!(
@@ -83,16 +82,16 @@ fn make_robot(name: &str, upper: i32) -> Resource {
         activated => false
     );
 
-    let ref_msg = Message::new("std_msgs/msg/Int32".into(), vec![MessageField::Var(r_c.clone())]);
+    let ref_msg = Message::new_with_type("int".into(), "std_msgs/msg/Int32".into(), vec![MessageField::Var(r_c.clone())]);
     let ref_topic = Topic::new("ref", MessageField::Msg(ref_msg));
 
-    let activate_msg = Message::new("std_msgs/msg/Bool".into(), vec![MessageField::Var(act_c.clone())]);
+    let activate_msg = Message::new_with_type("bool".into(), "std_msgs/msg/Bool".into(), vec![MessageField::Var(act_c.clone())]);
     let activate_topic = Topic::new("activate", MessageField::Msg(activate_msg));
 
-    let act_msg = Message::new("std_msgs/msg/Int32".into(), vec![MessageField::Var(a_m.clone())]);
+    let act_msg = Message::new_with_type("int".into(), "std_msgs/msg/Int32".into(), vec![MessageField::Var(a_m.clone())]);
     let act_topic = Topic::new("act", MessageField::Msg(act_msg));
 
-    let activated_msg = Message::new("std_msgs/msg/Bool".into(), vec![MessageField::Var(act_m.clone())]);
+    let activated_msg = Message::new_with_type("bool".into(), "std_msgs/msg/Bool".into(), vec![MessageField::Var(act_m.clone())]);
     let activated_topic = Topic::new("activated", MessageField::Msg(activated_msg));
 
     let mut r = Resource::new(name);
@@ -106,59 +105,87 @@ fn make_robot(name: &str, upper: i32) -> Resource {
     r.add_ability(activate_ab);
     r.add_ability(deactivate_ab);
 
-
-    // TempModel {
-    //     initial_state: s,
-    //     variables: vars,
-    //     runner_transitions: RunnerTransitions {
-    //         ctrl: vec![t_activate, t_deactivate],
-    //         un_ctrl: vec![to_lower, to_upper],
-    //     },
-    //     opfs: opfs,
-    //     resource: r,
-    // }
-    r
+    return r;
 }
 
 fn make_runner_model(model: &Model) -> RunnerModel {
-    // let rm = RunnerModel {
-    //     op_transitions: RunnerTransitions::default(),
-    //     ab_transitions: r1.runner_transitions,
-    //     plans: RunnerPlans::default(),
-    //     state_predicates: Vec::new(),
-    //     goals: r1.opfs,
-    //     invariants: Vec::new(),
-    //     vars: r1.variables,
-    // };
 
+    let items = model.items();
+
+    // find "ab" transitions from resources
+    let resources: Vec<&Resource> = items.iter().flat_map(|i| match i {
+        SPItem::Resource(r) => Some(r),
+        _ => None }).collect();
+    let ab_ctrl_ts: Vec<&Transition> = resources.iter().
+        flat_map(|r| r.abilities().iter().flat_map(|a|a.controlled.iter())).collect();
+    let ab_unctrl_ts: Vec<&Transition> = resources.iter().
+        flat_map(|r| r.abilities().iter().flat_map(|a|a.uncontrolled.iter())).collect();
+
+    // TODO: add global transitions. currently impossible.
+
+    // add global op transitions (all automatic for now).
+    let global_ops: Vec<&Operation> = items.iter().flat_map(|i| match i {
+        SPItem::Operation(o) => Some(o),
+        _ => None }).collect();
+
+    // todo: finish operations.
+
+    println!("{:?}", resources);
 
     let rm = RunnerModel {
         op_transitions: RunnerTransitions::default(),
-        ab_transitions: RunnerTransitions::default(),
+        ab_transitions: RunnerTransitions {
+            ctrl: ab_ctrl_ts.into_iter().cloned().collect(),
+            un_ctrl: ab_unctrl_ts.into_iter().cloned().collect(),
+        },
         plans: RunnerPlans::default(),
         state_predicates: Vec::new(),
         goals: Vec::new(),
         invariants: Vec::new(),
-        vars: HashMap::new(),
+        model: model.clone(), // TODO: borrow?
     };
 
-    rm
+    return rm;
 }
 
 fn make_initial_state(model: &Model) -> SPState {
-    SPState::default()
+    let items = model.items();
+
+    // find all variables in resources
+    let resources: Vec<&Resource> = items.iter().flat_map(|i| match i {
+        SPItem::Resource(r) => Some(r),
+        _ => None }).collect();
+
+    let mut s = SPState::default();
+
+    for r in &resources {
+        s.extend(r.make_initial_state());
+    }
+
+    return s;
 }
 
 pub fn one_robot() -> (RunnerModel, SPState) {
     let r1 = make_robot("r1", 10);
+    let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
 
-    let mut m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
-
+    let s = make_initial_state(&m);
     let rm = make_runner_model(&m);
-    let initial_state = make_initial_state(&m);
 
+    println!("{}", s.external());
 
-    (rm, initial_state)
+    (rm, s)
+}
+
+pub fn two_robots() -> (RunnerModel, SPState) {
+    let r1 = make_robot("r1", 10);
+    let r2 = make_robot("r2", 10);
+
+    let m = Model::new_root("two_robot_model", vec![SPItem::Resource(r1), SPItem::Resource(r2)]);
+    let s = make_initial_state(&m);
+    let rm = make_runner_model(&m);
+
+    (rm, s)
 }
 
 // pub fn two_robots() -> (RunnerModel, SPState, Vec<Resource>) {

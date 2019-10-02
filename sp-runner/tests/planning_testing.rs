@@ -15,10 +15,10 @@ use std::time::{Duration, Instant};
 
 #[test]
 fn plan_fail_1_step() {
-    let (model, state, _resources) = one_robot("r1", 10);
+    let (model, state) = one_robot();
     let state = state.external();
 
-    let activated = GlobalPath::from_str(&["r1", "activated", "data"]);
+    let activated = model.model.find_item("activate", &["robot_cmd"]).unwrap_global_path();
     let goal = p!(activated);
 
     // requires at least step = 2 to find a plan
@@ -34,10 +34,10 @@ fn plan_fail_1_step() {
 
 #[test]
 fn plan_success_2_steps() {
-    let (model, state, _resources) = one_robot("r1", 10);
+    let (model, state) = one_robot();
     let state = state.external();
 
-    let activated = GlobalPath::from_str(&["r1", "activated", "data"]);
+    let activated = model.model.find_item("data", &["activated"]).unwrap_global_path();
     let goal = p!(activated);
 
     // requires at least step = 2 to find a plan
@@ -53,10 +53,10 @@ fn plan_success_2_steps() {
 
 #[test]
 fn planner_debug_printouts() {
-    let (model, state, _resources) = one_robot("r1", 10);
+    let (model, state) = one_robot();
     let state = state.external();
 
-    let activated = GlobalPath::from_str(&["r1", "activated", "data"]);
+    let activated = model.model.find_item("data", &["activated"]).unwrap_global_path();
     let goal = p!(activated);
 
     let result = compute_plan(&goal, &state, &model, 20);
