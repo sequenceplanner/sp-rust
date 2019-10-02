@@ -126,7 +126,7 @@ pub trait EvaluatePredicate {
 }
 
 pub trait NextAction {
-    fn next(&self, state: &SPState) -> Result<AssignState>;
+    fn next(&self, state: &SPState) -> SPResult<AssignState>;
 }
 
 impl EvaluatePredicate for Predicate {
@@ -137,8 +137,7 @@ impl EvaluatePredicate for Predicate {
             Predicate::XOR(ps) => {
                 ps.iter()
                     .filter(|p| p.eval(state))
-                    .collect::<Vec<_>>()
-                    .len()
+                    .count()
                     == 1
             }
             Predicate::NOT(p) => !p.eval(state),
@@ -153,7 +152,7 @@ impl EvaluatePredicate for Predicate {
 }
 
 impl NextAction for Action {
-    fn next(&self, state: &SPState) -> Result<AssignState> {
+    fn next(&self, state: &SPState) -> SPResult<AssignState> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => {
                 match pv
@@ -359,33 +358,33 @@ macro_rules! a {
     ($var:ident) => {
         Action {
             var: $var.to_sp(),
-            value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPValue(
-                true.to_spvalue(),
-            )),
+            value: $crate::predicates::Compute::PredicateValue(
+                $crate::predicates::PredicateValue::SPValue(true.to_spvalue()),
+            ),
         }
     };
     (!$var:ident) => {
         Action {
             var: $var.to_sp(),
-            value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPValue(
-                false.to_spvalue(),
-            )),
+            value: $crate::predicates::Compute::PredicateValue(
+                $crate::predicates::PredicateValue::SPValue(false.to_spvalue()),
+            ),
         }
     };
     ($var:ident = $val:expr) => {
         Action {
             var: $var.to_sp(),
-            value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPValue(
-                $val.to_spvalue(),
-            )),
+            value: $crate::predicates::Compute::PredicateValue(
+                $crate::predicates::PredicateValue::SPValue($val.to_spvalue()),
+            ),
         }
     };
     ($var:ident <- $val:expr) => {
         Action {
             var: $var.clone(),
-            value: $crate::predicates::Compute::PredicateValue($crate::predicates::PredicateValue::SPPath(
-                $val.clone(),
-            )),
+            value: $crate::predicates::Compute::PredicateValue(
+                $crate::predicates::PredicateValue::SPPath($val.clone()),
+            ),
         }
     };
     ($var:ident ? $val:expr) => {
