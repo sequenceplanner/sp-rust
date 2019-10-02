@@ -2,7 +2,6 @@
 
 use super::*;
 
-
 /// The SPPath is used for identifying all objects in a model. The path will be defined
 /// based on where the item is in the model hierarchy
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone)]
@@ -13,7 +12,7 @@ pub enum SPPath {
 
 impl Default for SPPath {
     fn default() -> Self {
-        SPPath::LocalPath(LocalPath{path: vec!()})
+        SPPath::LocalPath(LocalPath { path: vec![] })
     }
 }
 
@@ -40,7 +39,6 @@ impl serde::ser::Serialize for SPPath {
         S: serde::ser::Serializer,
     {
         serializer.serialize_str(&format!("{}", self))
-
     }
 }
 impl<'de> serde::de::Deserialize<'de> for SPPath {
@@ -63,13 +61,13 @@ impl SPPath {
     pub fn add(&mut self, name: String) {
         match self {
             SPPath::LocalPath(ref mut xs) => xs.add(name),
-            SPPath::GlobalPath(ref mut xs) => xs.add(name)
+            SPPath::GlobalPath(ref mut xs) => xs.add(name),
         }
     }
     pub fn add_root(&mut self, name: String) {
         match self {
             SPPath::LocalPath(ref mut xs) => xs.add_root(name),
-            SPPath::GlobalPath(ref mut xs) => xs.add_root(name)
+            SPPath::GlobalPath(ref mut xs) => xs.add_root(name),
         }
     }
     pub fn from(xs: &[String]) -> SPPath {
@@ -81,18 +79,18 @@ impl SPPath {
         SPPath::LocalPath(LocalPath::from(v))
     }
     pub fn from_string(s: &str) -> SPResult<SPPath> {
-        let what_type: Vec<&str> = s.split(":").collect();
+        let what_type: Vec<&str> = s.split(':').collect();
 
         match what_type.as_slice() {
             ["L", tail] => {
-                let res: Vec<&str> = tail.split("/").collect();
-                return Ok(SPPath::from_array(&res));
+                let res: Vec<&str> = tail.split('/').collect();
+                Ok(SPPath::from_array(&res))
             }
             ["G", tail] if tail != &"" => {
-                let res: Vec<&str> = tail.split("/").filter(|x| !x.is_empty()).collect();
-                return Ok(SPPath::from_array_to_global(&res));
+                let res: Vec<&str> = tail.split('/').filter(|x| !x.is_empty()).collect();
+                Ok(SPPath::from_array_to_global(&res))
             }
-            _ => return Err(SPError::No(format!("Can not convert {} into a path", s))),
+            _ => Err(SPError::No(format!("Can not convert {} into a path", s)))
         }
     }
     pub fn from_to_global(n: &[String]) -> SPPath {
@@ -156,19 +154,19 @@ pub struct LocalPath {
 }
 impl LocalPath {
     pub fn new() -> LocalPath {
-        LocalPath{path: vec!()}
+        LocalPath { path: vec![] }
     }
     pub fn path(&self) -> Vec<String> {
         self.path.clone()
     }
     pub fn from(path: Vec<String>) -> LocalPath {
-        LocalPath{path}
+        LocalPath { path }
     }
     pub fn add(&mut self, name: String) {
         self.path.push(name);
     }
     pub fn add_root(&mut self, name: String) {
-        self.path.insert(0,name);
+        self.path.insert(0, name);
     }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
@@ -197,24 +195,24 @@ impl std::fmt::Debug for LocalPath {
 }
 
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
-pub struct GlobalPath{
+pub struct GlobalPath {
     path: Vec<String>,
 }
 impl GlobalPath {
     pub fn new() -> GlobalPath {
-        GlobalPath{path: vec!()}
+        GlobalPath { path: vec![] }
     }
     pub fn path(&self) -> Vec<String> {
         self.path.clone()
     }
     pub fn from(path: Vec<String>) -> GlobalPath {
-        GlobalPath{path}
+        GlobalPath { path }
     }
     pub fn add(&mut self, name: String) {
         self.path.push(name);
     }
     pub fn add_root(&mut self, name: String) {
-        self.path.insert(0,name);
+        self.path.insert(0, name);
     }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
@@ -242,7 +240,6 @@ impl std::fmt::Debug for GlobalPath {
     }
 }
 
-
 #[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
 pub struct SPPaths {
     local: Option<LocalPath>,
@@ -251,18 +248,23 @@ pub struct SPPaths {
 
 impl std::fmt::Display for SPPaths {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let l: String = self.local.as_ref().map(|x| format!("{}", x)).unwrap_or("".to_string());
-        let g: String = self.global.as_ref().map(|x| format!("{}", x)).unwrap_or("".to_string());
+        let l: String = self
+            .local
+            .as_ref()
+            .map(|x| format!("{}", x))
+            .unwrap_or_else(|| "".to_string());
+        let g: String = self
+            .global
+            .as_ref()
+            .map(|x| format!("{}", x))
+            .unwrap_or_else(|| "".to_string());
         write!(f, "<{},{}>", l, g)
     }
 }
 
 impl SPPaths {
     pub fn new(local: Option<LocalPath>, global: Option<GlobalPath>) -> SPPaths {
-        SPPaths {
-            local,
-            global
-        }
+        SPPaths { local, global }
     }
     pub fn empty() -> SPPaths {
         SPPaths::default()
@@ -282,8 +284,16 @@ impl SPPaths {
     }
     pub fn is_parent_of(&self, path: &SPPath) -> bool {
         match path {
-            SPPath::LocalPath(p) => self.local.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
-            SPPath::GlobalPath(p) => self.global.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
+            SPPath::LocalPath(p) => self
+                .local
+                .as_ref()
+                .map(|x| p.is_child_of(&x))
+                .unwrap_or(false),
+            SPPath::GlobalPath(p) => self
+                .global
+                .as_ref()
+                .map(|x| p.is_child_of(&x))
+                .unwrap_or(false),
         }
     }
 
@@ -291,21 +301,20 @@ impl SPPaths {
     /// in this SPPaths
     pub fn next_node_in_path(&self, path: &SPPath) -> Option<String> {
         let l_len: usize = self.local.as_ref().map(|x| x.as_slice().len()).unwrap_or(0);
-        let g_len: usize = self.global.as_ref().map(|x| x.as_slice().len()).unwrap_or(0);
-        if self.is_parent_of(path){
+        let g_len: usize = self
+            .global
+            .as_ref()
+            .map(|x| x.as_slice().len())
+            .unwrap_or(0);
+        if self.is_parent_of(path) {
             match path {
-                SPPath::LocalPath(x) =>  {
-                    Some(x.as_slice()[l_len].clone())
-                },
-                SPPath::GlobalPath(x) => {
-                    Some(x.as_slice()[g_len].clone())
-                }
-            }      
+                SPPath::LocalPath(x) => Some(x.as_slice()[l_len].clone()),
+                SPPath::GlobalPath(x) => Some(x.as_slice()[g_len].clone()),
+            }
         } else {
             None
         }
     }
-
 
     pub fn upd(&mut self, paths: &SPPaths) {
         self.local = paths.local.clone();
@@ -322,8 +331,6 @@ impl SPPaths {
         self.global = path;
     }
 }
-
-
 
 #[cfg(test)]
 mod tests_paths {
@@ -369,7 +376,6 @@ mod tests_paths {
         assert_eq!(l_ab.next_node_in_path(&g_a), Some("b".to_string()));
         assert_eq!(l_ab.next_node_in_path(&g_b), Some("c".to_string()));
         assert_eq!(l_ab.next_node_in_path(&l_k), None);
-
     }
 
     #[test]

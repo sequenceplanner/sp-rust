@@ -187,7 +187,7 @@ impl SPState {
         Ok(())
     }
 
-    pub fn take_all_next(&mut self) -> () {
+    pub fn take_all_next(&mut self) {
         self.s.iter_mut().for_each(|(_, v)| {
             if let StateValue::Next(n) = v {
                 *v = StateValue::SPValue(n.next_value.clone());
