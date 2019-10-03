@@ -260,7 +260,7 @@ pub struct Resource {
     abilities: Vec<Ability>,
     parameters: Vec<Variable>,
     messages: Vec<Topic>, // Also include estimated here on an estimated topic
-                          //pub comm: ResourceComm,
+    sub_items: Vec<SPItem>
 }
 
 impl Noder for Resource {
@@ -273,6 +273,7 @@ impl Noder for Resource {
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
         get_from_list(self.abilities.as_slice(), next, path).or_else(||
         get_from_list(self.parameters.as_slice(), next, path)).or_else(||
+        get_from_list(self.sub_items.as_slice(), next, path)).or_else(||
         get_from_list(self.messages.as_slice(), next, path))
         
     }
@@ -283,6 +284,7 @@ impl Noder for Resource {
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.abilities.as_slice(), name, path_sections).or_else(||
         find_item_in_list(self.parameters.as_slice(), name, path_sections)).or_else(||
+        find_item_in_list(self.sub_items.as_slice(), name, path_sections)).or_else(||
         find_item_in_list(self.messages.as_slice(), name, path_sections))
     }
     fn update_path_children(&mut self, _paths: &SPPaths) {
@@ -291,6 +293,7 @@ impl Noder for Resource {
         let paths = self.node.paths();
         update_path_in_list(self.abilities.as_mut_slice(), &paths);
         update_path_in_list(self.parameters.as_mut_slice(), &paths);
+        update_path_in_list(self.sub_items.as_mut_slice(), &paths);
         update_path_in_list(self.messages.as_mut_slice(), &paths);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -335,7 +338,16 @@ impl Resource {
         paths
     }
 
-    pub fn make_initial_state(&self) -> SPState {
+    pub fn sub_items(&self) -> &[SPItem] {
+        self.sub_items.as_slice()
+    }
+    pub fn add_sub_item(&mut self, mut sub_item: SPItem) -> SPPaths {
+        let paths = sub_item.update_path(self.node.paths());
+        self.sub_items.push(sub_item);
+        paths
+    }
+
+     pub fn make_initial_state(&self) -> SPState {
         fn r(m: &MessageField, acum: &mut SPState) {
             match m {
                 MessageField::Msg(msg) => {
@@ -613,6 +625,7 @@ pub struct Transition {
     guard: Predicate,
     actions: Vec<Action>,
     effects: Vec<Action>,
+    controlled: bool,
 }
 
 impl Noder for Transition {
@@ -644,6 +657,7 @@ impl Transition {
         guard: Predicate,
         actions: Vec<Action>,
         effects: Vec<Action>,
+        controlled: bool,
     ) -> Transition {
         let node = SPNode::new(name);
         Transition {
@@ -651,6 +665,7 @@ impl Transition {
             guard,
             actions,
             effects,
+            controlled
         }
     }
 
@@ -662,6 +677,9 @@ impl Transition {
     }
     pub fn effects(&self) -> &[Action] {
         self.effects.as_slice()
+    }
+    pub fn controlled(&self) -> bool {
+        self.controlled
     }
 }
 
@@ -685,9 +703,8 @@ impl NextAction for Transition {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Ability {
     node: SPNode,
-    pub controlled: Vec<Transition>,
-    pub uncontrolled: Vec<Transition>,
-    pub predicates: Vec<Variable>,
+    transitions: Vec<Transition>,
+    predicates: Vec<Variable>,
 }
 
 impl Noder for Ability {
@@ -698,8 +715,7 @@ impl Noder for Ability {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.controlled.as_slice(), next, path).or_else(||
-        get_from_list(self.uncontrolled.as_slice(), next, path)).or_else(||
+        get_from_list(self.transitions.as_slice(), next, path).or_else(||
         get_from_list(self.predicates.as_slice(), next, path))
     }
     fn find_item_among_childs<'a>(
@@ -707,13 +723,11 @@ impl Noder for Ability {
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.controlled.as_slice(), name, path_sections).or_else(||
-        find_item_in_list(self.uncontrolled.as_slice(), name, path_sections)).or_else(||
+        find_item_in_list(self.transitions.as_slice(), name, path_sections).or_else(||
         find_item_in_list(self.predicates.as_slice(), name, path_sections))
     }
     fn update_path_children(&mut self, paths: &SPPaths) {
-        update_path_in_list(self.controlled.as_mut_slice(), paths);
-        update_path_in_list(self.uncontrolled.as_mut_slice(), paths);
+        update_path_in_list(self.transitions.as_mut_slice(), paths);
         update_path_in_list(self.predicates.as_mut_slice(), paths);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -724,15 +738,13 @@ impl Noder for Ability {
 impl Ability {
     pub fn new(
         name: &str,
-        controlled: Vec<Transition>,
-        uncontrolled: Vec<Transition>,
+        transitions: Vec<Transition>,
         predicates: Vec<Variable>,
     ) -> Ability {
         let node = SPNode::new(name);
         Ability {
             node,
-            controlled,
-            uncontrolled,
+            transitions,
             predicates,
         }
     }

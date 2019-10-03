@@ -1,9 +1,8 @@
 use sp_domain::*;
 
 fn main() {
-        let mut m = Model::new_root("model", vec![]);
+        let m = Model::new_root("model", vec![]);
         let mut r1 = Resource::new("r1");
-        
 
         let test = MessageField::Var(Variable::new_boolean("kalle", VariableType::Measured));
         //let n = test.as_ref();
@@ -68,30 +67,33 @@ fn main() {
             p!(v_act == 0), // p!(r != upper), // added req on v_act== 0 just for testing
             vec!(a!(v_ref = upper)),
             vec!(a!(v_act = upper)),
+            false
         );
         let to_lower = Transition::new(
             &format!("{}_to_lower", name),
             p!(v_act == upper), // p!(r != 0), // added req on v_act == upper just for testing
             vec!(a!(v_ref = 0)),
             vec!(a!(v_act= 0)),
+            false
         );
         let t_activate = Transition::new(
             &format!("{}_activate", name),
             p!(!v_active),
             vec!(a!(v_activate)),
             vec!(a!(v_active)),
+            true
         );
         let t_deactivate = Transition::new(
             &format!("{}_deactivate", name),
             p!(v_active),
             vec!(a!(!v_activate)),
             vec!(a!(!v_active)),
+            true
         );
 
         let _ability = Ability::new(
             "all",
-            vec!(t_activate, t_deactivate),
-            vec!(to_upper, to_lower),
+            vec!(t_activate, t_deactivate, to_upper, to_lower),
             vec!()
         );
 
