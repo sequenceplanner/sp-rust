@@ -214,6 +214,17 @@ impl StateExternal {
         StateExternal { s: HashMap::new() }
     }
 
+    pub fn prefix_paths(&self, parent: &GlobalPath) -> StateExternal {
+        let s = self.s.iter().map(|(k,v)| {
+            if let SPPath::LocalPath(lp) = k {
+                (lp.to_global(parent).to_sp(), v.clone())
+            } else {
+                (k.clone(), v.clone())
+            }
+        }).collect();
+        StateExternal { s }
+    }
+
     pub fn to_spstate(&self) -> SPState {
         let res = self
             .s

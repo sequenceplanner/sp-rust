@@ -427,6 +427,31 @@ impl Topic {
         let node = SPNode::new(name);
         Topic { node, msg }
     }
+
+    pub fn msg(&self) -> &MessageField {
+        &self.msg
+    }
+
+    pub fn is_subscriber(&self) -> bool {
+        fn is_sub(f: &MessageField) -> bool {
+            match f {
+                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_sub(m)),
+                MessageField::Var(v) => v.type_ == VariableType::Measured,
+            }
+        }
+        return is_sub(&self.msg);
+    }
+
+    pub fn is_publisher(&self) -> bool {
+        fn is_pub(f: &MessageField) -> bool {
+            match f {
+                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_pub(m)),
+                MessageField::Var(v) => v.type_ == VariableType::Command ||
+                    v.type_ == VariableType::Command,
+            }
+        }
+        return is_pub(&self.msg);
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
