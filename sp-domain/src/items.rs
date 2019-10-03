@@ -384,7 +384,7 @@ impl Resource {
                 r.push(updt);
             }
         }
-        return Vec::new();
+        return r;
     }
 }
 
@@ -703,7 +703,10 @@ impl Transition {
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Transition {
         let mut clone = self.clone();
 
+        clone.guard = self.guard.clone_with_global_paths(parent);
         clone.actions = self.actions.iter().map(|a|a.clone_with_global_paths(parent)).collect();
+        clone.effects = self.effects.iter().map(|e|e.clone_with_global_paths(parent)).collect();
+
 
         return clone;
     }
@@ -914,9 +917,9 @@ mod test_items {
         let b = a!(ab <- kl);
         let c = a!(xy ? p);
 
-        let t1 = Transition::new("t1", p!(ac), vec![a], vec![]);
-        let t2 = Transition::new("t2", p!(!ac), vec![b], vec![]);
-        let t3 = Transition::new("t3", Predicate::TRUE, vec![c], vec![]);
+        let t1 = Transition::new("t1", p!(ac), vec![a], vec![], false);
+        let t2 = Transition::new("t2", p!(!ac), vec![b], vec![], false);
+        let t3 = Transition::new("t3", Predicate::TRUE, vec![c], vec![], false);
 
         let res = t1.eval(&s);
         println!("t1.eval: {:?}", res);

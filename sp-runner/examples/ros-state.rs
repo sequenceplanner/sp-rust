@@ -1,13 +1,17 @@
-// use crossbeam::channel;
-// use failure::Error;
-// use futures::Future;
-// use r2r;
-// use sp_domain::*;
-// use sp_runner::*;
-// use std::collections::HashMap;
-// use std::thread;
-// use tokio::prelude::*;
-// use tokio_threadpool;
+use crossbeam::channel;
+use failure::Error;
+use futures::Future;
+use r2r;
+use sp_domain::*;
+use sp_runner::*;
+use std::collections::HashMap;
+use std::thread;
+use tokio::prelude::*;
+use tokio_threadpool;
+
+fn main() -> Result<(), Error> {
+    Ok(())
+}
 
 // fn main() -> Result<(), Error> {
 //     let (runner_model, initial_state, resources) = two_robots();
