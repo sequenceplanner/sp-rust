@@ -167,6 +167,12 @@ impl LocalPath {
     pub fn to_sp(&self) -> SPPath {
         SPPath::LocalPath(self.clone())
     }
+    pub fn to_global(&self, parent: &GlobalPath) -> GlobalPath {
+        // put this local path in the parent global path, creating a new global path
+        let mut np = parent.path.clone();
+        np.extend(self.path.iter().cloned());
+        GlobalPath { path: np }
+    }
     pub fn is_child_of(&self, other: &LocalPath) -> bool {
         (self.as_slice().len() > other.as_slice().len())
             && other
@@ -213,6 +219,10 @@ impl GlobalPath {
     }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
+    }
+    pub fn parent(&self) -> GlobalPath {
+        let s = self.path.iter().take(self.path.len() - 1).map(|e|e.to_owned()).collect();
+        GlobalPath { path: s }
     }
     pub fn to_sp(&self) -> SPPath {
         SPPath::GlobalPath(self.clone())

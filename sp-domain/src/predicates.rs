@@ -55,6 +55,20 @@ impl<'a> PredicateValue {
         }
     }
 
+    pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> PredicateValue {
+        match self {
+            PredicateValue::SPPath(p) => {
+                let np = match p {
+                    SPPath::GlobalPath(gp) => SPPath::GlobalPath(gp.clone()),
+                    SPPath::LocalPath(lp) => lp.to_global(parent).to_sp(),
+                };
+                return PredicateValue::SPPath(np);
+            },
+            _ => self.clone()
+        }
+    }
+
+
     // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
     //     if let PredicateValue::SPPath(n) = self {
     //         if map.contains_key(n) {
@@ -77,6 +91,20 @@ impl Default for PredicateValue {
 // }
 
 impl Predicate {
+    pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Predicate {
+        match self {
+            Predicate::AND(x) => Predicate::AND(x.iter().map(|p|p.clone_with_global_paths(parent)).collect()),
+            Predicate::OR(x) => Predicate::OR(x.iter().map(|p|p.clone_with_global_paths(parent)).collect()),
+            Predicate::XOR(x) => Predicate::XOR(x.iter().map(|p|p.clone_with_global_paths(parent)).collect()),
+            Predicate::NOT(x) => Predicate::NOT(Box::new(x.clone_with_global_paths(parent))),
+            Predicate::TRUE => self.clone(),
+            Predicate::FALSE => self.clone(),
+            Predicate::EQ(x, y) => Predicate::EQ(x.clone_with_global_paths(parent),
+                                                 y.clone_with_global_paths(parent)),
+            Predicate::NEQ(x, y) => Predicate::NEQ(x.clone_with_global_paths(parent),
+                                                   y.clone_with_global_paths(parent)),
+        }
+    }
     // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
     //     match self {
     //         Predicate::AND(x) => { replace_in_vec(x, map) }
@@ -98,6 +126,19 @@ impl Predicate {
 }
 
 impl Action {
+
+    pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Action {
+        let mut clone = self.clone();
+        let np = match clone.var {
+            SPPath::GlobalPath(gp) => SPPath::GlobalPath(gp),
+            SPPath::LocalPath(lp) => lp.to_global(parent).to_sp(),
+        };
+        clone.var = np;
+        clone.value = self.value.clone_with_global_paths(parent);
+
+        return clone;
+    }
+
     // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
     //     match &mut self.value {
     //         Compute::PredicateValue(x) => { x.replace_variable_path(map) }
@@ -119,6 +160,18 @@ impl Default for Compute {
         Compute::PredicateValue(PredicateValue::default())
     }
 }
+
+impl Compute {
+    pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Compute {
+        match self {
+            Compute::PredicateValue(p) => Compute::PredicateValue(p.clone_with_global_paths(parent)),
+            Compute::Predicate(p) => Compute::Predicate(p.clone_with_global_paths(parent)),
+            Compute::Delay(p, u) => Compute::Delay(p.clone_with_global_paths(parent), *u),
+            Compute::CancelDelay => Compute::CancelDelay
+        }
+    }
+}
+
 
 /// Eval is used to evaluate a predicate (or an operation ).
 pub trait EvaluatePredicate {

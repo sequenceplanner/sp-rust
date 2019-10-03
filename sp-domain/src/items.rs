@@ -275,7 +275,7 @@ impl Noder for Resource {
         get_from_list(self.parameters.as_slice(), next, path)).or_else(||
         get_from_list(self.sub_items.as_slice(), next, path)).or_else(||
         get_from_list(self.messages.as_slice(), next, path))
-        
+
     }
     fn find_item_among_childs<'a>(
         &'a self,
@@ -367,6 +367,24 @@ impl Resource {
             r(&t.msg, &mut s);
         }
         return s;
+    }
+
+    // requires resource to have a global path
+    pub fn make_global_transitions(&self) -> Vec<Transition> {
+        // local transitions are defined per resource
+        let rgp = self.node().global_path().as_ref().unwrap();
+        // thus parent of the resource needs to be added to all paths
+        let parent = rgp.parent();
+
+        let mut r = Vec::new();
+
+        for a in &self.abilities {
+            for t in &a.transitions {
+                let updt = t.clone_with_global_paths(&parent);
+                r.push(updt);
+            }
+        }
+        return Vec::new();
     }
 }
 
@@ -680,6 +698,14 @@ impl Transition {
     }
     pub fn controlled(&self) -> bool {
         self.controlled
+    }
+
+    pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Transition {
+        let mut clone = self.clone();
+
+        clone.actions = self.actions.iter().map(|a|a.clone_with_global_paths(parent)).collect();
+
+        return clone;
     }
 }
 
