@@ -811,7 +811,7 @@ pub struct Operation {
     postcondition: Vec<Transition>,
     uncontrolled: Vec<Transition>,
     predicates: Vec<Variable>,
-    goal: Option<IfThen>,
+    pub goal: Option<IfThen>,
     invariant: Option<IfThen>,
 }
 

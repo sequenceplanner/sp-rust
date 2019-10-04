@@ -123,9 +123,6 @@ fn make_robot(name: &str, upper: i32) -> Resource {
     let activate_ab = Ability::new("activate", vec![t_activate], vec![]);
     let deactivate_ab = Ability::new("deactivate", vec![t_deactivate], vec![]);
 
-    // let opf = IfThen::new("to_upper", p!(p_a != upper), p!(p_a == upper));
-    // let opfs = vec!(opf);
-
     r.add_ability(to_upper_ab);
     r.add_ability(to_lower_ab);
     r.add_ability(activate_ab);
@@ -161,9 +158,12 @@ fn make_runner_model(model: &Model) -> RunnerModel {
         })
         .collect();
 
-    // todo: finish operations.
+    let global_goals: Vec<IfThen> = global_ops.iter().flat_map(|o|o.goal.as_ref()).cloned().collect();
 
-    println!("{:?}", resources);
+    // todo: finish operations.
+    println!("{:?}", global_ops);
+
+    // println!("{:?}", resources);
 
     let rm = RunnerModel {
         op_transitions: RunnerTransitions::default(),
@@ -173,7 +173,7 @@ fn make_runner_model(model: &Model) -> RunnerModel {
         },
         plans: RunnerPlans::default(),
         state_predicates: Vec::new(),
-        goals: Vec::new(),
+        goals: global_goals,
         invariants: Vec::new(),
         model: model.clone(), // TODO: borrow?
     };
@@ -215,43 +215,27 @@ pub fn one_robot() -> (RunnerModel, SPState) {
 }
 
 pub fn two_robots() -> (RunnerModel, SPState) {
-    let r1 = make_robot("r1", 10);
-    let r2 = make_robot("r2", 10);
+    // Make model
+    let mut m = Model::new_root("two_robot_model", Vec::new());
 
-    let m = Model::new_root(
-        "two_robot_model",
-        vec![SPItem::Resource(r1), SPItem::Resource(r2)],
-    );
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_robot("r1", 10)));
+    m.add_item(SPItem::Resource(make_robot("r2", 10)));
+
+    // Make some global stuff
+    let r1_p_a = m.find_item("data", &["r1", "act"]).unwrap_global_path().to_sp();
+    let r2_p_a = m.find_item("data", &["r2", "act"]).unwrap_global_path().to_sp();
+    let r1_op1it = IfThen::new("goal", p!(r1_p_a != 10), p!(r1_p_a == 10));
+    let op = Operation::new("some_robot_at_upper", Vec::new(), Vec::new(), Vec::new(), Vec::new(),
+                            Some(r1_op1it), None);
+
+
+
+    m.add_item(SPItem::Operation(op));
+
+    // Make it runnable
     let s = make_initial_state(&m);
     let rm = make_runner_model(&m);
 
     (rm, s)
 }
-
-// pub fn two_robots() -> (RunnerModel, SPState, Vec<Resource>) {
-//     let r1 = make_robot("r1", 10);
-//     let r2 = make_robot("r2", 10);
-
-//     let mut s = r1.initial_state;
-//     s.extend(r2.initial_state);
-//     let mut tr = r1.runner_transitions;
-//     tr.extend(r2.runner_transitions);
-//     let mut vars = r1.variables;
-//     vars.extend(r2.variables.into_iter());
-//     let mut opfs = r1.opfs;
-//     opfs.extend(r2.opfs.into_iter());
-
-//     let r = vec![r1.resource, r2.resource];
-
-//     let rm = RunnerModel {
-//         op_transitions: RunnerTransitions::default(),
-//         ab_transitions: tr,
-//         plans: RunnerPlans::default(),
-//         state_predicates: Vec::new(),
-//         goals: opfs,
-//         invariants: Vec::new(),
-//         vars: vars,
-//     };
-
-//     (rm, s, r)
-// }
