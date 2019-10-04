@@ -168,7 +168,7 @@ impl Runner {
 
     /// Upd the runner based on incoming state
     fn upd_state(&mut self, state: Option<AssignState>) {
-        println!("upd state: {:?}", state);
+        // println!("upd state: {:?}", state);
         if let Some(s) = state {
             let res = self.state.insert_map(s);
             if res.is_err() {
@@ -180,7 +180,7 @@ impl Runner {
     /// Upd the runner based on the tick
     fn upd_from_tick(&mut self, cmd: Option<timer::delay_queue::Expired<RunnerTicker>>) {
         if let Some(x) = cmd {
-            println!("Got a tick: {:?}", x);
+            // println!("Got a tick: {:?}", x);
             match x.into_inner() {
                 RunnerTicker::Tick => self.tick_in_que = false,
                 RunnerTicker::Delay(x) => {
@@ -197,16 +197,16 @@ impl Runner {
 
         let (goal, inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
-        if !goal.is_empty() {
-            println!("we have a goal! {:?}", goal);
-        }
+        // if !goal.is_empty() {
+        //     println!("we have a goal! {:?}", goal);
+        // }
         let state_ext = state.external();
         let pred = Predicate::AND(goal.iter().map(|x|x.then_().clone()).collect());
         let result = crate::planning::compute_plan(&pred, &state_ext, &self.model, 20);
-        println!("we have a plan? {} -- got it in {}ms",
-                 result.plan_found, result.time_to_solve.as_millis());
+        // println!("we have a plan? {} -- got it in {}ms",
+        //          result.plan_found, result.time_to_solve.as_millis());
         let new_ab_plan: Vec<_> = result.trace.into_iter().flat_map(|f|f.ctrl).collect();
-        println!("plan is: {:?}", new_ab_plan);
+        // println!("plan is: {:?}", new_ab_plan);
         plans.ab_plan = new_ab_plan;
 
         fired.extend(self.tick_transitions(&mut state, &mut plans.ab_plan, &self.model.ab_transitions));
@@ -344,7 +344,7 @@ impl Future for Runner {
         if (is_completed(&tick)) ||
            (got_something(&upd_s) || got_something(&upd_cmd) || got_something(&upd_plan) || got_something(&tick))
         {
-            println!("WE ARE TRIGGERING");
+            // println!("WE ARE TRIGGERING");
             task::current().notify();
         }
 
@@ -367,7 +367,7 @@ impl Future for Runner {
             //.expect("For now, the consumer after the runner must keep up");
 
 
-        println!("COULD WE SEND? {:?}", can_not_send);
+        // println!("COULD WE SEND? {:?}", can_not_send);
 
         // TODO: handle delay here. add them to the delayQueue
 
@@ -375,7 +375,7 @@ impl Future for Runner {
         state.take_all_next();
         self.state = state;
         self.model.plans = plans;
-        println!("Fired: {:?}", &fired);
+        // println!("Fired: {:?}", &fired);
 
 
         Ok(Async::NotReady)

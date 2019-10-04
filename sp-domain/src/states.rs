@@ -3,7 +3,7 @@
 
 use super::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap,BTreeMap};
 use std::fmt;
 
 /// Representing a State in SP with variables and their values. This is used by the runner
@@ -259,8 +259,10 @@ impl StateExternal {
 
 impl fmt::Display for StateExternal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Sort keys by name.
+        let ordered: BTreeMap<_, _> = self.s.iter().collect();
         let mut buf = Vec::new();
-        for (p, val) in &self.s {
+        for (p, val) in &ordered {
             buf.push(format!("{}: {:?}", p, val));
         }
         write!(f, "{}", buf.join("\n"))

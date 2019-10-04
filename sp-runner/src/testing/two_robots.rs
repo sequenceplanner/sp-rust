@@ -160,8 +160,7 @@ fn make_runner_model(model: &Model) -> RunnerModel {
 
     let global_goals: Vec<IfThen> = global_ops.iter().flat_map(|o|o.goal.as_ref()).cloned().collect();
 
-    // todo: finish operations.
-    println!("{:?}", global_ops);
+    // println!("{:?}", global_ops);
 
     // println!("{:?}", resources);
 
@@ -208,8 +207,6 @@ pub fn one_robot() -> (RunnerModel, SPState) {
 
     let s = make_initial_state(&m);
     let rm = make_runner_model(&m);
-
-    println!("{}", s.external());
 
     (rm, s)
 }

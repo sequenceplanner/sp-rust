@@ -66,8 +66,8 @@ fn launch_tokio(
         let mut runner_in = comm.state_input.clone();
         let getting = from_buf
             .for_each(move |result| {
-                println!("INTO RUNNER");
-                println!("{}", result);
+                // println!("INTO RUNNER");
+                // println!("{}", result);
                 runner_in.try_send(result.to_assignstate()).unwrap(); // if we fail, the runner do not keep up
                 Ok(())
             })
@@ -80,7 +80,7 @@ fn launch_tokio(
             //.take(5)
             .for_each(move |result| {
                 println!("***************************");
-                println!("FROM RUNNER");
+                println!("RUNNER CURRENT STATE");
                 println!("{}", result.external());
                 tx.clone().try_send(result.external()).unwrap(); // if we fail the ROS side to do not keep up
                 Ok(())
