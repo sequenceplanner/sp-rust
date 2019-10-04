@@ -111,7 +111,7 @@ fn spval_from_json(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
 }
 
 
-pub fn json_to_state(
+fn json_to_state(
     json: &serde_json::Value,
     md: &MessageField,
 ) -> StateExternal {
@@ -129,7 +129,7 @@ pub fn json_to_state(
                     let field_name = field.node().name();
                     if let Some(json_child) = json.get(field_name) {
                         p.push(field_name);
-                        json_to_state_(json_child, &field, p, a);
+                        json_to_state_(json_child, field, p, a);
                         p.pop();
                     }
                 }
@@ -152,12 +152,67 @@ pub fn json_to_state(
     }
 }
 
+fn spval_to_json(spval: &SPValue) -> serde_json::Value {
+    match spval {
+        SPValue::Bool(x) => serde_json::json!(*x),
+        SPValue::Int32(x) => serde_json::json!(*x),
+        SPValue::Float32(x) => serde_json::json!(*x),
+        SPValue::String(x) => serde_json::json!(x),
+        SPValue::Array(_, x) => {
+            let v: Vec<serde_json::Value> = x.iter().map(|spval| spval_to_json(spval)).collect();
+            serde_json::json!(v)
+        }
+        _ => unimplemented!("TODO"),
+    }
+}
+
+fn state_to_json(
+    state: &StateExternal,
+    md: &MessageField,
+) -> serde_json::Value {
+    fn state_to_json_<'a>(
+        state: &StateExternal,
+        md: &'a MessageField,
+        p: &mut Vec<&'a str>,
+    ) -> serde_json::Value {
+        match md {
+            MessageField::Msg(msg) => {
+                let mut map = serde_json::Map::new();
+                let path_name = msg.node().name();
+                p.push(&path_name); // keep message type in path?
+                for field in msg.fields() {
+                    let field_name = field.node().name();
+                    p.push(field_name);
+                    map.insert(field_name.to_string(), state_to_json_(state, field, p));
+                    p.pop();
+                }
+                p.pop();
+                serde_json::Value::Object(map)
+            }
+            MessageField::Var(var) => {
+                if let Some(spval) = state.s.get(&SPPath::from_array(p)) {
+                    // TODO use sp type
+                    let json = spval_to_json(spval); // , var.variable_data().type_);
+                    json
+                } else {
+                    // TODO maybe panic here
+                    serde_json::Value::Null
+                }
+            }
+        }
+    }
+
+    let mut p = Vec::new();
+    state_to_json_(state, md, &mut p)
+}
+
+
 #[cfg(test)]
 mod ros_tests {
     use super::*;
 
     #[test]
-    fn test_std_msg_string() {
+    fn test_json_to_state() {
         let payload = "hej".to_string();
         let msg = r2r::std_msgs::msg::String { data: payload.clone() };
         let json = serde_json::to_value(msg).unwrap();
@@ -184,6 +239,39 @@ mod ros_tests {
         let s = json_to_state(&json, &msg);
         assert_eq!(s.s.get(&SPPath::from_array(&["str", "data"])), Some(&SPValue::String(payload.clone())));
     }
+
+    #[test]
+    fn test_state_to_json() {
+        let payload = "hej".to_string();
+
+        let mut state = SPState::default();
+        state.insert(&SPPath::GlobalPath(GlobalPath::from_str(&["x", "y", "topic", "str", "data"])),
+                                         AssignStateValue::SPValue(SPValue::String(payload)));
+
+        let v = Variable::new(
+            "data",
+            VariableType::Measured,
+            SPValueType::String,
+            "".to_spvalue(),
+            Vec::new(),
+        );
+
+        let msg = Message::new_with_type(
+            "str".into(),
+            "std_msgs/msg/String".into(),
+            vec![MessageField::Var(v)],
+        );
+
+        let msg = MessageField::Msg(msg);
+
+        let external = state.external();
+        let local_state = external.unprefix_paths(&GlobalPath::from_str(&["x", "y", "topic"]));
+        let json = state_to_json(&local_state, &msg);
+
+        let data = json.get("data");
+        assert!(data.is_some());
+        assert_eq!(data, Some(&serde_json::Value::String("hej".into())));
+    }
 }
 
 
@@ -192,7 +280,7 @@ fn roscomm_setup(
     model: &Model,
     tx_in: channel::Sender<StateExternal>,
 ) -> Result<channel::Sender<StateExternal>, Error> {
-    // let mut all_ros_pubs = Vec::new();
+    let mut ros_pubs = Vec::new();
 
     let rcs: Vec<_> = model
         .items()
@@ -219,58 +307,38 @@ fn roscomm_setup(
                         let state = state.prefix_paths(&topic_cb);
                         tx.send(state).unwrap();
                     };
-                    println!("setting up topic: {}", topic);
+                    println!("setting up subscription to topic: {}", topic);
                     let _subref = node.subscribe_untyped(&topic_str, m.msg_type(), Box::new(cb))?;
+                }
 
-
+                else if t.is_publisher() {
+                    let topic = t.node().global_path().as_ref().unwrap();
+                    let topic_str = topic.path().join("/");
+                    println!("setting up publishing to topic: {}", topic);
+                    let rp = node.create_publisher_untyped(&topic_str, m.msg_type())?;
+                    let topic_cb = topic.clone();
+                    let msgtype = t.msg().clone();
+                    let cb = move |state: &StateExternal| {
+                        let local_state = state.unprefix_paths(&topic_cb);
+                        let to_send = state_to_json(&local_state, &msgtype);
+                        rp.publish(to_send).unwrap();
+                    };
+                    ros_pubs.push(cb);
+                }
+                else {
+                    panic!("topic is neither publisher nor subscriber. check variable types");
                 }
 
             } else { panic!("must have a message under a topic"); }
-
-
         }
-        // if let Some(rc) = r.comm.as_ros_comm() {
-        //     // setup ros subscribers
-        //     for s in &rc.subscribers {
-        //         // todo: fix lifetime issue when R is not static...
-        //         let msg_type = s.definition.toplevel_msg_type().unwrap();
-        //         let tx = tx_in.clone();
-        //         let def = s.definition.clone();
-        //         let topic = s.topic.to_owned();
-        //         let cb = move |msg: r2r::Result<serde_json::Value>| {
-        //             let json = msg.unwrap();
-        //             let state = json_to_state(&json, &def, &topic);
-        //             tx.send(state).unwrap();
-        //         };
-        //         let _subref = node.subscribe_untyped(&s.topic, &msg_type, Box::new(cb))?;
-        //     }
-
-        //     // setup ros publishers
-        //     let ros_pubs: Vec<_> = rc
-        //         .publishers
-        //         .iter()
-        //         .map(|p| {
-        //             let msg_type = p.definition.toplevel_msg_type().unwrap();
-        //             let rp = node.create_publisher_untyped(&p.topic, &msg_type).unwrap();
-        //             let def = p.definition.clone();
-        //             let topic = p.topic.to_owned();
-        //             move |state: &StateExternal| {
-        //                 let to_send = state_to_json(state, &def, &topic);
-        //                 rp.publish(to_send).unwrap();
-        //             }
-        //         })
-        //         .collect();
-
-        //     all_ros_pubs.extend(ros_pubs);
-        // }
     }
 
     let (tx_out, rx_out) = channel::unbounded();
     thread::spawn(move || loop {
         let state = rx_out.recv().unwrap();
-        // for rp in &all_ros_pubs {
-        //     (rp)(&state);
-        // }
+        for rp in &ros_pubs {
+            (rp)(&state);
+        }
     });
 
     Ok(tx_out)

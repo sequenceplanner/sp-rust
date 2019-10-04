@@ -225,6 +225,17 @@ impl StateExternal {
         StateExternal { s }
     }
 
+    pub fn unprefix_paths(&self, parent: &GlobalPath) -> StateExternal {
+        let s = self.s.iter().map(|(k,v)| {
+            if let SPPath::GlobalPath(gp) = k {
+                (gp.to_local(parent).to_sp(), v.clone())
+            } else {
+                (k.clone(), v.clone())
+            }
+        }).collect();
+        StateExternal { s }
+    }
+
     pub fn to_spstate(&self) -> SPState {
         let res = self
             .s

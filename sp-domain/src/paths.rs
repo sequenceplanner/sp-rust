@@ -227,6 +227,12 @@ impl GlobalPath {
     pub fn to_sp(&self) -> SPPath {
         SPPath::GlobalPath(self.clone())
     }
+    pub fn to_local(&self, prefix: &GlobalPath) -> LocalPath {
+        let num_matching = self.path.iter().zip(prefix.path.iter()).take_while(|(a,b)|a==b).
+            map(|(a,_b)|a).count();
+        let slice = &self.path[num_matching..self.path.len()];
+        LocalPath { path: slice.to_vec() }
+    }
     pub fn is_child_of(&self, other: &GlobalPath) -> bool {
         (self.as_slice().len() > other.as_slice().len())
             && other
