@@ -76,12 +76,12 @@ mod outgoing_test {
             let (to_r1, r1) = mpsc::channel::<SPState>(10);  
             let (to_r2, r2) = mpsc::channel::<SPState>(10);
 
-            let a = SPPath::from_str(&["a"]);
-            let ab = SPPath::from_str(&["a", "b"]);
-            let ax = SPPath::from_str(&["a", "x"]);
-            let abc = SPPath::from_str(&["a", "b", "c"]);
-            let abx = SPPath::from_str(&["a", "b", "x"]);
-            let c = SPPath::from_str(&["c"]);
+            let a = SPPath::from_array(&["a"]);
+            let ab = SPPath::from_array(&["a", "b"]);
+            let ax = SPPath::from_array(&["a", "x"]);
+            let abc = SPPath::from_array(&["a", "b", "c"]);
+            let abx = SPPath::from_array(&["a", "b", "x"]);
+            let c = SPPath::from_array(&["c"]);
 
             let mut out = OutGoingHandler::new(in_out);
             out.add_outgoing(to_r1, &ab);

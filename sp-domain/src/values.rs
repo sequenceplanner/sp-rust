@@ -1,12 +1,12 @@
 //! Variables in SP are represented by SPValue, which is a direct mapping
 //! to ROS-types.
 //!
-use std::fmt;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// SPValue represent a variable value of a specific type. The types used are
 /// matched with ROS types for easy mapping between messages and SP
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum SPValue {
     Bool(bool),
     Float32(f32),
@@ -31,7 +31,7 @@ pub enum SPValue {
 }
 
 /// Used by Variables for defining type. Must be the same as SPValue
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum SPValueType {
     Bool,
     Float32,
@@ -58,7 +58,7 @@ impl SPValue {
             SPValue::Time(_) => SPValueType::Time == t,
             SPValue::Duration(_) => SPValueType::Duration == t,
             SPValue::Array(at, _) => at == &t,
-            SPValue::Unknown => SPValueType::Unknown == t
+            SPValue::Unknown => SPValueType::Unknown == t,
         }
     }
 
@@ -84,8 +84,8 @@ impl SPValue {
 }
 
 impl SPValueType {
-    pub fn is_type(&self, v: &SPValue) -> bool {
-        v.is_type(*self)
+    pub fn is_type(self, v: &SPValue) -> bool {
+        v.is_type(self)
     }
 }
 
@@ -104,22 +104,18 @@ impl Default for SPValueType {
 impl fmt::Display for SPValue {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SPValue::Bool(b) if *b => write!(fmtr,"true"),
-            SPValue::Bool(b) => write!(fmtr,"false"),
-            SPValue::Float32(f) => write!(fmtr,"{}", f),
-            SPValue::Int32(i) => write!(fmtr,"{}", i),
-            SPValue::String(s) => write!(fmtr,"{}", s),
-            SPValue::Time(t) => write!(fmtr,"{:?}", t),
-            SPValue::Duration(d) => write!(fmtr,"{:?}", d),
-            SPValue::Array(at, a) => write!(fmtr,"{:?}", a),
-            SPValue::Unknown => write!(fmtr,"[unknown]"),
+            SPValue::Bool(b) if *b => write!(fmtr, "true"),
+            SPValue::Bool(_) => write!(fmtr, "false"),
+            SPValue::Float32(f) => write!(fmtr, "{}", f),
+            SPValue::Int32(i) => write!(fmtr, "{}", i),
+            SPValue::String(s) => write!(fmtr, "{}", s),
+            SPValue::Time(t) => write!(fmtr, "{:?}", t),
+            SPValue::Duration(d) => write!(fmtr, "{:?}", d),
+            SPValue::Array(_, a) => write!(fmtr, "{:?}", a),
+            SPValue::Unknown => write!(fmtr, "[unknown]"),
         }
     }
 }
-
-
-
-
 
 impl ToSPValue for bool {
     fn to_spvalue(&self) -> SPValue {
@@ -192,19 +188,25 @@ impl ToSPValue for &str {
 //         SPValue::ID(*self)
 //     }
 // }
-impl<T> ToSPValue for Vec<T> where T: ToSPValue {
+impl<T> ToSPValue for Vec<T>
+where
+    T: ToSPValue,
+{
     fn to_spvalue(&self) -> SPValue {
-        let res = self.iter().map(|x| x.to_spvalue()).collect::<Vec<SPValue>>();
+        let res = self
+            .iter()
+            .map(|x| x.to_spvalue())
+            .collect::<Vec<SPValue>>();
         res.to_spvalue()
     }
 }
 impl ToSPValue for Vec<SPValue> {
     fn to_spvalue(&self) -> SPValue {
-        if self.len() == 0 {
+        if self.is_empty() {
             SPValue::Array(SPValueType::Unknown, self.clone())
         } else {
             let spvaltype = self[0].has_type();
-            assert!(self.iter().all(|e|e.has_type() == spvaltype));
+            assert!(self.iter().all(|e| e.has_type() == spvaltype));
             SPValue::Array(spvaltype, self.clone())
         }
     }
@@ -222,9 +224,6 @@ impl ToSPValue for Vec<SPValue> {
 //     }
 // }
 
-
-
-
 /// helping making spvalue maps macros
 // #[macro_export]
 // macro_rules! sp_value_map {
@@ -234,9 +233,6 @@ impl ToSPValue for Vec<SPValue> {
 //         SPValue::Map(map)
 //     }}
 // }
-
-
-
 
 /// ********** TESTS ***************
 
@@ -251,10 +247,23 @@ mod sp_value_test {
         // assert_eq!((1 as u64).to_spvalue(), SPValue::Uint64(1));
         assert_eq!((1.2 as f32).to_spvalue(), SPValue::Float32(1.2));
         assert_eq!("hej".to_spvalue(), SPValue::String("hej".to_string()));
-        assert_eq!(String::from("hej").to_spvalue(), SPValue::String("hej".to_string()));
+        assert_eq!(
+            String::from("hej").to_spvalue(),
+            SPValue::String("hej".to_string())
+        );
         //let id = Uuid::new_v4();
         //assert_eq!(id.to_spvalue(), SPValue::ID(id));
-        assert_eq!(vec!("hej", "1", "id").to_spvalue(), SPValue::Array(SPValueType::String, vec!(SPValue::String("hej".to_string()), SPValue::String("1".to_string()), SPValue::String("id".to_string()))));
+        assert_eq!(
+            vec!("hej", "1", "id").to_spvalue(),
+            SPValue::Array(
+                SPValueType::String,
+                vec!(
+                    SPValue::String("hej".to_string()),
+                    SPValue::String("1".to_string()),
+                    SPValue::String("id".to_string())
+                )
+            )
+        );
 
         // let map = sp_value_map!("hej" => 1, "nu" => "ja");
         // if let SPValue::Map(m) = map {
@@ -271,24 +280,21 @@ mod sp_value_test {
         // let a = sp_value_map!("hej" => 1, "nu" => "ja");
         // let b = sp_value_map!("hej" => 1, "nu" => "ja");
         // assert!(a == b);
-
     }
 
     #[test]
     fn type_handling() {
         let x = true.to_spvalue();
         let y = 1.to_spvalue();
-        let z = vec!("hej", "då").to_spvalue();
+        let z = vec!["hej", "då"].to_spvalue();
 
         assert_eq!(x.has_type(), SPValueType::Bool);
         assert_eq!(y.has_type(), SPValueType::Int32);
         assert_eq!(z.has_type(), SPValueType::String);
         assert!(z.is_array());
 
-
         assert!(SPValueType::Bool.is_type(&x));
         assert!(y.is_type(SPValueType::Int32));
         assert!(z.is_type(SPValueType::String));
     }
-
 }

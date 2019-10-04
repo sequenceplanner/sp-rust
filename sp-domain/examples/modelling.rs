@@ -1,77 +1,7 @@
-//! The SP domain
+use sp_domain::*;
 
-#![allow(unused_mut)] // for some reason I get not a correct warning for mut in macros
-#![allow(clippy::option_map_unit_fn)]
-
-pub mod values;
-pub use values::*;
-
-pub mod predicates;
-pub use predicates::*;
-
-pub mod states;
-pub use states::*;
-
-pub mod paths;
-pub use paths::*;
-
-pub mod node;
-pub use node::*;
-
-pub mod items;
-pub use items::*;
-
-mod utils;
-use utils::*;
-
-
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::error;
-use std::fmt;
-
-type SPResult<T> = std::result::Result<T, SPError>;
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum SPError {
-    OverwriteDelay(states::Delay, AssignStateValue),
-    OverwriteNext(states::Next, AssignStateValue),
-    No(String),
-    Undefined,
-}
-
-impl fmt::Display for SPError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            SPError::OverwriteDelay(next, prev) => write!(
-                f,
-                "You are trying to overwrite a Delay in the State. current: {:?}, new: {:?} ",
-                prev, next
-            ),
-            SPError::OverwriteNext(next, prev) => write!(
-                f,
-                "You are trying to overwrite a Next in the State. current: {:?}, new: {:?} ",
-                prev, next
-            ),
-            SPError::Undefined => write!(f, "An undefined SP error!"),
-            SPError::No(s) => write!(f, "Oh No: {}", s),
-        }
-    }
-}
-
-impl error::Error for SPError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        None
-    }
-}
-
-
-#[cfg(test)]
-mod tests_domain {
-    use super::*;
-    #[test]
-    fn making() {
-        let mut m = Model::new_root("model", vec![]);
+fn main() {
+        let m = Model::new_root("model", vec![]);
         let mut r1 = Resource::new("r1");
 
         let test = MessageField::Var(Variable::new_boolean("kalle", VariableType::Measured));
@@ -113,7 +43,7 @@ mod tests_domain {
         r1.add_message(Topic::new("cmd", MessageField::Msg(robot_cmd)));
         r1.add_message(Topic::new("state", MessageField::Msg(robot_state)));
 
-
+        
 
         let v_ref = r1.find_item("ref", &["robot_cmd"]).unwrap().node().local_path().clone().unwrap();  // this is kept here just to show what unwrap_local_path() is doing
         let v_activate = r1.find_item("activate", &["robot_cmd"]).unwrap_local_path();
@@ -192,5 +122,5 @@ mod tests_domain {
         // }
 
         println!("{:?}", m);
-    }
 }
+

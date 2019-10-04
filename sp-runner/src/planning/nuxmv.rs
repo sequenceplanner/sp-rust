@@ -15,14 +15,23 @@ use std::time::SystemTime;
 use std::time::{Duration, Instant};
 
 
+// for now atleast...
+fn g_path_or_panic_node(n: &SPNode) -> &GlobalPath {
+    n.global_path().as_ref().expect(&format!("node must have global path: {}", n.name()))
+}
+
+fn g_path_or_panic_path(p: &SPPath) -> &GlobalPath {
+    p.as_global().as_ref().expect(&format!("planner requires global paths: {}", p))
+}
+
 fn indent(n: u32) -> String {
     (0..n).map(|_| " ").collect::<Vec<&str>>().concat()
 }
 
-struct NuXMVPath<'a>(&'a SPPath);
+struct NuXMVPath<'a>(&'a GlobalPath);
 impl fmt::Display for NuXMVPath<'_> {
     fn fmt<'a>(&'a self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.path.join("#"))
+        write!(f, "{}", self.0.path().join("#"))
     }
 }
 
@@ -69,11 +78,11 @@ impl fmt::Display for NuXMVPredicate<'_> {
             Predicate::EQ(x, y) => {
                 let xx = match x {
                     PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(&p)),
+                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(g_path_or_panic_path(p))),
                 };
                 let yy = match y {
                     PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(&p)),
+                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(g_path_or_panic_path(p))),
                 };
 
                 format!("{} = {}", xx, yy)
@@ -81,11 +90,11 @@ impl fmt::Display for NuXMVPredicate<'_> {
             Predicate::NEQ(x, y) => {
                 let xx = match x {
                     PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(&p)),
+                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(g_path_or_panic_path(p))),
                 };
                 let yy = match y {
                     PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(&p)),
+                    PredicateValue::SPPath(p) => format!("{}", NuXMVPath(g_path_or_panic_path(p))),
                 };
 
                 format!("{} != {}", xx, yy)
@@ -100,13 +109,13 @@ impl fmt::Display for NuXMVPredicate<'_> {
 
 fn find_actions_modifying_path(
     transitions: &[Transition],
-    path: &SPPath,
+    path: &GlobalPath,
 ) -> Vec<(Transition, Action)> {
     let mut r = Vec::new();
 
     for t in transitions {
-        let a = t.actions.iter().find(|a| &a.var == path);
-        let e = t.effects.iter().find(|a| &a.var == path);
+        let a = t.actions().iter().find(|a| g_path_or_panic_path(&a.var) == path);
+        let e = t.effects().iter().find(|a| g_path_or_panic_path(&a.var) == path);
 
         // can not modify the same path twice... I think.
         assert!(!(a.is_some() && e.is_some()));
@@ -128,26 +137,25 @@ fn action_to_string(a: &Action) -> Option<String> {
     match &a.value {
         Compute::PredicateValue(pv) => match pv {
             PredicateValue::SPValue(spval) => Some(format!("{}", NuXMVValue(&spval))),
-            PredicateValue::SPPath(path) => Some(format!("{}", NuXMVPath(&path))),
+            PredicateValue::SPPath(path) => Some(format!("{}", NuXMVPath(g_path_or_panic_path(path)))),
         },
         Compute::Predicate(p) => Some(format!("{}", NuXMVPredicate(&p))),
         _ => None,
     }
 }
 
-fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel) -> String {
+fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel, vars: &HashMap<SPPath, Variable>) -> String {
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
 
-    for (path, variable) in &model.vars {
-        let path = NuXMVPath(&path);
-        if variable.variable_data().type_ == SPValueType::Bool {
+    for (path, variable) in vars {
+        let path = NuXMVPath(g_path_or_panic_path(path));
+        if variable.value_type() == SPValueType::Bool {
             lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
         } else {
             let domain: Vec<_> = variable
-                .variable_data()
-                .domain
+                .domain()
                 .iter()
                 .map(|v| NuXMVValue(v).to_string())
                 .collect();
@@ -163,7 +171,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
 
     // add a control variable for each controllable transition
     for ct in &model.ab_transitions.ctrl {
-        let path = NuXMVPath(&ct.path);
+        let path = NuXMVPath(g_path_or_panic_node(ct.node()));
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
 
@@ -172,7 +180,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     lines.push_str("\n\n");
     lines.push_str("-- CURRENT STATE --\n");
     for (path, value) in &state.s {
-        let path = NuXMVPath(path);
+        let path = NuXMVPath(g_path_or_panic_path(path));
         let value = NuXMVValue(value);
         lines.push_str(&format!(
             "{i}init({v}) := {spv};\n",
@@ -186,7 +194,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     lines.push_str("-- CONTROL VARIABLE STATE --\n");
     // add a control variable for each controllable transition
     for ct in &model.ab_transitions.ctrl {
-        let path = NuXMVPath(&ct.path);
+        let path = NuXMVPath(g_path_or_panic_node(ct.node()));
         let false_ = false.to_spvalue();
         let value = NuXMVValue(&false_); // they're all false
         lines.push_str(&format!(
@@ -201,8 +209,8 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     lines.push_str("-- TRANSITIONS --\n");
     lines.push_str("");
 
-    for path in model.vars.keys() {
-        let path = NuXMVPath(path);
+    for path in vars.keys() {
+        let path = NuXMVPath(g_path_or_panic_path(path));
 
         lines.push_str(&format!("{i}next({v}) := case\n", i = indent(2), v = path));
 
@@ -211,7 +219,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
         // effects that change the current path
         let relevant = find_actions_modifying_path(&model.ab_transitions.un_ctrl, &path.0);
         for (t, a) in &relevant {
-            let p = NuXMVPredicate(&t.guard);
+            let p = NuXMVPredicate(&t.guard());
 
             // ouch. so ugly.
             let v = action_to_string(&a).expect("model too complicated");
@@ -221,7 +229,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
                 i = indent(4),
                 p = p,
                 a = v,
-                c = t.path
+                c = g_path_or_panic_node(t.node())
             ));
         }
 
@@ -229,17 +237,17 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
         // copy pasted from above....... .....
         let relevant = find_actions_modifying_path(&model.ab_transitions.ctrl, &path.0);
         for (t, a) in &relevant {
-            let p = NuXMVPredicate(&t.guard);
+            let p = NuXMVPredicate(t.guard());
 
             let v = action_to_string(&a).expect("model too complicated!!");
 
             lines.push_str(&format!(
                 "{i}{t} & {p} : {a};  -- {c} (controllable)\n",
                 i = indent(4),
-                t = NuXMVPath(&t.path),
+                t = NuXMVPath(g_path_or_panic_node(t.node())),
                 p = p,
                 a = v,
-                c = t.path
+                c = g_path_or_panic_node(t.node())
             ));
         }
 
@@ -255,7 +263,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     let ctrl_names: Vec<_> = model.ab_transitions
         .ctrl
         .iter()
-        .map(|c| NuXMVPath(&c.path).to_string())
+        .map(|c| NuXMVPath(g_path_or_panic_node(c.node())).to_string())
         .collect();
     let ctrl_names_sep = ctrl_names.join(",");
     lines.push_str(&format!(
@@ -324,7 +332,7 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)
     Ok((raw,raw_error))
 }
 
-fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<PlanningFrame>> {
+fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<SPPath, Variable>) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
         return None;
     }
@@ -346,27 +354,26 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel) -> Option<Vec<Pl
             last = PlanningFrame::default();
         } else {
             let path_val: Vec<_> = l.split("=").map(|s| s.trim()).collect();
-            let path = SPPath::from_str(path_val[0].split("#").collect::<Vec<&str>>().as_ref());
+            let path = GlobalPath::from(path_val[0].split("#").map(|s|s.to_owned()).collect());
+            let sppath = SPPath::GlobalPath(path.clone());
 
             let val = path_val.get(1).expect("no value!");
 
             // check for controllable actions
-            if model.ab_transitions.ctrl.iter().find(|t| t.path == path).is_some() {
+            if model.ab_transitions.ctrl.iter().find(|t| g_path_or_panic_node(t.node()) == &path).is_some() {
                 if val == &"TRUE" {
                     assert!(last.ctrl.is_none());
-                    last.ctrl = Some(path);
+                    last.ctrl = Some(sppath);
                 }
             } else {
                 // get SP type from path
-                let spt = model
-                    .vars
-                    .get(&path)
+                let spt = vars
+                    .get(&sppath)
                     .expect(&format!("path mismatch! {}", path))
-                    .variable_data()
-                    .type_;
+                    .value_type();
 
                 let spval = spval_from_nuxvm(val, spt);
-                last.state.s.insert(path, spval);
+                last.state.s.insert(sppath, spval);
             }
         }
     }
@@ -380,7 +387,16 @@ pub fn compute_plan(
     model: &RunnerModel,
     max_steps: u32,
 ) -> PlanningResult {
-    let lines = create_nuxmv_problem(&goal, &state, &model);
+    // create variable definitions based on the state
+    let vars: HashMap<SPPath, Variable> = state.s.iter().flat_map(|(k,v)| match k {
+        SPPath::GlobalPath(gp) => {
+            let v = model.model.get(&gp.to_sp()).expect("variable must exist!");
+            Some((gp.to_sp(),v.unwrap_variable()))
+        }
+        _ => None
+    }).collect();
+
+    let lines = create_nuxmv_problem(&goal, &state, &model, &vars);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
@@ -394,7 +410,7 @@ pub fn compute_plan(
     match call_nuxmv(max_steps, filename) {
         Ok((raw, raw_error)) => {
             let duration = start.elapsed();
-            let trace = postprocess_nuxmv_problem(&raw, model);
+            let trace = postprocess_nuxmv_problem(&raw, model, &vars);
 
             PlanningResult {
                 plan_found: trace.is_some(),
