@@ -81,6 +81,37 @@ impl SPValue {
             SPValue::Unknown => SPValueType::Unknown,
         }
     }
+
+    pub fn from_json(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
+        // as we have more options than json we switch on the spval type
+        let tm = |msg: &str| {
+            format!("type mismatch! got {}, expected {}! re-generate ros sources!", &json.to_string(), msg)
+        };
+        match spv_t {
+            SPValueType::Bool => json.as_bool().expect(&tm("bool")).to_spvalue(),
+            SPValueType::Int32 => (json.as_i64().expect(&tm("int")) as i32).to_spvalue(),
+            SPValueType::Float32 => (json.as_f64().expect(&tm("float")) as f32).to_spvalue(),
+            SPValueType::String => json.as_str().expect(&tm("string")).to_spvalue(),
+            // todo: check is_array
+            _ => unimplemented!("TODO"),
+        }
+    }
+
+    pub fn to_json(&self) -> serde_json::Value {
+        match self {
+            SPValue::Bool(x) => serde_json::json!(*x),
+            SPValue::Int32(x) => serde_json::json!(*x),
+            SPValue::Float32(x) => serde_json::json!(*x),
+            SPValue::String(x) => serde_json::json!(x),
+            SPValue::Array(_, x) => {
+                let v: Vec<serde_json::Value> = x.iter().map(|spval| spval.to_json()).collect();
+                serde_json::json!(v)
+            }
+            _ => unimplemented!("TODO"),
+        }
+    }
+
+
 }
 
 impl SPValueType {

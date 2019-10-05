@@ -1,0 +1,18 @@
+[package]
+name = "sp-ros"
+version = "0.0.1"
+authors = ["Martin Dahl <martin.dahl@gmail.com>"]
+edition = "2018"
+
+[features]
+ros = ["r2r"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+crossbeam = "0.7"
+r2r = { path = "../../r2r/", optional = true }
+sp-domain = { path = "../sp-domain/" }
+sp-runner-api = { path = "../sp-runner-api/" }
+failure = "0.1.5"
+failure_derive = "0.1.5"
