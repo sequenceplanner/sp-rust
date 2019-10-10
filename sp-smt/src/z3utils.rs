@@ -50,6 +50,13 @@ pub struct GetSolvProofZ3<'ctx, 'slv> {
     pub s: String
 }
 
+pub struct GetSolvUnsatCoreZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: Z3_ast_vector,
+    pub s: String
+}
+
 pub struct SetParamZ3<'cfg, 'p, 'v> {
     pub cfg: &'cfg ConfigZ3,
     pub param: &'p str,
@@ -153,6 +160,45 @@ impl <'ctx, 'slv> GetSolvParamDescrZ3<'ctx, 'slv> {
     }
 }
 
+impl <'ctx, 'slv> GetSolvProofZ3<'ctx, 'slv> {
+    /// Retrieve the proof for the last [`Z3_solver_check`](fn.Z3_solver_check.html) or [`Z3_solver_check_assumptions`](fn.Z3_solver_check_assumptions.html)
+    ///
+    /// The error handler is invoked if proof generation is not enabled,
+    /// or if the commands above were not invoked for the given solver,
+    /// or if the result was different from `Z3_L_FALSE`.
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> GetSolvProofZ3<'ctx, 'slv> {
+        let z3 = unsafe {
+            Z3_solver_get_proof(ctx.r, slv.r)
+        };
+        GetSolvProofZ3 {
+            ctx,
+            slv,
+            r: z3,
+            s: unsafe {
+                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
+            }
+        }
+    }
+}
+
+impl <'ctx, 'slv> GetSolvUnsatCoreZ3<'ctx, 'slv> {
+    /// Retrieve the unsat core for the last [`Z3_solver_check_assumptions`](fn.Z3_solver_check_assumptions.html)
+    /// The unsat core is a subset of the assumptions `a`.
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> GetSolvUnsatCoreZ3<'ctx, 'slv> {
+        let z3 = unsafe {
+            Z3_solver_get_unsat_core(ctx.r, slv.r)
+        };
+        GetSolvUnsatCoreZ3 {
+            ctx,
+            slv,
+            r: z3,
+            s: unsafe {
+                CStr::from_ptr(Z3_ast_vector_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
+            }
+        }
+    }
+}
+
 impl<'cfg, 'p, 'v> SetParamZ3<'cfg, 'p, 'v> {
     /// Set a configuration parameter.
     ///
@@ -182,27 +228,6 @@ impl<'cfg, 'p, 'v> SetParamZ3<'cfg, 'p, 'v> {
     }
 }
 
-
-impl <'ctx, 'slv> GetSolvProofZ3<'ctx, 'slv> {
-    /// Retrieve the proof for the last [`Z3_solver_check`](fn.Z3_solver_check.html) or [`Z3_solver_check_assumptions`](fn.Z3_solver_check_assumptions.html)
-    ///
-    /// The error handler is invoked if proof generation is not enabled,
-    /// or if the commands above were not invoked for the given solver,
-    /// or if the result was different from `Z3_L_FALSE`.
-    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> GetSolvProofZ3<'ctx, 'slv> {
-        let z3 = unsafe {
-            Z3_solver_get_proof(ctx.r, slv.r)
-        };
-        GetSolvProofZ3 {
-            ctx,
-            slv,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            }
-        }
-    }
-}
 
 #[test]
 fn print_parameter_set_test() {
@@ -237,4 +262,27 @@ fn get_proof_test() {
     SolvCheckZ3::new(&ctx, &slv);
     println!("{}", GetSolvProofZ3::new(&ctx, &slv).s)
 
+}
+
+#[test]
+fn get_unsat_core_test() {
+    let cfg = ConfigZ3::new();
+    SetParamZ3::new(&cfg, "proof", "true");
+    SetParamZ3::new(&cfg, "unsat_core", "true");
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    let sort = IntSortZ3::new(&ctx);
+    let x = IntVarZ3::new(&ctx, &sort, "x");
+    let three = IntZ3::new(&ctx, &sort, 3);
+    let two = IntZ3::new(&ctx, &sort, 2);
+    let one = IntZ3::new(&ctx, &sort, 1);
+
+    SolvAssertAndTrackZ3::new(&ctx, &slv, GTZ3::new(&ctx, x.r, three.r).r, "a1");
+    SolvAssertAndTrackZ3::new(&ctx, &slv, LTZ3::new(&ctx, x.r, two.r).r, "a2");
+    SolvAssertAndTrackZ3::new(&ctx, &slv, EQZ3::new(&ctx, x.r, one.r).r, "a3");
+
+    SolvCheckZ3::new(&ctx, &slv);
+    println!("{}", GetSolvUnsatCoreZ3::new(&ctx, &slv).s)
+    
 }

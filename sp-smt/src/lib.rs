@@ -7,7 +7,7 @@ pub mod z3context;
 pub use crate::z3context::{ContextZ3};
 
 pub mod z3solver;
-pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvCheckZ3};
+pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvAssertAndTrackZ3, SolvCheckZ3};
 
 pub mod z3optimizer;
 pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3, OptMinimizeZ3};

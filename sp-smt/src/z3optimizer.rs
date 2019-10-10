@@ -1,6 +1,5 @@
 //! Z3 optimizer for SP
 
-use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 

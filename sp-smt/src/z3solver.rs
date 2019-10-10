@@ -1,6 +1,5 @@
 //! Z3 solver for SP
 
-use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
@@ -13,6 +12,14 @@ pub struct SolvAssertZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
     pub cst: Z3_ast,
+    pub r: ()
+}
+
+pub struct SolvAssertAndTrackZ3<'ctx, 'slv, 't> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub cst: Z3_ast,
+    pub tracker: &'t str,
     pub r: ()
 }
 
@@ -85,6 +92,25 @@ impl <'ctx, 'slv> SolvAssertZ3<'ctx, 'slv> {
             cst,
             r: unsafe {
                 Z3_solver_assert(ctx.r, slv.r, cst);
+            }
+        }
+    }
+}
+
+impl <'ctx, 'slv, 't> SolvAssertAndTrackZ3<'ctx, 'slv, 't> {
+    /// Assert a constraint `cst` into the solver, and track it (in the
+    /// unsat) core using the Boolean constant `tracker`. Used for extracting
+    /// unsat cores.
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, cst: Z3_ast, tracker: &'t str) -> SolvAssertAndTrackZ3<'ctx, 'slv, 't> {
+        SolvAssertAndTrackZ3 {
+            ctx,
+            slv,
+            cst,
+            tracker,
+            r: unsafe {
+                let sort = BoolSortZ3::new(&ctx);
+                let var = BoolVarZ3::new(&ctx, &sort, tracker);
+                Z3_solver_assert_and_track(ctx.r, slv.r, cst, var.r)
             }
         }
     }

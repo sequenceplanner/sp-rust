@@ -129,9 +129,9 @@ fn example_2(){
 
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
-    let opt = OptimizerZ3::new(&ctx);
+    OptimizerZ3::new(&ctx);
 
-    let intsort = IntSortZ3::new(&ctx);
+    IntSortZ3::new(&ctx);
     // let sup = IntVarZ3::new(&ctx, &intsort, "sup");
     // let dem = IntVarZ3::new(&ctx, &intsort, "dem");
     // let cst = IntVarZ3::new(&ctx, &intsort, "cst");
