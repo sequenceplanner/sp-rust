@@ -69,6 +69,17 @@ impl Drop for ContextZ3 {
     }
 }
 
+#[macro_export]
+macro_rules! ctxz3 {
+    () => {
+        let conf = ConfigZ3::new();   
+        ContextZ3::new(&conf)
+    };
+    ($a:expr) => {
+        ContextZ3::new($a)
+    }
+}
+
 #[test]
 fn test_ctx(){
     let conf = ConfigZ3::new();
@@ -78,4 +89,14 @@ fn test_ctx(){
 #[test]
 fn test_default_ctx(){
     ContextZ3::default();
+}
+
+#[test]
+fn test_ctx_macro_1(){
+    ctxz3!();
+}
+
+#[test]
+fn test_ctx_macro_2(){
+    ctxz3!(cfgz3!());
 }

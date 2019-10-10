@@ -205,6 +205,8 @@ impl<'ctx> XORZ3<'ctx> {
     }
 }
 
+
+
 #[test]
 fn test_new_and(){
     let conf = ConfigZ3::new();

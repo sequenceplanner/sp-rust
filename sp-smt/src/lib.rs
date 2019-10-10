@@ -1,6 +1,4 @@
-//! # Sequence Planner domain
-//!
-//! This crate represents a modeling domain used by SP
+//! # Z3 prover for SP
 
 pub mod z3config;
 pub use crate::z3config::{ConfigZ3};
@@ -12,7 +10,7 @@ pub mod z3solver;
 pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvCheckZ3};
 
 pub mod z3optimizer;
-pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3};
+pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3, OptMinimizeZ3};
 
 pub mod z3sorts;
 pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3};
