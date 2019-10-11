@@ -283,6 +283,6 @@ fn get_unsat_core_test() {
     SolvAssertAndTrackZ3::new(&ctx, &slv, EQZ3::new(&ctx, x.r, one.r).r, "a3");
 
     SolvCheckZ3::new(&ctx, &slv);
-    println!("{}", GetSolvUnsatCoreZ3::new(&ctx, &slv).s)
-    
+    println!("{}", GetSolvUnsatCoreZ3::new(&ctx, &slv).s);
+    println!("{}", GetSolvProofZ3::new(&ctx, &slv).s);
 }
