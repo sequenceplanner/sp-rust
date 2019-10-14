@@ -60,6 +60,84 @@
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
   </link>
+  <joint name="frame1_world" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <parent link="world"/>
+    <child link="frame1"/>
+  </joint>
+  <link name="frame1">
+    <collision>
+      <origin rpy="0 0 0" xyz="0 -0.05 1.05"/>
+      <geometry>
+        <box size="0.1 0.1 2.1"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 -0.05 1.05"/>
+      <geometry>
+        <box size="0.1 0.1 2.1"/>
+      </geometry>
+      <material name="RRBOT/orange"/>
+    </visual>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 1.0"/>
+      <mass value="1"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+  <joint name="frame2_world" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <parent link="world"/>
+    <child link="frame2"/>
+  </joint>
+  <link name="frame2">
+    <collision>
+      <origin rpy="0 0 0" xyz="0 1.05 1.05"/>
+      <geometry>
+        <box size="0.1 0.1 2.1"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 1.05 1.05"/>
+      <geometry>
+        <box size="0.1 0.1 2.1"/>
+      </geometry>
+      <material name="RRBOT/orange"/>
+    </visual>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 1.0"/>
+      <mass value="1"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+   <joint name="frame3_world" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <parent link="world"/>
+    <child link="frame3"/>
+  </joint>
+  <link name="frame3">
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0.5 2.05"/>
+      <geometry>
+        <box size="0.1 1.1 0.1"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0.5 2.05"/>
+      <geometry>
+        <box size="0.1 1.1 0.1"/>
+      </geometry>
+      <material name="RRBOT/orange"/>
+    </visual>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 1.0"/>
+      <mass value="1"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
 </robot>
 
 <!--   

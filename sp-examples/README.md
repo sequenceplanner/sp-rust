@@ -1,16 +1,16 @@
 # door example
 
-A door can revolve around a hinge \n
-TODO: an interfacer node between sp and this example will be added to define useful poses (opened, closed) +maybe some other things like a lock...
+A door can revolve around a hinge
 
 1. ros2 launch sp_dummy_door_bringup dummy_robot_bringup.launch.py
 2. open rviz2
-3. publish a pose for robot1 with (for example):
-    ros2 topic pub /door_joint_states sensor_msgs/msg/JointState '{name: [door_world], position:[1]}'
+3. publish a cmd to open or close, for example:
+    ros2 topic pub /dummy_door_sp_to_interfacer std_msgs/String '{'data' : 'open'}'
 
 # two dummy manipulator example
 
-Two robots share a common zone and could collide \n
+Two robots share a common zone and could collide
+
 TODO: an interfacer node between sp and this example will be added to define useful poses + maybe some item to be handed over or something...
 
 1. ros2 launch sp_dummy_robot_bringup dummy_robot_bringup.launch.py
