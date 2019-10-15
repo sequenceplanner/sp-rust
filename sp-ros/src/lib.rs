@@ -212,14 +212,24 @@ mod ros {
         let runner_cmd_topic = "sp/runner/command";
         let runner_cmd_type = "sp_messages/msg/RunnerCommand";
 
-        let cb = move |msg: r2r::Result<serde_json::Value>| {
-            let json = msg.unwrap();
-            if let Ok(rc) = serde_json::from_value::<RunnerCommand>(json) {
-                tx_in.clone().send(rc).unwrap();
+        let cb = {
+            let tx_in = tx_in.clone();
+            move |msg: r2r::sp_messages::msg::RunnerCommand| {
+                let oat = msg.override_ability_transitions.iter().flat_map(|s| {
+                    let path = format!("G:{}", s);
+                    SPPath::from_string(&path)
+                }).collect();
+                let rc = RunnerCommand {
+                    pause: msg.pause,
+                    override_ability_transitions: oat,
+                    override_operation_transitions: Vec::new(),
+                };
+                println!("SENDING TO RUNNER {:?}", rc);
+                tx_in.send(rc).unwrap();
             }
         };
         println!("setting up subscription to topic: {}", runner_cmd_topic);
-        let _subref = node.0.subscribe_untyped(runner_cmd_topic, runner_cmd_type, Box::new(cb))?;
+        let _subref = node.0.subscribe(runner_cmd_topic, Box::new(cb))?;
 
 
         let runner_info_topic = "sp/runner/info";
@@ -237,7 +247,9 @@ mod ros {
                     }
                 }).collect(),
                 ability_plan: info.ability_plan.iter().map(|p|p.path().join("/")).collect(),
+                enabled_ability_transitions: info.enabled_ability_transitions.iter().map(|p|p.path().join("/")).collect(),
                 operation_plan: info.operation_plan.iter().map(|p|p.path().join("/")).collect(),
+                enabled_operation_transitions: info.enabled_operation_transitions.iter().map(|p|p.path().join("/")).collect(),
             };
             rp.publish(&ri).unwrap();
         };

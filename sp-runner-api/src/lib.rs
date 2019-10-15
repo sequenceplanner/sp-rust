@@ -36,6 +36,8 @@ impl RunnerTransitions {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RunnerCommand {
     pub pause: bool,
+    pub override_ability_transitions: Vec<SPPath>,
+    pub override_operation_transitions: Vec<SPPath>,
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PlannerResult {
@@ -46,7 +48,9 @@ pub enum PlannerResult {
 pub struct RunnerInfo {
     pub state: StateExternal,
     pub ability_plan: Vec<SPPath>,
+    pub enabled_ability_transitions: Vec<SPPath>,
     pub operation_plan: Vec<SPPath>,
+    pub enabled_operation_transitions: Vec<SPPath>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]

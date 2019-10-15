@@ -24,7 +24,9 @@ pub struct Runner {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 struct RunnerCtrl {
-    pause: bool
+    pause: bool,
+    override_ability_transitions: Vec<SPPath>,
+    override_operation_transitions: Vec<SPPath>,
 }
 
 
@@ -90,7 +92,10 @@ impl Runner {
         let r = Runner {
             model,
             state: initial_state,
-            ctrl: RunnerCtrl::default(),
+            ctrl: RunnerCtrl { pause: true,
+                               override_ability_transitions: vec![],
+                               override_operation_transitions: vec![]
+            },
             comm,
             delayed_ticks: timer::DelayQueue::new(),
             tick_in_que: false,
@@ -103,6 +108,8 @@ impl Runner {
     fn upd_command(&mut self, cmd: Option<RunnerCommand>) {
         if let Some(c) = cmd {
             self.ctrl.pause = c.pause;
+            self.ctrl.override_ability_transitions = c.override_ability_transitions;
+            self.ctrl.override_operation_transitions = c.override_operation_transitions;
         }
     }
 
@@ -163,11 +170,19 @@ impl Runner {
         let ab_fired = if !self.ctrl.pause {
             self.tick_transitions(&mut state, &mut plans.ab_plan, &self.model.ab_transitions)
         } else {
-            Vec::new()
+            // if we are paused, we can take transitions only if they are in the override list
+            let mut temp = self.ctrl.override_ability_transitions.clone();
+            self.tick_transitions(&mut state, &mut temp, &self.model.ab_transitions)
         };
         fired.extend(ab_fired);
 
         (state, plans, fired)
+    }
+
+    /// Enabled controllable transitions
+    fn enabled_ctrl(&self, state: &SPState, trans: &RunnerTransitions) -> Vec<SPPath> {
+        trans.ctrl.iter().filter(|t|t.eval(state)).flat_map(|t|t.node().global_path()).
+            map(|p|p.to_sp()).collect()
     }
 
     /// Ticks all transitions that are enabled, starting first with the controlled that is first in the
@@ -318,10 +333,13 @@ impl Future for Runner {
 
         let (mut state, plans, fired) = self.tick(self.state.clone(), self.model.plans.clone());
 
+        let enabled_ab_ctrl = self.enabled_ctrl(&state, &self.model.ab_transitions);
         let ri = RunnerInfo {
             state: state.external(),
             ability_plan: plans.ab_plan.clone(),
+            enabled_ability_transitions: enabled_ab_ctrl,
             operation_plan: plans.op_plan.clone(),
+            enabled_operation_transitions: Vec::new()
         };
 
         self.comm.runner_output.try_send(ri);

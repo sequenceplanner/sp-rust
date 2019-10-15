@@ -10,7 +10,7 @@ use tokio::prelude::*;
 use tokio_threadpool;
 
 fn main() -> Result<(), Error> {
-    let (runner_model, initial_state) = two_robots();
+    let (runner_model, initial_state) = two_dummy_robots();
 
     // start ros node
     let mut node = sp_ros::start_node()?;
@@ -19,13 +19,13 @@ fn main() -> Result<(), Error> {
     let (tx_in, rx_in) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
-    let tx_out = sp_ros::roscomm_setup(&mut node, &runner_model.model, tx_in.clone())?;
+    let tx_out = sp_ros::roscomm_setup(&mut node, &runner_model.model, tx_in)?;
 
     // misc runner data to/from the network.
     let (tx_in_misc, rx_in_misc) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
-    let tx_out_misc = sp_ros::roscomm_setup_misc(&mut node, tx_in_misc.clone())?;
+    let tx_out_misc = sp_ros::roscomm_setup_misc(&mut node, tx_in_misc)?;
 
     // "runner"
     thread::spawn(move || {
@@ -66,11 +66,24 @@ fn launch_tokio(
         Ok(())
     }));
 
+    let mut ci = comm.command_input.clone();
+    #[allow(unreachable_code)]
+    pool.spawn(future::lazy(move || {
+        loop {
+            let _res = tokio_threadpool::blocking(|| {
+                let command = rx_command.recv().unwrap();
+                let _res = ci.try_send(command);
+            })
+            .map_err(|_| panic!("the threadpool shut down"));
+        }
+        Ok(())
+    }));
+
+    let mut runner_in = comm.state_input.clone();
     #[allow(unreachable_code)]
     tokio::run(future::lazy(move || {
         tokio::spawn(runner);
 
-        let mut runner_in = comm.state_input.clone();
         let getting = from_buf
             .for_each(move |result| {
                 // println!("INTO RUNNER");
@@ -89,17 +102,17 @@ fn launch_tokio(
                 println!("***************************");
                 println!("RUNNER CURRENT STATE");
                 println!("{}", result.external());
-                tx.clone().try_send(result.external()).unwrap(); // if we fail the ROS side to do not keep up
+                tx.try_send(result.external()).unwrap(); // if we fail the ROS side to do not keep up
                 Ok(())
             })
             .map(move |_| ())
             .map_err(|e| eprintln!("error = {:?}", e));
         tokio::spawn(from_runner);
 
-        let from_runner_info = comm
-            .runner_output
+        let ro = comm.runner_output;
+        let from_runner_info = ro
             .for_each(move |info| {
-                tx_info.clone().try_send(info).unwrap(); // if we fail the ROS side to do not keep up
+                tx_info.try_send(info).unwrap(); // if we fail the ROS side to do not keep up
                 Ok(())
             })
             .map(move |_| ())
