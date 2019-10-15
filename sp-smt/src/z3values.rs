@@ -29,7 +29,7 @@ impl <'ctx> BoolZ3<'ctx> {
     /// Create an AST node representing `true` or 'false'.
     pub fn new(ctx: &'ctx ContextZ3, val: bool) -> BoolZ3<'ctx> {
         let z3 = if val == true { unsafe {
-            Z3_mk_true(ctx.r)
+                Z3_mk_true(ctx.r)
             }} else { unsafe { 
                 Z3_mk_false(ctx.r)
             }

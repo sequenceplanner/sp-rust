@@ -1,6 +1,6 @@
 //! Z3 sorts for SP
 
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr};
 use z3_sys::*;
 use super::*;
 

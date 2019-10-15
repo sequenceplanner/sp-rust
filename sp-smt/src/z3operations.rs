@@ -1,6 +1,6 @@
 //! Z3 numerical operations for SP
 
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr};
 use z3_sys::*;
 use super::*;
 

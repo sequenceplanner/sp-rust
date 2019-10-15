@@ -1,6 +1,6 @@
 //! Z3 logical operations for SP
 
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr};
 use z3_sys::*;
 use super::*;
 
@@ -204,6 +204,8 @@ impl<'ctx> XORZ3<'ctx> {
         }        
     }
 }
+
+
 
 #[test]
 fn test_new_and(){

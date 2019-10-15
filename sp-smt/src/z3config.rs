@@ -72,6 +72,13 @@ impl Drop for ConfigZ3 {
     }
 }
 
+#[macro_export]
+macro_rules! cfgz3 {
+    () => { 
+        &ConfigZ3::new()
+    };
+}
+
 #[test]
 fn test_new_cfg(){
     ConfigZ3::new();
@@ -80,4 +87,9 @@ fn test_new_cfg(){
 #[test]
 fn test_default_cfg(){
     ConfigZ3::default();
+}
+
+#[test]
+fn test_cfg_macro(){
+    cfgz3!();
 }
