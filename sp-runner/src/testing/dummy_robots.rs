@@ -24,8 +24,7 @@ fn make_dummy_robot(name: &str) -> Resource {
             ))
         ],
     );
-    let topic = format!("{}/Control", name);
-    let command_topic = Topic::new(&topic, MessageField::Msg(command_msg));
+    let command_topic = Topic::new("Control", MessageField::Msg(command_msg));
 
     let state_msg = Message::new_with_type(
         "dr_m".into(),
@@ -48,8 +47,7 @@ fn make_dummy_robot(name: &str) -> Resource {
             ))
         ],
     );
-    let topic = format!("{}/State", name);
-    let state_topic = Topic::new(&topic, MessageField::Msg(state_msg));
+    let state_topic = Topic::new("State", MessageField::Msg(state_msg));
 
     let mut r = Resource::new(name);
     r.add_message(command_topic);
@@ -112,15 +110,26 @@ fn make_dummy_robot(name: &str) -> Resource {
         false
     );
 
+    // let activate_start = Transition::new(
+    //     "activate_start",
+    //     Predicate::EQ(PredicateValue::SPPath(active.clone()),
+    //                   PredicateValue::SPValue(false.to_spvalue())),
+    //     vec![Action { var: activate.clone(), value:
+    //                   Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())) }],
+    //     vec![],
+    //     true
+    // );
+
     let activate_start = Transition::new(
         "activate_start",
-        Predicate::EQ(PredicateValue::SPPath(active.clone()),
-                      PredicateValue::SPValue(false.to_spvalue())),
+        Predicate::EQ(PredicateValue::SPPath(SPPath::from(&["enabled".into()])),
+                      PredicateValue::SPValue(true.to_spvalue())),
         vec![Action { var: activate.clone(), value:
                       Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())) }],
         vec![],
         true
     );
+
 
     let activate_fini = Transition::new(
         "activate_fini",
@@ -158,7 +167,11 @@ fn make_dummy_robot(name: &str) -> Resource {
 
     let to_table = Ability::new("to_table", vec![to_table_start, to_table_fini], vec![]);
     let to_away = Ability::new("to_away", vec![to_away_start, to_away_fini], vec![]);
-    let activate = Ability::new("activate", vec![activate_start, activate_fini], vec![]);
+
+    let activate_enabled = Predicate::EQ(PredicateValue::SPPath(active.clone()), PredicateValue::SPValue(false.to_spvalue()));
+    let activate_enabled = Variable::new_predicate("enabled", activate_enabled);
+
+    let activate = Ability::new("activate", vec![activate_start, activate_fini], vec![activate_enabled]);
     let deactivate = Ability::new("deactivate", vec![deactivate_start, deactivate_fini], vec![]);
 
 
@@ -168,6 +181,15 @@ fn make_dummy_robot(name: &str) -> Resource {
     r.add_ability(deactivate);
 
     return r;
+}
+
+#[test]
+fn test_dummy() {
+    let r1 = make_dummy_robot("r1");
+    let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
+
+    println!("{:#?}", m);
+    assert!(false);
 }
 
 pub fn one_dummy_robot() -> (RunnerModel, SPState) {

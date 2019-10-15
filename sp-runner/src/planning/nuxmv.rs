@@ -1,20 +1,15 @@
 use chrono::offset::Local;
 use chrono::DateTime;
-use serde::{Deserialize, Serialize};
 use sp_domain::*;
 use sp_runner_api::*;
 use crate::planning::*;
-use crate::runners::*;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::time::SystemTime;
-use std::time::{Duration, Instant};
-
+use std::time::{SystemTime, Instant};
 
 // for now atleast...
 fn g_path_or_panic_node(n: &SPNode) -> &GlobalPath {
@@ -41,13 +36,13 @@ impl fmt::Display for NuXMVValue<'_> {
     fn fmt<'a>(&'a self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             SPValue::Bool(b) if *b => write!(fmtr, "TRUE"),
-            SPValue::Bool(b) => write!(fmtr, "FALSE"),
+            SPValue::Bool(_b) => write!(fmtr, "FALSE"),
             SPValue::Float32(f) => write!(fmtr, "{}", f),
             SPValue::Int32(i) => write!(fmtr, "{}", i),
             SPValue::String(s) => write!(fmtr, "{}", s),
             SPValue::Time(t) => write!(fmtr, "{:?}", t),
             SPValue::Duration(d) => write!(fmtr, "{:?}", d),
-            SPValue::Array(at, a) => write!(fmtr, "{:?}", a),
+            SPValue::Array(_at, a) => write!(fmtr, "{:?}", a),
             SPValue::Unknown => write!(fmtr, "[unknown]"),
         }
     }
@@ -100,8 +95,6 @@ impl fmt::Display for NuXMVPredicate<'_> {
 
                 format!("{} != {}", xx, yy)
             }
-
-            _ => "TODO".into(),
         };
 
         write!(fmtr, "{}", &s)
@@ -389,7 +382,7 @@ pub fn compute_plan(
     max_steps: u32,
 ) -> PlanningResult {
     // create variable definitions based on the state
-    let vars: HashMap<SPPath, Variable> = state.s.iter().flat_map(|(k,v)| match k {
+    let vars: HashMap<SPPath, Variable> = state.s.iter().flat_map(|(k,_v)| match k {
         SPPath::GlobalPath(gp) => {
             let v = model.model.get(&gp.to_sp()).expect("variable must exist!");
             Some((gp.to_sp(),v.unwrap_variable()))

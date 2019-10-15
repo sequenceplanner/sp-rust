@@ -7,8 +7,6 @@ use tokio::prelude::*;
 use tokio::*;
 use sync::mpsc;
 
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 
@@ -141,7 +139,7 @@ impl Runner {
             // println!("Got a tick: {:?}", x);
             match x.into_inner() {
                 RunnerTicker::Tick => self.tick_in_que = false,
-                RunnerTicker::Delay(x) => {
+                RunnerTicker::Delay(_x) => {
                     // TODO: do something here
                 }
             }
@@ -153,7 +151,7 @@ impl Runner {
     fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPPaths>) {
         let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions);
 
-        let (goal, inv) = self.next_op_functions(&state);
+        let (goal, _inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
         // if !goal.is_empty() {
         //     println!("we have a goal! {:?}", goal);
@@ -233,7 +231,7 @@ impl Runner {
     fn upd_state_predicates(&self,state: &mut SPState) {
         self.model.state_predicates.iter().for_each(|v| match v.variable_type() {
             VariableType::Predicate(ref p) if v.has_global() => {
-                state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
+                let _res = state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
             },
             _ => {},
         });
@@ -250,28 +248,28 @@ fn extr_option<T>(x: Async<Option<T>>) -> Option<T> {
     }
 }
 
-fn extr_option_res<T, U>(x: Result<Async<Option<T>>, U>) -> Option<T> {
-    x.ok().and_then(|y| {
-        match y {
-            Async::Ready(x) => x,
-            _ => None,
-        }
-    })
-}
+// fn extr_option_res<T, U>(x: Result<Async<Option<T>>, U>) -> Option<T> {
+//     x.ok().and_then(|y| {
+//         match y {
+//             Async::Ready(x) => x,
+//             _ => None,
+//         }
+//     })
+// }
 
 
-fn is_not_ready<T>(x: &Async<Option<T>>) -> bool {
-    match x {
-        Async::NotReady => true,
-        Async::Ready(None) => true,
-        _ => false,
-    }
-}
+// fn is_not_ready<T>(x: &Async<Option<T>>) -> bool {
+//     match x {
+//         Async::NotReady => true,
+//         Async::Ready(None) => true,
+//         _ => false,
+//     }
+// }
 
 fn got_something<T>(x: &Async<Option<T>>) -> bool {
     match x {
         Async::Ready(None) => false,
-        Async::Ready(x) => true,
+        Async::Ready(_x) => true,
         _ => false,
     }
 }
@@ -331,7 +329,7 @@ impl Future for Runner {
         self.upd_from_tick(extr_option(tick));
 
 
-        let (mut state, plans, fired) = self.tick(self.state.clone(), self.model.plans.clone());
+        let (mut state, plans, _fired) = self.tick(self.state.clone(), self.model.plans.clone());
 
         let enabled_ab_ctrl = self.enabled_ctrl(&state, &self.model.ab_transitions);
         let enabled_op_ctrl = self.enabled_ctrl(&state, &self.model.op_transitions);
@@ -343,9 +341,9 @@ impl Future for Runner {
             enabled_operation_transitions: enabled_op_ctrl,
         };
 
-        self.comm.runner_output.try_send(ri);
+        let _can_not_send = self.comm.runner_output.try_send(ri);
 
-        let can_not_send = self.comm.state_output
+        let _can_not_send = self.comm.state_output
             .try_send(state.clone());
             //.expect("For now, the consumer after the runner must keep up");
 

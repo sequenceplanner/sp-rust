@@ -1,5 +1,6 @@
-//! The incoming handler is the one that polls all incoming streams and forward them into the 
+//! The incoming handler is the one that polls all incoming streams and forward them into the
 //! runner buffer. This is automatically set up by the model
+#![allow(dead_code)]
 
 use super::*;
 use sp_domain::*;
@@ -50,7 +51,7 @@ mod incoming_test {
             (ab(), AssignStateValue::SPValue(false.to_spvalue())),
         ].into_iter().cloned().collect();
         AssignState {
-           s 
+           s
         }
     }
     fn next_ab() -> AssignState {
@@ -58,7 +59,7 @@ mod incoming_test {
             (ab(), AssignStateValue::SPValue(true.to_spvalue())),
         ].into_iter().cloned().collect();
         AssignState {
-           s 
+           s
         }
     }
     fn initial_ac() -> AssignState {
@@ -66,7 +67,7 @@ mod incoming_test {
             (ac(), AssignStateValue::SPValue(false.to_spvalue())),
         ].into_iter().cloned().collect();
         AssignState {
-           s 
+           s
         }
     }
     fn next_ac() -> AssignState {
@@ -74,7 +75,7 @@ mod incoming_test {
             (ac(), AssignStateValue::SPValue(true.to_spvalue())),
         ].into_iter().cloned().collect();
         AssignState {
-           s 
+           s
         }
     }
 
@@ -89,7 +90,7 @@ mod incoming_test {
             let incoming = IncomingHandler::new();
             let (buffer, channel, runner_channel) = incoming.extract();
 
-            
+
 
             let range = vec![initial_ab(), next_ab(), initial_ab(), initial_ab(), next_ab(), initial_ab(), next_ab(), initial_ab(), initial_ab(), next_ab()];
             let ch = channel.clone();
@@ -127,7 +128,7 @@ mod incoming_test {
             tokio::spawn(buffer)
 
          }));
-        
+
 
     }
 

@@ -8,16 +8,13 @@
 use tokio::prelude::*;
 use tokio::*;
 
-use futures::try_ready;
-use std::collections::*;
-use sync::mpsc;
 use std::time;
 
 
 
 pub struct TestMe {
     c: usize,
-    delay_1: timer::DelayQueue<usize>,    
+    delay_1: timer::DelayQueue<usize>,
 }
 
 impl TestMe {

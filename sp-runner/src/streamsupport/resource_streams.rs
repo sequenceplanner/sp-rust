@@ -1,11 +1,11 @@
 //! Stream support to communicate with resources with a sink and source resource
-//! 
+//!
+#![allow(dead_code)]
 
 use sp_domain::*;
 
 use tokio::prelude::*;
 use tokio::sync::mpsc;
-use futures::try_ready;
 use std::collections::HashMap;
 
 use serde::{Serialize, Deserialize};
@@ -43,7 +43,7 @@ pub struct MockSend {
 }
 
 impl MockSend {
-    pub fn make_future(mut self, sink: mpsc::Receiver<SPState>) -> impl Future<Item = (), Error = ()> {
+    pub fn make_future(self, sink: mpsc::Receiver<SPState>) -> impl Future<Item = (), Error = ()> {
         sink
         .for_each(move |s| {
             //println!("I am in send: {:?}", s);
@@ -70,10 +70,10 @@ impl<T> MockReceive<T> where T: MockTransform + Clone + Sync + Send {
     pub fn make_future(mut self, source: mpsc::Sender<AssignState>) -> impl Future<Item = (), Error = ()> {
         let task = Interval::new(Instant::now(), Duration::from_secs(1))
             .map_err(|_| ())
-            .for_each(move |x| {
+            .for_each(move |_x| {
                 let x = self.internal_state.lock().unwrap();
                 let upd = self.resource.upd_state(&x);
-                
+
                 let send = source
                     .clone()
                     .send(upd)
@@ -100,7 +100,7 @@ struct DummyRobot {
 
 impl MockTransform for DummyRobot {
     fn upd_state(&mut self, state: &SPState) -> AssignState {
-        
+
         let ref_value = match state.get_value(&self.ref_path) {
             Some(SPValue::Int32(x)) => *x,
             _ => 0
@@ -126,7 +126,7 @@ impl MockTransform for DummyRobot {
 
 
 /// ********** TESTS ***************
-/// 
+///
 
 
 #[cfg(test)]
@@ -150,7 +150,7 @@ mod mock_resource_test {
         );
 
 
-        tokio::run(future::lazy(move || { 
+        tokio::run(future::lazy(move || {
             tokio::spawn(r.send.make_future(into_buf));
             tokio::spawn(r.recv.make_future(outof_buf));
 
@@ -174,6 +174,3 @@ mod mock_resource_test {
     }
 
 }
-
-
-

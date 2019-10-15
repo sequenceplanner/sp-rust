@@ -26,7 +26,7 @@ mod ros {
         bail!(format_err!("ROS support not compiled in"));
     }
 
-    pub fn spin(node: &mut RosNode) {}
+    pub fn spin(_node: &mut RosNode) {}
 }
 
 #[cfg(feature = "ros")]

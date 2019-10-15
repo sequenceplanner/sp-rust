@@ -1,5 +1,6 @@
-//! The incoming handler is the one that polls all incoming streams and forward them into the 
+//! The incoming handler is the one that polls all incoming streams and forward them into the
 //! runner buffer. This is automatically set up by the model
+#![allow(dead_code)]
 
 use sp_domain::*;
 use tokio::sync::mpsc;
@@ -73,7 +74,7 @@ mod outgoing_test {
 
         tokio::run(future::lazy(move || {
             let (ch, in_out) = mpsc::channel::<SPState>(2);
-            let (to_r1, r1) = mpsc::channel::<SPState>(10);  
+            let (to_r1, r1) = mpsc::channel::<SPState>(10);
             let (to_r2, r2) = mpsc::channel::<SPState>(10);
 
             let a = SPPath::from_array(&["a"]);
@@ -87,7 +88,7 @@ mod outgoing_test {
             out.add_outgoing(to_r1, &ab);
             out.add_outgoing(to_r2, &ax);
 
-            
+
 
             let range = vec![
                 state!(abc => false, abx => false, ax => false, c => 0),
@@ -132,7 +133,7 @@ mod outgoing_test {
             tokio::spawn(out)
 
          }));
-        
+
 
     }
 
