@@ -2,3 +2,7 @@
 
 mod two_robots;
 pub use two_robots::*;
+
+
+mod dummy_robots;
+pub use dummy_robots::*;

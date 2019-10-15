@@ -3,15 +3,6 @@ use sp_domain::*;
 use sp_runner_api::*;
 use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct TempModel {
-    pub initial_state: SPState,
-    pub variables: HashMap<SPPath, Variable>,
-    pub runner_transitions: RunnerTransitions,
-    pub opfs: Vec<IfThen>,
-    pub resource: Resource,
-}
-
 fn make_robot(name: &str, upper: i32) -> Resource {
     let r_c = Variable::new(
         "data",
