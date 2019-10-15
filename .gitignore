@@ -12,3 +12,8 @@ Cargo.lock
 *.code-workspace
 
 /.vscode
+
+# ROS stuff
+**/build/
+**/install/
+**/log/
