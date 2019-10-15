@@ -210,7 +210,6 @@ mod ros {
         tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
     ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
         let runner_cmd_topic = "sp/runner/command";
-        let runner_cmd_type = "sp_messages/msg/RunnerCommand";
 
         let cb = {
             let tx_in = tx_in.clone();

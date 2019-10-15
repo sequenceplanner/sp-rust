@@ -380,7 +380,7 @@ mod runner_tests {
     #[test]
     fn dummy_robot_model_tests() {
         let (model, state) = crate::testing::two_robots();
-        let (runner, comm) = Runner::new(model.clone(), state.clone());
+        let (runner, _comm) = Runner::new(model.clone(), state.clone());
         println!("{:?}", state);
 
         assert_eq!(runner.state.get_value(
@@ -392,15 +392,15 @@ mod runner_tests {
         println!("{:?}", res);
         res.0.take_all_next();
 
-        let newS = res.0;
-        assert_eq!(newS.get_value(
+        let new_s = res.0;
+        assert_eq!(new_s.get_value(
             &SPPath::from_array(&["r1", "ref"])),
             Some(&10.to_spvalue())
         );
 
-        let res = runner.tick(newS.clone(), runner.model.plans.clone());
+        let res = runner.tick(new_s.clone(), runner.model.plans.clone());
         assert_eq!(res.0,
-            newS
+            new_s
         );
 
 

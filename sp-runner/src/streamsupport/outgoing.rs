@@ -65,9 +65,6 @@ impl Future for OutGoingHandler {
 #[cfg(test)]
 mod outgoing_test {
     use super::*;
-    use std::collections::HashMap;
-    use tokio::prelude::*;
-
 
     #[test]
     fn test_outgoing() {
@@ -77,7 +74,7 @@ mod outgoing_test {
             let (to_r1, r1) = mpsc::channel::<SPState>(10);
             let (to_r2, r2) = mpsc::channel::<SPState>(10);
 
-            let a = SPPath::from_array(&["a"]);
+            let _a = SPPath::from_array(&["a"]);
             let ab = SPPath::from_array(&["a", "b"]);
             let ax = SPPath::from_array(&["a", "x"]);
             let abc = SPPath::from_array(&["a", "b", "c"]);
