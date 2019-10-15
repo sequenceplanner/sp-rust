@@ -81,12 +81,36 @@ fn make_dummy_robot(name: &str) -> Resource {
                             Predicate::EQ(PredicateValue::SPPath(rp.clone()),
                                           PredicateValue::SPValue("at_table".to_spvalue()))]),
         vec![],
-        vec![Action { var: ap, value:
+        vec![Action { var: ap.clone(), value:
                       Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())) }],
         false
     );
 
-    let to_table = Ability::new("to_table", vec![to_table_start, to_table_fini], vec![]);
+    let to_away_start = Transition::new(
+        "to_away_start",
+        Predicate::AND(vec![Predicate::EQ(PredicateValue::SPPath(active.clone()),
+                                          PredicateValue::SPValue(true.to_spvalue())),
+                            Predicate::NEQ(PredicateValue::SPPath(ap.clone()),
+                                           PredicateValue::SPValue("at_away".to_spvalue()))]),
+        vec![Action { var: rp.clone(), value:
+                      Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())) }],
+        vec![],
+        true
+    );
+
+    let to_away_fini = Transition::new(
+        "to_away_fini",
+        Predicate::AND(vec![Predicate::EQ(PredicateValue::SPPath(active.clone()),
+                                          PredicateValue::SPValue(true.to_spvalue())),
+                            Predicate::NEQ(PredicateValue::SPPath(ap.clone()),
+                                           PredicateValue::SPValue("at_away".to_spvalue())),
+                            Predicate::EQ(PredicateValue::SPPath(rp.clone()),
+                                          PredicateValue::SPValue("at_away".to_spvalue()))]),
+        vec![],
+        vec![Action { var: ap.clone(), value:
+                      Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())) }],
+        false
+    );
 
     let activate_start = Transition::new(
         "activate_start",
@@ -110,10 +134,38 @@ fn make_dummy_robot(name: &str) -> Resource {
         false
     );
 
+    let deactivate_start = Transition::new(
+        "deactivate_start",
+        Predicate::EQ(PredicateValue::SPPath(active.clone()),
+                      PredicateValue::SPValue(true.to_spvalue())),
+        vec![Action { var: activate.clone(), value:
+                      Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())) }],
+        vec![],
+        true
+    );
+
+    let deactivate_fini = Transition::new(
+        "deactivate_fini",
+        Predicate::AND(vec![Predicate::EQ(PredicateValue::SPPath(active.clone()),
+                                          PredicateValue::SPValue(true.to_spvalue())),
+                            Predicate::EQ(PredicateValue::SPPath(activate.clone()),
+                                          PredicateValue::SPValue(false.to_spvalue()))]),
+        vec![],
+        vec![Action { var: active.clone(), value:
+                      Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())) }],
+        false
+    );
+
+    let to_table = Ability::new("to_table", vec![to_table_start, to_table_fini], vec![]);
+    let to_away = Ability::new("to_away", vec![to_away_start, to_away_fini], vec![]);
     let activate = Ability::new("activate", vec![activate_start, activate_fini], vec![]);
+    let deactivate = Ability::new("deactivate", vec![deactivate_start, deactivate_fini], vec![]);
+
 
     r.add_ability(to_table);
+    r.add_ability(to_away);
     r.add_ability(activate);
+    r.add_ability(deactivate);
 
     return r;
 }
@@ -137,15 +189,12 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     m.add_item(SPItem::Resource(make_dummy_robot("r2")));
 
     // Make some global stuff
-    // let r1_p_a = m.find_item("data", &["r1", "act"]).unwrap_global_path().to_sp();
-    // let r2_p_a = m.find_item("data", &["r2", "act"]).unwrap_global_path().to_sp();
-    // let r1_op1it = IfThen::new("goal", p!(r1_p_a != 10), p!(r1_p_a == 10));
-    // let op = Operation::new("some_robot_at_upper", Vec::new(), Vec::new(), Vec::new(), Vec::new(),
-    //                         Some(r1_op1it), None);
+    let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
+    let r1_op1it = IfThen::new("goal", p!(r1_p_a != "at_table"), p!(r1_p_a == "at_table"));
+    let op = Operation::new("t1_to_table", Vec::new(), Vec::new(), Vec::new(), Vec::new(),
+                            Some(r1_op1it), None);
 
-
-
-    // m.add_item(SPItem::Operation(op));
+    m.add_item(SPItem::Operation(op));
 
     // Make it runnable
     let s = make_initial_state(&m);

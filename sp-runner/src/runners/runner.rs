@@ -334,12 +334,13 @@ impl Future for Runner {
         let (mut state, plans, fired) = self.tick(self.state.clone(), self.model.plans.clone());
 
         let enabled_ab_ctrl = self.enabled_ctrl(&state, &self.model.ab_transitions);
+        let enabled_op_ctrl = self.enabled_ctrl(&state, &self.model.op_transitions);
         let ri = RunnerInfo {
             state: state.external(),
             ability_plan: plans.ab_plan.clone(),
             enabled_ability_transitions: enabled_ab_ctrl,
             operation_plan: plans.op_plan.clone(),
-            enabled_operation_transitions: Vec::new()
+            enabled_operation_transitions: enabled_op_ctrl,
         };
 
         self.comm.runner_output.try_send(ri);
