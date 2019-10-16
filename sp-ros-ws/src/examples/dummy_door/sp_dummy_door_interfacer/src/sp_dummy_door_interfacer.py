@@ -58,6 +58,13 @@ class SPDummyDoorInterfacer(Node):
             self.tmr_period, 
             self.interfacer_to_door_publisher_callback)
 
+        # set initial pose
+        self.to_door.name = ["door_world"]
+        self.to_door.position = [0.0]
+        self.joint_cmd_publisher_.publish(self.to_door)
+        self.joint_cmd_publisher_.publish(self.to_door)
+        
+
     def joint_callback(self, data):
         self.act_pos = data.position[0]
         # print(self.act_pos)
