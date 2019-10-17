@@ -21,14 +21,19 @@ pub use node::*;
 pub mod items;
 pub use items::*;
 
-mod utils;
-use utils::*;
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error;
 use std::fmt;
+
+#[macro_export]
+macro_rules! hashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+         let mut map = ::std::collections::HashMap::new();
+         $( map.insert($key, $val); )*
+         map
+    }}
+}
 
 type SPResult<T> = std::result::Result<T, SPError>;
 
