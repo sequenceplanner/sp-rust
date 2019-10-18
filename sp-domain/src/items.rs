@@ -348,25 +348,33 @@ impl Resource {
     }
 
      pub fn make_initial_state(&self) -> SPState {
-        fn r(m: &MessageField, acum: &mut SPState) {
-            match m {
-                MessageField::Msg(msg) => {
-                    for f in &msg.fields {
-                        r(f, acum);
-                    }
-                },
-                MessageField::Var(var) => {
-                    acum.insert(&var.node().global_path().as_ref().unwrap().to_sp(),
-                                AssignStateValue::SPValue(var.initial_value.clone()));
-                },
-            }
-        }
+         fn r(m: &MessageField, acum: &mut SPState) {
+             match m {
+                 MessageField::Msg(msg) => {
+                     for f in &msg.fields {
+                         r(f, acum);
+                     }
+                 },
+                 MessageField::Var(var) => {
+                     let _res = acum.insert(&var.node().global_path().as_ref().unwrap().to_sp(),
+                                            AssignStateValue::SPValue(var.initial_value.clone()));
+                 },
+             }
+         }
 
-        let mut s = SPState::default();
-        for t in &self.messages {
-            r(&t.msg, &mut s);
-        }
-        return s;
+         let mut s = SPState::default();
+         for t in &self.messages {
+             r(&t.msg, &mut s);
+         }
+
+         for a in &self.abilities {
+             for v in &a.predicates {
+                 let _res = s.insert(&v.node().global_path().as_ref().unwrap().to_sp(),
+                                     AssignStateValue::SPValue(v.initial_value.clone()));
+             }
+         }
+
+         return s;
     }
 
     // requires resource to have a global path
@@ -386,6 +394,25 @@ impl Resource {
         }
         return r;
     }
+
+    // requires resource to have a global path
+    pub fn make_global_state_predicates(&self) -> Vec<Variable> {
+        // local transitions are defined per resource
+        let rgp = self.node().global_path().as_ref().unwrap();
+        // thus parent of the resource needs to be added to all paths
+        let parent = rgp.parent();
+
+        let mut r = Vec::new();
+
+        for a in &self.abilities {
+            for p in &a.predicates {
+                let updp = p.clone_with_global_paths(&parent);
+                r.push(updp);
+            }
+        }
+        return r;
+    }
+
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -631,6 +658,17 @@ impl Variable {
             vec![false.to_spvalue(), true.to_spvalue()],
         )
     }
+
+    pub fn new_predicate(name: &str, p: Predicate) -> Variable {
+        Variable::new(
+            name,
+            VariableType::Predicate(p),
+            SPValueType::Bool,
+            false.to_spvalue(),
+            vec![false.to_spvalue(), true.to_spvalue()],
+        )
+    }
+
     pub fn variable_type(&self) -> VariableType {
         self.type_.clone()
     }
@@ -643,6 +681,18 @@ impl Variable {
     pub fn domain(&self) -> &[SPValue] {
         self.domain.as_slice()
     }
+
+    pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Variable {
+        match self.type_ {
+            VariableType::Predicate(ref pred) => {
+                let mut new = self.clone();
+                new.type_ = VariableType::Predicate(pred.clone_with_global_paths(parent));
+                new
+            }
+            _ => self.clone()
+        }
+    }
+
 }
 
 /// The possible variable types used by operations to define parameters
@@ -802,6 +852,11 @@ impl Ability {
             predicates,
         }
     }
+
+    pub fn predicates(&self) -> &[Variable] {
+        self.predicates.as_slice()
+    }
+
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]

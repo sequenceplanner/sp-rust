@@ -17,6 +17,11 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     let ctrl = trans.iter().filter(|t|t.controlled()).cloned().collect();
     let unctrl = trans.iter().filter(|t|!t.controlled()).cloned().collect();
 
+    let preds: Vec<_> = resources.iter().flat_map(|r| r.make_global_state_predicates()).collect();
+
+    // TODO: handle resource "sub items"
+
+
     // TODO: add global transitions.
 
     // add global op transitions (all automatic for now).
@@ -41,7 +46,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
             un_ctrl: unctrl,
         },
         plans: RunnerPlans::default(),
-        state_predicates: Vec::new(),
+        state_predicates: preds,
         goals: global_goals,
         invariants: Vec::new(),
         model: model.clone(), // TODO: borrow?

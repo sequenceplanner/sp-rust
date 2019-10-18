@@ -123,13 +123,16 @@ impl Runner {
     }
 
     /// Upd the runner based on incoming state
-    fn upd_state(&mut self, state: Option<AssignState>) {
+    fn upd_state(&mut self, state: &mut SPState, assign: Option<AssignState>) {
         // println!("upd state: {:?}", state);
-        if let Some(s) = state {
-            let res = self.state.insert_map(s);
-            if res.is_err() {
-                println!("Tried to overwrite in upd_state in runner: {:?}", res);
-            }
+        if let Some(s) = assign {
+            // let res = self.state.insert_map(s);
+            // need to always react to predicate changes
+            self.insert_into_state(state, s);
+
+            // if res.is_err() {
+            //     println!("Tried to overwrite in upd_state in runner: {:?}", res);
+            // }
         }
     }
 
@@ -159,10 +162,10 @@ impl Runner {
         let state_ext = state.external();
         let pred = Predicate::AND(goal.iter().map(|x|x.then_().clone()).collect());
         let result = crate::planning::compute_plan(&pred, &state_ext, &self.model, 20);
-        // println!("we have a plan? {} -- got it in {}ms",
-        //          result.plan_found, result.time_to_solve.as_millis());
+        println!("we have a plan? {} -- got it in {}ms",
+                 result.plan_found, result.time_to_solve.as_millis());
         let new_ab_plan: Vec<_> = result.trace.into_iter().flat_map(|f|f.ctrl).collect();
-        // println!("plan is: {:?}", new_ab_plan);
+        println!("plan is: {:?}", new_ab_plan);
         plans.ab_plan = new_ab_plan;
 
         let ab_fired = if !self.ctrl.pause {
@@ -231,6 +234,7 @@ impl Runner {
     fn upd_state_predicates(&self,state: &mut SPState) {
         self.model.state_predicates.iter().for_each(|v| match v.variable_type() {
             VariableType::Predicate(ref p) if v.has_global() => {
+                println!("STATE PRED: {:?}", p);
                 let _res = state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
             },
             _ => {},
@@ -323,13 +327,13 @@ impl Future for Runner {
         }
 
 
-        self.upd_state(extr_option(upd_s));
+        let mut new_state = self.state.clone();
+        self.upd_state(&mut new_state, extr_option(upd_s));
         self.upd_command(extr_option(upd_cmd));
         self.upd_plan(extr_option(upd_plan));
         self.upd_from_tick(extr_option(tick));
 
-
-        let (mut state, plans, _fired) = self.tick(self.state.clone(), self.model.plans.clone());
+        let (mut state, plans, _fired) = self.tick(new_state, self.model.plans.clone());
 
         let enabled_ab_ctrl = self.enabled_ctrl(&state, &self.model.ab_transitions);
         let enabled_op_ctrl = self.enabled_ctrl(&state, &self.model.op_transitions);
