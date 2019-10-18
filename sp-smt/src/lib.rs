@@ -1,7 +1,8 @@
 //! # Z3 prover for SP
 
 pub mod z3config;
-pub use crate::z3config::{ConfigZ3};
+pub use z3config::*;
+// pub use crate::z3config::{ConfigZ3};
 
 pub mod z3context;
 pub use crate::z3context::{ContextZ3};

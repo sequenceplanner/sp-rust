@@ -1,4 +1,35 @@
-// use sp_smt::*;
+use sp_smt::*;
+
+
+
+// #[cfg(test)]
+// mod tests {
+//     #[test]
+//     fn door_automaton(){
+//         let cfg = sp_smt::ConfigZ3::new();
+//         let ctx = sp_smt::ContextZ3::new(&cfg);
+
+//     }
+
+//     let cfg = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&cfg);
+//     let slv = SolverZ3::new(&ctx);
+
+//     let bsrt = BoolSortZ3::new(
+
+// }
+// }
+
+// #[test]
+// fn door_automaton(){
+
+//     let cfg = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&cfg);
+//     let slv = SolverZ3::new(&ctx);
+
+//     let bsrt = BoolSortZ3::new(
+
+// }
 // use std::collections::HashMap;
 
 // /// DESCRIPTION:

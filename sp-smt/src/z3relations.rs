@@ -144,6 +144,13 @@ impl <'ctx> GTZ3<'ctx> {
     }
 }
 
+#[macro_export]
+macro_rules! eqz3 {
+    ($a:expr, $b:expr, $c:expr) => {
+        EQZ3::new($a, $b, $c).r
+    }
+}
+
 #[test]
 fn test_new_eq(){
     let conf = ConfigZ3::new();

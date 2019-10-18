@@ -205,7 +205,19 @@ impl<'ctx> XORZ3<'ctx> {
     }
 }
 
+#[macro_export]
+macro_rules! notz3 {
+    ($a:expr, $b:expr) => {
+        NOTZ3::new($a, $b).r
+    }
+}
 
+#[macro_export]
+macro_rules! itez3 {
+    ($a:expr, $b:expr, $c:expr, $d:expr) => {
+        ITEZ3::new($a, $b, $c, $d).r
+    }
+}
 
 #[test]
 fn test_new_and(){

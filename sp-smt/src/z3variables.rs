@@ -89,6 +89,13 @@ impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
     }
 }
 
+#[macro_export]
+macro_rules! bvrz3 {
+    ($a:expr, $b:expr) => {
+        BoolVarZ3::new($a, &BoolSortZ3::new($a), $b).r
+    }
+}
+
 #[test]
 fn test_new_bool_var(){
     let conf = ConfigZ3::new();
