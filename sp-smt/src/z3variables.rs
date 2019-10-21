@@ -89,10 +89,75 @@ impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
     }
 }
 
+/// Z3 bool type variable
+/// 
+/// Macro rule for:
+/// ```text
+/// z3variables::BoolVarZ3::new(&ctx, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// bvrz3!(a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// bvrz3!(&ctx, a)
+/// ```
 #[macro_export]
 macro_rules! bvrz3 {
-    ($a:expr, $b:expr) => {
-        BoolVarZ3::new($a, &BoolSortZ3::new($a), $b).r
+    ($a:expr) => {
+        BoolVarZ3::new(&CTX, &BoolSortZ3::new(&CTX), $a).r
+    };
+    ($ctx:expr, $a:expr) => {
+        BoolVarZ3::new($ctx, &BoolSortZ3::new($ctx), $a).r
+    }
+}
+
+/// Z3 integer type variable
+/// 
+/// Macro rule for:
+/// ```text
+/// z3variables::IntVarZ3::new(&ctx, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// ivrz3!(a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// ivrz3!(&ctx, a)
+/// ```
+#[macro_export]
+macro_rules! ivrz3 {
+    ($a:expr) => {
+        IntVarZ3::new(&CTX, $a).r
+    };
+    ($ctx:expr, $a:expr) => {
+        IntVarZ3::new($ctx, $a).r
+    }
+}
+
+/// Z3 real type variable
+/// 
+/// Macro rule for:
+/// ```text
+/// z3variables::RealVarZ3::new(&ctx, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// rvrz3!(a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// rvrz3!(&ctx, a)
+/// ```
+#[macro_export]
+macro_rules! rvrz3 {
+    ($a:expr) => {
+        RealVarZ3::new(&CTX, $a).r
+    };
+    ($ctx:expr, $a:expr) => {
+        RealVarZ3::new($ctx, $a).r
     }
 }
 

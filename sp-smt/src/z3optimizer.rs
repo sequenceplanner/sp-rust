@@ -157,36 +157,137 @@ impl <'ctx> Drop for OptimizerZ3<'ctx> {
     }
 }
 
-// macro_rules! my_macro {
-//     ($a:tt) => { struct MacroDefined<$a> { field: &$a str } }
-// }
+/// Z3 optimizer 
+/// 
+/// Macro rule for:
+/// ```text
+/// z3optimizer::OptimizerZ3::new(&ctx)
+/// ```
+/// Using the global context:
+/// ```text
+/// optz3!()
+/// ```
+/// Using a specific context:
+/// ```text
+/// optz3!(&ctx)
+/// ```
+#[macro_export]
+macro_rules! optz3 {
+    () => {
+        OptimizerZ3::new(&CTX).r
+    };
+    ($ctx:expr) => {
+        OptimizerZ3::new($ctx).r
+    }
+}
 
+/// Z3 assert hard optimization constraint 
+/// 
+/// Macro rule for:
+/// ```text
+/// z3optimizer::OptAssertZ3::new(&ctx, &opt, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// oasrtz3!(a, &opt)
+/// ```
+/// Using a specific context:
+/// ```text
+/// oasrt3!(&ctx, &opt, a)
+/// ```
+#[macro_export]
+macro_rules! oasrtz3 {
+    ($opt:expr, $a:expr) => {
+        OptAssertZ3::new(&CTX, $opt, $a).r
+    };
+    ($ctx:expr, $opt:expr, $a:expr) => {
+        OptAssertZ3::new($ctx, $opt, $a).r
+    }
+}
 
-// #[macro_export]
-// macro_rules! ctxz3 {
-//     () => {
-//         let conf = ConfigZ3::new();   
-//         ContextZ3::new(&conf)
-//     };
-//     ($a:expr) => {
-//         ContextZ3::new($a)
-//     }
-// }
+/// Z3 assert a maximization constraint 
+/// 
+/// Macro rule for:
+/// ```text
+/// z3optimizer::OptMaximizeZ3::new(&ctx, &opt, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// omaxz3!(&opt, a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// omaxt3!(&ctx, &opt, a)
+/// ```
+#[macro_export]
+macro_rules! omaxz3 {
+    ($opt:expr, $a:expr) => {
+        OptMaximizeZ3::new(&CTX, $opt, $a).r
+    };
+    ($ctx:expr, $opt:expr, $a:expr) => {
+        OptMaximizeZ3::new($ctx, $opt, $a).r
+    }
+}
 
-// #[macro_export]
-// macro_rules! optz3 {
-//     () => {{
-//         // let conf = ConfigZ3::new();   
-//         // let ctx = ContextZ3::new(&conf);
-//         OptimizerZ3::new(ctxz3!(cfgz3!())).r
-//     }};
-// }
+/// Z3 assert a minimization constraint 
+/// 
+/// Macro rule for:
+/// ```text
+/// z3optimizer::OptMinimizeZ3::new(&ctx, &opt, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// ominz3!(&opt, a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// omint3!(&ctx, &opt, a)
+/// ```
+#[macro_export]
+macro_rules! ominz3 {
+    ($opt:expr, $a:expr) => {
+        OptMinimizeZ3::new(&CTX, $opt, $a).r
+    };
+    ($ctx:expr, $opt:expr, $a:expr) => {
+        OptMinimizeZ3::new($ctx, $opt, $a).r
+    }
+}
 
-// #[test]
-// fn test_opt_macro() {
-//     let ctx = ctxz3!(cfgz3!());
-//     optz3!()
-// }
+/// Z3 check consistency and produce optimal values 
+/// 
+/// Macro rule for:
+/// ```text
+/// z3optimizer::OptCheckZ3::new(&ctx, &opt, vec!(a, b, c))
+/// ```
+/// Using the global context:
+/// ```text
+/// ocheck3!(&opt, a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// ocheck3!(&ctx, &opt, a, b, c)
+/// ```
+#[macro_export]
+macro_rules! ocheckz3 {
+    ( $opt:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            OptCheckZ3::new(&CTX, $opt, temp_vec).r
+        }
+    };
+    ( $ctx:expr, $opt:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            OptCheckZ3::new($ctx, $opt, temp_vec).r
+        }
+    };
+}
 
 #[test]
 fn test_new_optimizer(){

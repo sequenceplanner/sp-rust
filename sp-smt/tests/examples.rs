@@ -1,7 +1,9 @@
 use sp_smt::*;
 
+// #[test]
+// fn door_automaton(){
 
-
+// }
 // #[cfg(test)]
 // mod tests {
 //     #[test]

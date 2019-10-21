@@ -50,6 +50,20 @@ pub struct GetSolvProofZ3<'ctx, 'slv> {
     pub s: String
 }
 
+pub struct GetSolvSolutionZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: Z3_ast,
+    pub s: String
+}
+
+pub struct GetSolvAllSolutionsZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: Z3_ast,
+    pub s: Vec<String>
+}
+
 pub struct GetSolvUnsatCoreZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
@@ -228,6 +242,29 @@ impl<'cfg, 'p, 'v> SetParamZ3<'cfg, 'p, 'v> {
     }
 }
 
+/// Z3 get solver as string 
+/// 
+/// Macro rule for:
+/// ```text
+/// z3utils::GetSolvStringZ3::new(&ctx, &slv)
+/// ```
+/// Using the global context:
+/// ```text
+/// gssz3!(&slv)
+/// ```
+/// Using a specific context:
+/// ```text
+/// gssz3!(&ctx, &slv, a)
+/// ```
+#[macro_export]
+macro_rules! gssz3 {
+    ($slv:expr) => {
+        GetSolvStringZ3::new(&CTX, $slv).s
+    };
+    ($ctx:expr, $slv:expr) => {
+        GetSolvStringZ3::new($ctx, $slv).s
+    }
+}
 
 #[test]
 fn print_parameter_set_test() {

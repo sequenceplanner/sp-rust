@@ -45,6 +45,8 @@ impl ContextZ3 {
     }
 }
 
+unsafe impl Sync for ContextZ3 {}
+
 impl Default for ContextZ3 {
     /// Create a default logical context using the given configuration..
     ///
@@ -69,15 +71,10 @@ impl Drop for ContextZ3 {
     }
 }
 
-#[macro_export]
-macro_rules! ctxz3 {
-    () => {
-        let conf = ConfigZ3::new();   
-        ContextZ3::new(&conf)
+lazy_static! {
+    pub static ref CTX: ContextZ3 = {
+        ContextZ3::new(&ConfigZ3::new())
     };
-    ($a:expr) => {
-        ContextZ3::new($a)
-    }
 }
 
 #[test]
@@ -89,14 +86,4 @@ fn test_ctx(){
 #[test]
 fn test_default_ctx(){
     ContextZ3::default();
-}
-
-#[test]
-fn test_ctx_macro_1(){
-    ctxz3!();
-}
-
-#[test]
-fn test_ctx_macro_2(){
-    ctxz3!(cfgz3!());
 }

@@ -235,6 +235,242 @@ impl <'ctx> POWZ3<'ctx> {
     }
 }
 
+/// Z3 a * b * c
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::MULZ3::new(&ctx, vec!(a, b, c))
+/// ```
+/// Using the global context:
+/// ```text
+/// mulz3!(a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// mulz3!(&ctx, a, b, c)
+/// ```
+/// Requires that a, b, c... are of Real or Int sort.
+#[macro_export]
+macro_rules! mulz3 {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            MULZ3::new(&CTX, temp_vec).r
+        }
+    };
+    ( $ctx:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            MULZ3::new($ctx, temp_vec).r
+        }
+    };
+}
+
+/// Z3 a div b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::DIVZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// divz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// divz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of Real or Int sort.
+#[macro_export]
+macro_rules! divz3 {
+    ($a:expr, $b:expr) => {
+        DIVZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        DIVZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a mod b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::MODZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// modz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// modz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of Real or Int sort.
+#[macro_export]
+macro_rules! modz3 {
+    ($a:expr, $b:expr) => {
+        MODZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        MODZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a rem b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::REMZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// remz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// remz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of Real or Int sort.
+#[macro_export]
+macro_rules! remz3 {
+    ($a:expr, $b:expr) => {
+        REMZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        REMZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a + b + c
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::ADDZ3::new(&ctx, vec!(a, b, c))
+/// ```
+/// Using the global context:
+/// ```text
+/// addz3!(a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// addz3!(&ctx, a, b, c)
+/// ```
+/// Requires that a, b, c... are of Real or Int sort.
+#[macro_export]
+macro_rules! addz3 {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            ADDZ3::new(&CTX, temp_vec).r
+        }
+    };
+    ( $ctx:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            ADDZ3::new($ctx, temp_vec).r
+        }
+    };
+}
+
+/// Z3 a - b - c
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::SUBZ3::new(&ctx, vec!(a, b, c))
+/// ```
+/// Using the global context:
+/// ```text
+/// subz3!(a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// subz3!(&ctx, a, b, c)
+/// ```
+/// Requires that a, b, c... are of Real or Int sort.
+#[macro_export]
+macro_rules! subz3 {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            SUBZ3::new(&CTX, temp_vec).r
+        }
+    };
+    ( $ctx:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            SUBZ3::new($ctx, temp_vec).r
+        }
+    };
+}
+
+/// Z3 -a
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::NEGZ3::new(&ctx, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// negz3!(a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// negz3!(&ctx, a)
+/// ```
+/// Requires that a is of Real or Int sort.
+#[macro_export]
+macro_rules! negz3 {
+    ($a:expr) => {
+        MODZ3::new(&CTX, $a).r
+    };
+    ($ctx:expr, $b:expr) => {
+        MODZ3::new($ctx, $b).r
+    }
+}
+
+/// Z3 a ^ b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3operations::POWZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// powz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// powz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of Real or Int sort.
+#[macro_export]
+macro_rules! powz3 {
+    ($a:expr, $b:expr) => {
+        POWZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        POWZ3::new($ctx, $b, $c).r
+    }
+}
+
 #[test]
 fn test_new_mul(){
     let conf = ConfigZ3::new();

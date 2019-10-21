@@ -205,17 +205,202 @@ impl<'ctx> XORZ3<'ctx> {
     }
 }
 
+/// Z3 a and b and c
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::ANDZ3::new(&ctx, vec!(a, b, c))
+/// ```
+/// Using the global context:
+/// ```text
+/// andz3!(a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// andz3!(&ctx, a, b, c)
+/// ```
+/// Requires that a, b, c... are of Bool sort.
+#[macro_export]
+macro_rules! andz3 {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            ANDZ3::new(&CTX, temp_vec).r
+        }
+    };
+    ( $ctx:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            ANDZ3::new($ctx, temp_vec).r
+        }
+    };
+}
+
+/// Z3 a or b or c
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::ORZ3::new(&ctx, vec!(a, b, c))
+/// ```
+/// Using the global context:
+/// ```text
+/// orz3!(a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// orz3!(&ctx, a, b, c)
+/// ```
+/// Requires that a, b, c... are of Bool sort.
+#[macro_export]
+macro_rules! orz3 {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            ORZ3::new(&CTX, temp_vec).r
+        }
+    };
+    ( $ctx:expr, $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            ORZ3::new($ctx, temp_vec).r
+        }
+    };
+}
+
+/// Z3 not a
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::NOTZ3::new(&ctx, a)
+/// ```
+/// Using the global context:
+/// ```text
+/// notz3!(a)
+/// ```
+/// Using a specific context:
+/// ```text
+/// notz3!(&ctx, a)
+/// ```
+/// Requires that a is of Bool sort.
 #[macro_export]
 macro_rules! notz3 {
-    ($a:expr, $b:expr) => {
-        NOTZ3::new($a, $b).r
+    ($a:expr) => {
+        NOTZ3::new(&CTX, $a).r
+    };
+    ($ctx:expr, $b:expr) => {
+        NOTZ3::new($ctx, $b).r
     }
 }
 
+/// Z3 if a then b else c
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::ITEZ3::new(&ctx, a, b, c)
+/// ```
+/// Using the global context:
+/// ```text
+/// itez3!(a, b, c)
+/// ```
+/// Using a specific context:
+/// ```text
+/// itez3!(&ctx, a, b, c)
+/// ```
+/// Requires that a is Bool sort and that b and c are of same sort.
 #[macro_export]
 macro_rules! itez3 {
-    ($a:expr, $b:expr, $c:expr, $d:expr) => {
-        ITEZ3::new($a, $b, $c, $d).r
+    ($a:expr, $b:expr, $c:expr) => {
+        ITEZ3::new(&CTX, $b, $c, $d).r
+    };
+    ($ctx:expr, $b:expr, $c:expr, $d:expr) => {
+        ITEZ3::new($ctx, $b, $c, $d).r
+    }
+}
+
+/// Z3 a if and only if b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::IFFZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// iffz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// iffz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are Bool sort.
+#[macro_export]
+macro_rules! iffz3 {
+    ($a:expr, $b:expr) => {
+        IFFZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        IFFZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a implies b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::IMPZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// impz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// impz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are Bool sort.
+#[macro_export]
+macro_rules! impz3 {
+    ($a:expr, $b:expr) => {
+        IMPZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        IMPZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 either a or b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::XORZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// xorz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// xorz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are Bool sort.
+#[macro_export]
+macro_rules! xorz3 {
+    ($a:expr, $b:expr) => {
+        XORZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        XORZ3::new($ctx, $b, $c).r
     }
 }
 

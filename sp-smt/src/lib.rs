@@ -1,11 +1,13 @@
 //! # Z3 prover for SP
 
+#[macro_use]
+extern crate lazy_static;
+
 pub mod z3config;
-pub use z3config::*;
-// pub use crate::z3config::{ConfigZ3};
+pub use crate::z3config::{ConfigZ3, CFG};
 
 pub mod z3context;
-pub use crate::z3context::{ContextZ3};
+pub use crate::z3context::{ContextZ3, CTX};
 
 pub mod z3solver;
 pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvAssertAndTrackZ3, SolvCheckZ3};

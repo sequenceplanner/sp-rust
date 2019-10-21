@@ -144,10 +144,128 @@ impl <'ctx> GTZ3<'ctx> {
     }
 }
 
+/// Z3 a equal to b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3relations::EQZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// eqz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// eqz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of the same sort.
 #[macro_export]
 macro_rules! eqz3 {
-    ($a:expr, $b:expr, $c:expr) => {
-        EQZ3::new($a, $b, $c).r
+    ($a:expr, $b:expr) => {
+        EQZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        EQZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a less or equal than b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3relations::LEZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// lez3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// lez3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of the same sort.
+#[macro_export]
+macro_rules! lez3 {
+    ($a:expr, $b:expr) => {
+        LEZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        LEZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a less than b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3relations::LTZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// ltz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// ltz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of the same sort.
+#[macro_export]
+macro_rules! ltz3 {
+    ($a:expr, $b:expr) => {
+        LTZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        LTZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a greater or equal than b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3relations::GEZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// gez3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// gez3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of the same sort.
+#[macro_export]
+macro_rules! gez3 {
+    ($a:expr, $b:expr) => {
+        GEZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        GEZ3::new($ctx, $b, $c).r
+    }
+}
+
+/// Z3 a greater than b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3relations::GTZ3::new(&ctx, a, b)
+/// ```
+/// Using the global context:
+/// ```text
+/// gtz3!(a, b)
+/// ```
+/// Using a specific context:
+/// ```text
+/// gtz3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are of the same sort.
+#[macro_export]
+macro_rules! gtz3 {
+    ($a:expr, $b:expr) => {
+        GTZ3::new(&CTX, $a, $b).r
+    };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        GTZ3::new($ctx, $b, $c).r
     }
 }
 
