@@ -1,5 +1,6 @@
 //! Z3 solver for SP
 
+use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
@@ -127,13 +128,13 @@ impl <'ctx, 'slv> SolvCheckZ3<'ctx, 'slv> {
     /// succeed and any models produced in this case are not guaranteed
     /// to satisfy the assertions.
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> SolvCheckZ3<'ctx, 'slv> {
+        let z3 = unsafe {
+            Z3_solver_check(ctx.r, slv.r)
+        };
         SolvCheckZ3 {
             ctx,
             slv,
-            r: unsafe {
-                let chk = Z3_solver_check(ctx.r, slv.r);
-                chk
-            }
+            r: z3
         }
     }
 }
@@ -144,6 +145,25 @@ impl <'ctx> Drop for SolverZ3<'ctx> {
         unsafe { 
             Z3_solver_dec_ref(self.ctx.r, self.r)
         }
+    }
+}
+
+#[macro_export]
+macro_rules! slvz3 {
+    () => {
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        SolverZ3::new(&ctx)
+    };
+    ($a:expr) => {
+        SolverZ3::new($a)
+    }
+}
+
+#[macro_export]
+macro_rules! asrtz3 {
+    ($a:expr, $b:expr, $c:expr) => {
+        SolvAssertZ3::new($a, $b, $c).r
     }
 }
 
@@ -203,4 +223,39 @@ fn test_new_scheck(){
 
     println!("This is the solution (model retreived from the solver):");
     println!("{}", GetSolvModelZ3::new(&ctx, &solv).s);
+}
+
+#[test]
+fn door_automaton(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let slv = slvz3!(&ctx);
+
+    let opened_c = bvrz3!(&ctx, "opened_c");
+    let closed_c = bvrz3!(&ctx, "closed_c");
+    let opened_m = bvrz3!(&ctx, "opened_m");
+    let closed_m = bvrz3!(&ctx, "closed_m");
+
+    // Forbidden state combinations
+    asrtz3!(&ctx, &slv, notz3!(&ctx, eqz3!(&ctx, closed_c, opened_c)));
+    asrtz3!(&ctx, &slv, notz3!(&ctx, eqz3!(&ctx, closed_m, opened_m)));
+
+    // Desired behavior
+    asrtz3!(&ctx, &slv, itez3!(&ctx, notz3!(&ctx, closed_m), closed_c, notz3!(&ctx, closed_c)));
+    asrtz3!(&ctx, &slv, itez3!(&ctx, notz3!(&ctx, opened_m), opened_c, notz3!(&ctx, opened_c)));
+    // SolvAssertZ3::new(&ctx, &slv, ITEZ3::new(&ctx, ANDZ3::new(&ctx, vec!(NOTZ3::new(&ctx, closed_m.r).r,)), thenz3: Z3_ast, elsez3: Z3_ast))
+
+    // println!("This is the solvers context with an assertion before the check:");
+    // println!("{}", GetSolvStringZ3::new(&ctx, &slv).s);
+
+    let res1 = SolvCheckZ3::new(&ctx, &slv);
+    println!("{}", GetSolvModelZ3::new(&ctx, &slv).s);
+
+    // while SolvCheckZ3::new(&ctx, &slv).r == 1 {
+    //     println!("{}", GetSolvModelZ3::new(&ctx, &slv).s);
+    //     let new = GetSolvModelZ3::new(&ctx, &slv).r;
+    //     asrtz3!(&ctx, &slv, ANDZ3::new(&ctx, vec!(eqz3!(&ctx, closed_c, new[0]))).r)
+    // }
+
+    
 }
