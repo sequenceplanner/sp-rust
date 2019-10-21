@@ -315,6 +315,12 @@ impl Resource {
         self.abilities.as_slice()
     }
     pub fn add_ability(&mut self, mut ability: Ability) -> SPPaths {
+        ability.transitions.iter_mut().
+            for_each(|t|t.
+                     add_path_to_temps(TemporaryPathNS::AbilityPredicate,
+                                       TemporaryPathNS::Local,
+                                       self.name()));
+
         let paths = ability.update_path(self.node.paths());
         self.abilities.push(ability);
         paths
@@ -775,6 +781,11 @@ impl Transition {
         self.controlled
     }
 
+    pub fn add_path_to_temps(&mut self, namespace_from: TemporaryPathNS,
+                             namespace_to: TemporaryPathNS, name: &str) {
+        self.guard.change_temps(namespace_from, namespace_to, name);
+    }
+
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Transition {
         let mut clone = self.clone();
 
@@ -842,10 +853,13 @@ impl Noder for Ability {
 impl Ability {
     pub fn new(
         name: &str,
-        transitions: Vec<Transition>,
+        mut transitions: Vec<Transition>,
         predicates: Vec<Variable>,
     ) -> Ability {
         let node = SPNode::new(name);
+        transitions.iter_mut().
+            for_each(|t|t.add_path_to_temps(
+                TemporaryPathNS::Predicate, TemporaryPathNS::AbilityPredicate, name));
         Ability {
             node,
             transitions,

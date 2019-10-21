@@ -61,6 +61,7 @@ impl<'a> PredicateValue {
                 let np = match p {
                     SPPath::GlobalPath(gp) => SPPath::GlobalPath(gp.clone()),
                     SPPath::LocalPath(lp) => lp.to_global(parent).to_sp(),
+                    SPPath::TemporaryPath(_tp) => panic!("temporary path must be resolved"),
                 };
                 return PredicateValue::SPPath(np);
             },
@@ -68,6 +69,28 @@ impl<'a> PredicateValue {
         }
     }
 
+    // ns_to can be Local when you are done...
+    pub fn temp_add_parent(&mut self, ns_from: TemporaryPathNS, ns_to: TemporaryPathNS, parent: &str) {
+        match self {
+            PredicateValue::SPPath(p) => {
+                match p {
+                    SPPath::TemporaryPath(tp) if tp.namespace == ns_from => {
+                        let mut np = vec![parent.to_string()];
+                        np.extend(tp.path.iter().cloned());
+                        if ns_to == TemporaryPathNS::Local {
+                            let lp = LocalPath::from(np);
+                            *p = lp.to_sp();
+                        } else {
+                            let lp = TemporaryPath::from(ns_to, np);
+                            *p = lp.to_sp();
+                        }
+                    },
+                    _ => {}
+                };
+            },
+            _ => {}
+        }
+    }
 
     // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
     //     if let PredicateValue::SPPath(n) = self {
@@ -105,6 +128,32 @@ impl Predicate {
                                                    y.clone_with_global_paths(parent)),
         }
     }
+
+    pub fn change_temps(&mut self, ns_from: TemporaryPathNS, ns_to: TemporaryPathNS, new_parent: &str) {
+        let upd_vec = |xs: &mut Vec<Predicate>| {
+            xs.iter_mut().for_each(|p| {
+                p.change_temps(ns_from, ns_to, new_parent);
+            })
+        };
+
+        match self {
+            Predicate::AND(x) => { upd_vec(x); }
+            Predicate::OR(x) => { upd_vec(x); },
+            Predicate::XOR(x) => { upd_vec(x); },
+            Predicate::NOT(x) => { x.change_temps(ns_from, ns_to, new_parent); },
+            Predicate::TRUE => {},
+            Predicate::FALSE => {},
+            Predicate::EQ(x, y) => {
+                x.temp_add_parent(ns_from, ns_to, new_parent);
+                y.temp_add_parent(ns_from, ns_to, new_parent);
+            },
+            Predicate::NEQ(x, y) => {
+                x.temp_add_parent(ns_from, ns_to, new_parent);
+                y.temp_add_parent(ns_from, ns_to, new_parent);
+            },
+        }
+    }
+
     // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
     //     match self {
     //         Predicate::AND(x) => { replace_in_vec(x, map) }
@@ -132,6 +181,7 @@ impl Action {
         let np = match clone.var {
             SPPath::GlobalPath(gp) => SPPath::GlobalPath(gp),
             SPPath::LocalPath(lp) => lp.to_global(parent).to_sp(),
+            SPPath::TemporaryPath(_tp) => panic!("temporary path not fixed"),
         };
         clone.var = np;
         clone.value = self.value.clone_with_global_paths(parent);

@@ -9,6 +9,7 @@ use super::*;
 pub enum SPPath {
     LocalPath(LocalPath),
     GlobalPath(GlobalPath),
+    TemporaryPath(TemporaryPath),
 }
 
 impl Default for SPPath {
@@ -22,6 +23,7 @@ impl std::fmt::Display for SPPath {
         match self {
             SPPath::LocalPath(x) => write!(f, "{}", x),
             SPPath::GlobalPath(x) => write!(f, "{}", x),
+            SPPath::TemporaryPath(x) => write!(f, "{}", x),
         }
     }
 }
@@ -30,6 +32,7 @@ impl std::fmt::Debug for SPPath {
         match self {
             SPPath::LocalPath(x) => write!(f, "{}", x),
             SPPath::GlobalPath(x) => write!(f, "{}", x),
+            SPPath::TemporaryPath(x) => write!(f, "{}", x),
         }
     }
 }
@@ -44,13 +47,15 @@ impl SPPath {
     pub fn add(&mut self, name: String) {
         match self {
             SPPath::LocalPath(ref mut xs) => xs.add(name),
-            SPPath::GlobalPath(ref mut xs) => xs.add(name)
+            SPPath::GlobalPath(ref mut xs) => xs.add(name),
+            SPPath::TemporaryPath(ref mut xs) => panic!("TODO"),
         }
     }
     pub fn add_root(&mut self, name: String) {
         match self {
             SPPath::LocalPath(ref mut xs) => xs.add_root(name),
-            SPPath::GlobalPath(ref mut xs) => xs.add_root(name)
+            SPPath::GlobalPath(ref mut xs) => xs.add_root(name),
+            SPPath::TemporaryPath(ref mut xs) => panic!("TODO"),
         }
     }
     pub fn from(xs: &[String]) -> SPPath {
@@ -88,6 +93,7 @@ impl SPPath {
         match self {
             SPPath::LocalPath(x) => x.path(),
             SPPath::GlobalPath(x) => x.path(),
+            SPPath::TemporaryPath(x) => panic!("TODO")
         }
     }
     pub fn as_global(&self) -> Option<&GlobalPath> {
@@ -127,6 +133,7 @@ impl SPPath {
         match self {
             SPPath::LocalPath(x) => x.as_slice(),
             SPPath::GlobalPath(x) => x.as_slice(),
+            SPPath::TemporaryPath(x) => panic!("TODO"),
         }
     }
 }
@@ -253,6 +260,37 @@ impl std::fmt::Debug for GlobalPath {
     }
 }
 
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Copy, Debug)]
+pub enum TemporaryPathNS {
+    Local,
+    Predicate,
+    AbilityPredicate,
+}
+
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Debug)]
+pub struct TemporaryPath {
+    pub namespace: TemporaryPathNS,
+    pub path: Vec<String>,
+}
+
+impl std::fmt::Display for TemporaryPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "T[{:?}]:{}", self.namespace, self.path.join("/"))
+    }
+}
+
+impl TemporaryPath {
+    pub fn from(namespace: TemporaryPathNS, path: Vec<String>) -> TemporaryPath {
+        TemporaryPath{namespace, path}
+    }
+    pub fn from_array(namespace: TemporaryPathNS, n: &[&str]) -> TemporaryPath {
+        let path: Vec<String> = n.iter().map(|s|s.to_string()).collect();
+        TemporaryPath{namespace, path}
+    }
+    pub fn to_sp(&self) -> SPPath {
+        SPPath::TemporaryPath(self.clone())
+    }
+}
 
 #[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
 pub struct SPPaths {
@@ -289,12 +327,14 @@ impl SPPaths {
         match path {
             SPPath::LocalPath(p) => self.local.as_ref().map(|l| l == p).unwrap_or(false),
             SPPath::GlobalPath(p) => self.global.as_ref().map(|g| g == p).unwrap_or(false),
+            SPPath::TemporaryPath(p) => false, // TODO
         }
     }
     pub fn is_parent_of(&self, path: &SPPath) -> bool {
         match path {
             SPPath::LocalPath(p) => self.local.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
             SPPath::GlobalPath(p) => self.global.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
+            SPPath::TemporaryPath(p) => false, // TODO
         }
     }
 
@@ -310,7 +350,10 @@ impl SPPaths {
                 },
                 SPPath::GlobalPath(x) => {
                     Some(x.as_slice()[g_len].clone())
-                }
+                },
+                SPPath::TemporaryPath(x) => {
+                    None
+                },
             }
         } else {
             None

@@ -2,6 +2,17 @@ use crate::runners::*;
 use sp_domain::*;
 use sp_runner_api::*;
 
+
+// helpers
+fn pred_path(name: &str) -> SPPath {
+    TemporaryPath::from_array(TemporaryPathNS::Predicate, &[name]).to_sp()
+}
+fn pred_true(name: &str) -> Predicate {
+    Predicate::EQ(
+        PredicateValue::SPPath(pred_path(name)),
+        PredicateValue::SPValue(true.to_spvalue()))
+}
+
 fn make_dummy_robot(name: &str) -> Resource {
     let command_msg = Message::new_with_type(
         "dr_c".into(),
@@ -57,183 +68,274 @@ fn make_dummy_robot(name: &str) -> Resource {
     r.add_message(command_topic);
     r.add_message(state_topic);
 
-    let rp = r.find_item("ref_pos", &[]).unwrap_local_path().to_sp();
-    let ap = r.find_item("act_pos", &[]).unwrap_local_path().to_sp();
-    let activate = r.find_item("activate", &[]).unwrap_local_path().to_sp();
-    let active = r.find_item("active", &[]).unwrap_local_path().to_sp();
+    let rp_c = r.find_item("ref_pos", &[]).unwrap_local_path().to_sp();
+    let ap_m = r.find_item("act_pos", &[]).unwrap_local_path().to_sp();
+    let activate_c = r.find_item("activate", &[]).unwrap_local_path().to_sp();
+    let active_m = r.find_item("active", &[]).unwrap_local_path().to_sp();
 
-    let to_table_start = Transition::new(
-        "to_table_start",
-        Predicate::AND(vec![
+    let to_table = {
+        let enabled = Predicate::AND(vec![
             Predicate::EQ(
-                PredicateValue::SPPath(active.clone()),
+                PredicateValue::SPPath(active_m.clone()),
                 PredicateValue::SPValue(true.to_spvalue()),
             ),
             Predicate::NEQ(
-                PredicateValue::SPPath(ap.clone()),
+                PredicateValue::SPPath(rp_c.clone()),
                 PredicateValue::SPValue("at_table".to_spvalue()),
             ),
-        ]),
-        vec![Action {
-            var: rp.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())),
-        }],
-        vec![],
-        true,
-    );
+            Predicate::NEQ(
+                PredicateValue::SPPath(ap_m.clone()),
+                PredicateValue::SPValue("at_table".to_spvalue()),
+            ),
+        ]);
+        let enabled = Variable::new_predicate("enabled", enabled);
 
-    let to_table_fini = Transition::new(
-        "to_table_fini",
-        Predicate::AND(vec![
+        let executing = Predicate::AND(vec![
             Predicate::EQ(
-                PredicateValue::SPPath(active.clone()),
+                PredicateValue::SPPath(active_m.clone()),
                 PredicateValue::SPValue(true.to_spvalue()),
             ),
+            Predicate::EQ(
+                PredicateValue::SPPath(rp_c.clone()),
+                PredicateValue::SPValue("at_table".to_spvalue()),
+            ),
             Predicate::NEQ(
-                PredicateValue::SPPath(ap.clone()),
+                PredicateValue::SPPath(ap_m.clone()),
+                PredicateValue::SPValue("at_table".to_spvalue()),
+            ),
+        ]);
+        let executing = Variable::new_predicate("executing", executing);
+
+        let finished = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(rp_c.clone()),
                 PredicateValue::SPValue("at_table".to_spvalue()),
             ),
             Predicate::EQ(
-                PredicateValue::SPPath(rp.clone()),
+                PredicateValue::SPPath(ap_m.clone()),
                 PredicateValue::SPValue("at_table".to_spvalue()),
             ),
-        ]),
-        vec![],
-        vec![Action {
-            var: ap.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())),
-        }],
-        false,
-    );
+        ]);
+        let finished = Variable::new_predicate("finished", finished);
 
-    let to_away_start = Transition::new(
-        "to_away_start",
-        Predicate::AND(vec![
+        let start = Transition::new(
+            "start",
+            pred_true("enabled"),
+            vec![Action { var: rp_c.clone(), value:
+                          Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())) }],
+            vec![],
+            true
+        );
+
+        let finish = Transition::new(
+            "finish",
+            pred_true("exeucting"),
+            vec![],
+            vec![Action {
+                var: ap_m.clone(),
+                value: Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())),
+            }],
+            false,
+        );
+
+        Ability::new("to_table", vec![start, finish], vec![enabled, executing, finished])
+    };
+
+    let to_away = {
+        let enabled = Predicate::AND(vec![
             Predicate::EQ(
-                PredicateValue::SPPath(active.clone()),
+                PredicateValue::SPPath(active_m.clone()),
                 PredicateValue::SPValue(true.to_spvalue()),
             ),
             Predicate::NEQ(
-                PredicateValue::SPPath(ap.clone()),
+                PredicateValue::SPPath(rp_c.clone()),
                 PredicateValue::SPValue("at_away".to_spvalue()),
-            ),
-        ]),
-        vec![Action {
-            var: rp.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())),
-        }],
-        vec![],
-        true,
-    );
-
-    let to_away_fini = Transition::new(
-        "to_away_fini",
-        Predicate::AND(vec![
-            Predicate::EQ(
-                PredicateValue::SPPath(active.clone()),
-                PredicateValue::SPValue(true.to_spvalue()),
             ),
             Predicate::NEQ(
-                PredicateValue::SPPath(ap.clone()),
+                PredicateValue::SPPath(ap_m.clone()),
+                PredicateValue::SPValue("at_away".to_spvalue()),
+            ),
+        ]);
+        let enabled = Variable::new_predicate("enabled", enabled);
+
+        let executing = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(rp_c.clone()),
+                PredicateValue::SPValue("at_away".to_spvalue()),
+            ),
+            Predicate::NEQ(
+                PredicateValue::SPPath(ap_m.clone()),
+                PredicateValue::SPValue("at_away".to_spvalue()),
+            ),
+        ]);
+        let executing = Variable::new_predicate("executing", executing);
+
+        let finished = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(rp_c.clone()),
                 PredicateValue::SPValue("at_away".to_spvalue()),
             ),
             Predicate::EQ(
-                PredicateValue::SPPath(rp.clone()),
+                PredicateValue::SPPath(ap_m.clone()),
                 PredicateValue::SPValue("at_away".to_spvalue()),
             ),
-        ]),
-        vec![],
-        vec![Action {
-            var: ap.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())),
-        }],
-        false,
-    );
+        ]);
+        let finished = Variable::new_predicate("finished", finished);
 
-    let activate_start = Transition::new(
-        "activate_start",
-        //                                 -- TODO: -->>>>>>
-        Predicate::EQ(PredicateValue::SPPath(SPPath::from(&[name.into(), "activate".into(), "enabled".into()])),
-                      PredicateValue::SPValue(true.to_spvalue())),
-        vec![Action { var: activate.clone(), value:
-                      Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())) }],
-        vec![],
-        true
-    );
+        let start = Transition::new(
+            "start",
+            pred_true("enabled"),
+            vec![Action { var: rp_c.clone(), value:
+                          Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())) }],
+            vec![],
+            true
+        );
 
-    let activate_fini = Transition::new(
-        "activate_fini",
-        Predicate::AND(vec![
+        let finish = Transition::new(
+            "finish",
+            pred_true("exeucting"),
+            vec![],
+            vec![Action {
+                var: ap_m.clone(),
+                value: Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())),
+            }],
+            false,
+        );
+
+        Ability::new("to_away", vec![start, finish], vec![enabled, executing, finished])
+    };
+
+    let activate = {
+        let enabled = Predicate::AND(vec![
             Predicate::EQ(
-                PredicateValue::SPPath(active.clone()),
+                PredicateValue::SPPath(activate_c.clone()),
                 PredicateValue::SPValue(false.to_spvalue()),
             ),
             Predicate::EQ(
-                PredicateValue::SPPath(activate.clone()),
-                PredicateValue::SPValue(true.to_spvalue()),
-            ),
-        ]),
-        vec![],
-        vec![Action {
-            var: active.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())),
-        }],
-        false,
-    );
-
-    let deactivate_start = Transition::new(
-        "deactivate_start",
-        Predicate::EQ(
-            PredicateValue::SPPath(active.clone()),
-            PredicateValue::SPValue(true.to_spvalue()),
-        ),
-        vec![Action {
-            var: activate.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())),
-        }],
-        vec![],
-        true,
-    );
-
-    let deactivate_fini = Transition::new(
-        "deactivate_fini",
-        Predicate::AND(vec![
-            Predicate::EQ(
-                PredicateValue::SPPath(active.clone()),
-                PredicateValue::SPValue(true.to_spvalue()),
-            ),
-            Predicate::EQ(
-                PredicateValue::SPPath(activate.clone()),
+                PredicateValue::SPPath(active_m.clone()),
                 PredicateValue::SPValue(false.to_spvalue()),
             ),
-        ]),
-        vec![],
-        vec![Action {
-            var: active.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())),
-        }],
-        false,
-    );
+        ]);
+        let enabled = Variable::new_predicate("enabled", enabled);
 
-    let to_table = Ability::new("to_table", vec![to_table_start, to_table_fini], vec![]);
-    let to_away = Ability::new("to_away", vec![to_away_start, to_away_fini], vec![]);
+        let executing = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(activate_c.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(false.to_spvalue()),
+            ),
+        ]);
+        let executing = Variable::new_predicate("executing", executing);
 
-    let activate_enabled = Predicate::EQ(
-        PredicateValue::SPPath(active.clone()),
-        PredicateValue::SPValue(false.to_spvalue()),
-    );
-    let activate_enabled = Variable::new_predicate("enabled", activate_enabled);
+        let finished = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(activate_c.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+        ]);
+        let finished = Variable::new_predicate("finished", finished);
 
-    let activate = Ability::new(
-        "activate",
-        vec![activate_start, activate_fini],
-        vec![activate_enabled],
-    );
-    let deactivate = Ability::new(
-        "deactivate",
-        vec![deactivate_start, deactivate_fini],
-        vec![],
-    );
+        let start = Transition::new(
+            "start",
+            pred_true("enabled"),
+            vec![Action { var: activate_c.clone(), value:
+                          Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())) }],
+            vec![],
+            true
+        );
+
+        let finish = Transition::new(
+            "finish",
+            pred_true("exeucting"),
+            vec![],
+            vec![Action {
+                var: active_m.clone(),
+                value: Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())),
+            }],
+            false,
+        );
+
+        Ability::new("activate", vec![start, finish], vec![enabled, executing, finished])
+    };
+
+    let deactivate = {
+        let enabled = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(activate_c.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+        ]);
+        let enabled = Variable::new_predicate("enabled", enabled);
+
+        let executing = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(activate_c.clone()),
+                PredicateValue::SPValue(false.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(true.to_spvalue()),
+            ),
+        ]);
+        let executing = Variable::new_predicate("executing", executing);
+
+        let finished = Predicate::AND(vec![
+            Predicate::EQ(
+                PredicateValue::SPPath(activate_c.clone()),
+                PredicateValue::SPValue(false.to_spvalue()),
+            ),
+            Predicate::EQ(
+                PredicateValue::SPPath(active_m.clone()),
+                PredicateValue::SPValue(false.to_spvalue()),
+            ),
+        ]);
+        let finished = Variable::new_predicate("finished", finished);
+
+        let start = Transition::new(
+            "start",
+            pred_true("enabled"),
+            vec![Action { var: activate_c.clone(), value:
+                          Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())) }],
+            vec![],
+            true
+        );
+
+        let finish = Transition::new(
+            "finish",
+            pred_true("exeucting"),
+            vec![],
+            vec![Action {
+                var: active_m.clone(),
+                value: Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())),
+            }],
+            false,
+        );
+
+        Ability::new("deactivate", vec![start, finish], vec![enabled, executing, finished])
+    };
 
     r.add_ability(to_table);
     r.add_ability(to_away);

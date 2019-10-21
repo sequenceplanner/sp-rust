@@ -87,9 +87,9 @@ impl Runner {
     pub fn new(model: RunnerModel, initial_state: SPState) -> (Runner, RunnerComm) {
         let (comm, external_comm) = RunnerCommInternal::new();
 
-        let r = Runner {
+        let mut r = Runner {
             model,
-            state: initial_state,
+            state: SPState::default(),
             ctrl: RunnerCtrl { pause: true,
                                override_ability_transitions: vec![],
                                override_operation_transitions: vec![]
@@ -98,6 +98,11 @@ impl Runner {
             delayed_ticks: timer::DelayQueue::new(),
             tick_in_que: false,
         };
+
+        // Set state here to allow for predicates to run first
+        let mut s = initial_state.clone();
+        r.upd_state_predicates(&mut s);
+        r.state = s;
 
         (r, external_comm)
     }
@@ -234,7 +239,6 @@ impl Runner {
     fn upd_state_predicates(&self,state: &mut SPState) {
         self.model.state_predicates.iter().for_each(|v| match v.variable_type() {
             VariableType::Predicate(ref p) if v.has_global() => {
-                println!("STATE PRED: {:?}", p);
                 let _res = state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
             },
             _ => {},
