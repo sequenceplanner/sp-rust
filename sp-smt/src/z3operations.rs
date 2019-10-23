@@ -439,10 +439,10 @@ macro_rules! subz3 {
 #[macro_export]
 macro_rules! negz3 {
     ($a:expr) => {
-        MODZ3::new(&CTX, $a).r
+        NEGZ3::new(&CTX, $a).r
     };
     ($ctx:expr, $b:expr) => {
-        MODZ3::new($ctx, $b).r
+        NEGZ3::new($ctx, $b).r
     }
 }
 

@@ -104,7 +104,7 @@ impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
 /// bvrz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! bvrz3 {
+macro_rules! bvrz3r {
     ($a:expr) => {
         BoolVarZ3::new(&CTX, &BoolSortZ3::new(&CTX), $a).r
     };

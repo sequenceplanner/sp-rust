@@ -314,11 +314,13 @@ fn door_automaton(){
     // This should be a forbidden state combination
     // Assert a constraint saying: not(closed_c and opened_c)
    
-    sasrtz3!(&slv, 
+    // negz3!(2);
+
+    sasrtz3!(&slv,
         notz3!(
             andz3!(
-                bvrz3!("closed_c"),
-                bvrz3!("opened_c")
+                bvrz3r!("closed_c"),
+                bvrz3r!("opened_c")
             )
         )
     );
@@ -327,9 +329,9 @@ fn door_automaton(){
     // Assert a constraint saying: not(closed_m and opened_m)
     sasrtz3!(&slv, 
         notz3!(
-            andz3!(
-                bvrz3!("closed_m"),
-                bvrz3!("opened_m")
+            andz3!( 
+                bvrz3r!("closed_m"),
+                bvrz3r!("opened_m")
             )
         )
     );

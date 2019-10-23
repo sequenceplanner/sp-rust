@@ -266,6 +266,42 @@ macro_rules! gssz3 {
     }
 }
 
+// #[macro_export]
+// macro_rules! inf_z3_type {
+//     ($arg:expr) => {{
+//         trait InferIntegerZ3 {
+//             fn infer($arg) -> Z3_ast {
+//                 ivlz3!($arg)
+//             }
+//         }
+//         impl InferIntegerZ3 for i32 {
+//             ivlz3!($arg)
+//         }
+//     }};
+// }
+
+#[macro_export]
+macro_rules! f {
+    ($($arg:expr),*) => {{
+        trait PrintInteger {
+            fn as_printed(&self) -> &'static str {
+                "Integer"
+            }
+        }
+        impl PrintInteger for i32 {}
+        trait PrintOther {
+            fn as_printed(&self) -> &Self {
+                self
+            }
+        }
+        impl<T: std::fmt::Display> PrintOther for &T {}
+        $(
+            println!("{}", (&$arg).as_printed());
+        )*
+    }};
+}
+
+
 #[test]
 fn print_parameter_set_test() {
     let cfg = ConfigZ3::new();
