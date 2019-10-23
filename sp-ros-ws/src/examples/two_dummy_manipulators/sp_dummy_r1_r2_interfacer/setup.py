@@ -9,13 +9,14 @@ setup(
     version='0.0.1',
     packages=[],
     py_modules=[
-    	'src.r1_interfacer',
+        'src.interfacer',
+        'src.r1_interfacer',
         'src.r2_interfacer',
     ],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-	(os.path.join('share', package_name), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name), glob('launch/*.launch.py')),
         ('share/' + package_name, ['package.xml']),
     ],
     install_requires=['setuptools'],
@@ -35,8 +36,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'r1_interfacer = src.r1_interfacer:main',
-		'r2_interfacer = src.r2_interfacer:main',
+                'r1_interfacer = src.r1_interfacer:main',
+                'r2_interfacer = src.r2_interfacer:main',
         ],
     },
 )

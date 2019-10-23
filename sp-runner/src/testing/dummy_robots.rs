@@ -23,7 +23,7 @@ fn make_dummy_robot(name: &str) -> Resource {
                 VariableType::Command,
                 SPValueType::String,
                 "unknown".to_spvalue(),
-                vec!["unknown", "at_table", "at_away"]
+                vec!["unknown", "at", "away"]
                     .iter()
                     .map(|v| v.to_spvalue())
                     .collect(),
@@ -48,7 +48,7 @@ fn make_dummy_robot(name: &str) -> Resource {
                 VariableType::Measured,
                 SPValueType::String,
                 "unknown".to_spvalue(),
-                vec!["unknown", "at_table", "at_away"]
+                vec!["unknown", "at", "away"]
                     .iter()
                     .map(|v| v.to_spvalue())
                     .collect(),
@@ -81,11 +81,11 @@ fn make_dummy_robot(name: &str) -> Resource {
             ),
             Predicate::NEQ(
                 PredicateValue::SPPath(rp_c.clone()),
-                PredicateValue::SPValue("at_table".to_spvalue()),
+                PredicateValue::SPValue("at".to_spvalue()),
             ),
             Predicate::NEQ(
                 PredicateValue::SPPath(ap_m.clone()),
-                PredicateValue::SPValue("at_table".to_spvalue()),
+                PredicateValue::SPValue("at".to_spvalue()),
             ),
         ]);
         let enabled = Variable::new_predicate("enabled", enabled);
@@ -97,11 +97,11 @@ fn make_dummy_robot(name: &str) -> Resource {
             ),
             Predicate::EQ(
                 PredicateValue::SPPath(rp_c.clone()),
-                PredicateValue::SPValue("at_table".to_spvalue()),
+                PredicateValue::SPValue("at".to_spvalue()),
             ),
             Predicate::NEQ(
                 PredicateValue::SPPath(ap_m.clone()),
-                PredicateValue::SPValue("at_table".to_spvalue()),
+                PredicateValue::SPValue("at".to_spvalue()),
             ),
         ]);
         let executing = Variable::new_predicate("executing", executing);
@@ -113,11 +113,11 @@ fn make_dummy_robot(name: &str) -> Resource {
             ),
             Predicate::EQ(
                 PredicateValue::SPPath(rp_c.clone()),
-                PredicateValue::SPValue("at_table".to_spvalue()),
+                PredicateValue::SPValue("at".to_spvalue()),
             ),
             Predicate::EQ(
                 PredicateValue::SPPath(ap_m.clone()),
-                PredicateValue::SPValue("at_table".to_spvalue()),
+                PredicateValue::SPValue("at".to_spvalue()),
             ),
         ]);
         let finished = Variable::new_predicate("finished", finished);
@@ -126,7 +126,7 @@ fn make_dummy_robot(name: &str) -> Resource {
             "start",
             pred_true("enabled"),
             vec![Action { var: rp_c.clone(), value:
-                          Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())) }],
+                          Compute::PredicateValue(PredicateValue::SPValue("at".to_spvalue())) }],
             vec![],
             true
         );
@@ -137,7 +137,7 @@ fn make_dummy_robot(name: &str) -> Resource {
             vec![],
             vec![Action {
                 var: ap_m.clone(),
-                value: Compute::PredicateValue(PredicateValue::SPValue("at_table".to_spvalue())),
+                value: Compute::PredicateValue(PredicateValue::SPValue("at".to_spvalue())),
             }],
             false,
         );
@@ -153,11 +153,11 @@ fn make_dummy_robot(name: &str) -> Resource {
             ),
             Predicate::NEQ(
                 PredicateValue::SPPath(rp_c.clone()),
-                PredicateValue::SPValue("at_away".to_spvalue()),
+                PredicateValue::SPValue("away".to_spvalue()),
             ),
             Predicate::NEQ(
                 PredicateValue::SPPath(ap_m.clone()),
-                PredicateValue::SPValue("at_away".to_spvalue()),
+                PredicateValue::SPValue("away".to_spvalue()),
             ),
         ]);
         let enabled = Variable::new_predicate("enabled", enabled);
@@ -169,11 +169,11 @@ fn make_dummy_robot(name: &str) -> Resource {
             ),
             Predicate::EQ(
                 PredicateValue::SPPath(rp_c.clone()),
-                PredicateValue::SPValue("at_away".to_spvalue()),
+                PredicateValue::SPValue("away".to_spvalue()),
             ),
             Predicate::NEQ(
                 PredicateValue::SPPath(ap_m.clone()),
-                PredicateValue::SPValue("at_away".to_spvalue()),
+                PredicateValue::SPValue("away".to_spvalue()),
             ),
         ]);
         let executing = Variable::new_predicate("executing", executing);
@@ -185,11 +185,11 @@ fn make_dummy_robot(name: &str) -> Resource {
             ),
             Predicate::EQ(
                 PredicateValue::SPPath(rp_c.clone()),
-                PredicateValue::SPValue("at_away".to_spvalue()),
+                PredicateValue::SPValue("away".to_spvalue()),
             ),
             Predicate::EQ(
                 PredicateValue::SPPath(ap_m.clone()),
-                PredicateValue::SPValue("at_away".to_spvalue()),
+                PredicateValue::SPValue("away".to_spvalue()),
             ),
         ]);
         let finished = Variable::new_predicate("finished", finished);
@@ -198,7 +198,7 @@ fn make_dummy_robot(name: &str) -> Resource {
             "start",
             pred_true("enabled"),
             vec![Action { var: rp_c.clone(), value:
-                          Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())) }],
+                          Compute::PredicateValue(PredicateValue::SPValue("away".to_spvalue())) }],
             vec![],
             true
         );
@@ -209,7 +209,7 @@ fn make_dummy_robot(name: &str) -> Resource {
             vec![],
             vec![Action {
                 var: ap_m.clone(),
-                value: Compute::PredicateValue(PredicateValue::SPValue("at_away".to_spvalue())),
+                value: Compute::PredicateValue(PredicateValue::SPValue("away".to_spvalue())),
             }],
             false,
         );
@@ -375,7 +375,7 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-    let r1_op1it = IfThen::new("goal", p!(r1_p_a != "at_table"), p!(r1_p_a == "at_table"));
+    let r1_op1it = IfThen::new("goal", p!(r1_p_a != "at"), p!(r1_p_a == "at"));
     let op = Operation::new(
         "t1_to_table",
         Vec::new(),
