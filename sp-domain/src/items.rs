@@ -876,10 +876,11 @@ impl Ability {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Operation {
     node: SPNode,
-    precondition: Vec<Transition>,
-    postcondition: Vec<Transition>,
-    uncontrolled: Vec<Transition>,
-    predicates: Vec<Variable>,
+    start: Vec<Transition>, // now we talk about transitions and not conditions
+    finish: Vec<Transition>,
+    // skip these for now: finish trans are by default unctrl
+    // uncontrolled: Vec<Transition>,
+    // predicates: Vec<Variable>,
     pub goal: Option<IfThen>,
     invariant: Option<IfThen>,
 }
@@ -892,10 +893,8 @@ impl Noder for Operation {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.precondition.as_slice(), next, path).or_else(||
-        get_from_list(self.postcondition.as_slice(), next, path)).or_else(||
-        get_from_list(self.uncontrolled.as_slice(), next, path)).or_else(||
-        get_from_list(self.predicates.as_slice(), next, path)).or_else(||
+        get_from_list(self.start.as_slice(), next, path).or_else(||
+        get_from_list(self.finish.as_slice(), next, path)).or_else(||
         self.goal.as_ref().and_then(|x| x.get(path))).or_else(||
         self.invariant.as_ref().and_then(|ref x| x.get(path)))
     }
@@ -904,18 +903,14 @@ impl Noder for Operation {
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.precondition.as_slice(), name, path_sections).or_else(||
-        find_item_in_list(self.postcondition.as_slice(), name, path_sections)).or_else(||
-        find_item_in_list(self.uncontrolled.as_slice(), name, path_sections)).or_else(||
-        find_item_in_list(self.predicates.as_slice(), name, path_sections)).or_else(||
+        find_item_in_list(self.start.as_slice(), name, path_sections).or_else(||
+        find_item_in_list(self.finish.as_slice(), name, path_sections)).or_else(||
         self.goal.as_ref().and_then(|x| x.find_item(name, path_sections))).or_else(||
         self.invariant.as_ref().and_then(|ref x| x.find_item(name, path_sections)))
     }
     fn update_path_children(&mut self, paths: &SPPaths) {
-        update_path_in_list(self.precondition.as_mut_slice(), paths);
-        update_path_in_list(self.postcondition.as_mut_slice(), paths);
-        update_path_in_list(self.uncontrolled.as_mut_slice(), paths);
-        update_path_in_list(self.predicates.as_mut_slice(), paths);
+        update_path_in_list(self.start.as_mut_slice(), paths);
+        update_path_in_list(self.finish.as_mut_slice(), paths);
         self.goal.as_mut().map(|mut x| x.update_path(paths));
         self.invariant.as_mut().map(|mut x| x.update_path(paths));
     }
@@ -927,23 +922,31 @@ impl Noder for Operation {
 impl Operation {
     pub fn new(
         name: &str,
-        precondition: Vec<Transition>,
-        postcondition: Vec<Transition>,
-        uncontrolled: Vec<Transition>,
-        predicates: Vec<Variable>,
+        start: Vec<Transition>,
+        finish: Vec<Transition>,
         goal: Option<IfThen>,
         invariant: Option<IfThen>,
     ) -> Operation {
         let node = SPNode::new(name);
         Operation {
             node,
-            precondition,
-            postcondition,
-            uncontrolled,
-            predicates,
+            start,
+            finish,
             goal,
             invariant,
         }
+    }
+
+    pub fn goal(&self) -> &Option<IfThen> {
+        &self.goal
+    }
+
+    pub fn start(&self) -> &Vec<Transition> {
+        &self.start
+    }
+
+    pub fn finish(&self) -> &Vec<Transition> {
+        &self.finish
     }
 }
 

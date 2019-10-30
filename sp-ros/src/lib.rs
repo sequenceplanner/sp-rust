@@ -218,10 +218,14 @@ mod ros {
                     let path = format!("G:{}", s);
                     SPPath::from_string(&path)
                 }).collect();
+                let oot = msg.override_operation_transitions.iter().flat_map(|s| {
+                    let path = format!("G:{}", s);
+                    SPPath::from_string(&path)
+                }).collect();
                 let rc = RunnerCommand {
                     pause: msg.pause,
                     override_ability_transitions: oat,
-                    override_operation_transitions: Vec::new(),
+                    override_operation_transitions: oot,
                 };
                 println!("SENDING TO RUNNER {:?}", rc);
                 tx_in.send(rc).unwrap();

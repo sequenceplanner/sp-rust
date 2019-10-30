@@ -1,13 +1,17 @@
 from sensor_msgs.msg import JointState
 from dummy_robot_messages.msg import State
 from dummy_robot_messages.msg import Control
+import rclpy
 from rclpy.node import Node
 import time
+import random
 
 class Interfacer(Node):
 
     def __init__(self, r_name):
         super().__init__("{}_interfacer".format(r_name))
+
+        self.logger = self.get_logger()
 
         self.r_name = r_name
         self.active = False
@@ -60,17 +64,21 @@ class Interfacer(Node):
             self.tmr_period,
             self.interfacer_to_r_publisher_callback)
 
+        self.to_r.position = [0.0, 0.0]
+        self.joint_cmd_publisher_.publish(self.to_r)
+
     def joint_callback(self, data):
         self.act_pos_j1 = data.position[0]
         self.act_pos_j2 = data.position[1]
-        # print(self.act_pos)
+        str = 'pos: {} {}'.format(data.position[0], data.position[1])
+        self.logger.info(str)
+        print(self.act_pos)
         if self.act_pos_j1 == 0.0 and self.act_pos_j2 == 0.0:
             self.act_pos = "away"
         elif self.act_pos_j1 == -1.0 and self.act_pos_j2 == -1.0:
             self.act_pos = "at"
         else:
             self.act_pos = "unknown"
-
 
     def sp_callback(self, data):
         self.active = data.activate
@@ -84,9 +92,9 @@ class Interfacer(Node):
         else:
             pass
 
-
     def interfacer_to_r_publisher_callback(self):
         if not self.active:
+            self.joint_cmd_publisher_.publish(self.to_r)
             return
 
         if self.ref_pos_j1 < self.act_pos_j1:

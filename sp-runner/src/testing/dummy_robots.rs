@@ -93,7 +93,7 @@ fn make_dummy_robot(name: &str) -> Resource {
 
         let finish = Transition::new(
             "finish",
-            pred_true("exeucting"),
+            pred_true("executing"),
             vec![],
             vec![a!(ap_m = "at")],
             false,
@@ -127,7 +127,7 @@ fn make_dummy_robot(name: &str) -> Resource {
 
         let finish = Transition::new(
             "finish",
-            pred_true("exeucting"),
+            pred_true("executing"),
             vec![],
             vec![a!(ap_m = "away")],
             false,
@@ -160,7 +160,7 @@ fn make_dummy_robot(name: &str) -> Resource {
 
         let finish = Transition::new(
             "finish",
-            pred_true("exeucting"),
+            pred_true("executing"),
             vec![],
             vec![a!(active_m = true)],
             false,
@@ -193,7 +193,7 @@ fn make_dummy_robot(name: &str) -> Resource {
 
         let finish = Transition::new(
             "finish",
-            pred_true("exeucting"),
+            pred_true("executing"),
             vec![],
             vec![a!(active_m = false)],
             false,
@@ -234,6 +234,48 @@ pub fn one_dummy_robot() -> (RunnerModel, SPState) {
     (rm, s)
 }
 
+fn add_op(m: &mut Model, name: &str, pre: Predicate, post: Predicate) -> SPPath {
+    let op_state = Variable::new(
+        name,
+        VariableType::Estimated,
+        SPValueType::String,
+        "i".to_spvalue(),
+        vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+    );
+    let op_state = m
+        .add_item(SPItem::Variable(op_state))
+        .global_path()
+        .as_ref()
+        .unwrap()
+        .to_sp();
+
+    let op_start = Transition::new(
+        "start",
+        Predicate::AND(vec![p!(op_state == "i"), pre.clone()]),
+        vec![a!(op_state = "e")],
+        vec![],
+        true,
+    );
+    let op_finish = Transition::new(
+        "finish",
+        Predicate::AND(vec![p!(op_state == "e"), post.clone()]),
+        vec![a!(op_state = "f")],
+        vec![],
+        false,
+    );
+    let op_goal = IfThen::new("goal", p!(op_state == "e"), post.clone());
+
+    let op = Operation::new(
+        name,
+        vec![op_start],
+        vec![op_finish],
+        Some(op_goal),
+        None,
+    );
+
+    m.add_item(SPItem::Operation(op)).global_path().as_ref().unwrap().to_sp()
+}
+
 pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     // Make model
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
@@ -244,22 +286,33 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-    let r1_op1it = IfThen::new("goal", p!(r1_p_a != "at"), p!(r1_p_a == "at"));
-    let op = Operation::new(
-        "t1_to_table",
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-        Some(r1_op1it),
-        None,
-    );
+    let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+    let r1_to_at = add_op(&mut m, "r1_to_at", p!(r1_p_a != "at"), p!(r1_p_a == "at"));
+    let r1_to_away = add_op(&mut m, "r1_to_away",
+                            pr!{{p!(r1_p_a != "away")} && {p!(r1_to_at == "f")}},
+                            p!(r1_p_a == "away"));
 
-    m.add_item(SPItem::Operation(op));
+    let r2_to_at = add_op(&mut m, "r2_to_at",
+                          pr!{{p!(r2_p_a != "at")} && {p!(r1_to_away == "f")}},
+                          p!(r2_p_a == "at"));
+
+    let r1_to_away = add_op(&mut m, "r2_to_away",
+                            pr!{{p!(r2_p_a != "away")} && {p!(r2_to_at == "f")}},
+                            p!(r2_p_a == "away"));
 
     // Make it runnable
     let s = make_initial_state(&m);
     let rm = make_runner_model(&m);
 
     (rm, s)
+}
+
+#[test]
+fn test_two_dummy_robots() {
+    let (rm, s) = two_dummy_robots();
+
+    println!("{:#?}", rm);
+    println!("=================================");
+    println!("{:#?}", s);
+    assert!(false);
 }

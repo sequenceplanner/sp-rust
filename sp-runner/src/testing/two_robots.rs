@@ -144,7 +144,7 @@ pub fn two_robots() -> (RunnerModel, SPState) {
     let r1_p_a = m.find_item("data", &["r1", "act"]).unwrap_global_path().to_sp();
     // let r2_p_a = m.find_item("data", &["r2", "act"]).unwrap_global_path().to_sp();
     let r1_op1it = IfThen::new("goal", p!(r1_p_a != 10), p!(r1_p_a == 10));
-    let op = Operation::new("some_robot_at_upper", Vec::new(), Vec::new(), Vec::new(), Vec::new(),
+    let op = Operation::new("some_robot_at_upper", Vec::new(), Vec::new(),
                             Some(r1_op1it), None);
 
 

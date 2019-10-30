@@ -143,6 +143,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     lines.push_str("\n");
     lines.push_str("VAR\n");
 
+    lines.push_str("-- MODEL VARIABLES\n");
     for (path, variable) in vars {
         let path = NuXMVPath(g_path_or_panic_path(path));
         if variable.value_type() == SPValueType::Bool {
@@ -163,17 +164,49 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
         }
     }
 
+    lines.push_str("-- CONTROL VARIABLES\n");
     // add a control variable for each controllable transition
     for ct in &model.ab_transitions.ctrl {
         let path = NuXMVPath(g_path_or_panic_node(ct.node()));
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
+    lines.push_str("\n\n");
+
+    // add DEFINES for state predicates
+    lines.push_str("DEFINE\n\n");
+    lines.push_str("-- STATE PREDICATES\n");
+
+    for sp in &model.state_predicates {
+        let path = NuXMVPath(g_path_or_panic_node(sp.node()));
+        match sp.variable_type() {
+            VariableType::Predicate(p) => {
+                let p = NuXMVPredicate(&p);
+                lines.push_str(&format!(
+                    "{i}{v} := {p};\n",
+                    i = indent(2),
+                    v = path,
+                    p = p,
+                ));
+            },
+            _ => {
+                panic!("model error")
+            }
+        }
+    }
+
+//DEFINE
+//  dummy_robot_model#r1#to_table#enabled := dummy_robot_model#r1#State#dr_m#act_pos=unknown;
+//  dummy_robot_model#r1#to_away#enabled := dummy_robot_model#r1#State#dr_m#act_pos=unknown;
+
+
 
     lines.push_str("\n\n");
     lines.push_str("ASSIGN\n");
     lines.push_str("\n\n");
     lines.push_str("-- CURRENT STATE --\n");
-    for (path, value) in &state.s {
+
+    for (path, _variable) in vars {
+        let value = state.s.get(path).expect("all variables need a valuation!");
         let path = NuXMVPath(g_path_or_panic_path(path));
         let value = NuXMVValue(value);
         lines.push_str(&format!(
@@ -269,6 +302,7 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     // finally, print out the ltl spec
     lines.push_str("\n\n");
 
+    println!("GOAL IS: {:?}", goal);
     let goal = NuXMVPredicate(goal);
     lines.push_str(&format!("LTLSPEC ! F ( {} );", goal));
 
@@ -361,10 +395,15 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
                 }
             } else {
                 // get SP type from path
-                let spt = vars
-                    .get(&sppath)
-                    .expect(&format!("path mismatch! {}", path))
-                    .value_type();
+                let spt = if model.state_predicates.iter().
+                    find(|p| g_path_or_panic_node(p.node()) == &path).is_some() {
+                    SPValueType::Bool
+                } else {
+                    vars
+                        .get(&sppath)
+                        .expect(&format!("path mismatch! {}", path))
+                        .value_type()
+                };
 
                 let spval = spval_from_nuxvm(val, spt);
                 last.state.s.insert(sppath, spval);
@@ -382,10 +421,16 @@ pub fn compute_plan(
     max_steps: u32,
 ) -> PlanningResult {
     // create variable definitions based on the state
+    // note, we need to exclude predicates...
     let vars: HashMap<SPPath, Variable> = state.s.iter().flat_map(|(k,_v)| match k {
         SPPath::GlobalPath(gp) => {
-            let v = model.model.get(&gp.to_sp()).expect("variable must exist!");
-            Some((gp.to_sp(),v.unwrap_variable()))
+            // exclude predicates from this map... should really BUILD the map in a different way...
+            if model.state_predicates.iter().any(|p|p.node().global_path().as_ref() == Some(gp)) {
+                None
+            } else {
+                let v = model.model.get(&gp.to_sp()).expect("variable must exist!");
+                Some((gp.to_sp(),v.unwrap_variable()))
+            }
         }
         _ => None
     }).collect();
@@ -398,12 +443,15 @@ pub fn compute_plan(
     let filename = &format!("/tmp/planner {}.bmc", datetime);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
+    let mut f = File::create("/tmp/last_planning_request.bmc").unwrap();
+    write!(f, "{}", lines).unwrap();
 
     let start = Instant::now();
+    let result = call_nuxmv(max_steps, filename);
+    let duration = start.elapsed();
 
-    match call_nuxmv(max_steps, filename) {
+    match result {
         Ok((raw, raw_error)) => {
-            let duration = start.elapsed();
             let trace = postprocess_nuxmv_problem(&raw, model, &vars);
 
             PlanningResult {
@@ -415,7 +463,6 @@ pub fn compute_plan(
             }
         }
         Err(e) => {
-            let duration = start.elapsed();
             PlanningResult {
                 plan_found: false,
                 trace: Vec::new(),

@@ -157,13 +157,22 @@ impl Runner {
     /// Tick the runner one step trying to run the transitions that are enabled.
     /// Returns an updated state, updated plans and the transitions that was fired
     fn tick(&self, mut state: SPState, mut plans: RunnerPlans) -> (SPState, RunnerPlans, Vec<SPPaths>) {
-        let mut fired = self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions);
+        let mut fired = if !self.ctrl.pause {
+            // for now, fake the queue...
+            let mut temp_q = self.enabled_ctrl(&state, &self.model.op_transitions);
+            // self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions)
+            self.tick_transitions(&mut state, &mut temp_q, &self.model.op_transitions)
+        } else {
+            // if we are paused, we can take transitions only if they are in the override list
+            let mut temp = self.ctrl.override_operation_transitions.clone();
+            self.tick_transitions(&mut state, &mut temp, &self.model.op_transitions)
+        };
 
         let (goal, _inv) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
-        // if !goal.is_empty() {
-        //     println!("we have a goal! {:?}", goal);
-        // }
+        if !goal.is_empty() {
+            println!("we have a goal! {:?}", goal);
+        }
         let state_ext = state.external();
         let pred = Predicate::AND(goal.iter().map(|x|x.then_().clone()).collect());
         let result = crate::planning::compute_plan(&pred, &state_ext, &self.model, 20);
