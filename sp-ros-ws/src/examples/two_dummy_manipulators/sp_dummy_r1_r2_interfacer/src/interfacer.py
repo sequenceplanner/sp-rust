@@ -28,6 +28,9 @@ class Interfacer(Node):
         self.act_pos_j2 = 0.0
         self.ref_pos_j2 = 0.0
 
+        self.to_r.name = ["{}_j1".format(self.r_name), "{}_j2".format(self.r_name)]
+        self.to_r.position = [0.0, 0.0]
+
         # Could be good to start the subscribers first so that they update the variables if other nodes are up
         self.joint_subscriber = self.create_subscription(
             JointState,
@@ -64,15 +67,9 @@ class Interfacer(Node):
             self.tmr_period,
             self.interfacer_to_r_publisher_callback)
 
-        self.to_r.position = [0.0, 0.0]
-        self.joint_cmd_publisher_.publish(self.to_r)
-
     def joint_callback(self, data):
         self.act_pos_j1 = data.position[0]
         self.act_pos_j2 = data.position[1]
-        str = 'pos: {} {}'.format(data.position[0], data.position[1])
-        self.logger.info(str)
-        print(self.act_pos)
         if self.act_pos_j1 == 0.0 and self.act_pos_j2 == 0.0:
             self.act_pos = "away"
         elif self.act_pos_j1 == -1.0 and self.act_pos_j2 == -1.0:
@@ -94,33 +91,26 @@ class Interfacer(Node):
 
     def interfacer_to_r_publisher_callback(self):
         if not self.active:
-            self.joint_cmd_publisher_.publish(self.to_r)
-            return
-
+            pass
         if self.ref_pos_j1 < self.act_pos_j1:
             if self.ref_pos_j2 < self.act_pos_j2:
-                self.to_r.name = ["{}_j1".format(self.r_name), "{}_j2".format(self.r_name)]
                 self.to_r.position = [round(self.act_pos_j1 - 0.01, 2), round(self.act_pos_j2 - 0.01, 2)]
-                self.joint_cmd_publisher_.publish(self.to_r)
             elif self.ref_pos_j2 > self.act_pos_j2:
-                self.to_r.name = ["{}_j1".format(self.r_name), "{}_j2".format(self.r_name)]
                 self.to_r.position = [round(self.act_pos_j1 - 0.01, 2), round(self.act_pos_j2 + 0.01, 2)]
-                self.joint_cmd_publisher_.publish(self.to_r)
             else:
                 pass
         elif self.ref_pos_j1 > self.act_pos_j1:
             if self.ref_pos_j2 < self.act_pos_j2:
-                self.to_r.name = ["{}_j1".format(self.r_name), "{}_j2".format(self.r_name)]
                 self.to_r.position = [round(self.act_pos_j1 + 0.01, 2), round(self.act_pos_j2 - 0.01, 2)]
-                self.joint_cmd_publisher_.publish(self.to_r)
             elif self.ref_pos_j2 > self.act_pos_j2:
-                self.to_r.name = ["{}_j1".format(self.r_name), "{}_j2".format(self.r_name)]
                 self.to_r.position = [round(self.act_pos_j1 + 0.01, 2), round(self.act_pos_j2 + 0.01, 2)]
-                self.joint_cmd_publisher_.publish(self.to_r)
             else:
                 pass
         else:
             pass
+
+        self.joint_cmd_publisher_.publish(self.to_r)
+
 
 
     def interfacer_to_sp_publisher_callback(self):
