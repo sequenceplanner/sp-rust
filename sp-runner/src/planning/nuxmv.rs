@@ -68,7 +68,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                 children.join("|")
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
-            Predicate::NOT(p) => format!("(!{})", NuXMVPredicate(&p)),
+            Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
             Predicate::TRUE => "TRUE".into(),
             Predicate::FALSE => "FALSE".into(),
             Predicate::EQ(x, y) => {
@@ -138,7 +138,7 @@ fn action_to_string(a: &Action) -> Option<String> {
     }
 }
 
-fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel, vars: &HashMap<SPPath, Variable>) -> String {
+fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel, vars: &HashMap<SPPath, Variable>, specs: &Vec<Spec>) -> String {
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
@@ -172,8 +172,30 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
     }
     lines.push_str("\n\n");
 
-    // add DEFINES for state predicates
+    // add DEFINES for specs and state predicates
     lines.push_str("DEFINE\n\n");
+
+    lines.push_str("-- GLOBAL SPECIFICATIONS\n");
+    let mut global = Vec::new();
+    for s in specs {
+        let path = g_path_or_panic_node(s.node());
+
+        for (i,p) in s.always().iter().enumerate() {
+            let mut pp = path.clone();
+            pp.add(format!("{}", i));
+            let path = NuXMVPath(&pp);
+            let p = NuXMVPredicate(&p);
+            lines.push_str(&format!(
+                    "{i}{v} := {p};\n",
+                    i = indent(2),
+                    v = path,
+                    p = p,
+            ));
+            global.push(p);
+        }
+    }
+
+    lines.push_str("\n\n");
     lines.push_str("-- STATE PREDICATES\n");
 
     for sp in &model.state_predicates {
@@ -304,7 +326,15 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
 
     println!("GOAL IS: {:?}", goal);
     let goal = NuXMVPredicate(goal);
-    lines.push_str(&format!("LTLSPEC ! F ( {} );", goal));
+
+//    LTLSPEC ! ( G s & F g1 & F g2);
+    let global_str: Vec<String> = global.iter().map(|p| format!("G ( {} )", p)).collect();
+    let g = if global_str.is_empty() {
+        "TRUE".to_string()
+    } else {
+        global_str.join("&")
+    };
+    lines.push_str(&format!("LTLSPEC ! ( {} & F ( {} ) );", g, goal));
 
     return lines;
 }
@@ -377,7 +407,10 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
     let mut last = PlanningFrame::default();
 
     for l in &s {
-        if l.contains("  -> State: ") || l.contains("nuXmv >") {
+        if l.contains("  -- Loop starts here") {
+            // when searching for infinite paths...
+        }
+        else if l.contains("  -> State: ") || l.contains("nuXmv >") {
             trace.push(last);
             last = PlanningFrame::default();
         } else {
@@ -397,13 +430,18 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
                 // get SP type from path
                 let spt = if model.state_predicates.iter().
                     find(|p| g_path_or_panic_node(p.node()) == &path).is_some() {
-                    SPValueType::Bool
-                } else {
-                    vars
-                        .get(&sppath)
-                        .expect(&format!("path mismatch! {}", path))
-                        .value_type()
-                };
+                        SPValueType::Bool
+                    } else {
+                        // TODO: hacks abound
+                        if !vars.contains_key(&sppath) {
+                            SPValueType::Bool   // this is a spec
+                        } else {
+                            vars
+                                .get(&sppath)
+                                .expect(&format!("path mismatch! {}", path))
+                                .value_type()
+                        }
+                    };
 
                 let spval = spval_from_nuxvm(val, spt);
                 last.state.s.insert(sppath, spval);
@@ -435,7 +473,12 @@ pub fn compute_plan(
         _ => None
     }).collect();
 
-    let lines = create_nuxmv_problem(&goal, &state, &model, &vars);
+    let specs: Vec<Spec> = model.model.items().iter().flat_map(|i| match i {
+        SPItem::Spec(s) => Some(s),
+        _ => None,
+    }).cloned().collect();
+
+    let lines = create_nuxmv_problem(&goal, &state, &model, &vars, &specs);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder

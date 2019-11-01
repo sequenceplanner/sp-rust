@@ -13,6 +13,7 @@ pub enum SPItem {
     Ability(Ability),
     Transition(Transition),
     IfThen(IfThen),
+    Spec(Spec),
     //SOP(SOP),
 }
 
@@ -28,6 +29,7 @@ impl Noder for SPItem {
             SPItem::Ability(x) => x.node(),
             SPItem::Transition(x) => x.node(),
             SPItem::IfThen(x) => x.node(),
+            SPItem::Spec(x) => x.node(),
         }
     }
     fn node_mut(&mut self) -> &mut SPNode {
@@ -41,6 +43,7 @@ impl Noder for SPItem {
             SPItem::Ability(ref mut x) => x.node_mut(),
             SPItem::Transition(ref mut x) => x.node_mut(),
             SPItem::IfThen(ref mut x) => x.node_mut(),
+            SPItem::Spec(ref mut x) => x.node_mut(),
         }
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
@@ -54,6 +57,7 @@ impl Noder for SPItem {
             SPItem::Ability(x) => x.get_child(next, path),
             SPItem::Transition(x) => x.get_child(next, path),
             SPItem::IfThen(x) => x.get_child(next, path),
+            SPItem::Spec(x) => x.get_child(next, path),
         }
     }
     fn find_item_among_childs<'a>(
@@ -71,6 +75,7 @@ impl Noder for SPItem {
             SPItem::Ability(x) => x.find_item_among_childs(name, path_sections),
             SPItem::Transition(x) => x.find_item_among_childs(name, path_sections),
             SPItem::IfThen(x) => x.find_item_among_childs(name, path_sections),
+            SPItem::Spec(x) => x.find_item_among_childs(name, path_sections),
         }
     }
     fn update_path_children(&mut self, paths: &SPPaths) {
@@ -84,6 +89,7 @@ impl Noder for SPItem {
             SPItem::Ability(x) => x.update_path_children(paths),
             SPItem::Transition(x) => x.update_path_children(paths),
             SPItem::IfThen(x) => x.update_path_children(paths),
+            SPItem::Spec(x) => x.update_path_children(paths),
         }
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -97,6 +103,7 @@ impl Noder for SPItem {
             SPItem::Ability(x) => x.as_ref(),
             SPItem::Transition(x) => x.as_ref(),
             SPItem::IfThen(x) => x.as_ref(),
+            SPItem::Spec(x) => x.as_ref(),
         }
     }
 }
@@ -112,6 +119,7 @@ pub enum SPItemRef<'a> {
     Ability(&'a Ability),
     Transition(&'a Transition),
     IfThen(&'a IfThen),
+    Spec(&'a Spec),
     //SOP(SOP),
 }
 
@@ -127,6 +135,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Ability(x) => &x.node,
             SPItemRef::Transition(x) => &x.node,
             SPItemRef::IfThen(x) => &x.node,
+            SPItemRef::Spec(x) => &x.node,
         }
     }
     pub fn item(&self) -> SPItem {
@@ -140,6 +149,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Ability(x) => SPItem::Ability({*x}.clone()),
             SPItemRef::Transition(x) => SPItem::Transition({*x}.clone()),
             SPItemRef::IfThen(x) => SPItem::IfThen({*x}.clone()),
+            SPItemRef::Spec(x) => SPItem::Spec({*x}.clone()),
         }
     }
     pub fn name(&self) -> &str {
@@ -993,6 +1003,49 @@ impl IfThen {
     }
     pub fn then_(&self) -> &Predicate {
         &self.then_
+    }
+}
+
+
+/// Specs are used to define global constraints
+/// TODO: should we allow ltl expressions?
+/// For now its just simple forbidden states
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+pub struct Spec {
+    node: SPNode,
+    always: Vec<Predicate>,
+}
+
+impl Noder for Spec {
+    fn node(&self) -> &SPNode {
+        &self.node
+    }
+    fn node_mut(&mut self) -> &mut SPNode {
+        &mut self.node
+    }
+    fn get_child<'a>(&'a self, _: &str, _: &SPPath) -> Option<SPItemRef<'a>> {
+        None
+    }
+    fn find_item_among_childs<'a>(
+        &'a self,
+        _name: &str,
+        _path_sections: &[&str],
+    ) -> Option<SPItemRef<'a>> {
+        None
+    }
+    fn update_path_children(&mut self, _paths: &SPPaths) {}
+    fn as_ref(&self) -> SPItemRef<'_> {
+        SPItemRef::Spec(self)
+    }
+}
+
+impl Spec {
+    pub fn new(name: &str, always: Vec<Predicate>) -> Spec {
+        let node = SPNode::new(name);
+        Spec { node, always }
+    }
+    pub fn always(&self) -> &[Predicate] {
+        self.always.as_slice()
     }
 }
 
