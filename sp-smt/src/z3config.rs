@@ -79,7 +79,7 @@ impl Drop for ConfigZ3 {
 //     pub static ref CFG: ConfigZ3 = {
 //         // let guard = Z3_MUTEX.lock().unwrap();
 //         ConfigZ3::new()
-//     };
+//     }
 // }
 
 #[macro_export]
