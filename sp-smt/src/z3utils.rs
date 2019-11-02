@@ -4,35 +4,15 @@ use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
-pub struct GetSortZ3<'ctx> {
-    pub ctx: &'ctx ContextZ3,
-    pub arg: Z3_ast,
-    pub s: String,
-    pub r: Z3_sort
-}
-
 pub struct GetSolvStringZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
     pub s: String
 }
 
-pub struct GetOptStringZ3<'ctx, 'opt> {
-    pub ctx: &'ctx ContextZ3,
-    pub opt: &'opt OptimizerZ3<'ctx>,
-    pub s: String
-}
-
 pub struct GetSolvModelZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
-    pub s: String,
-    pub r: Z3_model
-}
-
-pub struct GetOptModelZ3<'ctx, 'opt> {
-    pub ctx: &'ctx ContextZ3,
-    pub opt: &'opt OptimizerZ3<'ctx>,
     pub s: String,
     pub r: Z3_model
 }
@@ -77,25 +57,6 @@ pub struct SetParamZ3<'cfg, 'p, 'v> {
     pub value: &'v str,
 }
 
-impl<'ctx> GetSortZ3<'ctx> {
-    /// Return the sort of an AST node.
-    /// 
-    /// The AST node must be a constant, application, numeral, bound variable, or quantifier. 
-    pub fn new(ctx: &'ctx ContextZ3, arg: Z3_ast) -> GetSortZ3 {
-        let z3 = unsafe {
-            Z3_get_sort(ctx.r, arg)
-        };
-        GetSortZ3 {
-            ctx,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_sort_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            },
-            arg
-        }        
-    }
-}
-
 impl<'ctx, 'slv> GetSolvModelZ3<'ctx, 'slv> {
     /// Retrieve the model for the last [`SolvCheckZ3::new`]
     ///
@@ -125,40 +86,6 @@ impl<'ctx, 'slv> GetSolvStringZ3<'ctx, 'slv> {
                 CStr::from_ptr(Z3_solver_to_string(ctx.r, slv.r)).to_str().unwrap().to_owned()
             },
             slv
-        }        
-    }
-}
-
-impl<'ctx, 'opt> GetOptModelZ3<'ctx, 'opt> {
-    /// Retrieve the model for the last [`OptCheckZ3::new`]
-    ///
-    /// The error handler is invoked if a model is not available because
-    /// the commands above were not invoked for the given optimization
-    /// solver, or if the result was `Z3_L_FALSE`.
-    pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>) -> GetOptModelZ3<'ctx, 'opt> {
-        let z3 = unsafe {
-            Z3_optimize_get_model(ctx.r, opt.r)
-        };
-        GetOptModelZ3 {
-            ctx,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_model_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            },
-            opt
-        }        
-    }
-}
-
-impl<'ctx, 'opt> GetOptStringZ3<'ctx, 'opt> {
-    /// Get the optimize context as a string.
-    pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>) -> GetOptStringZ3<'ctx, 'opt> {
-        GetOptStringZ3 {
-            ctx,
-            s: unsafe {
-                CStr::from_ptr(Z3_optimize_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned()
-            },
-            opt
         }        
     }
 }
@@ -258,9 +185,9 @@ impl<'cfg, 'p, 'v> SetParamZ3<'cfg, 'p, 'v> {
 /// ```
 #[macro_export]
 macro_rules! gssz3 {
-    ($slv:expr) => {
-        GetSolvStringZ3::new(&CTX, $slv).s
-    };
+    // ($slv:expr) => {
+    //     GetSolvStringZ3::new(&CTX, $slv).s
+    // };
     ($ctx:expr, $slv:expr) => {
         GetSolvStringZ3::new($ctx, $slv).s
     }
@@ -301,61 +228,99 @@ macro_rules! f {
     }};
 }
 
-
-#[test]
-fn print_parameter_set_test() {
-    let cfg = ConfigZ3::new();
-    let ctx = ContextZ3::new(&cfg);
-    let solv = SolverZ3::new(&ctx);
-    println!("{}", GetSolvParamDescrZ3::new(&ctx, &solv))
+#[macro_export]
+macro_rules! strz3 {
+    // ($a:expr) => {
+    //     unsafe {
+    //         CStr::from_ptr(Z3_ast_to_string(CTX.r, $a)).to_str().unwrap().to_owned()
+    //     }
+    // };
+    ($ctx:expr, $a:expr) => {
+        unsafe {
+            // let guard = Z3_MUTEX.lock().unwrap();
+            CStr::from_ptr(Z3_ast_to_string($ctx, $a)).to_str().unwrap().to_owned()
+        }
+    }
 }
 
-#[test]
-fn set_proof_param_test() {
-    let cfg = ConfigZ3::new();
-    SetParamZ3::new(&cfg, "proof", "true");
-    let ctx = ContextZ3::new(&cfg);
-    SolverZ3::new(&ctx);
+/// Z3 set configuration parameters 
+/// 
+/// Macro rule for:
+/// ```text
+/// SetParamZ3::new(&cfg, param, value)
+/// ```
+/// Using the global configuration:
+/// ```text
+/// scpz3!(param, value)
+/// ```
+/// Using a specific configuration:
+/// ```text
+/// scpz3!(&cfg, param, value)
+/// ```
+#[macro_export]
+macro_rules! cspz3 {
+    // ($p:expr, $v:expr) => {
+    //     SetParamZ3::new(&CFG, param, value)
+    // };
+    ($cfg:expr, $p:expr, $v:expr) => {
+        SetParamZ3::new($cfg, param, value)
+    }
 }
 
-#[test]
-fn get_proof_test() {
-    let cfg = ConfigZ3::new();
-    SetParamZ3::new(&cfg, "proof", "true");
-    let ctx = ContextZ3::new(&cfg);
-    let slv = SolverZ3::new(&ctx);
+// #[test]
+// fn print_parameter_set_test() {
+//     let cfg = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&cfg);
+//     let solv = SolverZ3::new(&ctx);
+//     println!("{}", GetSolvParamDescrZ3::new(&ctx, &solv))
+// }
 
-    let sort = IntSortZ3::new(&ctx);
-    let x = IntVarZ3::new(&ctx, &sort, "x");
-    let three = IntZ3::new(&ctx, &sort, 3);
-    let two = IntZ3::new(&ctx, &sort, 2);
+// #[test]
+// fn set_proof_param_test() {
+//     let cfg = ConfigZ3::new();
+//     SetParamZ3::new(&cfg, "proof", "true");
+//     let ctx = ContextZ3::new(&cfg);
+//     SolverZ3::new(&ctx);
+// }
 
-    SolvAssertZ3::new(&ctx, &slv, ANDZ3::new(&ctx, vec!(GTZ3::new(&ctx, x.r, three.r).r, LTZ3::new(&ctx, x.r, two.r).r)).r);
+// #[test]
+// fn get_proof_test() {
+//     let cfg = ConfigZ3::new();
+//     SetParamZ3::new(&cfg, "proof", "true");
+//     let ctx = ContextZ3::new(&cfg);
+//     let slv = SolverZ3::new(&ctx);
 
-    SolvCheckZ3::new(&ctx, &slv);
-    println!("{}", GetSolvProofZ3::new(&ctx, &slv).s)
+//     let sort = IntSortZ3::new(&ctx);
+//     let x = IntVarZ3::new(&ctx, &sort, "x");
+//     let three = IntZ3::new(&ctx, &sort, 3);
+//     let two = IntZ3::new(&ctx, &sort, 2);
 
-}
+//     SolvAssertZ3::new(&ctx, &slv, ANDZ3::new(&ctx, vec!(GTZ3::new(&ctx, x.r, three.r).r, LTZ3::new(&ctx, x.r, two.r).r)).r);
 
-#[test]
-fn get_unsat_core_test() {
-    let cfg = ConfigZ3::new();
-    SetParamZ3::new(&cfg, "proof", "true");
-    SetParamZ3::new(&cfg, "unsat_core", "true");
-    let ctx = ContextZ3::new(&cfg);
-    let slv = SolverZ3::new(&ctx);
+//     SolvCheckZ3::new(&ctx, &slv);
+//     println!("{}", GetSolvProofZ3::new(&ctx, &slv).s)
 
-    let sort = IntSortZ3::new(&ctx);
-    let x = IntVarZ3::new(&ctx, &sort, "x");
-    let three = IntZ3::new(&ctx, &sort, 3);
-    let two = IntZ3::new(&ctx, &sort, 2);
-    let one = IntZ3::new(&ctx, &sort, 1);
+// }
 
-    SolvAssertAndTrackZ3::new(&ctx, &slv, GTZ3::new(&ctx, x.r, three.r).r, "a1");
-    SolvAssertAndTrackZ3::new(&ctx, &slv, LTZ3::new(&ctx, x.r, two.r).r, "a2");
-    SolvAssertAndTrackZ3::new(&ctx, &slv, EQZ3::new(&ctx, x.r, one.r).r, "a3");
+// #[test]
+// fn get_unsat_core_test() {
+//     let cfg = ConfigZ3::new();
+//     SetParamZ3::new(&cfg, "proof", "true");
+//     SetParamZ3::new(&cfg, "unsat_core", "true");
+//     let ctx = ContextZ3::new(&cfg);
+//     let slv = SolverZ3::new(&ctx);
 
-    SolvCheckZ3::new(&ctx, &slv);
-    println!("{}", GetSolvUnsatCoreZ3::new(&ctx, &slv).s);
-    println!("{}", GetSolvProofZ3::new(&ctx, &slv).s);
-}
+//     let sort = IntSortZ3::new(&ctx);
+//     let x = IntVarZ3::new(&ctx, &sort, "x");
+//     let three = IntZ3::new(&ctx, &sort, 3);
+//     let two = IntZ3::new(&ctx, &sort, 2);
+//     let one = IntZ3::new(&ctx, &sort, 1);
+
+//     SolvAssertAndTrackZ3::new(&ctx, &slv, GTZ3::new(&ctx, x.r, three.r).r, "a1");
+//     SolvAssertAndTrackZ3::new(&ctx, &slv, LTZ3::new(&ctx, x.r, two.r).r, "a2");
+//     SolvAssertAndTrackZ3::new(&ctx, &slv, EQZ3::new(&ctx, x.r, one.r).r, "a3");
+
+//     SolvCheckZ3::new(&ctx, &slv);
+//     println!("{}", GetSolvUnsatCoreZ3::new(&ctx, &slv).s);
+//     println!("{}", GetSolvProofZ3::new(&ctx, &slv).s);
+// }

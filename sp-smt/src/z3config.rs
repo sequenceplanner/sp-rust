@@ -1,6 +1,7 @@
 //! Z3 config
 
 use z3_sys::*;
+// use std::sync::Mutex;
 
 pub struct ConfigZ3 {
     pub r: Z3_config
@@ -8,15 +9,18 @@ pub struct ConfigZ3 {
 
 impl ConfigZ3 {
     /// Create a configuration object for the Z3 context object.
-    ///
+    /// 
     /// Configurations are created in order to assign parameters prior to creating
-    /// contexts for Z3 interaction. For example, if the users wishes to use proof
+    /// contexts for Z3 interaction. For example, if the user wishes to use proof
     /// generation, then call:
     ///
-    /// `Z3_set_param_value(cfg, "proof", "true")`
+    /// `SetParamZ3::new(&cfg, "proof", "true")`
     ///
-    /// NOTE: In previous versions of Z3, the `Z3_config` was used to store
-    /// global and module configurations. Now, we should use `Z3_global_param_set`.
+    /// Or, use a macro! to do the same thing:
+    /// 
+    /// Default configuration: `cspz3!("proof", "true")`
+    /// 
+    /// Specific configuration: `cspz3!(&cfg, "proof", "true")`
     ///
     /// The following parameters can be set:
     ///
@@ -31,16 +35,11 @@ impl ConfigZ3 {
     /// - model_validate             validate models produced by solvers
     /// - unsat_core                 unsat-core generation for solvers, this parameter can be overwritten when creating a solver
     ///
-    /// # See also:
-    ///
-    /// - [`Z3_set_param_value`](fn.Z3_set_param_value.html)
-    /// - [`Z3_del_config`](fn.Z3_del_config.html)
-    /// 
-    /// TODO: Since configurations are created in order to assign parameters prior to 
-    /// creating contexts for Z3 interaction, add posibility to assign parameters.
+    /// A public reference to a default configuration for simplicity: `&CFG`
     pub fn new() -> ConfigZ3 {
         ConfigZ3 {
             r: unsafe {
+                // Z3_MUTEX.lock().unwrap();
                 let conf = Z3_mk_config();
                 conf
             }
@@ -52,10 +51,6 @@ unsafe impl Sync for ConfigZ3 {}
 
 impl Default for ConfigZ3 {
     /// Create a default configuration object for the Z3 context object.
-    ///
-    /// # See also:
-    ///
-    /// - [`Z3_mk_config`](fn.Z3_mk_config.html)
     fn default() -> Self {
         Self::new()
     }
@@ -63,10 +58,6 @@ impl Default for ConfigZ3 {
 
 impl Drop for ConfigZ3 {
     /// Delete the given configuration object.
-    ///
-    /// # See also:
-    ///
-    /// - [`Z3_mk_config`](fn.Z3_mk_config.html)
     fn drop(&mut self) {
         unsafe { 
             Z3_del_config(self.r)
@@ -74,10 +65,28 @@ impl Drop for ConfigZ3 {
     }
 }
 
-lazy_static! {
-    pub static ref CFG: ConfigZ3 = {
+// Taken from the original library, credits: Bruce Mitchener, Graydon Hoare 
+// Z3 appears to be only mostly-threadsafe, a few initializers
+// and such race; so we mutex-guard all access to the library.
+// lazy_static! {
+//     pub static ref Z3_MUTEX: Mutex<()> = Mutex::new(());
+// }
+
+// // Unsafe sync takes toll... avoid this. 
+// lazy_static! {
+//     /// A public reference to a default configuration.
+//     /// Avoids passing the config around.
+//     pub static ref CFG: ConfigZ3 = {
+//         // let guard = Z3_MUTEX.lock().unwrap();
+//         ConfigZ3::new()
+//     };
+// }
+
+#[macro_export]
+macro_rules! cfgz3 {
+    () => {
         ConfigZ3::new()
-    };
+    }
 }
 
 #[test]
@@ -89,3 +98,8 @@ fn test_new_cfg(){
 fn test_default_cfg(){
     ConfigZ3::default();
 }
+
+// #[test]
+// fn test_static_cfg(){
+//     &CFG;
+// }

@@ -70,7 +70,7 @@ impl <'ctx> SolverZ3<'ctx> {
             solv
         };
         SolverZ3 {
-            ctx,
+ctx,
             r: z3
         }
     }
@@ -111,7 +111,7 @@ impl <'ctx, 'slv, 't> SolvAssertAndTrackZ3<'ctx, 'slv, 't> {
             r: unsafe {
                 let sort = BoolSortZ3::new(&ctx);
                 let var = BoolVarZ3::new(&ctx, &sort, tracker);
-                Z3_solver_assert_and_track(ctx.r, slv.r, cst, var.r)
+                Z3_solver_assert_and_track(ctx.r, slv.r, cst, var)
             }
         }
     }
@@ -237,183 +237,120 @@ macro_rules! sasrtatz3 {
 /// ```
 #[macro_export]
 macro_rules! scheckz3 {
-    ($slv:expr, $a:expr) => {
-        SolvCheckZ3::new(&CTX, $slv, $a).r
-    };
+    // ($slv:expr) => {
+    //     SolvCheckZ3::new(&CTX, $slv).r
+    // // };
     ($ctx:expr, $slv:expr, $a:expr) => {
         SolvCheckZ3::new($ctx, $slv, $a).r
     }
 }
 
-#[test]
-fn test_new_solver(){
-    let conf = ConfigZ3::new();
-    let ctx = ContextZ3::new(&conf);
-    let solv = SolverZ3::new(&ctx);
-    println!("Should print empty string, no assertions yet.");
-    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
-}
+// #[test]
+// fn test_new_solver(){
+//     let conf = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&conf);
+//     let solv = SolverZ3::new(&ctx);
+//     println!("Should print empty string, no assertions yet.");
+//     println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
+// }
 
-#[test]
-fn test_new_sassert(){
-    let conf = ConfigZ3::new();
-    let ctx = ContextZ3::new(&conf);
-    let solv = SolverZ3::new(&ctx);
+// #[test]
+// fn test_new_sassert(){
+//     let conf = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&conf);
+//     let solv = SolverZ3::new(&ctx);
 
-    let realsort = RealSortZ3::new(&ctx);
-    let y = RealVarZ3::new(&ctx, &realsort, "y");
-    let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
+//     let realsort = RealSortZ3::new(&ctx);
+//     let y = RealVarZ3::new(&ctx, &realsort, "y");
+//     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = EQZ3::new(&ctx, y.r, real1.r);
+//     let rel1 = EQZ3::new(&ctx, y.r, real1.r);
 
-    SolvAssertZ3::new(&ctx, &solv, rel1.r);
-    println!("Should print stuff now, we have asserted constraints.");
-    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
-}
+//     SolvAssertZ3::new(&ctx, &solv, rel1.r);
+//     println!("Should print stuff now, we have asserted constraints.");
+//     println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
+// }
 
-#[test]
-fn test_new_scheck(){
-    let conf = ConfigZ3::new();
-    let ctx = ContextZ3::new(&conf);
-    let solv = SolverZ3::new(&ctx);
+// #[test]
+// fn test_new_scheck(){
+//     let conf = ConfigZ3::new();
+//     let ctx = ContextZ3::new(&conf);
+//     let solv = SolverZ3::new(&ctx);
 
-    let realsort = RealSortZ3::new(&ctx);
-    let y = RealVarZ3::new(&ctx, &realsort, "y");
-    let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
+//     let realsort = RealSortZ3::new(&ctx);
+//     let y = RealVarZ3::new(&ctx, &realsort, "y");
+//     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = EQZ3::new(&ctx, y.r, real1.r);
+//     let rel1 = EQZ3::new(&ctx, y.r, real1.r);
 
-    println!("This is the solvers context without any assertions:");
-    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
+//     println!("This is the solvers context without any assertions:");
+//     println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 
-    SolvAssertZ3::new(&ctx, &solv, rel1.r);
+//     SolvAssertZ3::new(&ctx, &solv, rel1.r);
     
-    println!("This is the solvers context with an assertion before the check:");
-    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
+//     println!("This is the solvers context with an assertion before the check:");
+//     println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 
-    let res1 = SolvCheckZ3::new(&ctx, &solv);
+//     let res1 = SolvCheckZ3::new(&ctx, &solv);
 
-    println!("This is the return of the check:");
-    println!("{}", res1.r);
+//     println!("This is the return of the check:");
+//     println!("{}", res1.r);
 
-    println!("This is the solver with an assertion after the check:");
-    println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
+//     println!("This is the solver with an assertion after the check:");
+//     println!("{}", GetSolvStringZ3::new(&ctx, &solv).s);
 
-    println!("This is the solution (model retreived from the solver):");
-    println!("{}", GetSolvModelZ3::new(&ctx, &solv).s);
-}
+//     println!("This is the solution (model retreived from the solver):");
+//     println!("{}", GetSolvModelZ3::new(&ctx, &solv).s);
+// }
 
-#[test]
-fn door_automaton(){
+// #[test]
+// fn door(){
+//     let slv = slvz3!();
 
-    // Declase a solver in the global context
-    let slv = slvz3!();
+//     // deliberation var:
+//     let delib = bvrz3!("delib");
 
-    // Hash consing works, so you can "define" the same AST multiple times
+//     // open door ability states:
+//     let open_enabled = andz3!(notz3!(bvrz3!("opened_c")), notz3!(bvrz3!("opened_m")));
+//     let open_executing = andz3!(bvrz3!("opened_c"), notz3!(bvrz3!("opened_m")));
+//     let open_finishing = andz3!(bvrz3!("opened_c"), bvrz3!("opened_m"));
+//     let open_done = andz3!(notz3!(bvrz3!("opened_c")), bvrz3!("opened_m"));
 
-    // This should be a forbidden state combination
-    // Assert a constraint saying: not(closed_c and opened_c)
-   
-    // negz3!(2);
+//     // close door ability states:
+//     let closed_enabled = andz3!(notz3!(bvrz3!("closed_c")), notz3!(bvrz3!("closed_m")));
+//     let closed_executing = andz3!(bvrz3!("closed_c"), notz3!(bvrz3!("closed_m")));
+//     let closed_finishing = andz3!(bvrz3!("closed_c"), bvrz3!("closed_m"));
+//     let closed_done = andz3!(notz3!(bvrz3!("closed_c")), bvrz3!("closed_m"));
 
-    sasrtz3!(&slv,
-        notz3!(
-            andz3!(
-                bvrz3r!("closed_c"),
-                bvrz3r!("opened_c")
-            )
-        )
-    );
+//     // forbidden behavior:
+//     let forb1 = notz3!(andz3!(bvrz3!("opened_c"), bvrz3!("closed_c")));
+//     let forb2 = notz3!(andz3!(bvrz3!("opened_m"), bvrz3!("closed_m")));
 
-    // This should be a forbidden state combination
-    // Assert a constraint saying: not(closed_m and opened_m)
-    sasrtz3!(&slv, 
-        notz3!(
-            andz3!( 
-                bvrz3r!("closed_m"),
-                bvrz3r!("opened_m")
-            )
-        )
-    );
+//     // trasnitions:
+//     let t1 = sasrtz3!(&slv, itez3!(&CTX, open_enabled, open_executing, open_enabled));
 
-    // Controllable behaviour
-    // Assert a constraint saying: not(closed_m and opened_m)
-    println!("{}", gssz3!(&slv));
+//     scheckz3!(&slv);
+//     // println!("{}", );
 
-    // let ctx = ctxz3!(cfgz3!());
-    // let slv = slvz3!(&ctx);
 
-    // // Forbidden state combination 1
-    // asrtz3!(&ctx, &slv, 
-    //     notz3!(&ctx, eqz3!(&ctx, 
-    //         bvrz3!(&ctx, "closed_c"), 
-    //         bvrz3!(&ctx, "opened_c")
-    //         )
-    //     )
-    // );
 
-    // // Forbidden state combination 2
-    // asrtz3!(&ctx, &slv, 
-    //     notz3!(&ctx, eqz3!(&ctx, 
-    //         bvrz3!(&ctx, "opened_m"), 
-    //         bvrz3!(&ctx, "closed_m")
-    //         )
-    //     )
-    // );
+//     // sasrtz3!(&slv,
+//     //     notz3!(
+//     //         andz3!(
+//     //             bvrz3!("closed_c"),
+//     //             bvrz3!("opened_c")
+//     //         )
+//     //     )
+//     // );
 
-    // // Desired behavior 1, alternative 1 
-    // asrtz3!(&ctx, &slv, 
-    //     itez3!(&ctx, 
-    //         notz3!(&ctx, bvrz3!(&ctx, "closed_m")), 
-    //         bvrz3!(&ctx, "closed_c"), 
-    //         notz3!(&ctx, bvrz3!(&ctx, "closed_c")
-    //         )
-    //     )
-    // );
-
-    // // Desired behavior 2, alternative 1 
-    // asrtz3!(&ctx, &slv, 
-    //     itez3!(&ctx, 
-    //         notz3!(&ctx, bvrz3!(&ctx, "opened_m")), 
-    //         bvrz3!(&ctx, "opened_c"), 
-    //         notz3!(&ctx, bvrz3!(&ctx, "opened_c")
-    //         )
-    //     )
-    // );
-
-    let a = bvlz3!(true);
-
-    andz3!(a);
-
-    // let opened_c = bvrz3!(&ctx, "opened_c");
-    // asrtz3!(&ctx, &slv, andz3!(bvrz3!(&ctx, "opened_c"), bvrz3!(&ctx, "opened_m")));
-    // // SolvAssertZ3::new(&ctx, &slv, ITEZ3::new(&ctx, ANDZ3::new(&ctx, vec!(NOTZ3::new(&ctx, closed_m.r).r,)), thenz3: Z3_ast, elsez3: Z3_ast))
-
-    // // println!("This is the solvers context with an assertion before the check:");
-    // // println!("{}", GetSolvStringZ3::new(&ctx, &slv).s);
-
-    // let res1 = SolvCheckZ3::new(&ctx, &slv);
-
-    // let text = GetSolvModelZ3::new(&ctx, &slv).s;
-    // println!("{}", text);
-    // let mut lines = text.lines();
-    
-    // for line in lines {
-    //     let v: Vec<&str> = line.split(" -> ").collect();
-    //     println!("{:?}", v);
-    // }
-    // // println!("{}", v);
-  
-
-    // while SolvCheckZ3::new(&ctx, &slv).r == 1 {
-    //     println!("{}", GetSolvModelZ3::new(&ctx, &slv).s);
-    //     let new = GetSolvModelZ3::new(&ctx, &slv).s;
-    //     let mut lines = new.lines();
-    //     for line in lines {
-    //         println!("{}", line);
-    //     }
-    //     asrtz3!(&ctx, &slv, ANDZ3::new(&ctx, vec!(eqz3!(&ctx, closed_c, bvlz3!(&ctx, true)))).r)
-    // }
-
-    
-}
+//     // sasrtz3!(&slv, 
+//     //     itez3!(
+//     //         andz3!(
+//     //             notz3!(bvrz3!("cc")), 
+//     //             notz3!(bvrz3!("cm"))
+//     //         ), 
+//     //         bvrz3!("cc"), 
+//     //         notz3!(bvrz3!("cc"))
+//     //     )
+//     // );  
+// }

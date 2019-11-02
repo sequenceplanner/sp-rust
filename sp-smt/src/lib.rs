@@ -4,19 +4,19 @@
 extern crate lazy_static;
 
 pub mod z3config;
-pub use crate::z3config::{ConfigZ3, CFG};
+pub use crate::z3config::{ConfigZ3}; // CFG, Z3_MUTEX};
 
 pub mod z3context;
-pub use crate::z3context::{ContextZ3, CTX};
+pub use crate::z3context::{ContextZ3}; //, CTX};
 
 pub mod z3solver;
 pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvAssertAndTrackZ3, SolvCheckZ3};
 
 pub mod z3optimizer;
-pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3, OptMinimizeZ3};
+pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3, OptMinimizeZ3, GetOptModelZ3};
 
 pub mod z3sorts;
-pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3};
+pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3, GetSortZ3};
 
 pub mod z3values;
 pub use crate::z3values::{BoolZ3, IntZ3, RealZ3};
@@ -34,4 +34,4 @@ pub mod z3logics;
 pub use crate::z3logics::{ANDZ3, ORZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, XORZ3};
 
 pub mod z3utils;
-pub use crate::z3utils::{GetSortZ3, GetSolvStringZ3, GetOptStringZ3, GetSolvModelZ3, GetOptModelZ3};
+pub use crate::z3utils::{GetSolvStringZ3, GetSolvModelZ3};

@@ -8,7 +8,6 @@ pub struct EQZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
     pub right: Z3_ast,
-    pub s: String,
     pub r: Z3_ast
 }
 
@@ -16,7 +15,6 @@ pub struct LEZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
     pub right: Z3_ast,
-    pub s: String,
     pub r: Z3_ast
 }
 
@@ -24,7 +22,6 @@ pub struct LTZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
     pub right: Z3_ast,
-    pub s: String,
     pub r: Z3_ast
 }
 
@@ -32,7 +29,6 @@ pub struct GEZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
     pub right: Z3_ast,
-    pub s: String,
     pub r: Z3_ast
 }
 
@@ -40,107 +36,76 @@ pub struct GTZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
     pub right: Z3_ast,
-    pub s: String,
     pub r: Z3_ast
 }
 
 impl <'ctx> EQZ3<'ctx> {
     /// Create an AST node representing `left = right`.
     ///
-    /// The nodes `left` and `right` must have the same type.
-    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> EQZ3 {
+    /// NOTE: The nodes `left` and `right` must have the same type.
+    /// 
+    /// NOTE: See macro! eqz3!
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_eq(ctx.r, left, right)
         };
-        EQZ3 {
-            ctx,
-            left,
-            right,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            }
-        }
+        EQZ3 {ctx, left, right, r: z3}.r
     }
 }
 
 impl <'ctx> LEZ3<'ctx> {
     /// Create less than or equal to.
     ///
-    /// The nodes `left` and `right` must have the same sort, and must be int or real.
-    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> LEZ3 {
+    /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
+    /// 
+    /// NOTE: See macro! lez3!
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_le(ctx.r, left, right)
         };
-        LEZ3 {
-            ctx,
-            left,
-            right,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            }
-        }
+        LEZ3 {ctx, left, right, r: z3}.r
     }
 }
 
 impl <'ctx> LTZ3<'ctx> {
     /// Create less than.
     ///
-    /// The nodes `left` and `right` must have the same sort, and must be int or real.
-    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> LTZ3 {
+    /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
+    /// 
+    /// NOTE: See macro! ltz3!
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_lt(ctx.r, left, right)
         };
-        LTZ3 {
-            ctx,
-            left,
-            right,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            }
-        }
+        LTZ3 {ctx, left, right, r: z3}.r
     }
 }
 
 impl <'ctx> GEZ3<'ctx> {
     /// Create greater than or equal to.
     ///
-    /// The nodes `left` and `right` must have the same sort, and must be int or real.
-    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> GEZ3 {
+    /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
+    /// 
+    /// NOTE: See macro! gez3!
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_ge(ctx.r, left, right)
         };
-        GEZ3 {
-            ctx,
-            left,
-            right,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            }
-        }
+        GEZ3 {ctx, left, right, r: z3}.r
     }
 }
 
 impl <'ctx> GTZ3<'ctx> {
     /// Create greater than or equal to.
     ///
-    /// The nodes `left` and `right` must have the same sort, and must be int or real.
-    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> GTZ3 {
+    /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
+    /// 
+    /// NOTE: See macro! gtz3!
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_gt(ctx.r, left, right)
         };
-        GTZ3 {
-            ctx,
-            left,
-            right,
-            r: z3,
-            s: unsafe {
-                CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-            }
-        }
+        GTZ3 {ctx, left, right, r: z3}.r
     }
 }
 
@@ -161,11 +126,11 @@ impl <'ctx> GTZ3<'ctx> {
 /// Requires that a and b are of the same sort.
 #[macro_export]
 macro_rules! eqz3 {
-    ($a:expr, $b:expr) => {
-        EQZ3::new(&CTX, $a, $b).r
-    };
+    // ($a:expr, $b:expr) => {
+    //     EQZ3::new(&CTX, $a, $b).r
+    // };
     ($ctx:expr, $b:expr, $c:expr) => {
-        EQZ3::new($ctx, $b, $c).r
+        EQZ3::new($ctx, $b, $c)
     }
 }
 
@@ -186,11 +151,11 @@ macro_rules! eqz3 {
 /// Requires that a and b are of the same sort.
 #[macro_export]
 macro_rules! lez3 {
-    ($a:expr, $b:expr) => {
-        LEZ3::new(&CTX, $a, $b).r
-    };
+    // ($a:expr, $b:expr) => {
+    //     LEZ3::new(&CTX, $a, $b).r
+    // };
     ($ctx:expr, $b:expr, $c:expr) => {
-        LEZ3::new($ctx, $b, $c).r
+        LEZ3::new($ctx, $b, $c)
     }
 }
 
@@ -211,11 +176,11 @@ macro_rules! lez3 {
 /// Requires that a and b are of the same sort.
 #[macro_export]
 macro_rules! ltz3 {
-    ($a:expr, $b:expr) => {
-        LTZ3::new(&CTX, $a, $b).r
-    };
+    // ($a:expr, $b:expr) => {
+    //     LTZ3::new(&CTX, $a, $b).r
+    // };
     ($ctx:expr, $b:expr, $c:expr) => {
-        LTZ3::new($ctx, $b, $c).r
+        LTZ3::new($ctx, $b, $c)
     }
 }
 
@@ -236,11 +201,11 @@ macro_rules! ltz3 {
 /// Requires that a and b are of the same sort.
 #[macro_export]
 macro_rules! gez3 {
-    ($a:expr, $b:expr) => {
-        GEZ3::new(&CTX, $a, $b).r
-    };
+    // ($a:expr, $b:expr) => {
+    //     GEZ3::new(&CTX, $a, $b).r
+    // };
     ($ctx:expr, $b:expr, $c:expr) => {
-        GEZ3::new($ctx, $b, $c).r
+        GEZ3::new($ctx, $b, $c)
     }
 }
 
@@ -261,11 +226,11 @@ macro_rules! gez3 {
 /// Requires that a and b are of the same sort.
 #[macro_export]
 macro_rules! gtz3 {
-    ($a:expr, $b:expr) => {
-        GTZ3::new(&CTX, $a, $b).r
-    };
+    // ($a:expr, $b:expr) => {
+    //     GTZ3::new(&CTX, $a, $b).r
+    // };
     ($ctx:expr, $b:expr, $c:expr) => {
-        GTZ3::new($ctx, $b, $c).r
+        GTZ3::new($ctx, $b, $c)
     }
 }
 
@@ -281,20 +246,15 @@ fn test_new_eq(){
     let int1 = IntZ3::new(&ctx, &intsort, 7);
     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = EQZ3::new(&ctx, x.r, int1.r);
-    let rel2 = EQZ3::new(&ctx, y.r, real1.r);
-    let rel3 = EQZ3::new(&ctx, y.r, x.r);
-    let rel4 = EQZ3::new(&ctx, int1.r, real1.r);
+    let rel1 = EQZ3::new(&ctx, x, int1);
+    let rel2 = EQZ3::new(&ctx, y, real1);
+    let rel3 = EQZ3::new(&ctx, y, x);
+    let rel4 = EQZ3::new(&ctx, int1, real1);
 
-    let string1 = rel1.s;
-    let string2 = rel2.s;
-    let string3 = rel3.s;
-    let string4 = rel4.s;
-
-    assert_eq!("(= x 7)", string1);
-    assert_eq!("(= y (- (/ 271549371.0 500000.0)))", string2);
-    assert_eq!("(= y (to_real x))", string3);
-    assert_eq!("(= (to_real 7) (- (/ 271549371.0 500000.0)))", string4);
+    assert_eq!("(= x 7)", strz3!(ctx.r, rel1));
+    assert_eq!("(= y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
+    assert_eq!("(= y (to_real x))", strz3!(ctx.r, rel3));
+    assert_eq!("(= (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
 }
 
 #[test]
@@ -309,20 +269,15 @@ fn test_new_le(){
     let int1 = IntZ3::new(&ctx, &intsort, 7);
     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = LEZ3::new(&ctx, x.r, int1.r);
-    let rel2 = LEZ3::new(&ctx, y.r, real1.r);
-    let rel3 = LEZ3::new(&ctx, y.r, x.r);
-    let rel4 = LEZ3::new(&ctx, int1.r, real1.r);
+    let rel1 = LEZ3::new(&ctx, x, int1);
+    let rel2 = LEZ3::new(&ctx, y, real1);
+    let rel3 = LEZ3::new(&ctx, y, x);
+    let rel4 = LEZ3::new(&ctx, int1, real1);
 
-    let string1 = rel1.s;
-    let string2 = rel2.s;
-    let string3 = rel3.s;
-    let string4 = rel4.s;
-
-    assert_eq!("(<= x 7)", string1);
-    assert_eq!("(<= y (- (/ 271549371.0 500000.0)))", string2);
-    assert_eq!("(<= y (to_real x))", string3);
-    assert_eq!("(<= (to_real 7) (- (/ 271549371.0 500000.0)))", string4);
+    assert_eq!("(<= x 7)", strz3!(ctx.r, rel1));
+    assert_eq!("(<= y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
+    assert_eq!("(<= y (to_real x))", strz3!(ctx.r, rel3));
+    assert_eq!("(<= (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
 }
 
 #[test]
@@ -337,20 +292,15 @@ fn test_new_lt(){
     let int1 = IntZ3::new(&ctx, &intsort, 7);
     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = LTZ3::new(&ctx, x.r, int1.r);
-    let rel2 = LTZ3::new(&ctx, y.r, real1.r);
-    let rel3 = LTZ3::new(&ctx, y.r, x.r);
-    let rel4 = LTZ3::new(&ctx, int1.r, real1.r);
+    let rel1 = LTZ3::new(&ctx, x, int1);
+    let rel2 = LTZ3::new(&ctx, y, real1);
+    let rel3 = LTZ3::new(&ctx, y, x);
+    let rel4 = LTZ3::new(&ctx, int1, real1);
 
-    let string1 = rel1.s;
-    let string2 = rel2.s;
-    let string3 = rel3.s;
-    let string4 = rel4.s;
-
-    assert_eq!("(< x 7)", string1);
-    assert_eq!("(< y (- (/ 271549371.0 500000.0)))", string2);
-    assert_eq!("(< y (to_real x))", string3);
-    assert_eq!("(< (to_real 7) (- (/ 271549371.0 500000.0)))", string4);
+    assert_eq!("(< x 7)", strz3!(ctx.r, rel1));
+    assert_eq!("(< y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
+    assert_eq!("(< y (to_real x))", strz3!(ctx.r, rel3));
+    assert_eq!("(< (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
 }
 
 #[test]
@@ -365,20 +315,15 @@ fn test_new_ge(){
     let int1 = IntZ3::new(&ctx, &intsort, 7);
     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = GEZ3::new(&ctx, x.r, int1.r);
-    let rel2 = GEZ3::new(&ctx, y.r, real1.r);
-    let rel3 = GEZ3::new(&ctx, y.r, x.r);
-    let rel4 = GEZ3::new(&ctx, int1.r, real1.r);
+    let rel1 = GEZ3::new(&ctx, x, int1);
+    let rel2 = GEZ3::new(&ctx, y, real1);
+    let rel3 = GEZ3::new(&ctx, y, x);
+    let rel4 = GEZ3::new(&ctx, int1, real1);
 
-    let string1 = rel1.s;
-    let string2 = rel2.s;
-    let string3 = rel3.s;
-    let string4 = rel4.s;
-
-    assert_eq!("(>= x 7)", string1);
-    assert_eq!("(>= y (- (/ 271549371.0 500000.0)))", string2);
-    assert_eq!("(>= y (to_real x))", string3);
-    assert_eq!("(>= (to_real 7) (- (/ 271549371.0 500000.0)))", string4);
+    assert_eq!("(>= x 7)", strz3!(ctx.r, rel1));
+    assert_eq!("(>= y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
+    assert_eq!("(>= y (to_real x))", strz3!(ctx.r, rel3));
+    assert_eq!("(>= (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
 }
 
 #[test]
@@ -393,18 +338,13 @@ fn test_new_gt(){
     let int1 = IntZ3::new(&ctx, &intsort, 7);
     let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
 
-    let rel1 = GTZ3::new(&ctx, x.r, int1.r);
-    let rel2 = GTZ3::new(&ctx, y.r, real1.r);
-    let rel3 = GTZ3::new(&ctx, y.r, x.r);
-    let rel4 = GTZ3::new(&ctx, int1.r, real1.r);
+    let rel1 = GTZ3::new(&ctx, x, int1);
+    let rel2 = GTZ3::new(&ctx, y, real1);
+    let rel3 = GTZ3::new(&ctx, y, x);
+    let rel4 = GTZ3::new(&ctx, int1, real1);
 
-    let string1 = rel1.s;
-    let string2 = rel2.s;
-    let string3 = rel3.s;
-    let string4 = rel4.s;
-
-    assert_eq!("(> x 7)", string1);
-    assert_eq!("(> y (- (/ 271549371.0 500000.0)))", string2);
-    assert_eq!("(> y (to_real x))", string3);
-    assert_eq!("(> (to_real 7) (- (/ 271549371.0 500000.0)))", string4);
+    assert_eq!("(> x 7)", strz3!(ctx.r, rel1));
+    assert_eq!("(> y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
+    assert_eq!("(> y (to_real x))", strz3!(ctx.r, rel3));
+    assert_eq!("(> (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
 }

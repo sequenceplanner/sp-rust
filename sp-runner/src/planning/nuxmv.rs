@@ -335,7 +335,7 @@ fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
 }
 
 fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)> {
-    let process = Command::new("nuxmv")
+    let process = Command::new("nuXmv")
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())
