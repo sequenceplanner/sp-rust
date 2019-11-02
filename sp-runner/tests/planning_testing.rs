@@ -1,5 +1,6 @@
 use sp_domain::*;
 use sp_runner::*;
+use sp_runner_api::*;
 
 #[test]
 fn plan_fail_1_step() {
@@ -83,4 +84,68 @@ fn planner_debug_printouts() {
         println!("ACTION: {:?}", f.ctrl);
         println!("-------");
     }
+}
+
+fn model_with_spec() -> (RunnerModel, SPState) {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+
+    let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
+    let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+
+    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
+    let table_zone = Predicate::NOT(Box::new(table_zone));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+
+    let s = make_initial_state(&m);
+    let rm = make_runner_model(&m);
+    (rm, s)
+}
+
+fn model_without_spec() -> (RunnerModel, SPState) {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+
+    let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
+    let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+
+    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
+    let table_zone = Predicate::NOT(Box::new(table_zone));
+    // m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+
+    let s = make_initial_state(&m);
+    let rm = make_runner_model(&m);
+    (rm, s)
+}
+
+#[test]
+fn planner_fail_due_to_conflicting_specs_and_goal() {
+    let (model, state) = model_with_spec();
+    let state = state.external();
+
+    let r1_p_a = model.model.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
+    let r2_p_a = model.model.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+
+    let goal = pr!{{p!(r1_p_a == "at")} && {p!(r2_p_a == "at")}};
+
+    let result = compute_plan(&goal, &state, &model, 20);
+    assert!(!result.plan_found);
+}
+
+#[test]
+fn planner_succeed_when_no_conflicting_spec_and_goal() {
+    let (model, state) = model_without_spec();
+    let state = state.external();
+
+    let r1_p_a = model.model.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
+    let r2_p_a = model.model.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+
+    let goal = pr!{{p!(r1_p_a == "at")} && {p!(r2_p_a == "at")}};
+
+    let result = compute_plan(&goal, &state, &model, 20);
+    assert!(result.plan_found);
 }

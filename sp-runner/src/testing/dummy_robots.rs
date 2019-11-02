@@ -13,7 +13,7 @@ fn pred_true(name: &str) -> Predicate {
     )
 }
 
-fn make_dummy_robot(name: &str) -> Resource {
+pub fn make_dummy_robot(name: &str) -> Resource {
     let command_msg = Message::new_with_type(
         "dr_c".into(),
         "dummy_robot_messages/msg/Control".into(),
@@ -234,7 +234,7 @@ pub fn one_dummy_robot() -> (RunnerModel, SPState) {
     (rm, s)
 }
 
-fn add_op(m: &mut Model, name: &str, pre: Predicate, post: Predicate) -> SPPath {
+fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate, post_actions: Vec<Action>) -> SPPath {
     let op_state = Variable::new(
         name,
         VariableType::Estimated,
@@ -256,10 +256,17 @@ fn add_op(m: &mut Model, name: &str, pre: Predicate, post: Predicate) -> SPPath 
         vec![],
         true,
     );
+    let mut f_actions =
+        if resets {
+            vec![a!(op_state = "i")]
+        } else {
+            vec![a!(op_state = "f")]
+        };
+    f_actions.extend(post_actions);
     let op_finish = Transition::new(
         "finish",
         Predicate::AND(vec![p!(op_state == "e"), post.clone()]),
-        vec![a!(op_state = "f")],
+        f_actions,
         vec![],
         false,
     );
@@ -287,18 +294,24 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
     let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
-    let r1_to_at = add_op(&mut m, "r1_to_at", p!(r1_p_a != "at"), p!(r1_p_a == "at"));
-    let r1_to_away = add_op(&mut m, "r1_to_away",
-                            pr!{{p!(r1_p_a != "away")} && {p!(r1_to_at == "f")}},
-                            p!(r1_p_a == "away"));
 
-    let r2_to_at = add_op(&mut m, "r2_to_at",
-                          pr!{{p!(r2_p_a != "at")} && {p!(r1_to_away == "f")}},
-                          p!(r2_p_a == "at"));
+    // Specifications
+    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
+    let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
+    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
-    let r1_to_away = add_op(&mut m, "r2_to_away",
-                            pr!{{p!(r2_p_a != "away")} && {p!(r2_to_at == "f")}},
-                            p!(r2_p_a == "away"));
+    // Operations
+    let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(r1_p_a != "at"), p!(r1_p_a == "at"), vec![]);
+
+    let r2_to_at = add_op(&mut m, "r2_to_at", false,
+                          pr!{{p!(r2_p_a != "at")} && {p!(r1_p_a == "at")}}, // can start when r1 is at "at". what will happen?
+                          p!(r2_p_a == "at"), vec![]);
+
+    // reset previous ops so we can start over
+    let both_to_away = add_op(&mut m, "both_to_away", true,
+                              pr!{{p!(r1_to_at == "f")} && {p!(r2_to_at == "f")}},
+                              pr!{{p!(r1_p_a == "away")} && {p!(r2_p_a == "away")}},
+                              vec![a!(r1_to_at = "i"), a!(r2_to_at = "i")]);
 
     // Make it runnable
     let s = make_initial_state(&m);

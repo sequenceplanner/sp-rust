@@ -520,6 +520,10 @@ mod sp_value_test {
         let x = pr! {p2 && p && p && p};
         println!("TEST2: {:?}", x);
 
+        // not doesnt work...
+        // let nx = pr! { !{p2 && p && p && p}};
+        // println!("TEST2: {:?}", nx);
+
         let y = pr! {{p!{{["a", "b"]} == 10}} && {p!{{["a", "b"]} == 20}}};
         println!("TEST3: {:?}", y);
 
