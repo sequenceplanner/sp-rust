@@ -1,6 +1,5 @@
 //! Z3 logical operations for SP
 
-use std::ffi::{CStr};
 use z3_sys::*;
 use super::*;
 

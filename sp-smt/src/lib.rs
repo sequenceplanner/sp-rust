@@ -1,7 +1,7 @@
 //! # Z3 prover for SP
 
-#[macro_use]
-extern crate lazy_static;
+// #[macro_use]
+// extern crate lazy_static;
 
 pub mod z3config;
 pub use crate::z3config::{ConfigZ3, SetParamZ3}; // CFG, Z3_MUTEX};
