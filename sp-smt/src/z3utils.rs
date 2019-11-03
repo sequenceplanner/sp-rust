@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
-// Z3 AST to readable string
+/// Z3 AST to readable string
 #[macro_export]
 macro_rules! ast_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -38,47 +38,24 @@ macro_rules! model_to_string_z3 {
 //     }};
 // }
 
-#[macro_export]
-macro_rules! f {
-    ($($arg:expr),*) => {{
-        trait PrintInteger {
-            fn as_printed(&self) -> &'static str {
-                "Integer"
-            }
-        }
-        impl PrintInteger for i32 {}
-        trait PrintOther {
-            fn as_printed(&self) -> &Self {
-                self
-            }
-        }
-        impl<T: std::fmt::Display> PrintOther for &T {}
-        $(
-            println!("{}", (&$arg).as_printed());
-        )*
-    }};
-}
+// #[macro_export]
+// macro_rules! f {
+//     ($($arg:expr),*) => {{
+//         trait PrintInteger {
+//             fn as_printed(&self) -> &'static str {
+//                 "Integer"
+//             }
+//         }
+//         impl PrintInteger for i32 {}
+//         trait PrintOther {
+//             fn as_printed(&self) -> &Self {
+//                 self
+//             }
+//         }
+//         impl<T: std::fmt::Display> PrintOther for &T {}
+//         $(
+//             println!("{}", (&$arg).as_printed());
+//         )*
+//     }};
+// }
 
-/// Z3 set configuration parameters 
-/// 
-/// Macro rule for:
-/// ```text
-/// SetParamZ3::new(&cfg, param, value)
-/// ```
-/// Using the global configuration:
-/// ```text
-/// scpz3!(param, value)
-/// ```
-/// Using a specific configuration:
-/// ```text
-/// scpz3!(&cfg, param, value)
-/// ```
-#[macro_export]
-macro_rules! cspz3 {
-    // ($p:expr, $v:expr) => {
-    //     SetParamZ3::new(&CFG, param, value)
-    // };
-    ($cfg:expr, $p:expr, $v:expr) => {
-        SetParamZ3::new($cfg, param, value)
-    }
-}

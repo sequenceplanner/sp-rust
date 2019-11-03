@@ -118,6 +118,7 @@ impl Drop for ConfigZ3 {
 //     }
 // }
 
+/// Create a configuration object for the Z3 context object.
 #[macro_export]
 macro_rules! cfgz3 {
     () => {
@@ -125,6 +126,7 @@ macro_rules! cfgz3 {
     }
 }
 
+/// Set a configuration parameter.
 #[macro_export]
 macro_rules! set_param_z3 {
     ($a:expr, $b:expr, $c:expr) => {

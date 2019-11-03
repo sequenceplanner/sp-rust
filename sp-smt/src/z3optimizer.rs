@@ -37,7 +37,7 @@ pub struct OptCheckZ3<'ctx, 'opt> {
     pub r: Z3_lbool
 }
 
-pub struct GetOptModelZ3<'ctx, 'opt> {
+pub struct OptGetModelZ3<'ctx, 'opt> {
     pub ctx: &'ctx ContextZ3,
     pub opt: &'opt OptimizerZ3<'ctx>,
     pub r: Z3_model
@@ -117,7 +117,7 @@ impl <'ctx, 'opt> OptCheckZ3<'ctx, 'opt> {
     }
 }
 
-impl<'ctx, 'opt> GetOptModelZ3<'ctx, 'opt> {
+impl<'ctx, 'opt> OptGetModelZ3<'ctx, 'opt> {
     /// Retrieve the model for the last `OptCheckZ3::new`
     ///
     /// The error handler is invoked if a model is not available because
@@ -129,7 +129,7 @@ impl<'ctx, 'opt> GetOptModelZ3<'ctx, 'opt> {
         let z3 = unsafe {
             Z3_optimize_get_model(ctx.r, opt.r)
         };
-        GetOptModelZ3 {ctx, r: z3, opt}.r
+        OptGetModelZ3 {ctx, r: z3, opt}.r
     }
 }
 
@@ -279,7 +279,7 @@ macro_rules! opt_check_z3 {
 #[macro_export]
 macro_rules! opt_get_model_z3 {
     ($ctx:expr, $a:expr) => {
-        GetOptModelZ3::new($ctx, $a)
+        OptGetModelZ3::new($ctx, $a)
     }
 }
 

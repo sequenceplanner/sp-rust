@@ -58,6 +58,7 @@ impl Drop for ContextZ3 {
 //     };
 // }
 
+/// Create a context using the given configuration.
 #[macro_export]
 macro_rules! ctxz3 {
     ($a:expr) => {
