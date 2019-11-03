@@ -456,7 +456,7 @@ fn test_new_mul(){
    (to_real 7)
    (to_real (- 1012))
    (/ 920241.0 125000.0)
-   (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(ctx.r, mul1));
+   (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(&ctx, mul1));
 }
 
 #[test]
@@ -480,11 +480,11 @@ fn test_new_div(){
     let div4 = DIVZ3::new(&ctx, x3, int1);
     let div5 = DIVZ3::new(&ctx, x3, real1);
 
-    assert_eq!("(div 7 (- 1012))", ast_to_string_z3!(ctx.r, div1));
-    assert_eq!("(div 7 (to_int (- (/ 59024591.0 250000.0))))", ast_to_string_z3!(ctx.r, div2));
-    assert_eq!("(div x1 (to_int (- (/ 59024591.0 250000.0))))", ast_to_string_z3!(ctx.r, div3));
-    assert_eq!("(/ x3 (to_real 7))", ast_to_string_z3!(ctx.r, div4));
-    assert_eq!("(/ x3 (/ 920241.0 125000.0))", ast_to_string_z3!(ctx.r, div5));
+    assert_eq!("(div 7 (- 1012))", ast_to_string_z3!(&ctx, div1));
+    assert_eq!("(div 7 (to_int (- (/ 59024591.0 250000.0))))", ast_to_string_z3!(&ctx, div2));
+    assert_eq!("(div x1 (to_int (- (/ 59024591.0 250000.0))))", ast_to_string_z3!(&ctx, div3));
+    assert_eq!("(/ x3 (to_real 7))", ast_to_string_z3!(&ctx, div4));
+    assert_eq!("(/ x3 (/ 920241.0 125000.0))", ast_to_string_z3!(&ctx, div5));
 }
 
 #[test]
@@ -504,10 +504,10 @@ fn test_new_mod(){
     let mod3 = MODZ3::new(&ctx, x1, int1);
     let mod4 = MODZ3::new(&ctx, int2, x2);
 
-    assert_eq!("(mod 7 (- 1012))", ast_to_string_z3!(ctx.r, mod1));
-    assert_eq!("(mod x1 x2)", ast_to_string_z3!(ctx.r, mod2));
-    assert_eq!("(mod x1 7)", ast_to_string_z3!(ctx.r, mod3));
-    assert_eq!("(mod (- 1012) x2)", ast_to_string_z3!(ctx.r, mod4));
+    assert_eq!("(mod 7 (- 1012))", ast_to_string_z3!(&ctx, mod1));
+    assert_eq!("(mod x1 x2)", ast_to_string_z3!(&ctx, mod2));
+    assert_eq!("(mod x1 7)", ast_to_string_z3!(&ctx, mod3));
+    assert_eq!("(mod (- 1012) x2)", ast_to_string_z3!(&ctx, mod4));
 }
 
 #[test]
@@ -527,10 +527,10 @@ fn test_new_rem(){
     let rem3 = REMZ3::new(&ctx, x1, int1);
     let rem4 = REMZ3::new(&ctx, int2, x2);
 
-    assert_eq!("(rem 7 (- 1012))", ast_to_string_z3!(ctx.r, rem1));
-    assert_eq!("(rem x1 x2)", ast_to_string_z3!(ctx.r, rem2));
-    assert_eq!("(rem x1 7)", ast_to_string_z3!(ctx.r, rem3));
-    assert_eq!("(rem (- 1012) x2)", ast_to_string_z3!(ctx.r, rem4));
+    assert_eq!("(rem 7 (- 1012))", ast_to_string_z3!(&ctx, rem1));
+    assert_eq!("(rem x1 x2)", ast_to_string_z3!(&ctx, rem2));
+    assert_eq!("(rem x1 7)", ast_to_string_z3!(&ctx, rem3));
+    assert_eq!("(rem (- 1012) x2)", ast_to_string_z3!(&ctx, rem4));
 }
 
 #[test]
@@ -559,7 +559,7 @@ fn test_new_add(){
    (to_real 7)
    (to_real (- 1012))
    (/ 920241.0 125000.0)
-   (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(ctx.r, add1));
+   (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(&ctx, add1));
 }
 
 #[test]
@@ -583,7 +583,7 @@ fn test_new_sub(){
 
     assert_eq!("(- (- (- (- (- (- (to_real (- x1 x2)) x3) x4) (to_real 7)) (to_real (- 1012)))
       (/ 920241.0 125000.0))
-   (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(ctx.r, sub1));
+   (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(&ctx, sub1));
 }
 
 #[test]
@@ -606,11 +606,11 @@ fn test_new_neg(){
     let neg4 = NEGZ3::new(&ctx, real2);
     let neg5 = NEGZ3::new(&ctx, x1);
 
-    assert_eq!("(- 7)", ast_to_string_z3!(ctx.r, neg1));
-    assert_eq!("(- (- 1012))", ast_to_string_z3!(ctx.r, neg2));
-    assert_eq!("(- (/ 920241.0 125000.0))", ast_to_string_z3!(ctx.r, neg3));
-    assert_eq!("(- (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(ctx.r, neg4));
-    assert_eq!("(- x1)", ast_to_string_z3!(ctx.r, neg5));
+    assert_eq!("(- 7)", ast_to_string_z3!(&ctx, neg1));
+    assert_eq!("(- (- 1012))", ast_to_string_z3!(&ctx, neg2));
+    assert_eq!("(- (/ 920241.0 125000.0))", ast_to_string_z3!(&ctx, neg3));
+    assert_eq!("(- (- (/ 59024591.0 250000.0)))", ast_to_string_z3!(&ctx, neg4));
+    assert_eq!("(- x1)", ast_to_string_z3!(&ctx, neg5));
 }
 
 #[test]
@@ -630,10 +630,10 @@ fn test_new_pow(){
     let pow3 = POWZ3::new(&ctx, x1, int1);
     let pow4 = POWZ3::new(&ctx, int2, x2);
 
-    assert_eq!("(^ 7 (- 1012))", ast_to_string_z3!(ctx.r, pow1));
-    assert_eq!("(^ x1 x2)", ast_to_string_z3!(ctx.r, pow2));
-    assert_eq!("(^ x1 7)", ast_to_string_z3!(ctx.r, pow3));
-    assert_eq!("(^ (- 1012) x2)", ast_to_string_z3!(ctx.r, pow4));
+    assert_eq!("(^ 7 (- 1012))", ast_to_string_z3!(&ctx, pow1));
+    assert_eq!("(^ x1 x2)", ast_to_string_z3!(&ctx, pow2));
+    assert_eq!("(^ x1 7)", ast_to_string_z3!(&ctx, pow3));
+    assert_eq!("(^ (- 1012) x2)", ast_to_string_z3!(&ctx, pow4));
 }
 
 #[test]
@@ -645,7 +645,7 @@ fn test_mul_macro_1(){
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y")
     );
-    assert_eq!("(* x 142 y)", ast_to_string_z3!(ctx.r, mul1));
+    assert_eq!("(* x 142 y)", ast_to_string_z3!(&ctx, mul1));
 }
 
 #[test]
@@ -656,7 +656,7 @@ fn test_div_macro_1(){
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
-    assert_eq!("(div x 142)", ast_to_string_z3!(ctx.r, div1));
+    assert_eq!("(div x 142)", ast_to_string_z3!(&ctx, div1));
 }
 
 #[test]
@@ -667,7 +667,7 @@ fn test_mod_macro_1(){
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
-    assert_eq!("(mod x 142)", ast_to_string_z3!(ctx.r, mod1));
+    assert_eq!("(mod x 142)", ast_to_string_z3!(&ctx, mod1));
 }
 
 #[test]
@@ -678,7 +678,7 @@ fn test_rem_macro_1(){
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
-    assert_eq!("(rem x 142)", ast_to_string_z3!(ctx.r, rem1));
+    assert_eq!("(rem x 142)", ast_to_string_z3!(&ctx, rem1));
 }
 
 #[test]
@@ -691,7 +691,7 @@ fn test_add_macro_1(){
         int_var_z3!(&ctx, "y"),
         int_z3!(&ctx, 1213442)
     );
-    assert_eq!("(+ x 142 y 1213442)", ast_to_string_z3!(ctx.r, add1));
+    assert_eq!("(+ x 142 y 1213442)", ast_to_string_z3!(&ctx, add1));
 }
 
 #[test]
@@ -704,7 +704,7 @@ fn test_sub_macro_1(){
         int_var_z3!(&ctx, "y"),
         int_z3!(&ctx, 1213442)
     );
-    assert_eq!("(- (- (- x 142) y) 1213442)", ast_to_string_z3!(ctx.r, sub1));
+    assert_eq!("(- (- (- x 142) y) 1213442)", ast_to_string_z3!(&ctx, sub1));
 }
 
 #[test]
@@ -714,7 +714,7 @@ fn test_neg_macro_1(){
     let neg1 = negz3!(&ctx,
         int_z3!(&ctx, 1213442)
     );
-    assert_eq!("(- 1213442)", ast_to_string_z3!(ctx.r, neg1));
+    assert_eq!("(- 1213442)", ast_to_string_z3!(&ctx, neg1));
 }
 
 #[test]
@@ -725,5 +725,5 @@ fn test_pow_macro_1(){
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
-    assert_eq!("(^ x 142)", ast_to_string_z3!(ctx.r, pow1));
+    assert_eq!("(^ x 142)", ast_to_string_z3!(&ctx, pow1));
 }

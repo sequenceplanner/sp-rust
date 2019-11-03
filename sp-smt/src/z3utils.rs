@@ -4,13 +4,47 @@ use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
+pub struct AstToStringZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub what: Z3_ast,
+    pub r: String
+}
+
+pub struct ModelToStringZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub what: Z3_model,
+    pub r: String
+}
+
+impl<'ctx> AstToStringZ3<'ctx> {
+    /// Z3 optimizer to readable string
+    /// 
+    /// NOTE: See macro! ast_to_string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, what: Z3_ast) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_ast_to_string(ctx.r, what)).to_str().unwrap().to_owned()
+        };
+        AstToStringZ3 {ctx, what, r: z3}.r
+    }
+}
+
+impl<'ctx> ModelToStringZ3<'ctx> {
+    /// Z3 optimizer to readable string
+    /// 
+    /// NOTE: See macro! model_to_string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, what: Z3_model) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_model_to_string(ctx.r, what)).to_str().unwrap().to_owned()
+        };
+        ModelToStringZ3 {ctx, what, r: z3}.r
+    }
+}
+
 /// Z3 AST to readable string
 #[macro_export]
 macro_rules! ast_to_string_z3 {
     ($ctx:expr, $a:expr) => {
-        unsafe {
-            CStr::from_ptr(Z3_ast_to_string($ctx, $a)).to_str().unwrap().to_owned()
-        }
+        AstToStringZ3::new($ctx, $a)
     }
 }
 
@@ -18,44 +52,6 @@ macro_rules! ast_to_string_z3 {
 #[macro_export]
 macro_rules! model_to_string_z3 {
     ($ctx:expr, $a:expr) => {
-        unsafe {
-            CStr::from_ptr(Z3_model_to_string($ctx, $a)).to_str().unwrap().to_owned()
-        }
+        ModelToStringZ3::new($ctx, $a)
     }
 }
-
-// #[macro_export]
-// macro_rules! inf_z3_type {
-//     ($arg:expr) => {{
-//         trait InferIntegerZ3 {
-//             fn infer($arg) -> Z3_ast {
-//                 ivlz3!($arg)
-//             }
-//         }
-//         impl InferIntegerZ3 for i32 {
-//             ivlz3!($arg)
-//         }
-//     }};
-// }
-
-// #[macro_export]
-// macro_rules! f {
-//     ($($arg:expr),*) => {{
-//         trait PrintInteger {
-//             fn as_printed(&self) -> &'static str {
-//                 "Integer"
-//             }
-//         }
-//         impl PrintInteger for i32 {}
-//         trait PrintOther {
-//             fn as_printed(&self) -> &Self {
-//                 self
-//             }
-//         }
-//         impl<T: std::fmt::Display> PrintOther for &T {}
-//         $(
-//             println!("{}", (&$arg).as_printed());
-//         )*
-//     }};
-// }
-

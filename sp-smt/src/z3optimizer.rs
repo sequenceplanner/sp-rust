@@ -43,6 +43,12 @@ pub struct OptGetModelZ3<'ctx, 'opt> {
     pub r: Z3_model
 }
 
+pub struct OptGetStringZ3<'ctx, 'opt> {
+    pub ctx: &'ctx ContextZ3,
+    pub opt: &'opt OptimizerZ3<'ctx>,
+    pub r: String
+}
+
 impl <'ctx> OptimizerZ3<'ctx> {
     /// Create a new optimization context.
     /// 
@@ -60,7 +66,7 @@ impl <'ctx> OptimizerZ3<'ctx> {
 impl <'ctx, 'opt> OptAssertZ3<'ctx, 'opt> {
     /// Assert hard constraint to the optimization context.
     /// 
-    /// NOTE: See macro! oasrtz3!
+    /// NOTE: See macro! opt_assert_z3!
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
             Z3_optimize_assert(ctx.r, opt.r, cst);
@@ -106,7 +112,7 @@ impl <'ctx, 'opt> OptCheckZ3<'ctx, 'opt> {
     /// - `opt`: - optimization context
     /// - `args`: - vector of additional assumptions
     /// 
-    /// NOTE: See macro! ocheckz3!
+    /// NOTE: See macro! opt_check_z3!
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>, args: Vec<Z3_ast>) -> Z3_lbool {
         let z3 = unsafe {
             let args_slice = &args;
@@ -124,12 +130,24 @@ impl<'ctx, 'opt> OptGetModelZ3<'ctx, 'opt> {
     /// the commands above were not invoked for the given optimization
     /// solver, or if the result was `Z3_L_FALSE`.
     /// 
-    /// NOTE: See macro! ogetmdlz3!
+    /// NOTE: See macro! opt_get_model_z3!
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>) -> Z3_model {
         let z3 = unsafe {
             Z3_optimize_get_model(ctx.r, opt.r)
         };
         OptGetModelZ3 {ctx, r: z3, opt}.r
+    }
+}
+
+impl<'ctx, 'opt> OptGetStringZ3<'ctx, 'opt> {
+    /// Z3 optimizer to readable string
+    /// 
+    /// NOTE: See macro! opt_get_string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_optimize_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned()
+        };
+        OptGetStringZ3 {ctx, opt, r: z3}.r
     }
 }
 
@@ -287,9 +305,7 @@ macro_rules! opt_get_model_z3 {
 #[macro_export]
 macro_rules! opt_to_string_z3 {
     ($ctx:expr, $a:expr) => {
-        unsafe {
-            CStr::from_ptr(Z3_optimize_to_string($ctx, $a)).to_str().unwrap().to_owned()
-        }
+        OptGetStringZ3::new($ctx, $a)
     }
 }
 
@@ -298,7 +314,7 @@ fn test_new_optimizer(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let opt = OptimizerZ3::new(&ctx);
-    assert_eq!("(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+    assert_eq!("(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 }
 
 #[test]
@@ -318,11 +334,11 @@ fn test_new_oassert(){
     println!("Now we have an assert in the opt context");
     assert_eq!("(declare-fun y () Real)
 (assert (= y (- (/ 271549371.0 500000.0))))
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     println!("Model: Should be empty, no check yet.");
     let model = opt_get_model_z3!(&ctx, &opt);
-    assert_eq!("", model_to_string_z3!(ctx.r, model));
+    assert_eq!("", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -338,14 +354,14 @@ fn test_new_ocheck(){
     let rel1 = EQZ3::new(&ctx, y, real1);
 
     println!("Should print empty string, opt context is still empty.");
-    assert_eq!("(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+    assert_eq!("(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     OptAssertZ3::new(&ctx, &opt, rel1);
 
     println!("Now we have an assert in the opt context");
     assert_eq!("(declare-fun y () Real)
 (assert (= y (- (/ 271549371.0 500000.0))))
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     let res1 = OptCheckZ3::new(&ctx, &opt, vec!());
     println!("This is the return of the check:");
@@ -354,11 +370,11 @@ fn test_new_ocheck(){
     println!("This is the opt context with an assertion after the check:");
     assert_eq!("(declare-fun y () Real)
 (assert (= y (- (/ 271549371.0 500000.0))))
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     println!("Model: Should print the solution, we did a check.");
     let model = opt_get_model_z3!(&ctx, &opt);
-    assert_eq!("y -> (- (/ 271549371.0 500000.0))\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("y -> (- (/ 271549371.0 500000.0))\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -378,7 +394,7 @@ fn test_new_maximize(){
     OptCheckZ3::new(&ctx, &opt, vec!());
 
     let model = opt_get_model_z3!(&ctx, &opt);
-    assert_eq!("x -> 99\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("x -> 99\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -398,7 +414,7 @@ fn test_new_minimize(){
     OptCheckZ3::new(&ctx, &opt, vec!());
 
     let model = opt_get_model_z3!(&ctx, &opt);
-    assert_eq!("x -> 12\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("x -> 12\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -406,7 +422,7 @@ fn test_opt_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let opt = optz3!(&ctx);
-    assert_eq!("(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+    assert_eq!("(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 }
 
 #[test]
@@ -424,7 +440,7 @@ fn test_oot_assert_macro_1(){
 
     assert_eq!("(declare-fun y () Real)
 (assert (= y (- (/ 271549371.0 500000.0))))
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 }
 
 #[test]
@@ -442,7 +458,7 @@ fn test_ocheck_macro_1(){
 
     assert_eq!("(declare-fun y () Real)
 (assert (= y (- (/ 271549371.0 500000.0))))
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     let res1 = opt_check_z3!(&ctx, &opt, );
     println!("{}", res1);
@@ -465,13 +481,13 @@ fn test_omax_macro_1(){
     assert_eq!("(declare-fun y () Real)
 (assert (< y 100.0))
 (maximize y)
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     let res1 = opt_check_z3!(&ctx, &opt, );
     println!("{}", res1);
 
     let model = opt_get_model_z3!(&ctx, &opt);
-    assert_eq!("y -> 99.0\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("y -> 99.0\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -491,11 +507,11 @@ fn test_omin_macro_1(){
     assert_eq!("(declare-fun y () Real)
 (assert (> y 11.0))
 (minimize y)
-(check-sat)\n", opt_to_string_z3!(ctx.r, opt.r));
+(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 
     let res1 = opt_check_z3!(&ctx, &opt, );
     println!("{}", res1);
 
     let model = opt_get_model_z3!(&ctx, &opt);
-    assert_eq!("y -> 12.0\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("y -> 12.0\n", model_to_string_z3!(&ctx, model));
 }

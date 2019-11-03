@@ -60,6 +60,24 @@ pub struct SlvGetUnsatCoreZ3<'ctx, 'slv> {
     pub r: Z3_ast_vector
 }
 
+pub struct SlvToStringZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: String
+}
+
+pub struct SlvUnsatCoreToStringZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub core: Z3_ast_vector,
+    pub r: String
+}
+
+pub struct SlvProofToStringZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub what: Z3_ast,
+    pub r: String
+}
+
 impl <'ctx> SolverZ3<'ctx> {
     /// Create a new solver. This solver is a "combined solver" (see
     /// combined_solver module) that internally uses a non-incremental (solver1) and an
@@ -184,6 +202,42 @@ impl <'ctx, 'slv> SlvGetUnsatCoreZ3<'ctx, 'slv> {
             Z3_solver_get_unsat_core(ctx.r, slv.r)
         };
         SlvGetUnsatCoreZ3 {ctx, slv, r: z3}.r
+    }
+}
+
+impl<'ctx, 'slv> SlvToStringZ3<'ctx, 'slv> {
+    /// Z3 optimizer to readable string
+    /// 
+    /// NOTE: See macro! ast_to_string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_solver_to_string(ctx.r, slv.r)).to_str().unwrap().to_owned()
+        };
+        SlvToStringZ3 {ctx, slv, r: z3}.r
+    }
+}
+
+impl<'ctx> SlvUnsatCoreToStringZ3<'ctx> {
+    /// Z3 optimizer to readable string
+    /// 
+    /// NOTE: See macro! ast_to_string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, core: Z3_ast_vector) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_ast_vector_to_string(ctx.r, core)).to_str().unwrap().to_owned()
+        };
+        SlvUnsatCoreToStringZ3 {ctx, core, r: z3}.r
+    }
+}
+
+impl<'ctx> SlvProofToStringZ3<'ctx> {
+    /// Z3 optimizer to readable string
+    /// 
+    /// NOTE: See macro! ast_to_string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, what: Z3_ast) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_ast_to_string(ctx.r, what)).to_str().unwrap().to_owned()
+        };
+        SlvProofToStringZ3 {ctx, what, r: z3}.r
     }
 }
 
@@ -329,9 +383,7 @@ macro_rules! slv_get_unsat_core_z3 {
 #[macro_export]
 macro_rules! slv_to_string_z3 {
     ($ctx:expr, $a:expr) => {
-        unsafe {
-            CStr::from_ptr(Z3_solver_to_string($ctx, $a)).to_str().unwrap().to_owned()
-        }
+        SlvToStringZ3::new($ctx, $a)
     }
 }
 
@@ -339,9 +391,7 @@ macro_rules! slv_to_string_z3 {
 #[macro_export]
 macro_rules! slv_unsat_core_to_string_z3 {
     ($ctx:expr, $a:expr) => {
-        unsafe {
-            CStr::from_ptr(Z3_ast_vector_to_string($ctx, $a)).to_str().unwrap().to_owned()
-        }
+        SlvUnsatCoreToStringZ3::new($ctx, $a)
     }
 }
 
@@ -349,9 +399,7 @@ macro_rules! slv_unsat_core_to_string_z3 {
 #[macro_export]
 macro_rules! slv_proof_to_string_z3 {
     ($ctx:expr, $a:expr) => {
-        unsafe {
-            CStr::from_ptr(Z3_ast_to_string($ctx, $a)).to_str().unwrap().to_owned()
-        }
+        SlvProofToStringZ3::new($ctx, $a)
     }
 }
 
@@ -360,7 +408,7 @@ fn test_new_solver(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let solv = SolverZ3::new(&ctx);
-    assert_eq!("", slv_to_string_z3!(ctx.r, solv.r));
+    assert_eq!("", slv_to_string_z3!(&ctx, &solv));
 }
 
 #[test]
@@ -377,7 +425,7 @@ fn test_new_solver_assert(){
 
     SlvAssertZ3::new(&ctx, &solv, rel1);
     assert_eq!("(declare-fun y () Real)
-(assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(ctx.r, solv.r));
+(assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(&ctx, &solv));
 }
 
 #[test]
@@ -395,7 +443,7 @@ fn test_new_solver_assert_and_track(){
     SlvAssertAndTrackZ3::new(&ctx, &solv, rel1, "track");
     assert_eq!("(declare-fun y () Real)
 (declare-fun track () Bool)
-(assert (=> track (= y (- (/ 271549371.0 500000.0)))))\n", slv_to_string_z3!(ctx.r, solv.r));
+(assert (=> track (= y (- (/ 271549371.0 500000.0)))))\n", slv_to_string_z3!(&ctx, &solv));
 }
 
 #[test]
@@ -410,12 +458,12 @@ fn test_new_scheck(){
 
     let rel1 = EQZ3::new(&ctx, y, real1);
 
-    assert_eq!("", slv_to_string_z3!(ctx.r, solv.r));
+    assert_eq!("", slv_to_string_z3!(&ctx, &solv));
 
     SlvAssertZ3::new(&ctx, &solv, rel1);
     
     assert_eq!("(declare-fun y () Real)
-(assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(ctx.r, solv.r));
+(assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(&ctx, &solv));
 
     let res1 = SlvCheckZ3::new(&ctx, &solv);
 
@@ -425,10 +473,10 @@ fn test_new_scheck(){
 (assert (= y (- (/ 271549371.0 500000.0))))
 (rmodel->model-converter-wrapper
 y -> (- (/ 271549371.0 500000.0))
-)\n", slv_to_string_z3!(ctx.r, solv.r));
+)\n", slv_to_string_z3!(&ctx, &solv));
 
     let model = slv_get_model_z3!(&ctx, &solv);
-    assert_eq!("y -> (- (/ 271549371.0 500000.0))\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("y -> (- (/ 271549371.0 500000.0))\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -470,7 +518,7 @@ fn get_proof_test() {
                      (monotonicity (rewrite (= (<= 2 x) (>= x 2)))
                                    (= (not (<= 2 x)) (not (>= x 2))))
                      (not (>= x 2)))
-                 false)", slv_proof_to_string_z3!(ctx.r, proof));
+                 false)", slv_proof_to_string_z3!(&ctx, proof));
 
 }
 
@@ -496,7 +544,7 @@ fn get_unsat_core_test() {
     let unsat_core = SlvGetUnsatCoreZ3::new(&ctx, &slv);
     assert_eq!("(ast-vector
   a1
-  a2)", slv_unsat_core_to_string_z3!(ctx.r, unsat_core));
+  a2)", slv_unsat_core_to_string_z3!(&ctx, unsat_core));
 }
 
 #[test]
@@ -504,7 +552,7 @@ fn test_slv_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let slv = slvz3!(&ctx);
-    assert_eq!("", slv_to_string_z3!(ctx.r, slv.r));
+    assert_eq!("", slv_to_string_z3!(&ctx, &slv));
 }
 
 #[test]
@@ -521,7 +569,7 @@ fn test_slv_assert_macro_1(){
     );
 
     assert_eq!("(declare-fun y () Real)
-(assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(ctx.r, slv.r));
+(assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(&ctx, &slv));
 }
 
 #[test]
@@ -540,7 +588,7 @@ fn test_slv_assert_and_track_macro_1(){
 
     assert_eq!("(declare-fun y () Real)
 (declare-fun tracker () Bool)
-(assert (=> tracker (= y (- (/ 271549371.0 500000.0)))))\n", slv_to_string_z3!(ctx.r, slv.r));
+(assert (=> tracker (= y (- (/ 271549371.0 500000.0)))))\n", slv_to_string_z3!(&ctx, &slv));
 }
 
 #[test]
@@ -564,10 +612,10 @@ fn test_slv_check_macro_1(){
 (assert (= y (- (/ 271549371.0 500000.0))))
 (rmodel->model-converter-wrapper
 y -> (- (/ 271549371.0 500000.0))
-)\n", slv_to_string_z3!(ctx.r, slv.r));
+)\n", slv_to_string_z3!(&ctx, &slv));
 
     let model = slv_get_model_z3!(&ctx, &slv);
-    assert_eq!("y -> (- (/ 271549371.0 500000.0))\n", model_to_string_z3!(ctx.r, model));
+    assert_eq!("y -> (- (/ 271549371.0 500000.0))\n", model_to_string_z3!(&ctx, model));
 }
 
 #[test]
@@ -608,7 +656,7 @@ fn test_get_proof_macro_1(){
                      (monotonicity (rewrite (= (<= 2 x) (>= x 2)))
                                    (= (not (<= 2 x)) (not (>= x 2))))
                      (not (>= x 2)))
-                 false)", slv_proof_to_string_z3!(ctx.r, proof));
+                 false)", slv_proof_to_string_z3!(&ctx, proof));
 
 
     slv_assert_z3!(&ctx, &slv,
@@ -696,7 +744,7 @@ fn test_get_proof_macro_1(){
                          (= (not (<= y 300)) (not true)))
            (rewrite (= (not true) false))
            (= (not (<= y 300)) false))
-    false)", slv_proof_to_string_z3!(ctx.r, proof));
+    false)", slv_proof_to_string_z3!(&ctx, proof));
     slv_get_param_descr_z3!(&ctx, &slv);
 }
 
@@ -722,5 +770,5 @@ fn test_get_unsat_core_macro_1() {
     let unsat_core = slv_get_unsat_core_z3!(&ctx, &slv);
     assert_eq!("(ast-vector
   a1
-  a2)", slv_unsat_core_to_string_z3!(ctx.r, unsat_core));
+  a2)", slv_unsat_core_to_string_z3!(&ctx, unsat_core));
 }

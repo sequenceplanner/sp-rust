@@ -11,13 +11,13 @@ pub use crate::z3context::{ContextZ3}; //, CTX};
 
 pub mod z3solver;
 pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvAssertAndTrackZ3, SlvCheckZ3, SlvGetModelZ3, SlvGetParamDescrZ3,
-    SlvGetProofZ3, SlvGetUnsatCoreZ3};
+    SlvGetProofZ3, SlvGetUnsatCoreZ3, SlvToStringZ3, SlvUnsatCoreToStringZ3, SlvProofToStringZ3};
 
 pub mod z3optimizer;
 pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3, OptMinimizeZ3, OptGetModelZ3};
 
 pub mod z3sorts;
-pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3, GetSortZ3};
+pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3, GetSortZ3, SortToStringZ3};
 
 pub mod z3values;
 pub use crate::z3values::{BoolZ3, IntZ3, RealZ3};
@@ -35,4 +35,4 @@ pub mod z3logics;
 pub use crate::z3logics::{ANDZ3, ORZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, XORZ3};
 
 pub mod z3utils;
-pub use crate::z3utils::{};
+pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3};
