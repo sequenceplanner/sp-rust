@@ -1,10 +1,17 @@
 //! Z3 config
 
+use std::ffi::{CStr, CString};
 use z3_sys::*;
 // use std::sync::Mutex;
 
 pub struct ConfigZ3 {
     pub r: Z3_config
+}
+
+pub struct SetParamZ3<'cfg, 'p, 'v> {
+    pub cfg: &'cfg ConfigZ3,
+    pub param: &'p str,
+    pub value: &'v str,
 }
 
 impl ConfigZ3 {
@@ -43,6 +50,35 @@ impl ConfigZ3 {
                 let conf = Z3_mk_config();
                 conf
             }
+        }
+    }
+}
+
+impl<'cfg, 'p, 'v> SetParamZ3<'cfg, 'p, 'v> {
+    /// Set a configuration parameter.
+    ///
+    /// The following parameters can be set:
+    ///
+    /// - proof  (Boolean)           Enable proof generation
+    /// - debug_ref_count (Boolean)  Enable debug support for `Z3_ast` reference counting
+    /// - trace  (Boolean)           Tracing support for VCC
+    /// - trace_file_name (String)   Trace out file for VCC traces
+    /// - timeout (unsigned)         default timeout (in milliseconds) used for solvers
+    /// - well_sorted_check          type checker
+    /// - auto_config                use heuristics to automatically select solver and configure it
+    /// - model                      model generation for solvers, this parameter can be overwritten when creating a solver
+    /// - model_validate             validate models produced by solvers
+    /// - unsat_core                 unsat-core generation for solvers, this parameter can be overwritten when creating a solver
+    /// 
+    /// For example, if the users wishes to use proof
+    /// generation, then call:
+    ///
+    /// `SetParamZ3::new(&ctx, "proof", "true")`
+    pub fn new(cfg: &'cfg ConfigZ3, param: &'p str, value: &'v str) -> () {
+        let str_param = CString::new(param).unwrap();
+        let str_value = CString::new(value).unwrap();
+        unsafe {
+            Z3_set_param_value(cfg.r, str_param.as_ptr(), str_value.as_ptr());
         }
     }
 }
@@ -86,6 +122,13 @@ impl Drop for ConfigZ3 {
 macro_rules! cfgz3 {
     () => {
         ConfigZ3::new()
+    }
+}
+
+#[macro_export]
+macro_rules! set_param_z3 {
+    ($a:expr, $b:expr, $c:expr) => {
+        SetParamZ3::new($a, $b, $c)
     }
 }
 

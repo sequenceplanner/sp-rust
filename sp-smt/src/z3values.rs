@@ -7,33 +7,31 @@ use super::*;
 
 pub struct BoolZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
-    // pub s: String,
     pub r: Z3_ast
 }
 
 pub struct IntZ3<'ctx, 'isrt> {
     pub ctx: &'ctx ContextZ3,
     pub isrt: &'isrt IntSortZ3<'ctx>,
-    // pub s: String,
     pub r: Z3_ast
 }
 
 pub struct RealZ3<'ctx, 'rsrt> {
     pub ctx: &'ctx ContextZ3,
     pub rsrt: &'rsrt RealSortZ3<'ctx>,
-    // pub s: String,
     pub r: Z3_ast
 }
 
 pub struct StringZ3<'ctx, 'a> {
     pub ctx: &'ctx ContextZ3,
     pub val: &'a str,
-    // pub s: String,
     pub r: Z3_ast
 }
 
 impl <'ctx> BoolZ3<'ctx> {
     /// Create an AST node representing `true` or 'false'.
+    /// 
+    /// NOTE: See macro! bool_z3!
     pub fn new(ctx: &'ctx ContextZ3, val: bool) -> Z3_ast {
         let z3 = if val == true { unsafe {
                 Z3_mk_true(ctx.r)
@@ -49,12 +47,10 @@ impl <'ctx, 'isrt> IntZ3<'ctx, 'isrt> {
     /// Create an int constant from a rust i32.
     ///
     /// - `ctx`: logical context.
-    /// - `rsrt`: real sort.
-    /// - `val`: float to be realized.
-    /// 
-    /// # See also:
+    /// - `isrt`: int sort.
+    /// - `val`: int to be realized.
     ///
-    /// - [`Z3_mk_numeral`](fn.Z3_mk_numeral.html)
+    /// NOTE: See macro! int_z3!
     pub fn new(ctx: &'ctx ContextZ3, isrt: &'isrt IntSortZ3<'ctx>, val: i32) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_int(ctx.r, val, isrt.r)
@@ -69,6 +65,8 @@ impl <'ctx, 'rsrt> RealZ3<'ctx, 'rsrt> {
     /// - `ctx`: logical context.
     /// - `rsrt`: real sort.
     /// - `val`: float to be realized.
+    /// 
+    /// NOTE: See macro! realz3!
     pub fn new(ctx: &'ctx ContextZ3, rsrt: &'rsrt RealSortZ3<'ctx>, val: f64) -> Z3_ast {
         let num_string = val.to_string();
         let cstring = CString::new(num_string).unwrap();
@@ -79,30 +77,24 @@ impl <'ctx, 'rsrt> RealZ3<'ctx, 'rsrt> {
     }
 }
 
-// impl <'ctx, 'a> StringZ3<'ctx, 'a> {
-//     /// Create a string constant from a rust string.
-//     ///
-//     /// - `ctx`: logical context.
-//     /// - `ssrt`: string sort.
-//     /// - `val`: string to be realized.
-//     pub fn new(ctx: &'ctx ContextZ3, val: &'a str) -> StringZ3<'ctx, 'a> {
-//         // let val_string = val.to_string();
-//         let string_val = CString::new(val.to_string()).unwrap();
-//         let z3 = unsafe {
-//             Z3_mk_string(ctx.r, string_val.as_ptr())
-//         };
-//         StringZ3 {
-//             ctx,
-//             r: z3,
-//             val,
-//             s: unsafe {
-//                 CStr::from_ptr(Z3_ast_to_string(ctx.r, z3)).to_str().unwrap().to_owned()
-//             }
-//         }
-//     }
-// }
+impl <'ctx, 'a> StringZ3<'ctx, 'a> {
+    /// Create a string constant from a rust string.
+    ///
+    /// - `ctx`: logical context.
+    /// - `ssrt`: string sort.
+    /// - `val`: string to be realized.
+    /// 
+    /// NOTE: See macro! string_z3!
+    pub fn new(ctx: &'ctx ContextZ3, val: &'a str) -> Z3_ast {
+        let string_val = CString::new(val.to_string()).unwrap();
+        let z3 = unsafe {
+            Z3_mk_string(ctx.r, string_val.as_ptr())
+        };
+        StringZ3 {ctx, r: z3, val}.r
+    }
+}
 
-/// Z3 bool type value
+/// Z3 boolean
 /// 
 /// Macro rule for:
 /// ```text
@@ -117,7 +109,7 @@ impl <'ctx, 'rsrt> RealZ3<'ctx, 'rsrt> {
 /// bvlz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! bvlz3 {
+macro_rules! bool_z3 {
     // ($a:expr) => {
     //     BoolZ3::new(&CTX, $a).r
     // };
@@ -126,7 +118,7 @@ macro_rules! bvlz3 {
     }
 }
 
-/// Z3 integer type value
+/// Z3 integer
 /// 
 /// Macro rule for:
 /// ```text
@@ -141,7 +133,7 @@ macro_rules! bvlz3 {
 /// ivlz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! ivlz3 {
+macro_rules! int_z3 {
     // ($a:expr) => {
     //     IntZ3::new(&CTX, &IntSortZ3::new(&CTX), $a).r
     // };
@@ -150,7 +142,7 @@ macro_rules! ivlz3 {
     }
 }
 
-/// Z3 real type value
+/// Z3 real
 /// 
 /// Macro rule for:
 /// ```text
@@ -165,7 +157,7 @@ macro_rules! ivlz3 {
 /// rvlz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! rvlz3 {
+macro_rules! real_z3 {
     // ($a:expr) => {
     //     RealZ3::new(&CTX, $a).r
     // };
@@ -174,7 +166,7 @@ macro_rules! rvlz3 {
     }
 }
 
-/// Z3 string type value
+/// Z3 string
 /// 
 /// Macro rule for:
 /// ```text
@@ -189,7 +181,7 @@ macro_rules! rvlz3 {
 /// svlz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! svlz3 {
+macro_rules! string_z3 {
     // ($a:expr) => {
     //     StringZ3::new(&CTX, $a).r
     // };
@@ -198,105 +190,132 @@ macro_rules! svlz3 {
     }
 }
 
-// #[test]
-// fn test_new_bool_val(){
-//     let conf = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&conf);
+#[test]
+fn test_new_bool(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
 
-//     let t = BoolZ3::new(&ctx, true);
-//     let f = BoolZ3::new(&ctx, false);
+    let t = BoolZ3::new(&ctx, true);
+    let f = BoolZ3::new(&ctx, false);
 
-//     let stringt = t.s;
-//     let stringf = f.s;
+    assert_eq!("true", ast_to_string_z3!(ctx.r, t));
+    assert_eq!("false", ast_to_string_z3!(ctx.r, f));
+}
 
-//     assert_eq!("true", stringt);
-//     assert_eq!("false", stringf);
-// }
+#[test]
+fn test_new_int(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let intsort = IntSortZ3::new(&ctx);
 
-// #[test]
-// fn test_new_int_val(){
-//     let conf = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&conf);
-//     let intsort = IntSortZ3::new(&ctx);
+    let int1 = IntZ3::new(&ctx, &intsort, 7);
+    let int2 = IntZ3::new(&ctx, &intsort, -1012390);
 
-//     let int1 = IntZ3::new(&ctx, &intsort, 7);
-//     let int2 = IntZ3::new(&ctx, &intsort, -1012390);
+    assert_eq!("7", ast_to_string_z3!(ctx.r, int1));
+    assert_eq!("(- 1012390)", ast_to_string_z3!(ctx.r, int2));
+}
 
-//     let string1 = int1.s;
-//     let string2 = int2.s;
+#[test]
+fn test_new_real(){
+    unsafe {
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let realsort = RealSortZ3::new(&ctx);
 
-//     assert_eq!("7", string1);
-//     assert_eq!("(- 1012390)", string2);
-// }
+        let r1 = 7.361928;
+        let r2 = -236487.098364;
 
-// #[test]
-// fn test_new_real_val(){
-//     unsafe {
-//         let conf = ConfigZ3::new();
-//         let ctx = ContextZ3::new(&conf);
-//         let realsort = RealSortZ3::new(&ctx);
+        let real1 = RealZ3::new(&ctx, &realsort, r1);
+        let real2 = RealZ3::new(&ctx, &realsort, r2);
 
-//         let r1 = 7.361928;
-//         let r2 = -236487.098364;
+        let real1numast = Z3_get_numerator(ctx.r, real1);
+        let real2numast = Z3_get_numerator(ctx.r, real2);
+        let real1denast = Z3_get_denominator(ctx.r, real1);
+        let real2denast = Z3_get_denominator(ctx.r, real2);
 
-//         let real1 = RealZ3::new(&ctx, &realsort, r1);
-//         let real2 = RealZ3::new(&ctx, &realsort, r2);
+        let mut real1numstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real1numast)).to_str().unwrap().to_owned();
+        let mut real2numstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real2numast)).to_str().unwrap().to_owned();
+        let mut real1denstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real1denast)).to_str().unwrap().to_owned();
+        let mut real2denstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real2denast)).to_str().unwrap().to_owned();
 
-//         let real1numast = Z3_get_numerator(ctx.r, real1.r);
-//         let real2numast = Z3_get_numerator(ctx.r, real2.r);
-//         let real1denast = Z3_get_denominator(ctx.r, real1.r);
-//         let real2denast = Z3_get_denominator(ctx.r, real2.r);
+        real1numstring.retain(|c| c!='(');
+        real1numstring.retain(|c| c!=')');
+        real2numstring.retain(|c| c!='(');
+        real2numstring.retain(|c| c!=')');
+        real1denstring.retain(|c| c!='(');
+        real1denstring.retain(|c| c!=')');
+        real2denstring.retain(|c| c!='(');
+        real2denstring.retain(|c| c!=')');
+        real1numstring.retain(|c| c!=' ');
+        real2numstring.retain(|c| c!=' ');
+        real1denstring.retain(|c| c!=' ');
+        real2denstring.retain(|c| c!=' ');
 
-//         let mut real1numstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real1numast)).to_str().unwrap().to_owned();
-//         let mut real2numstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real2numast)).to_str().unwrap().to_owned();
-//         let mut real1denstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real1denast)).to_str().unwrap().to_owned();
-//         let mut real2denstring = CStr::from_ptr(Z3_ast_to_string(ctx.r, real2denast)).to_str().unwrap().to_owned();
+        let real1num: i64 = real1numstring.parse().unwrap();
+        let real2num: i64 = real2numstring.parse().unwrap();
+        let real1den: i64 = real1denstring.parse().unwrap();
+        let real2den: i64 = real2denstring.parse().unwrap();
 
-//         real1numstring.retain(|c| c!='(');
-//         real1numstring.retain(|c| c!=')');
-//         real2numstring.retain(|c| c!='(');
-//         real2numstring.retain(|c| c!=')');
-//         real1denstring.retain(|c| c!='(');
-//         real1denstring.retain(|c| c!=')');
-//         real2denstring.retain(|c| c!='(');
-//         real2denstring.retain(|c| c!=')');
-//         real1numstring.retain(|c| c!=' ');
-//         real2numstring.retain(|c| c!=' ');
-//         real1denstring.retain(|c| c!=' ');
-//         real2denstring.retain(|c| c!=' ');
+        let real1n = real1num as f64 / real1den as f64;
+        let real2n = real2num as f64 / real2den as f64;
 
-//         let real1num: i64 = real1numstring.parse().unwrap();
-//         let real2num: i64 = real2numstring.parse().unwrap();
-//         let real1den: i64 = real1denstring.parse().unwrap();
-//         let real2den: i64 = real2denstring.parse().unwrap();
+        let real1nstr = real1n.to_string();
+        let real2nstr = real2n.to_string();
 
-//         let real1n = real1num as f64 / real1den as f64;
-//         let real2n = real2num as f64 / real2den as f64;
+        let what1 = Z3_get_sort(ctx.r, real1);
+        let what2 = Z3_get_sort(ctx.r, real2);
+        let whatstring1 = CStr::from_ptr(Z3_sort_to_string(ctx.r, what1)).to_str().unwrap().to_owned();
+        let wahtstring2 = CStr::from_ptr(Z3_sort_to_string(ctx.r, what2)).to_str().unwrap().to_owned();
 
-//         let real1nstr = real1n.to_string();
-//         let real2nstr = real2n.to_string();
+        assert_eq!(real1nstr, r1.to_string());
+        assert_eq!(real2nstr, r2.to_string());
+        assert_eq!("Real", whatstring1);
+        assert_eq!("Real", wahtstring2);
+    }
+}
 
-//         let what1 = Z3_get_sort(ctx.r, real1.r);
-//         let what2 = Z3_get_sort(ctx.r, real2.r);
-//         let whatstring1 = CStr::from_ptr(Z3_sort_to_string(ctx.r, what1)).to_str().unwrap().to_owned();
-//         let wahtstring2 = CStr::from_ptr(Z3_sort_to_string(ctx.r, what2)).to_str().unwrap().to_owned();
+#[test]
+fn test_new_string(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
 
-//         assert_eq!(real1nstr, r1.to_string());
-//         assert_eq!(real2nstr, r2.to_string());
-//         assert_eq!("Real", whatstring1);
-//         assert_eq!("Real", wahtstring2);
-//     }
-// }
+    let str1 = StringZ3::new(&ctx, "hello!@#$ @# $%@#$ ");
 
-// #[test]
-// fn test_new_string_val(){
-//     let conf = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&conf);
-//     let strsort = StringSortZ3::new(&ctx);
+    assert_eq!("\"hello!@#$ @# $%@#$ \"", ast_to_string_z3!(ctx.r, str1));
+}
 
-//     let str1 = StringZ3::new(&ctx, "hello!@#$ @# $%@#$ ");
+#[test]
+fn test_bool_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let bool1 = bool_z3!(&ctx, true);
+    assert_eq!("true", ast_to_string_z3!(ctx.r, bool1));
+    assert_eq!("Bool", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, bool1)));
+}
 
-//     let str1_string = str1.s;
+#[test]
+fn test_int_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let int1 = int_z3!(&ctx, 76);
+    assert_eq!("76", ast_to_string_z3!(ctx.r, int1));
+    assert_eq!("Int", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, int1)));
+}
 
-//     assert_eq!("hello!@#$ @# $%@#$ ", str1_string);
-// }
+#[test]
+fn test_real_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let real1 = real_z3!(&ctx, 76.456);
+    assert_eq!("(/ 9557.0 125.0)", ast_to_string_z3!(ctx.r, real1));
+    assert_eq!("Real", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, real1)));
+}
+
+#[test]
+fn test_string_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let string1 = string_z3!(&ctx, "asdf_ASDF_!@#$");
+    assert_eq!("\"asdf_ASDF_!@#$\"", ast_to_string_z3!(ctx.r, string1));
+    assert_eq!("String", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, string1)));
+}

@@ -251,10 +251,10 @@ fn test_new_eq(){
     let rel3 = EQZ3::new(&ctx, y, x);
     let rel4 = EQZ3::new(&ctx, int1, real1);
 
-    assert_eq!("(= x 7)", strz3!(ctx.r, rel1));
-    assert_eq!("(= y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
-    assert_eq!("(= y (to_real x))", strz3!(ctx.r, rel3));
-    assert_eq!("(= (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
+    assert_eq!("(= x 7)", ast_to_string_z3!(ctx.r, rel1));
+    assert_eq!("(= y (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel2));
+    assert_eq!("(= y (to_real x))", ast_to_string_z3!(ctx.r, rel3));
+    assert_eq!("(= (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel4));
 }
 
 #[test]
@@ -274,10 +274,10 @@ fn test_new_le(){
     let rel3 = LEZ3::new(&ctx, y, x);
     let rel4 = LEZ3::new(&ctx, int1, real1);
 
-    assert_eq!("(<= x 7)", strz3!(ctx.r, rel1));
-    assert_eq!("(<= y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
-    assert_eq!("(<= y (to_real x))", strz3!(ctx.r, rel3));
-    assert_eq!("(<= (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
+    assert_eq!("(<= x 7)", ast_to_string_z3!(ctx.r, rel1));
+    assert_eq!("(<= y (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel2));
+    assert_eq!("(<= y (to_real x))", ast_to_string_z3!(ctx.r, rel3));
+    assert_eq!("(<= (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel4));
 }
 
 #[test]
@@ -297,10 +297,10 @@ fn test_new_lt(){
     let rel3 = LTZ3::new(&ctx, y, x);
     let rel4 = LTZ3::new(&ctx, int1, real1);
 
-    assert_eq!("(< x 7)", strz3!(ctx.r, rel1));
-    assert_eq!("(< y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
-    assert_eq!("(< y (to_real x))", strz3!(ctx.r, rel3));
-    assert_eq!("(< (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
+    assert_eq!("(< x 7)", ast_to_string_z3!(ctx.r, rel1));
+    assert_eq!("(< y (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel2));
+    assert_eq!("(< y (to_real x))", ast_to_string_z3!(ctx.r, rel3));
+    assert_eq!("(< (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel4));
 }
 
 #[test]
@@ -320,10 +320,10 @@ fn test_new_ge(){
     let rel3 = GEZ3::new(&ctx, y, x);
     let rel4 = GEZ3::new(&ctx, int1, real1);
 
-    assert_eq!("(>= x 7)", strz3!(ctx.r, rel1));
-    assert_eq!("(>= y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
-    assert_eq!("(>= y (to_real x))", strz3!(ctx.r, rel3));
-    assert_eq!("(>= (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
+    assert_eq!("(>= x 7)", ast_to_string_z3!(ctx.r, rel1));
+    assert_eq!("(>= y (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel2));
+    assert_eq!("(>= y (to_real x))", ast_to_string_z3!(ctx.r, rel3));
+    assert_eq!("(>= (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel4));
 }
 
 #[test]
@@ -343,8 +343,63 @@ fn test_new_gt(){
     let rel3 = GTZ3::new(&ctx, y, x);
     let rel4 = GTZ3::new(&ctx, int1, real1);
 
-    assert_eq!("(> x 7)", strz3!(ctx.r, rel1));
-    assert_eq!("(> y (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel2));
-    assert_eq!("(> y (to_real x))", strz3!(ctx.r, rel3));
-    assert_eq!("(> (to_real 7) (- (/ 271549371.0 500000.0)))", strz3!(ctx.r, rel4));
+    assert_eq!("(> x 7)", ast_to_string_z3!(ctx.r, rel1));
+    assert_eq!("(> y (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel2));
+    assert_eq!("(> y (to_real x))", ast_to_string_z3!(ctx.r, rel3));
+    assert_eq!("(> (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(ctx.r, rel4));
+}
+
+#[test]
+fn test_eq_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let eq1 = eqz3!(&ctx,
+            real_var_z3!(&ctx, "y"),
+            real_z3!(&ctx, 11.0)
+    );    
+    assert_eq!("(= y 11.0)", ast_to_string_z3!(ctx.r, eq1));
+}
+
+#[test]
+fn test_lt_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let lt1 = ltz3!(&ctx,
+            real_var_z3!(&ctx, "y"),
+            real_z3!(&ctx, 11.0)
+    );    
+    assert_eq!("(< y 11.0)", ast_to_string_z3!(ctx.r, lt1));
+}
+
+#[test]
+fn test_gt_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let gt1 = gtz3!(&ctx,
+            real_var_z3!(&ctx, "y"),
+            real_z3!(&ctx, 11.0)
+    );    
+    assert_eq!("(> y 11.0)", ast_to_string_z3!(ctx.r, gt1));
+}
+
+#[test]
+fn test_ge_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let ge1 = gez3!(&ctx,
+            real_var_z3!(&ctx, "y"),
+            real_z3!(&ctx, 11.0)
+    );    
+    assert_eq!("(>= y 11.0)", ast_to_string_z3!(ctx.r, ge1));
+}
+
+#[test]
+fn test_le_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let le1 = lez3!(&ctx,
+            real_var_z3!(&ctx, "y"),
+            real_z3!(&ctx, 11.0)
+    );    
+    assert_eq!("(<= y 11.0)", ast_to_string_z3!(ctx.r, le1));
 }

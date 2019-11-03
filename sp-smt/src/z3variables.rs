@@ -8,7 +8,6 @@ pub struct BoolVarZ3<'ctx, 'bsrt, 'a> {
     pub ctx: &'ctx ContextZ3,
     pub bsrt: &'bsrt BoolSortZ3<'ctx>,
     pub name: &'a str,
-    // pub s: String,
     pub r: Z3_ast,
 }
 
@@ -16,7 +15,6 @@ pub struct IntVarZ3<'ctx, 'isrt, 'a> {
     pub ctx: &'ctx ContextZ3,
     pub isrt: &'isrt IntSortZ3<'ctx>,
     pub name: &'a str,
-    // pub s: String,
     pub r: Z3_ast,
 }
 
@@ -24,7 +22,6 @@ pub struct RealVarZ3<'ctx, 'rsrt, 'a> {
     pub ctx: &'ctx ContextZ3,
     pub rsrt: &'rsrt RealSortZ3<'ctx>,
     pub name: &'a str,
-    // pub s: String,
     pub r: Z3_ast,
 }
 
@@ -32,7 +29,6 @@ pub struct StringVarZ3<'ctx, 'ssrt, 'a> {
     pub ctx: &'ctx ContextZ3,
     pub ssrt: &'ssrt StringSortZ3<'ctx>,
     pub name: &'a str,
-    // pub s: String,
     pub r: Z3_ast,
 }
 
@@ -71,7 +67,9 @@ pub struct EnumVarZ3<'ctx, 'a> {
 }
 
 impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
-    /// Declare and create an Boolean variable (constant).
+    /// Declare and create a Boolean variable.
+    /// 
+    /// NOTE: See macro! bool_var_z3!
     pub fn new(ctx: &'ctx ContextZ3, bsrt: &'bsrt BoolSortZ3<'ctx>, name: &'a str) -> Z3_ast {
         let bool_sort = bsrt.r;
         let str_name = CString::new(name).unwrap();
@@ -83,7 +81,9 @@ impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
 }
 
 impl <'ctx, 'isrt, 'a> IntVarZ3<'ctx, 'isrt, 'a> {
-    /// Declare and create an Integer variable (constant).
+    /// Declare and create an Integer variable.
+    /// 
+    /// NOTE: See macro! int_var_z3!
     pub fn new(ctx: &'ctx ContextZ3, isrt: &'isrt IntSortZ3<'ctx>, name: &'a str) -> Z3_ast {
         let int_sort = isrt.r;
         let str_name = CString::new(name).unwrap();
@@ -96,7 +96,9 @@ impl <'ctx, 'isrt, 'a> IntVarZ3<'ctx, 'isrt, 'a> {
 
 
 impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
-    /// Declare and create an Real variable (constant).
+    /// Declare and create an Real variable.
+    /// 
+    /// NOTE: See macro! real_var_z3!
     pub fn new(ctx: &'ctx ContextZ3, rsrt: &'rsrt RealSortZ3<'ctx>, name: &'a str) -> Z3_ast{
         let real_sort = rsrt.r;
         let str_name = CString::new(name).unwrap();
@@ -127,7 +129,7 @@ impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
 //     }
 // }
 
-/// Z3 bool type variable
+/// Z3 boolean variable
 /// 
 /// Macro rule for:
 /// ```text
@@ -142,7 +144,7 @@ impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
 /// bvrz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! bvrz3 {
+macro_rules! bool_var_z3 {
     // ($a:expr) => {
     //     BoolVarZ3::new(&CTX, &BoolSortZ3::new(&CTX), $a).r
     // };
@@ -151,7 +153,7 @@ macro_rules! bvrz3 {
     }
 }
 
-/// Z3 integer type variable
+/// Z3 integer variable
 /// 
 /// Macro rule for:
 /// ```text
@@ -166,7 +168,7 @@ macro_rules! bvrz3 {
 /// ivrz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! ivrz3 {
+macro_rules! int_var_z3 {
     // ($a:expr) => {
     //     IntVarZ3::new(&CTX, &IntSortZ3::new(&CTX), $a).r
     // };
@@ -175,7 +177,7 @@ macro_rules! ivrz3 {
     }
 }
 
-/// Z3 real type variable
+/// Z3 real variable
 /// 
 /// Macro rule for:
 /// ```text
@@ -190,7 +192,7 @@ macro_rules! ivrz3 {
 /// rvrz3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! rvrz3 {
+macro_rules! real_var_z3 {
     // ($a:expr) => {
     //     RealVarZ3::new(&CTX, $a).r
     // };
@@ -199,53 +201,44 @@ macro_rules! rvrz3 {
     }
 }
 
-// #[test]
-// fn test_new_bool_var(){
-//     let conf = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&conf);
-//     let sort = BoolSortZ3::new(&ctx);
+#[test]
+fn test_new_bool_var(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let sort = BoolSortZ3::new(&ctx);
 
-//     let x = BoolVarZ3::new(&ctx, &sort, "x");
-//     let y = BoolVarZ3::new(&ctx, &sort, "y");
+    let x = BoolVarZ3::new(&ctx, &sort, "x");
+    let y = BoolVarZ3::new(&ctx, &sort, "y");
 
-//     let stringx = x.s;
-//     let stringy = y.s;
+    assert_eq!("x", ast_to_string_z3!(ctx.r, x));
+    assert_eq!("y", ast_to_string_z3!(ctx.r, y));
+}
 
-//     assert_eq!("x", stringx);
-//     assert_eq!("y", stringy);
-// }
+#[test]
+fn test_new_int_var(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let sort = IntSortZ3::new(&ctx);
 
-// #[test]
-// fn test_new_int_var(){
-//     let conf = ConfigZ3::new();
-//     let ctx = ContextZ3::new(&conf);
-//     let sort = IntSortZ3::new(&ctx);
+    let x = IntVarZ3::new(&ctx, &sort, "x");
+    let y = IntVarZ3::new(&ctx, &sort, "y");
 
-//     let x = IntVarZ3::new(&ctx, &sort, "x");
-//     let y = IntVarZ3::new(&ctx, &sort, "y");
+    assert_eq!("x", ast_to_string_z3!(ctx.r, x));
+    assert_eq!("y", ast_to_string_z3!(ctx.r, y));
+}
 
-//     let stringx = x.s;
-//     let stringy = y.s;
+#[test]
+fn test_new_real_var(){
+        let conf = ConfigZ3::new();
+        let ctx = ContextZ3::new(&conf);
+        let sort = RealSortZ3::new(&ctx);
 
-//     assert_eq!("x", stringx);
-//     assert_eq!("y", stringy);
-// }
+        let x = RealVarZ3::new(&ctx, &sort, "x");
+        let y = RealVarZ3::new(&ctx, &sort, "y");
 
-// #[test]
-// fn test_new_real_var(){
-//         let conf = ConfigZ3::new();
-//         let ctx = ContextZ3::new(&conf);
-//         let sort = RealSortZ3::new(&ctx);
-
-//         let x = RealVarZ3::new(&ctx, &sort, "x");
-//         let y = RealVarZ3::new(&ctx, &sort, "y");
-
-//         let stringx = x.s;
-//         let stringy = y.s;
-
-//         assert_eq!("x", stringx);
-//         assert_eq!("y", stringy);
-// }
+        assert_eq!("x", ast_to_string_z3!(ctx.r, x));
+        assert_eq!("y", ast_to_string_z3!(ctx.r, y));
+}
 
 // #[test]
 // fn test_new_string_var(){
@@ -259,3 +252,30 @@ macro_rules! rvrz3 {
 
 //         assert_eq!("x", stringx);
 // }
+
+#[test]
+fn test_bool_var_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let bool1 = bool_var_z3!(&ctx, "x");
+    assert_eq!("x", ast_to_string_z3!(ctx.r, bool1));
+    assert_eq!("Bool", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, bool1)));
+}
+
+#[test]
+fn test_int_var_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let int1 = int_var_z3!(&ctx, "x");
+    assert_eq!("x", ast_to_string_z3!(ctx.r, int1));
+    assert_eq!("Int", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, int1)));
+}
+
+#[test]
+fn test_real_var_macro_1(){
+    let cfg = cfgz3!();
+    let ctx = ctxz3!(&cfg);
+    let real1 = real_var_z3!(&ctx, "x");
+    assert_eq!("x", ast_to_string_z3!(ctx.r, real1));
+    assert_eq!("Real", sort_to_string_z3!(ctx.r, get_sort_z3!(&ctx, real1)));
+}

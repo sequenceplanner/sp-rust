@@ -4,13 +4,13 @@
 extern crate lazy_static;
 
 pub mod z3config;
-pub use crate::z3config::{ConfigZ3}; // CFG, Z3_MUTEX};
+pub use crate::z3config::{ConfigZ3, SetParamZ3}; // CFG, Z3_MUTEX};
 
 pub mod z3context;
 pub use crate::z3context::{ContextZ3}; //, CTX};
 
 pub mod z3solver;
-pub use crate::z3solver::{SolverZ3, SolvAssertZ3, SolvAssertAndTrackZ3, SolvCheckZ3};
+pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvAssertAndTrackZ3, SlvCheckZ3};
 
 pub mod z3optimizer;
 pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3, OptMinimizeZ3, GetOptModelZ3};
@@ -34,4 +34,4 @@ pub mod z3logics;
 pub use crate::z3logics::{ANDZ3, ORZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, XORZ3};
 
 pub mod z3utils;
-pub use crate::z3utils::{GetSolvStringZ3, GetSolvModelZ3};
+pub use crate::z3utils::{};

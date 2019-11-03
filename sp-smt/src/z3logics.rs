@@ -371,7 +371,7 @@ fn test_new_and(){
 
     let and1 = ANDZ3::new(&ctx, vec!(x1, x2, bool1, bool2));
 
-    assert_eq!("(and x1 x2 true false)", strz3!(ctx.r, and1));
+    assert_eq!("(and x1 x2 true false)", ast_to_string_z3!(ctx.r, and1));
 }
 
 #[test]
@@ -388,7 +388,7 @@ fn test_new_or(){
 
     let or1 = ORZ3::new(&ctx, vec!(x1, x2, bool1, bool2));
 
-    assert_eq!("(or x1 x2 true false)", strz3!(ctx.r, or1));
+    assert_eq!("(or x1 x2 true false)", ast_to_string_z3!(ctx.r, or1));
 }
 
 #[test]
@@ -405,9 +405,9 @@ fn test_new_not(){
     let not2 = NOTZ3::new(&ctx, x1);
     let not3 = NOTZ3::new(&ctx, not2);
 
-    assert_eq!("(not true)", strz3!(ctx.r, not1));
-    assert_eq!("(not x1)", strz3!(ctx.r, not2));
-    assert_eq!("(not (not x1))", strz3!(ctx.r, not3));
+    assert_eq!("(not true)", ast_to_string_z3!(ctx.r, not1));
+    assert_eq!("(not x1)", ast_to_string_z3!(ctx.r, not2));
+    assert_eq!("(not (not x1))", ast_to_string_z3!(ctx.r, not3));
 }
 
 #[test]
@@ -425,8 +425,8 @@ fn test_new_ite(){
     let ite1 = ITEZ3::new(&ctx, bool1, int1, int2);
     let ite2 = ITEZ3::new(&ctx, bool2, int1, int2);
     
-    assert_eq!("(ite true 3 7)", strz3!(ctx.r, ite1));
-    assert_eq!("(ite false 3 7)", strz3!(ctx.r, ite2));
+    assert_eq!("(ite true 3 7)", ast_to_string_z3!(ctx.r, ite1));
+    assert_eq!("(ite false 3 7)", ast_to_string_z3!(ctx.r, ite2));
 }
 
 #[test]
@@ -446,10 +446,10 @@ fn test_new_iff(){
     let iff3 = IFFZ3::new(&ctx, x2, bool2);
     let iff4 = IFFZ3::new(&ctx, x1, x2);
     
-    assert_eq!("(= true false)", strz3!(ctx.r, iff1));
-    assert_eq!("(= true x1)", strz3!(ctx.r, iff2));
-    assert_eq!("(= x2 false)", strz3!(ctx.r, iff3));
-    assert_eq!("(= x1 x2)", strz3!(ctx.r, iff4));
+    assert_eq!("(= true false)", ast_to_string_z3!(ctx.r, iff1));
+    assert_eq!("(= true x1)", ast_to_string_z3!(ctx.r, iff2));
+    assert_eq!("(= x2 false)", ast_to_string_z3!(ctx.r, iff3));
+    assert_eq!("(= x1 x2)", ast_to_string_z3!(ctx.r, iff4));
 }
 
 #[test]
@@ -469,10 +469,10 @@ fn test_new_imp(){
     let imp3 = IMPZ3::new(&ctx, x2, bool2);
     let imp4 = IMPZ3::new(&ctx, x1, x2);
     
-    assert_eq!("(=> true false)", strz3!(ctx.r, imp1));
-    assert_eq!("(=> true x1)", strz3!(ctx.r, imp2));
-    assert_eq!("(=> x2 false)", strz3!(ctx.r, imp3));
-    assert_eq!("(=> x1 x2)", strz3!(ctx.r, imp4));
+    assert_eq!("(=> true false)", ast_to_string_z3!(ctx.r, imp1));
+    assert_eq!("(=> true x1)", ast_to_string_z3!(ctx.r, imp2));
+    assert_eq!("(=> x2 false)", ast_to_string_z3!(ctx.r, imp3));
+    assert_eq!("(=> x1 x2)", ast_to_string_z3!(ctx.r, imp4));
 }
 
 #[test]
@@ -492,10 +492,10 @@ fn test_new_xor(){
     let xor3 = XORZ3::new(&ctx, x2, bool2);
     let xor4 = XORZ3::new(&ctx, x1, x2);
     
-    assert_eq!("(xor true false)", strz3!(ctx.r, xor1));
-    assert_eq!("(xor true x1)", strz3!(ctx.r, xor2));
-    assert_eq!("(xor x2 false)", strz3!(ctx.r, xor3));
-    assert_eq!("(xor x1 x2)", strz3!(ctx.r,xor4));
+    assert_eq!("(xor true false)", ast_to_string_z3!(ctx.r, xor1));
+    assert_eq!("(xor true x1)", ast_to_string_z3!(ctx.r, xor2));
+    assert_eq!("(xor x2 false)", ast_to_string_z3!(ctx.r, xor3));
+    assert_eq!("(xor x1 x2)", ast_to_string_z3!(ctx.r,xor4));
 }
 
 #[test]
@@ -503,11 +503,11 @@ fn test_and_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let and1 = andz3!(&ctx,
-        bvrz3!(&ctx, "x"),
-        bvlz3!(&ctx, true),
-        bvrz3!(&ctx, "y")
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
     );
-    assert_eq!("(and x true y)", strz3!(ctx.r, and1));
+    assert_eq!("(and x true y)", ast_to_string_z3!(ctx.r, and1));
 }
 
 #[test]
@@ -515,11 +515,11 @@ fn test_or_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let or1 = orz3!(&ctx,
-        bvrz3!(&ctx, "x"),
-        bvlz3!(&ctx, true),
-        bvrz3!(&ctx, "y")
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
     );
-    assert_eq!("(or x true y)", strz3!(ctx.r, or1));
+    assert_eq!("(or x true y)", ast_to_string_z3!(ctx.r, or1));
 }
 
 #[test]
@@ -527,9 +527,9 @@ fn test_not_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let not1 = notz3!(&ctx,
-        bvlz3!(&ctx, true)
+        bool_z3!(&ctx, true)
     );
-    assert_eq!("(not true)", strz3!(ctx.r, not1));
+    assert_eq!("(not true)", ast_to_string_z3!(ctx.r, not1));
 }
 
 #[test]
@@ -537,10 +537,11 @@ fn test_ite_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let ite1 = itez3!(&ctx,
-        bvrz3!(&ctx, "x"),
-        bvlz3!(&ctx, true),
-        bvrz3!(&ctx, "y"));
-    assert_eq!("(ite x true y)", strz3!(ctx.r, ite1));
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
+    );
+    assert_eq!("(ite x true y)", ast_to_string_z3!(ctx.r, ite1));
 }
 
 #[test]
@@ -548,9 +549,10 @@ fn test_iff_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let iff1 = iffz3!(&ctx,
-        bvrz3!(&ctx, "x"),
-        bvrz3!(&ctx, "y"));
-    assert_eq!("(= x y)", strz3!(ctx.r, iff1));
+        bool_var_z3!(&ctx, "x"),
+        bool_var_z3!(&ctx, "y")
+    );
+    assert_eq!("(= x y)", ast_to_string_z3!(ctx.r, iff1));
 }
 
 #[test]
@@ -558,9 +560,10 @@ fn test_imp_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let imp1 = impz3!(&ctx,
-        bvrz3!(&ctx, "x"),
-        bvrz3!(&ctx, "y"));
-    assert_eq!("(=> x y)", strz3!(ctx.r, imp1));
+        bool_var_z3!(&ctx, "x"),
+        bool_var_z3!(&ctx, "y")
+    );
+    assert_eq!("(=> x y)", ast_to_string_z3!(ctx.r, imp1));
 }
 
 #[test]
@@ -568,7 +571,8 @@ fn test_xor_macro_1(){
     let cfg = cfgz3!();
     let ctx = ctxz3!(&cfg);
     let xor1 = xorz3!(&ctx,
-        bvrz3!(&ctx, "x"),
-        bvrz3!(&ctx, "y"));
-    assert_eq!("(xor x y)", strz3!(ctx.r, xor1));
+        bool_var_z3!(&ctx, "x"),
+        bool_var_z3!(&ctx, "y")
+    );
+    assert_eq!("(xor x y)", ast_to_string_z3!(ctx.r, xor1));
 }
