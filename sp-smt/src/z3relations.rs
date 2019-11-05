@@ -1,5 +1,6 @@
 //! Z3 realtions for SP
-//! 
+
+use std::ffi::{CStr};
 use z3_sys::*;
 use super::*;
 
