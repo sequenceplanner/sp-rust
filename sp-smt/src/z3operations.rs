@@ -66,7 +66,7 @@ impl<'ctx> MULZ3<'ctx> {
     /// 
     /// NOTE: The number of arguments must be greater than zero.
     /// 
-    /// NOTE: See macro! mulz3!
+    /// NOTE: See macro! mul_z3!
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
@@ -84,7 +84,7 @@ impl <'ctx> DIVZ3<'ctx> {
     /// If the arguments have int type, then the result type is an int type, otherwise the
     /// the result type is real.
     /// 
-    /// NOTE: See macro! divz3!
+    /// NOTE: See macro! div_z3!
     pub fn new(ctx: &'ctx ContextZ3, arg1: Z3_ast, arg2: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             // Z3_MUTEX.lock().unwrap();
@@ -114,7 +114,7 @@ impl <'ctx> REMZ3<'ctx> {
     ///
     /// NOTE: The arguments must have int type.
     /// 
-    /// NOTE: See macro! remz3!
+    /// NOTE: See macro! rem_z3!
     pub fn new(ctx: &'ctx ContextZ3, arg1: Z3_ast, arg2: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             // Z3_MUTEX.lock().unwrap();
@@ -133,7 +133,7 @@ impl<'ctx> ADDZ3<'ctx> {
     ///
     /// NOTE: The number of arguments must be greater than zero.
     /// 
-    /// NOTE: See macro! addz3!
+    /// NOTE: See macro! add_z3!
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
@@ -153,7 +153,7 @@ impl<'ctx> SUBZ3<'ctx> {
     ///
     /// NOTE: The number of arguments must be greater than zero.
     /// 
-    /// NOTE: See macro! subz3!
+    /// NOTE: See macro! sub_z3!
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
@@ -169,7 +169,7 @@ impl<'ctx> NEGZ3<'ctx> {
     ///
     /// NOTE: The arguments must have int or real type.
     /// 
-    /// NOTE: See macro! negz3!
+    /// NOTE: See macro! neg_z3!
     pub fn new(ctx: &'ctx ContextZ3, arg: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             // Z3_MUTEX.lock().unwrap();
@@ -184,7 +184,7 @@ impl <'ctx> POWZ3<'ctx> {
     ///
     /// NOTE: The arguments must have int or real type.
     /// 
-    /// NOTE: See macro! powz3!
+    /// NOTE: See macro! pow_z3!
     pub fn new(ctx: &'ctx ContextZ3, arg1: Z3_ast, arg2: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             // Z3_MUTEX.lock().unwrap();
@@ -194,23 +194,28 @@ impl <'ctx> POWZ3<'ctx> {
     }
 }
 
-/// Z3 a * b * c
+/// a * b * c * ...
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::MULZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-/// Using the default context:
+// / Using the default context:
+// / ```text
+// / mul_z3!(a, b, c)
+// / ```
+/// Using a specific context and passing elements:
 /// ```text
-/// mulz3!(a, b, c)
+/// mul_z3!(&ctx, a, b, c)
 /// ```
-/// Using a specific context:
+/// Or make a vector firts and pass it:
 /// ```text
-/// mulz3!(&ctx, a, b, c)
+/// let some = vec!(a, b, c);
+/// mul_z3!(&ctx, some)
 /// ```
 /// Requires that a, b, c... are of Real or Int sort.
 #[macro_export]
-macro_rules! mulz3 {
+macro_rules! mul_z3 {
     // ( $( $x:expr ),* ) => {
     //     {
     //         let mut temp_vec = Vec::new();
@@ -220,6 +225,9 @@ macro_rules! mulz3 {
     //         MULZ3::new(&CTX, temp_vec)
     //     }
     // };
+    ($ctx:expr, $b:expr) => {
+        MULZ3::new($ctx, $b)
+    };
     ( $ctx:expr, $( $x:expr ),* ) => {
         {
             let mut temp_vec = Vec::new();
@@ -231,23 +239,23 @@ macro_rules! mulz3 {
     };
 }
 
-/// Z3 a div b
+/// a div b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::DIVZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// divz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / div_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// divz3!(&ctx, a, b)
+/// div_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of Real or Int sort.
 #[macro_export]
-macro_rules! divz3 {
+macro_rules! div_z3 {
     // ($a:expr, $b:expr) => {
     //     DIVZ3::new(&CTX, $a, $b)
     // };
@@ -256,23 +264,23 @@ macro_rules! divz3 {
     }
 }
 
-/// Z3 a mod b
+/// a mod b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::MODZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// modz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / mod_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// modz3!(&ctx, a, b)
+/// mod_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of Real or Int sort.
 #[macro_export]
-macro_rules! modz3 {
+macro_rules! mod_z3 {
     // ($a:expr, $b:expr) => {
     //     MODZ3::new(&CTX, $a, $b)
     // };
@@ -281,23 +289,23 @@ macro_rules! modz3 {
     }
 }
 
-/// Z3 a rem b
+/// a rem b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::REMZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// remz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / rem_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// remz3!(&ctx, a, b)
+/// rem_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of Real or Int sort.
 #[macro_export]
-macro_rules! remz3 {
+macro_rules! rem_z3 {
     // ($a:expr, $b:expr) => {
     //     REMZ3::new(&CTX, $a, $b)
     // };
@@ -306,23 +314,28 @@ macro_rules! remz3 {
     }
 }
 
-/// Z3 a + b + c
+/// a + b + c + ...
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::ADDZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-/// Using the default context:
+// / Using the default context:
+// / ```text
+// / add_z3!(a, b, c)
+// / ```
+/// Using a specific context and passing elements:
 /// ```text
-/// addz3!(a, b, c)
+/// add_z3!(&ctx, a, b, c)
 /// ```
-/// Using a specific context:
+/// Or make a vector firts and pass it:
 /// ```text
-/// addz3!(&ctx, a, b, c)
+/// let some = vec!(a, b, c);
+/// add_z3!(&ctx, some)
 /// ```
 /// Requires that a, b, c... are of Real or Int sort.
 #[macro_export]
-macro_rules! addz3 {
+macro_rules! add_z3 {
     // ( $( $x:expr ),* ) => {
     //     {
     //         let mut temp_vec = Vec::new();
@@ -346,23 +359,28 @@ macro_rules! addz3 {
     };
 }
 
-/// Z3 a - b - c
+/// a - b - c - ...
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::SUBZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-/// Using the default context:
+// / Using the default context:
+// / ```text
+// / sub_z3!(a, b, c)
+// / ```
+/// Using a specific context and passing elements:
 /// ```text
-/// subz3!(a, b, c)
+/// sub_z3!(&ctx, a, b, c)
 /// ```
-/// Using a specific context:
+/// Or make a vector firts and pass it:
 /// ```text
-/// subz3!(&ctx, a, b, c)
+/// let some = vec!(a, b, c);
+/// sub_z3!(&ctx, some)
 /// ```
 /// Requires that a, b, c... are of Real or Int sort.
 #[macro_export]
-macro_rules! subz3 {
+macro_rules! sub_z3 {
     // ( $( $x:expr ),* ) => {
     //     {
     //         let mut temp_vec = Vec::new();
@@ -372,6 +390,9 @@ macro_rules! subz3 {
     //         SUBZ3::new(&CTX, temp_vec)
     //     }
     // };
+    ($ctx:expr, $b:expr) => {
+        SUBZ3::new($ctx, $b)
+    };
     ( $ctx:expr, $( $x:expr ),* ) => {
         {
             let mut temp_vec = Vec::new();
@@ -383,23 +404,23 @@ macro_rules! subz3 {
     };
 }
 
-/// Z3 -a
+/// -a
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::NEGZ3::new(&ctx, a).r
 /// ```
-/// Using the default context:
-/// ```text
-/// negz3!(a)
-/// ```
+// / Using the default context:
+// / ```text
+// / neg_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// negz3!(&ctx, a)
+/// neg_z3!(&ctx, a)
 /// ```
 /// Requires that a is of Real or Int sort.
 #[macro_export]
-macro_rules! negz3 {
+macro_rules! neg_z3 {
     // ($a:expr) => {
     //     NEGZ3::new(&CTX, $a)
     // };
@@ -408,23 +429,23 @@ macro_rules! negz3 {
     }
 }
 
-/// Z3 a ^ b
+/// a ^ b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3operations::POWZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// powz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / pow_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// powz3!(&ctx, a, b)
+/// pow_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of Real or Int sort.
 #[macro_export]
-macro_rules! powz3 {
+macro_rules! pow_z3 {
     // ($a:expr, $b:expr) => {
     //     POWZ3::new(&CTX, $a, $b)
     // };
@@ -641,9 +662,22 @@ fn test_new_pow(){
 
 #[test]
 fn test_mul_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let mul1 = mulz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_z3!(&ctx, 142),
+        int_var_z3!(&ctx, "y")
+    );
+    let mul1 = mul_z3!(&ctx, some);
+    assert_eq!("(* x 142 y)", ast_to_string_z3!(&ctx, mul1));
+}
+
+#[test]
+fn test_mul_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let mul1 = mul_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y")
@@ -653,9 +687,9 @@ fn test_mul_macro_1(){
 
 #[test]
 fn test_div_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let div1 = divz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let div1 = div_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
@@ -664,9 +698,9 @@ fn test_div_macro_1(){
 
 #[test]
 fn test_mod_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let mod1 = modz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let mod1 = mod_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
@@ -675,9 +709,9 @@ fn test_mod_macro_1(){
 
 #[test]
 fn test_rem_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let rem1 = remz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let rem1 = rem_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
@@ -686,9 +720,23 @@ fn test_rem_macro_1(){
 
 #[test]
 fn test_add_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let add1 = addz3!(&ctx, 
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_z3!(&ctx, 142),
+        int_var_z3!(&ctx, "y"),
+        int_z3!(&ctx, 1213442)
+    );
+    let add1 = add_z3!(&ctx, some);
+    assert_eq!("(+ x 142 y 1213442)", ast_to_string_z3!(&ctx, add1));
+}
+
+#[test]
+fn test_add_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let add1 = add_z3!(&ctx, 
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y"),
@@ -699,9 +747,23 @@ fn test_add_macro_1(){
 
 #[test]
 fn test_sub_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let sub1 = subz3!(&ctx, 
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_z3!(&ctx, 142),
+        int_var_z3!(&ctx, "y"),
+        int_z3!(&ctx, 1213442)
+    );
+    let sub1 = sub_z3!(&ctx, some);
+    assert_eq!("(- (- (- x 142) y) 1213442)", ast_to_string_z3!(&ctx, sub1));
+}
+
+#[test]
+fn test_sub_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let sub1 = sub_z3!(&ctx, 
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y"),
@@ -712,9 +774,9 @@ fn test_sub_macro_1(){
 
 #[test]
 fn test_neg_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let neg1 = negz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let neg1 = neg_z3!(&ctx,
         int_z3!(&ctx, 1213442)
     );
     assert_eq!("(- 1213442)", ast_to_string_z3!(&ctx, neg1));
@@ -722,9 +784,9 @@ fn test_neg_macro_1(){
 
 #[test]
 fn test_pow_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let pow1 = powz3!(&ctx, 
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let pow1 = pow_z3!(&ctx, 
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );

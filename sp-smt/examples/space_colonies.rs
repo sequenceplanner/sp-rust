@@ -22,9 +22,9 @@ fn main(){
  at a minimum cost. \n");
 
     // setup the optimization context:
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     // data from the table:
     let supply = vec!(35, 40, 50);
@@ -52,8 +52,8 @@ fn main(){
 
         // asserting the constraint:
         opt_assert_z3!(&ctx, &opt, 
-            lez3!(&ctx, 
-                addz3!(&ctx, variables.clone()), 
+            le_z3!(&ctx, 
+                add_z3!(&ctx, variables.clone()), 
                 int_z3!(&ctx, supply[s_index])
             )
         );
@@ -70,8 +70,8 @@ fn main(){
         }
 
         opt_assert_z3!(&ctx, &opt, 
-            gez3!(&ctx, 
-                addz3!(&ctx, variables.clone()), 
+            ge_z3!(&ctx, 
+                add_z3!(&ctx, variables.clone()), 
                 int_z3!(&ctx, demand[c_index])
             )
         );
@@ -87,12 +87,12 @@ fn main(){
         for colony in &colonies {
             let c_index = colonies.iter().position(|&r| r.to_string() == colony.to_string()).unwrap();
             let slice: &str = &format!("{}{}{}", starbase, "_to_", colony).to_owned()[..];
-            variables.push(mulz3!(&ctx, int_var_z3!(&ctx, slice), int_z3!(&ctx, delivery_cost[s_index][c_index])));
+            variables.push(mul_z3!(&ctx, int_var_z3!(&ctx, slice), int_z3!(&ctx, delivery_cost[s_index][c_index])));
 
             // this constraint limiting the minimum amount of possibly delivered
             // conduits to 0
             opt_assert_z3!(&ctx, &opt,
-                gez3!(&ctx,
+                ge_z3!(&ctx,
                     int_var_z3!(&ctx, slice),
                     int_z3!(&ctx, 0)
                 )
@@ -102,9 +102,9 @@ fn main(){
 
     // asserting the minimization constraint
     opt_assert_z3!(&ctx, &opt,
-        gez3!(&ctx,
+        ge_z3!(&ctx,
             int_var_z3!(&ctx, "z"),
-            addz3!(&ctx, variables.clone())
+            add_z3!(&ctx, variables.clone())
         )
     );
 

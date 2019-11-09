@@ -117,9 +117,9 @@ fn test_new_gt(){
 
 #[test]
 fn test_eq_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let eq1 = eqz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let eq1 = eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -128,9 +128,9 @@ fn test_eq_macro_1(){
 
 #[test]
 fn test_lt_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let lt1 = ltz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let lt1 = lt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -139,9 +139,9 @@ fn test_lt_macro_1(){
 
 #[test]
 fn test_gt_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let gt1 = gtz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let gt1 = gt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -150,9 +150,9 @@ fn test_gt_macro_1(){
 
 #[test]
 fn test_ge_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let ge1 = gez3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let ge1 = ge_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -161,9 +161,9 @@ fn test_ge_macro_1(){
 
 #[test]
 fn test_le_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let le1 = lez3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let le1 = le_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    

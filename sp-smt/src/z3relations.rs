@@ -44,7 +44,7 @@ impl <'ctx> EQZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have the same type.
     /// 
-    /// NOTE: See macro! eqz3!
+    /// NOTE: See macro! `eq_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_eq(ctx.r, left, right)
@@ -58,7 +58,7 @@ impl <'ctx> LEZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
     /// 
-    /// NOTE: See macro! lez3!
+    /// NOTE: See macro! `le_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_le(ctx.r, left, right)
@@ -72,7 +72,7 @@ impl <'ctx> LTZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
     /// 
-    /// NOTE: See macro! ltz3!
+    /// NOTE: See macro! `lt_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_lt(ctx.r, left, right)
@@ -86,7 +86,7 @@ impl <'ctx> GEZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
     /// 
-    /// NOTE: See macro! gez3!
+    /// NOTE: See macro! `ge_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_ge(ctx.r, left, right)
@@ -100,7 +100,7 @@ impl <'ctx> GTZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have the same sort, and must be int or real.
     /// 
-    /// NOTE: See macro! gtz3!
+    /// NOTE: See macro! `gt_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_gt(ctx.r, left, right)
@@ -109,23 +109,23 @@ impl <'ctx> GTZ3<'ctx> {
     }
 }
 
-/// Z3 a equal to b
+/// a equal to b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3relations::EQZ3::new(&ctx, a, b)
 /// ```
-/// Using the global context:
-/// ```text
-/// eqz3!(a, b)
-/// ```
+// / Using the global context:
+// / ```text
+// / eq_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// eqz3!(&ctx, a, b)
+/// eq_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of the same sort.
 #[macro_export]
-macro_rules! eqz3 {
+macro_rules! eq_z3 {
     // ($a:expr, $b:expr) => {
     //     EQZ3::new(&CTX, $a, $b).r
     // };
@@ -134,23 +134,23 @@ macro_rules! eqz3 {
     }
 }
 
-/// Z3 a less or equal than b
+/// a less than or equal to b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3relations::LEZ3::new(&ctx, a, b)
 /// ```
-/// Using the global context:
-/// ```text
-/// lez3!(a, b)
-/// ```
+// / Using the global context:
+// / ```text
+// / le_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// lez3!(&ctx, a, b)
+/// le_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of the same sort.
 #[macro_export]
-macro_rules! lez3 {
+macro_rules! le_z3 {
     // ($a:expr, $b:expr) => {
     //     LEZ3::new(&CTX, $a, $b).r
     // };
@@ -159,23 +159,23 @@ macro_rules! lez3 {
     }
 }
 
-/// Z3 a less than b
+/// a less than b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3relations::LTZ3::new(&ctx, a, b)
 /// ```
-/// Using the global context:
-/// ```text
-/// ltz3!(a, b)
-/// ```
+// / Using the global context:
+// / ```text
+// / lt_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// ltz3!(&ctx, a, b)
+/// lt_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of the same sort.
 #[macro_export]
-macro_rules! ltz3 {
+macro_rules! lt_z3 {
     // ($a:expr, $b:expr) => {
     //     LTZ3::new(&CTX, $a, $b).r
     // };
@@ -184,23 +184,23 @@ macro_rules! ltz3 {
     }
 }
 
-/// Z3 a greater or equal than b
+/// a greater than or equal to b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3relations::GEZ3::new(&ctx, a, b)
 /// ```
-/// Using the global context:
-/// ```text
-/// gez3!(a, b)
-/// ```
+// / Using the global context:
+// / ```text
+// / ge_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// gez3!(&ctx, a, b)
+/// ge_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of the same sort.
 #[macro_export]
-macro_rules! gez3 {
+macro_rules! ge_z3 {
     // ($a:expr, $b:expr) => {
     //     GEZ3::new(&CTX, $a, $b).r
     // };
@@ -209,23 +209,23 @@ macro_rules! gez3 {
     }
 }
 
-/// Z3 a greater than b
+/// a greater than b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3relations::GTZ3::new(&ctx, a, b)
 /// ```
-/// Using the global context:
-/// ```text
-/// gtz3!(a, b)
-/// ```
+// / Using the global context:
+// / ```text
+// / gt_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// gtz3!(&ctx, a, b)
+/// gt_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are of the same sort.
 #[macro_export]
-macro_rules! gtz3 {
+macro_rules! gt_z3 {
     // ($a:expr, $b:expr) => {
     //     GTZ3::new(&CTX, $a, $b).r
     // };
@@ -351,9 +351,9 @@ fn test_new_gt(){
 
 #[test]
 fn test_eq_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let eq1 = eqz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let eq1 = eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -362,9 +362,9 @@ fn test_eq_macro_1(){
 
 #[test]
 fn test_lt_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let lt1 = ltz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let lt1 = lt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -373,9 +373,9 @@ fn test_lt_macro_1(){
 
 #[test]
 fn test_gt_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let gt1 = gtz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let gt1 = gt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -384,9 +384,9 @@ fn test_gt_macro_1(){
 
 #[test]
 fn test_ge_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let ge1 = gez3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let ge1 = ge_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    
@@ -395,9 +395,9 @@ fn test_ge_macro_1(){
 
 #[test]
 fn test_le_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let le1 = lez3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let le1 = le_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
     );    

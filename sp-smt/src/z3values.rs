@@ -31,7 +31,7 @@ pub struct StringZ3<'ctx, 'a> {
 impl <'ctx> BoolZ3<'ctx> {
     /// Create an AST node representing `true` or 'false'.
     /// 
-    /// NOTE: See macro! bool_z3!
+    /// NOTE: See macro! `bool_z3!`
     pub fn new(ctx: &'ctx ContextZ3, val: bool) -> Z3_ast {
         let z3 = if val == true { unsafe {
                 Z3_mk_true(ctx.r)
@@ -50,7 +50,7 @@ impl <'ctx, 'isrt> IntZ3<'ctx, 'isrt> {
     /// - `isrt`: int sort.
     /// - `val`: int to be realized.
     ///
-    /// NOTE: See macro! int_z3!
+    /// NOTE: See macro! `int_z3!`
     pub fn new(ctx: &'ctx ContextZ3, isrt: &'isrt IntSortZ3<'ctx>, val: i32) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_int(ctx.r, val, isrt.r)
@@ -66,7 +66,7 @@ impl <'ctx, 'rsrt> RealZ3<'ctx, 'rsrt> {
     /// - `rsrt`: real sort.
     /// - `val`: float to be realized.
     /// 
-    /// NOTE: See macro! realz3!
+    /// NOTE: See macro! `real_z3!`
     pub fn new(ctx: &'ctx ContextZ3, rsrt: &'rsrt RealSortZ3<'ctx>, val: f64) -> Z3_ast {
         let num_string = val.to_string();
         let cstring = CString::new(num_string).unwrap();
@@ -84,7 +84,7 @@ impl <'ctx, 'a> StringZ3<'ctx, 'a> {
     /// - `ssrt`: string sort.
     /// - `val`: string to be realized.
     /// 
-    /// NOTE: See macro! string_z3!
+    /// NOTE: See macro! `string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, val: &'a str) -> Z3_ast {
         let string_val = CString::new(val.to_string()).unwrap();
         let z3 = unsafe {
@@ -94,19 +94,19 @@ impl <'ctx, 'a> StringZ3<'ctx, 'a> {
     }
 }
 
-/// Z3 boolean
+/// create a boolean constant
 /// 
 /// Macro rule for:
 /// ```text
 /// z3values::BoolZ3::new(&ctx, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// bvlz3!(a)
-/// ```
+// / Using the global context:
+// / ```text
+// / bool_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// bvlz3!(&ctx, a)
+/// bool_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! bool_z3 {
@@ -118,19 +118,19 @@ macro_rules! bool_z3 {
     }
 }
 
-/// Z3 integer
+/// create an integer constant
 /// 
 /// Macro rule for:
 /// ```text
 /// z3values::IntZ3::new(&ctx, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// ivlz3!(a)
-/// ```
+// / Using the global context:
+// / ```text
+// / int_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// ivlz3!(&ctx, a)
+/// int_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! int_z3 {
@@ -142,19 +142,19 @@ macro_rules! int_z3 {
     }
 }
 
-/// Z3 real
+/// create a real constant
 /// 
 /// Macro rule for:
 /// ```text
 /// z3values::RealZ3::new(&ctx, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// rvlz3!(a)
-/// ```
+// / Using the global context:
+// / ```text
+// / real_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// rvlz3!(&ctx, a)
+/// real_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! real_z3 {
@@ -166,19 +166,19 @@ macro_rules! real_z3 {
     }
 }
 
-/// Z3 string
+/// create a string constant
 /// 
 /// Macro rule for:
 /// ```text
 /// z3values::StringZ3::new(&ctx, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// svlz3!(a)
-/// ```
+// / Using the global context:
+// / ```text
+// / string_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// svlz3!(&ctx, a)
+/// string_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! string_z3 {
@@ -286,8 +286,8 @@ fn test_new_string(){
 
 #[test]
 fn test_bool_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let bool1 = bool_z3!(&ctx, true);
     assert_eq!("true", ast_to_string_z3!(&ctx, bool1));
     assert_eq!("Bool", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, bool1)));
@@ -295,8 +295,8 @@ fn test_bool_macro_1(){
 
 #[test]
 fn test_int_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let int1 = int_z3!(&ctx, 76);
     assert_eq!("76", ast_to_string_z3!(&ctx, int1));
     assert_eq!("Int", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, int1)));
@@ -304,8 +304,8 @@ fn test_int_macro_1(){
 
 #[test]
 fn test_real_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let real1 = real_z3!(&ctx, 76.456);
     assert_eq!("(/ 9557.0 125.0)", ast_to_string_z3!(&ctx, real1));
     assert_eq!("Real", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, real1)));
@@ -313,8 +313,8 @@ fn test_real_macro_1(){
 
 #[test]
 fn test_string_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let string1 = string_z3!(&ctx, "asdf_ASDF_!@#$");
     assert_eq!("\"asdf_ASDF_!@#$\"", ast_to_string_z3!(&ctx, string1));
     assert_eq!("String", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, string1)));

@@ -41,8 +41,8 @@ fn test_new_real_var(){
 
 #[test]
 fn test_bool_var_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let bool1 = bool_var_z3!(&ctx, "x");
     assert_eq!("x", ast_to_string_z3!(&ctx, bool1));
     assert_eq!("Bool", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, bool1)));
@@ -50,8 +50,8 @@ fn test_bool_var_macro_1(){
 
 #[test]
 fn test_int_var_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let int1 = int_var_z3!(&ctx, "x");
     assert_eq!("x", ast_to_string_z3!(&ctx, int1));
     assert_eq!("Int", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, int1)));
@@ -59,8 +59,8 @@ fn test_int_var_macro_1(){
 
 #[test]
 fn test_real_var_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let real1 = real_var_z3!(&ctx, "x");
     assert_eq!("x", ast_to_string_z3!(&ctx, real1));
     assert_eq!("Real", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, real1)));

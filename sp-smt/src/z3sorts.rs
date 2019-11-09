@@ -38,7 +38,7 @@ pub struct SortToStringZ3<'ctx> {
 impl<'ctx> SortToStringZ3<'ctx> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! sort_to_string_z3!
+    /// NOTE: See macro! `sort_to_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, what: Z3_sort) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_sort_to_string(ctx.r, what)).to_str().unwrap().to_owned()
@@ -52,7 +52,7 @@ impl <'ctx> BoolSortZ3<'ctx> {
     ///
     /// This type is used to create propositional variables and predicates.
     /// 
-    /// NOTE: See macro! bool_sort_z3!
+    /// NOTE: See macro! `bool_sort_z3!`
     pub fn new(ctx: &'ctx ContextZ3) -> BoolSortZ3 {
         let z3 = unsafe { 
             Z3_mk_bool_sort(ctx.r)
@@ -67,7 +67,7 @@ impl <'ctx> IntSortZ3<'ctx> {
     /// NOTE: This type is not the int type found in programming languages.
     /// A machine integer can be represented using bit-vectors. 
     /// 
-    /// NOTE: See macro! int_sort_z3!
+    /// NOTE: See macro! `int_sort_z3!`
     pub fn new(ctx: &'ctx ContextZ3) -> IntSortZ3 {
         let z3 = unsafe {
             Z3_mk_int_sort(ctx.r)
@@ -81,7 +81,7 @@ impl <'ctx> RealSortZ3<'ctx> {
     ///
     /// NOTE: This type is not a floating point number.
     /// 
-    /// NOTE: See macro! real_sort_z3!
+    /// NOTE: See macro! `real_sort_z3!`
     pub fn new(ctx: &'ctx ContextZ3) -> RealSortZ3 {
         let z3 = unsafe {
             Z3_mk_real_sort(ctx.r)
@@ -96,7 +96,7 @@ impl <'ctx> StringSortZ3<'ctx> {
     /// This function creates a sort for ASCII strings.
     /// Each character is 8 bits.
     /// 
-    /// NOTE: See macro! string_sort_z3!
+    /// NOTE: See macro! `string_sort_z3!`
     pub fn new(ctx: &'ctx ContextZ3) -> StringSortZ3 {
         let z3 = unsafe {
             Z3_mk_string_sort(ctx.r)
@@ -110,7 +110,7 @@ impl<'ctx> GetSortZ3<'ctx> {
     /// 
     /// NOTE: The AST node must be a constant, application, numeral, bound variable, or quantifier. 
     /// 
-    /// NOTE: See macro! get_sort_z3!
+    /// NOTE: See macro! `get_sort_z3!`
     pub fn new(ctx: &'ctx ContextZ3, arg: Z3_ast) -> GetSortZ3 {
         let z3 = unsafe {
             Z3_get_sort(ctx.r, arg)
@@ -119,7 +119,7 @@ impl<'ctx> GetSortZ3<'ctx> {
     }
 }
 
-/// Define a bool sort 
+/// define a bool sort 
 #[macro_export]
 macro_rules! bool_sort_z3 {
     ($ctx:expr) => {
@@ -127,7 +127,7 @@ macro_rules! bool_sort_z3 {
     }
 }
 
-/// Define an int sort 
+/// define an int sort 
 #[macro_export]
 macro_rules! int_sort_z3 {
     ($ctx:expr) => {
@@ -135,7 +135,7 @@ macro_rules! int_sort_z3 {
     }
 }
 
-/// Define a real sort 
+/// define a real sort 
 #[macro_export]
 macro_rules! real_sort_z3 {
     ($ctx:expr) => {
@@ -143,7 +143,7 @@ macro_rules! real_sort_z3 {
     }
 }
 
-/// Define a string sort 
+/// define a string sort 
 #[macro_export]
 macro_rules! string_sort_z3 {
     ($ctx:expr) => {
@@ -151,7 +151,7 @@ macro_rules! string_sort_z3 {
     }
 }
 
-/// Define a string sort 
+/// define a string sort 
 #[macro_export]
 macro_rules! get_sort_z3 {
     ($ctx:expr, $a:expr) => {
@@ -159,7 +159,7 @@ macro_rules! get_sort_z3 {
     }
 }
 
-/// Z3 sort to readable string
+/// sort to readable string
 #[macro_export]
 macro_rules! sort_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -202,32 +202,32 @@ fn test_string_sort(){
 
 #[test]
 fn test_bool_sort_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let bsrt = bool_sort_z3!(&ctx);
     assert_eq!("Bool", sort_to_string_z3!(&ctx, bsrt.r));
 }
 
 #[test]
 fn test_int_sort_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let isrt = int_sort_z3!(&ctx);
     assert_eq!("Int", sort_to_string_z3!(&ctx, isrt.r));
 }
 
 #[test]
 fn test_real_sort_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let rsrt = real_sort_z3!(&ctx);
     assert_eq!("Real", sort_to_string_z3!(&ctx, rsrt.r));
 }
 
 #[test]
 fn test_string_sort_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let ssrt = string_sort_z3!(&ctx);
     assert_eq!("String", sort_to_string_z3!(&ctx, ssrt.r));
 }

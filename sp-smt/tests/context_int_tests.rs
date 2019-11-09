@@ -10,3 +10,9 @@ fn test_ctx(){
 fn test_default_ctx(){
     ContextZ3::default();
 }
+
+#[test]
+fn test_ctx_macro(){
+    let cfg = cfg_z3!();
+    ctx_z3!(&cfg);
+}

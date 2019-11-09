@@ -52,7 +52,7 @@ pub struct OptGetStringZ3<'ctx, 'opt> {
 impl <'ctx> OptimizerZ3<'ctx> {
     /// Create a new optimization context.
     /// 
-    /// NOTE: See macro! optz3!
+    /// NOTE: See macro! `opt_z3!`
     pub fn new(ctx: &ContextZ3) -> OptimizerZ3 {
         let z3 = unsafe {
             let opt = Z3_mk_optimize(ctx.r);
@@ -66,7 +66,7 @@ impl <'ctx> OptimizerZ3<'ctx> {
 impl <'ctx, 'opt> OptAssertZ3<'ctx, 'opt> {
     /// Assert hard constraint to the optimization context.
     /// 
-    /// NOTE: See macro! opt_assert_z3!
+    /// NOTE: See macro! `opt_assert_z3!`
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
             Z3_optimize_assert(ctx.r, opt.r, cst);
@@ -81,7 +81,7 @@ impl <'ctx, 'opt> OptMaximizeZ3<'ctx, 'opt> {
     /// - `opt`: - optimization context
     /// - `cst`: - arithmetical term
     /// 
-    /// NOTE: See macro! omaxz3!
+    /// NOTE: See macro! `opt_maxizime_z3!`
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
             Z3_optimize_maximize(ctx.r, opt.r, cst);
@@ -96,7 +96,7 @@ impl <'ctx, 'opt> OptMinimizeZ3<'ctx, 'opt> {
     /// - `opt`: - optimization context
     /// - `cst`: - arithmetical term
     /// 
-    /// NOTE: See macro! ominz3!
+    /// NOTE: See macro! `opt_minimize_z3!`
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
             Z3_optimize_minimize(ctx.r, opt.r, cst);
@@ -112,7 +112,7 @@ impl <'ctx, 'opt> OptCheckZ3<'ctx, 'opt> {
     /// - `opt`: - optimization context
     /// - `args`: - vector of additional assumptions
     /// 
-    /// NOTE: See macro! opt_check_z3!
+    /// NOTE: See macro! `opt_check_z3!`
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>, args: Vec<Z3_ast>) -> Z3_lbool {
         let z3 = unsafe {
             let args_slice = &args;
@@ -130,7 +130,7 @@ impl<'ctx, 'opt> OptGetModelZ3<'ctx, 'opt> {
     /// the commands above were not invoked for the given optimization
     /// solver, or if the result was `Z3_L_FALSE`.
     /// 
-    /// NOTE: See macro! opt_get_model_z3!
+    /// NOTE: See macro! `opt_get_model_z3!`
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>) -> Z3_model {
         let z3 = unsafe {
             Z3_optimize_get_model(ctx.r, opt.r)
@@ -142,7 +142,7 @@ impl<'ctx, 'opt> OptGetModelZ3<'ctx, 'opt> {
 impl<'ctx, 'opt> OptGetStringZ3<'ctx, 'opt> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! opt_get_string_z3!
+    /// NOTE: See macro! `opt_get_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, opt: &'opt OptimizerZ3<'ctx>) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_optimize_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned()
@@ -161,22 +161,22 @@ impl <'ctx> Drop for OptimizerZ3<'ctx> {
 }
 
 
-/// Z3 optimizer 
+/// create an optimization context 
 /// 
 /// Macro rule for:
 /// ```text
 /// z3optimizer::OptimizerZ3::new(&ctx)
 /// ```
-/// Using the global context:
-/// ```text
-/// optz3!()
-/// ```
+// / Using the global context:
+// / ```text
+// / opt_z3!()
+// / ```
 /// Using a specific context:
 /// ```text
-/// optz3!(&ctx)
+/// opt_z3!(&ctx)
 /// ```
 #[macro_export]
-macro_rules! optz3 {
+macro_rules! opt_z3 {
     // () => {
     //     OptimizerZ3::new(&CTX).r
     // };
@@ -185,19 +185,19 @@ macro_rules! optz3 {
     }
 }
 
-/// Z3 assert hard optimization constraint 
+/// assert hard optimization constraint 
 /// 
 /// Macro rule for:
 /// ```text
 /// z3optimizer::OptAssertZ3::new(&ctx, &opt, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// oasrtz3!(a, &opt)
-/// ```
+// / Using the global context:
+// / ```text
+// / opt_assert_z3!(a, &opt)
+// / ```
 /// Using a specific context:
 /// ```text
-/// oasrt3!(&ctx, &opt, a)
+/// opt_assert_z3!(&ctx, &opt, a)
 /// ```
 #[macro_export]
 macro_rules! opt_assert_z3 {
@@ -209,19 +209,19 @@ macro_rules! opt_assert_z3 {
     }
 }
 
-/// Z3 assert a maximization constraint 
+/// assert a maximization constraint 
 /// 
 /// Macro rule for:
 /// ```text
 /// z3optimizer::OptMaximizeZ3::new(&ctx, &opt, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// omaxz3!(&opt, a)
-/// ```
+// / Using the global context:
+// / ```text
+// / omaxz3!(&opt, a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// omaxt3!(&ctx, &opt, a)
+/// opt_maximize_z3!(&ctx, &opt, a)
 /// ```
 #[macro_export]
 macro_rules! opt_maximize_z3 {
@@ -233,19 +233,19 @@ macro_rules! opt_maximize_z3 {
     }
 }
 
-/// Z3 assert a minimization constraint 
+/// assert a minimization constraint 
 /// 
 /// Macro rule for:
 /// ```text
 /// z3optimizer::OptMinimizeZ3::new(&ctx, &opt, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// ominz3!(&opt, a)
-/// ```
+// / Using the global context:
+// / ```text
+// / opt_minimize_z3!(&opt, a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// omint3!(&ctx, &opt, a)
+/// opt_minimize_z3!(&ctx, &opt, a)
 /// ```
 #[macro_export]
 macro_rules! opt_minimize_z3 {
@@ -257,19 +257,28 @@ macro_rules! opt_minimize_z3 {
     }
 }
 
-/// Z3 check consistency and produce optimal values 
+/// check consistency and produce optimal values 
 /// 
 /// Macro rule for:
 /// ```text
 /// z3optimizer::OptCheckZ3::new(&ctx, &opt, vec!(a, b, c))
 /// ```
-/// Using the global context:
+// / Using the global context:
+// / ```text
+// / ocheck3!(&opt, a, b, c)
+// / ```
+/// Using a specific context without additional assumptions:
 /// ```text
-/// ocheck3!(&opt, a, b, c)
+/// ocheck3!(&ctx, &opt, )
 /// ```
-/// Using a specific context:
+/// Using a specific context and passing additional assumptions:
 /// ```text
 /// ocheck3!(&ctx, &opt, a, b, c)
+/// ```
+/// Or make a vector firts and pass it:
+/// ```text
+/// let some = vec!(a, b, c);
+/// ocheck3!(&ctx, &opt, some)
 /// ```
 #[macro_export]
 macro_rules! opt_check_z3 {
@@ -282,6 +291,9 @@ macro_rules! opt_check_z3 {
     //         OptCheckZ3::new(&CTX, $opt, temp_vec).r
     //     }
     // };
+    ($ctx:expr, $opt:expr, $b:expr) => {
+        OptCheckZ3::new($ctx, $opt, $b)
+    };
     ( $ctx:expr, $opt:expr, $( $x:expr ),* ) => {
         {
             let mut temp_vec = Vec::new();
@@ -293,7 +305,7 @@ macro_rules! opt_check_z3 {
     };
 }
 
-/// Get the model from opt
+/// get the model from the last check
 #[macro_export]
 macro_rules! opt_get_model_z3 {
     ($ctx:expr, $a:expr) => {
@@ -301,7 +313,7 @@ macro_rules! opt_get_model_z3 {
     }
 }
 
-/// Z3 optimizer to readable string
+/// optimization context to readable string
 #[macro_export]
 macro_rules! opt_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -419,20 +431,20 @@ fn test_new_minimize(){
 
 #[test]
 fn test_opt_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
     assert_eq!("(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 }
 
 #[test]
 fn test_oot_assert_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -445,12 +457,12 @@ fn test_oot_assert_macro_1(){
 
 #[test]
 fn test_ocheck_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -466,12 +478,12 @@ fn test_ocheck_macro_1(){
 
 #[test]
 fn test_omax_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        ltz3!(&ctx,
+        lt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 100.0)
         )
@@ -492,12 +504,12 @@ fn test_omax_macro_1(){
 
 #[test]
 fn test_omin_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        gtz3!(&ctx,
+        gt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
         )

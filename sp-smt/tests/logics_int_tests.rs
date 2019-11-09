@@ -143,9 +143,22 @@ fn test_new_xor(){
 
 #[test]
 fn test_and_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let and1 = andz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
+    );
+    let and1 = and_z3!(&ctx, some);
+    assert_eq!("(and x true y)", ast_to_string_z3!(&ctx, and1));
+}
+
+#[test]
+fn test_and_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let and1 = and_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_z3!(&ctx, true),
         bool_var_z3!(&ctx, "y")
@@ -155,9 +168,9 @@ fn test_and_macro_1(){
 
 #[test]
 fn test_or_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let or1 = orz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let or1 = or_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_z3!(&ctx, true),
         bool_var_z3!(&ctx, "y")
@@ -166,10 +179,23 @@ fn test_or_macro_1(){
 }
 
 #[test]
+fn test_or_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
+    );
+    let or1 = or_z3!(&ctx, some);
+    assert_eq!("(or x true y)", ast_to_string_z3!(&ctx, or1));
+}
+
+#[test]
 fn test_not_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let not1 = notz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let not1 = not_z3!(&ctx,
         bool_z3!(&ctx, true)
     );
     assert_eq!("(not true)", ast_to_string_z3!(&ctx, not1));
@@ -177,9 +203,9 @@ fn test_not_macro_1(){
 
 #[test]
 fn test_ite_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let ite1 = itez3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let ite1 = ite_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_z3!(&ctx, true),
         bool_var_z3!(&ctx, "y")
@@ -189,9 +215,9 @@ fn test_ite_macro_1(){
 
 #[test]
 fn test_iff_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let iff1 = iffz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let iff1 = iff_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_var_z3!(&ctx, "y")
     );
@@ -200,9 +226,9 @@ fn test_iff_macro_1(){
 
 #[test]
 fn test_imp_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let imp1 = impz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let imp1 = imp_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_var_z3!(&ctx, "y")
     );
@@ -211,9 +237,9 @@ fn test_imp_macro_1(){
 
 #[test]
 fn test_xor_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let xor1 = xorz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let xor1 = xor_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_var_z3!(&ctx, "y")
     );

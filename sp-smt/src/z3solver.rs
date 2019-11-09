@@ -96,7 +96,7 @@ impl <'ctx> SolverZ3<'ctx> {
     /// `solver2_unknown`, and `ignore_solver1` parameters of the combined
     /// solver to change its behaviour.
     ///
-    /// NOTE: See macro! slvz3!
+    /// NOTE: See macro! `slv_z3!`
     pub fn new(ctx: &ContextZ3) -> SolverZ3 {
         let z3 = unsafe {
             let solv = Z3_mk_solver(ctx.r);
@@ -110,7 +110,7 @@ impl <'ctx> SolverZ3<'ctx> {
 impl <'ctx, 'slv> SlvAssertZ3<'ctx, 'slv> {
     /// Assert a new constraint into the solver.
     ///
-    /// NOTE: See macro! slv_assert_z3!
+    /// NOTE: See macro! `slv_assert_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
             Z3_solver_assert(ctx.r, slv.r, cst)
@@ -124,7 +124,7 @@ impl <'ctx, 'slv, 't> SlvAssertAndTrackZ3<'ctx, 'slv, 't> {
     /// unsat) core using the Boolean constant `tracker`. Used for extracting
     /// unsat cores.
     /// 
-    /// NOTE: See macro! slv_assert_and_track_z3!
+    /// NOTE: See macro! `slv_assert_and_track_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, cst: Z3_ast, tracker: &'t str) -> () {
         let z3 = unsafe {
                 let sort = BoolSortZ3::new(&ctx);
@@ -138,7 +138,7 @@ impl <'ctx, 'slv, 't> SlvAssertAndTrackZ3<'ctx, 'slv, 't> {
 impl <'ctx, 'slv> SlvCheckZ3<'ctx, 'slv> {
     /// Check whether the assertions in a given solver are consistent or not.
     ///
-    /// NOTE: See macro! slv_check_z3!
+    /// NOTE: See macro! `slv_check_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_lbool {
         let z3 = unsafe {
             Z3_solver_check(ctx.r, slv.r)
@@ -153,7 +153,7 @@ impl<'ctx, 'slv> SlvGetModelZ3<'ctx, 'slv> {
     /// NOTE: The error handler is invoked if a model is not available because
     /// the commands above were not invoked for the given solver, or if the result was `Z3_L_FALSE`.
     /// 
-    /// NOTE: See macro! slv_get_model_z3!
+    /// NOTE: See macro! `slv_get_model_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_model {
         let z3 = unsafe {
             Z3_solver_get_model(ctx.r, slv.r)
@@ -165,7 +165,7 @@ impl<'ctx, 'slv> SlvGetModelZ3<'ctx, 'slv> {
 impl <'ctx, 'slv> SlvGetParamDescrZ3<'ctx, 'slv> {
     /// Return a string that is the parameter description set for the given solver object.
     /// 
-    /// NOTE: See macro! slv_get_param_descr!
+    /// NOTE: See macro! `slv_get_param_descr!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> String {
         unsafe {
             let descr = Z3_solver_get_param_descrs(ctx.r, slv.r);
@@ -182,7 +182,7 @@ impl <'ctx, 'slv> SlvGetProofZ3<'ctx, 'slv> {
     /// or if the commands above were not invoked for the given solver,
     /// or if the result was different from `Z3_L_FALSE`.
     /// 
-    /// NOTE: See macro! slv_get_proof!
+    /// NOTE: See macro! `slv_get_proof!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_ast {
         let z3 = unsafe {
             Z3_solver_get_proof(ctx.r, slv.r)
@@ -196,7 +196,7 @@ impl <'ctx, 'slv> SlvGetUnsatCoreZ3<'ctx, 'slv> {
     /// 
     /// NOTE: The unsat core is a subset of the assumptions `a`.
     /// 
-    /// NOTE: See macro! slv_get_unsat_core!
+    /// NOTE: See macro! `slv_get_unsat_core!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_ast_vector {
         let z3 = unsafe {
             Z3_solver_get_unsat_core(ctx.r, slv.r)
@@ -208,7 +208,7 @@ impl <'ctx, 'slv> SlvGetUnsatCoreZ3<'ctx, 'slv> {
 impl<'ctx, 'slv> SlvToStringZ3<'ctx, 'slv> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! ast_to_string_z3!
+    /// NOTE: See macro! `slv_to_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_solver_to_string(ctx.r, slv.r)).to_str().unwrap().to_owned()
@@ -220,7 +220,7 @@ impl<'ctx, 'slv> SlvToStringZ3<'ctx, 'slv> {
 impl<'ctx> SlvUnsatCoreToStringZ3<'ctx> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! ast_to_string_z3!
+    /// NOTE: See macro! `slv_unsat_core_to_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, core: Z3_ast_vector) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_ast_vector_to_string(ctx.r, core)).to_str().unwrap().to_owned()
@@ -232,7 +232,7 @@ impl<'ctx> SlvUnsatCoreToStringZ3<'ctx> {
 impl<'ctx> SlvProofToStringZ3<'ctx> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! ast_to_string_z3!
+    /// NOTE: See macro! `slv_proof_to_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, what: Z3_ast) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_ast_to_string(ctx.r, what)).to_str().unwrap().to_owned()
@@ -250,22 +250,22 @@ impl <'ctx> Drop for SolverZ3<'ctx> {
     }
 }
 
-/// Z3 solver 
+/// create a new solver
 /// 
 /// Macro rule for:
 /// ```text
 /// z3solver::SolverZ3::new(&ctx)
 /// ```
-/// Using the global context:
-/// ```text
-/// slvz3!()
-/// ```
+// / Using the global context:
+// / ```text
+// / slvz3!()
+// / ```
 /// Using a specific context:
 /// ```text
-/// slvz3!(&ctx)
+/// slv_z3!(&ctx)
 /// ```
 #[macro_export]
-macro_rules! slvz3 {
+macro_rules! slv_z3 {
     // () => {
     //     SolverZ3::new(&CTX)
     // };
@@ -274,19 +274,19 @@ macro_rules! slvz3 {
     }
 }
 
-/// Z3 assert constraint 
+/// assert a new constraint into the solver 
 /// 
 /// Macro rule for:
 /// ```text
 /// z3solver::SlvAssertZ3::new(&ctx, &slv, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// sasrtz3!(a)
-/// ```
+// / Using the global context:
+// / ```text
+// / slv_assert_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// sasrtz3!(&ctx, a)
+/// slv_assert_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! slv_assert_z3 {
@@ -298,19 +298,19 @@ macro_rules! slv_assert_z3 {
     }
 }
 
-/// Z3 assert constraint and track for unsat core extraction
+/// assert constraint and track it for unsat core extraction
 /// 
 /// Macro rule for:
 /// ```text
 /// z3solver::SlvAssertAndTrackZ3::new(&ctx, &slv, constraint, tracker)
 /// ```
-/// Using the global context:
-/// ```text
-/// sasrtatz3!(&slv, constraint, tracker)
-/// ```
+// / Using the global context:
+// / ```text
+// / slv_assert_and_track_z3!(&slv, constraint, tracker)
+// / ```
 /// Using a specific context:
 /// ```text
-/// sasrtaz3!(&ctx, &slv, constraint, tracker)
+/// slv_assert_and_track_z3!(&ctx, &slv, constraint, tracker)
 /// ```
 /// tracker must be a Boolean variable.
 #[macro_export]
@@ -323,19 +323,19 @@ macro_rules! slv_assert_and_track_z3 {
     }
 }
 
-/// Z3 check whether the assertions in a given solver are consistent or not
+/// check whether the assertions in a given solver are consistent or not
 /// 
 /// Macro rule for:
 /// ```text
 /// z3solver::SlvCheckZ3::new(&ctx, &slv, a)
 /// ```
-/// Using the global context:
-/// ```text
-/// scheckz3!(a, &slv)
-/// ```
+// / Using the global context:
+// / ```text
+// / slv_check_z3!(a, &slv)
+// / ```
 /// Using a specific context:
 /// ```text
-/// scheckz3!(&ctx, &slv, a)
+/// slv_check_z3!(&ctx, &slv, a)
 /// ```
 #[macro_export]
 macro_rules! slv_check_z3 {
@@ -347,7 +347,7 @@ macro_rules! slv_check_z3 {
     }
 }
 
-/// Get the model from slv
+/// get the model from solver
 #[macro_export]
 macro_rules! slv_get_model_z3 {
     ($ctx:expr, $a:expr) => {
@@ -355,7 +355,7 @@ macro_rules! slv_get_model_z3 {
     }
 }
 
-/// Get the parameter description
+/// get the parameter description
 #[macro_export]
 macro_rules! slv_get_param_descr_z3 {
     ($ctx:expr, $a:expr) => {
@@ -363,7 +363,7 @@ macro_rules! slv_get_param_descr_z3 {
     }
 }
 
-/// Get the proof if unsat
+/// get the proof if unsat
 #[macro_export]
 macro_rules! slv_get_proof_z3 {
     ($ctx:expr, $a:expr) => {
@@ -371,7 +371,7 @@ macro_rules! slv_get_proof_z3 {
     }
 }
 
-/// Get the unsat core if unsat
+/// get the unsat core if unsat
 #[macro_export]
 macro_rules! slv_get_unsat_core_z3 {
     ($ctx:expr, $a:expr) => {
@@ -379,7 +379,7 @@ macro_rules! slv_get_unsat_core_z3 {
     }
 }
 
-/// Z3 solver to readable string
+/// solver context to readable string
 #[macro_export]
 macro_rules! slv_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -387,7 +387,7 @@ macro_rules! slv_to_string_z3 {
     }
 }
 
-/// Z3 unsat core to readable string
+/// unsat core to readable string
 #[macro_export]
 macro_rules! slv_unsat_core_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -395,7 +395,7 @@ macro_rules! slv_unsat_core_to_string_z3 {
     }
 }
 
-/// Z3 proof to readable string
+/// proof to readable string
 #[macro_export]
 macro_rules! slv_proof_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -549,20 +549,20 @@ fn get_unsat_core_test() {
 
 #[test]
 fn test_slv_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
     assert_eq!("", slv_to_string_z3!(&ctx, &slv));
 }
 
 #[test]
 fn test_slv_assert_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     slv_assert_z3!(&ctx, &slv,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -574,12 +574,12 @@ fn test_slv_assert_macro_1(){
 
 #[test]
 fn test_slv_assert_and_track_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     slv_assert_and_track_z3!(&ctx, &slv,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         ),
@@ -593,12 +593,12 @@ fn test_slv_assert_and_track_macro_1(){
 
 #[test]
 fn test_slv_check_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     slv_assert_z3!(&ctx, &slv,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -620,18 +620,18 @@ y -> (- (/ 271549371.0 500000.0))
 
 #[test]
 fn test_slv_param_descr_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
     slv_get_param_descr_z3!(&ctx, &slv);
 }
 
 #[test]
 fn test_get_proof_macro_1(){
-    let cfg = cfgz3!();
+    let cfg = cfg_z3!();
     set_param_z3!(&cfg, "proof", "true");
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     let sort = IntSortZ3::new(&ctx);
     let x = IntVarZ3::new(&ctx, &sort, "x");
@@ -660,16 +660,16 @@ fn test_get_proof_macro_1(){
 
 
     slv_assert_z3!(&ctx, &slv,
-        andz3!(&ctx,
-            eqz3!(&ctx,
+        and_z3!(&ctx,
+            eq_z3!(&ctx,
                 int_var_z3!(&ctx, "y"),
                 int_z3!(&ctx, -543)
             ),
-            ltz3!(&ctx,
+            lt_z3!(&ctx,
                 int_var_z3!(&ctx, "y"),
                 int_z3!(&ctx, -600)
             ),
-            gtz3!(&ctx,
+            gt_z3!(&ctx,
                 int_var_z3!(&ctx, "y"),
                 int_z3!(&ctx, 300)
             )

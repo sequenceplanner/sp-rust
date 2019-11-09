@@ -146,20 +146,20 @@ fn get_unsat_core_test() {
 
 #[test]
 fn test_slv_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
     assert_eq!("", slv_to_string_z3!(&ctx, &slv));
 }
 
 #[test]
 fn test_slv_assert_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     slv_assert_z3!(&ctx, &slv,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -171,12 +171,12 @@ fn test_slv_assert_macro_1(){
 
 #[test]
 fn test_slv_assert_and_track_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     slv_assert_and_track_z3!(&ctx, &slv,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         ),
@@ -190,12 +190,12 @@ fn test_slv_assert_and_track_macro_1(){
 
 #[test]
 fn test_slv_check_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     slv_assert_z3!(&ctx, &slv,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -217,18 +217,18 @@ y -> (- (/ 271549371.0 500000.0))
 
 #[test]
 fn test_slv_param_descr_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
     slv_get_param_descr_z3!(&ctx, &slv);
 }
 
 #[test]
 fn test_get_proof_macro_1(){
-    let cfg = cfgz3!();
+    let cfg = cfg_z3!();
     set_param_z3!(&cfg, "proof", "true");
-    let ctx = ctxz3!(&cfg);
-    let slv = slvz3!(&ctx);
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
 
     let sort = IntSortZ3::new(&ctx);
     let x = IntVarZ3::new(&ctx, &sort, "x");
@@ -257,16 +257,16 @@ fn test_get_proof_macro_1(){
 
 
     slv_assert_z3!(&ctx, &slv,
-        andz3!(&ctx,
-            eqz3!(&ctx,
+        and_z3!(&ctx,
+            eq_z3!(&ctx,
                 int_var_z3!(&ctx, "y"),
                 int_z3!(&ctx, -543)
             ),
-            ltz3!(&ctx,
+            lt_z3!(&ctx,
                 int_var_z3!(&ctx, "y"),
                 int_z3!(&ctx, -600)
             ),
-            gtz3!(&ctx,
+            gt_z3!(&ctx,
                 int_var_z3!(&ctx, "y"),
                 int_z3!(&ctx, 300)
             )

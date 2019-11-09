@@ -110,20 +110,20 @@ fn test_new_minimize(){
 
 #[test]
 fn test_opt_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
     assert_eq!("(check-sat)\n", opt_to_string_z3!(&ctx, &opt));
 }
 
 #[test]
 fn test_oot_assert_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -136,12 +136,12 @@ fn test_oot_assert_macro_1(){
 
 #[test]
 fn test_ocheck_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        eqz3!(&ctx,
+        eq_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, -543.098742)
         )
@@ -157,12 +157,12 @@ fn test_ocheck_macro_1(){
 
 #[test]
 fn test_omax_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        ltz3!(&ctx,
+        lt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 100.0)
         )
@@ -183,12 +183,12 @@ fn test_omax_macro_1(){
 
 #[test]
 fn test_omin_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     opt_assert_z3!(&ctx, &opt,
-        gtz3!(&ctx,
+        gt_z3!(&ctx,
             real_var_z3!(&ctx, "y"),
             real_z3!(&ctx, 11.0)
         )

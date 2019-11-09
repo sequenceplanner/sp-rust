@@ -19,7 +19,7 @@ pub struct ModelToStringZ3<'ctx> {
 impl<'ctx> AstToStringZ3<'ctx> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! ast_to_string_z3!
+    /// NOTE: See macro! `ast_to_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, what: Z3_ast) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_ast_to_string(ctx.r, what)).to_str().unwrap().to_owned()
@@ -31,7 +31,7 @@ impl<'ctx> AstToStringZ3<'ctx> {
 impl<'ctx> ModelToStringZ3<'ctx> {
     /// Z3 optimizer to readable string
     /// 
-    /// NOTE: See macro! model_to_string_z3!
+    /// NOTE: See macro! `model_to_string_z3!`
     pub fn new(ctx: &'ctx ContextZ3, what: Z3_model) -> String {
         let z3 = unsafe {
             CStr::from_ptr(Z3_model_to_string(ctx.r, what)).to_str().unwrap().to_owned()
@@ -40,7 +40,7 @@ impl<'ctx> ModelToStringZ3<'ctx> {
     }
 }
 
-/// Z3 AST to readable string
+/// abstract static tree to readable string
 #[macro_export]
 macro_rules! ast_to_string_z3 {
     ($ctx:expr, $a:expr) => {
@@ -48,7 +48,7 @@ macro_rules! ast_to_string_z3 {
     }
 }
 
-/// Z3 model to readable string
+/// model to readable string
 #[macro_export]
 macro_rules! model_to_string_z3 {
     ($ctx:expr, $a:expr) => {

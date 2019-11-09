@@ -17,7 +17,8 @@ impl ContextZ3 {
     /// 
     /// All main interaction with Z3 happens in the context of a `Z3_context`.
     /// 
-    /// A public reference to a default context for simplicity: `&CTX`
+    // / A public reference to a default context for simplicity: `&CTX`
+    /// NOTE: See macro! `ctx_z3!`
     pub fn new(cfg: &ConfigZ3) -> ContextZ3 {
         ContextZ3 {
             r: unsafe {
@@ -29,9 +30,9 @@ impl ContextZ3 {
     }
 }
 
-unsafe impl Sync for ContextZ3 {
-    // let guard = Z3_MUTEX.lock().unwrap();
-}
+// unsafe impl Sync for ContextZ3 {
+//    let guard = Z3_MUTEX.lock().unwrap();
+// }
 
 impl Default for ContextZ3 {
     /// Create a default logical context using the given configuration..
@@ -58,9 +59,9 @@ impl Drop for ContextZ3 {
 //     };
 // }
 
-/// Create a context using the given configuration.
+/// create a context using the given configuration
 #[macro_export]
-macro_rules! ctxz3 {
+macro_rules! ctx_z3 {
     ($a:expr) => {
         ContextZ3::new($a)
     }
@@ -75,6 +76,12 @@ fn test_ctx(){
 #[test]
 fn test_default_ctx(){
     ContextZ3::default();
+}
+
+#[test]
+fn test_ctx_macro(){
+    let cfg = cfg_z3!();
+    ctx_z3!(&cfg);
 }
 
 // #[test]

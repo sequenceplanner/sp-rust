@@ -59,7 +59,7 @@ impl<'ctx> ANDZ3<'ctx> {
     ///
     /// NOTE: The number of arguments must be greater than zero.
     /// 
-    /// NOTE: See macro! andz3!
+    /// NOTE: See macro! `and_z3!`
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
@@ -77,7 +77,7 @@ impl<'ctx> ORZ3<'ctx> {
     ///
     /// NOTE: The number of arguments must be greater than zero.
     /// 
-    /// NOTE: See macro! orz3!
+    /// NOTE: See macro! `or_z3!`
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
@@ -92,7 +92,7 @@ impl<'ctx> NOTZ3<'ctx> {
     ///
     /// NOTE: The node `arg` must have Boolean sort.
     /// 
-    /// NOTE: See macro! notz3!
+    /// NOTE: See macro! `not_z3!`
     pub fn new(ctx: &'ctx ContextZ3, arg: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_not(ctx.r, arg)
@@ -107,7 +107,7 @@ impl<'ctx> ITEZ3<'ctx> {
     /// NOTE: The node `ifz3` must be of Boolean sort, `thenz3` and `elsez3` must have the same sort.
     /// The sort of the new node is equal to the sort of `thenz3` and `elsez3`.
     /// 
-    /// NOTE: See macro! itez3!
+    /// NOTE: See macro! `ite_z3!`
     pub fn new(ctx: &'ctx ContextZ3, ifz3: Z3_ast, thenz3: Z3_ast, elsez3: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_ite(ctx.r, ifz3, thenz3, elsez3)
@@ -121,7 +121,7 @@ impl<'ctx> IFFZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have Boolean sort.
     /// 
-    /// NOTE: See macro! iffz3!
+    /// NOTE: See macro! `iff_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_iff(ctx.r, left, right)
@@ -135,7 +135,7 @@ impl<'ctx> IMPZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have Boolean sort.
     /// 
-    /// NOTE: See macro! impz3!
+    /// NOTE: See macro! `imp_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_implies(ctx.r, left, right)
@@ -149,7 +149,7 @@ impl<'ctx> XORZ3<'ctx> {
     ///
     /// NOTE: The nodes `left` and `right` must have Boolean sort.
     /// 
-    /// NOTE: See macro! xorz3!
+    /// NOTE: See macro! `xor_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
             Z3_mk_xor(ctx.r, left, right)
@@ -158,23 +158,28 @@ impl<'ctx> XORZ3<'ctx> {
     }
 }
 
-/// Z3 a and b and c
+/// a and b and c and ...
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::ANDZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-/// Using the default context:
+// / Using the default context:
+// / ```text
+// / and_z3!(a, b, c)
+// / ```
+/// Using a specific context and passing elements:
 /// ```text
-/// andz3!(a, b, c)
+/// and_z3!(&ctx, a, b, c)
 /// ```
-/// Using a specific context:
+/// Or make a vector firts and pass it:
 /// ```text
-/// andz3!(&ctx, a, b, c)
+/// let some = vec!(a, b, c);
+/// and_z3!(&ctx, some)
 /// ```
 /// Requires that a, b, c... are of Bool sort.
 #[macro_export]
-macro_rules! andz3 {
+macro_rules! and_z3 {
     // ( $( $x:expr ),* ) => {
     //     {
     //         let mut temp_vec = Vec::new();
@@ -184,6 +189,9 @@ macro_rules! andz3 {
     //         ANDZ3::new(&CTX, temp_vec).r
     //     }
     // };
+    ($ctx:expr, $b:expr) => {
+        ANDZ3::new($ctx, $b)
+    };
     ( $ctx:expr, $( $x:expr ),* ) => {
         {
             let mut temp_vec = Vec::new();
@@ -195,23 +203,28 @@ macro_rules! andz3 {
     };
 }
 
-/// Z3 a or b or c
+/// a or b or c or ...
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::ORZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-/// Using the default context:
+// / Using the default context:
+// / ```text
+// / or_z3!(a, b, c)
+// / ```
+/// Using a specific context and passing elements:
 /// ```text
-/// orz3!(a, b, c)
+/// or_z3!(&ctx, a, b, c)
 /// ```
-/// Using a specific context:
+/// Or make a vector firts and pass it:
 /// ```text
-/// orz3!(&ctx, a, b, c)
+/// let some = vec!(a, b, c);
+/// or_z3!(&ctx, some)
 /// ```
 /// Requires that a, b, c... are of Bool sort.
 #[macro_export]
-macro_rules! orz3 {
+macro_rules! or_z3 {
     // ( $( $x:expr ),* ) => {
     //     {
     //         let mut temp_vec = Vec::new();
@@ -221,6 +234,9 @@ macro_rules! orz3 {
     //         ORZ3::new(&CTX, temp_vec).r
     //     }
     // };
+    ($ctx:expr, $b:expr) => {
+        ORZ3::new($ctx, $b)
+    };
     ( $ctx:expr, $( $x:expr ),* ) => {
         {
             let mut temp_vec = Vec::new();
@@ -232,23 +248,23 @@ macro_rules! orz3 {
     };
 }
 
-/// Z3 not a
+/// not a
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::NOTZ3::new(&ctx, a).r
 /// ```
-/// Using the default context:
-/// ```text
-/// notz3!(a)
-/// ```
+// / Using the default context:
+// / ```text
+// / not_z3!(a)
+// / ```
 /// Using a specific context:
 /// ```text
-/// notz3!(&ctx, a)
+/// not_z3!(&ctx, a)
 /// ```
 /// Requires that a is of Bool sort.
 #[macro_export]
-macro_rules! notz3 {
+macro_rules! not_z3 {
     // ($a:expr) => {
     //     NOTZ3::new(&CTX, $a).r
     // };
@@ -257,23 +273,23 @@ macro_rules! notz3 {
     }
 }
 
-/// Z3 if a then b else c
+/// if a then b else c
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::ITEZ3::new(&ctx, a, b, c).r
 /// ```
-/// Using the default context:
-/// ```text
-/// itez3!(a, b, c)
-/// ```
+// / Using the default context:
+// / ```text
+// / ite_z3!(a, b, c)
+// / ```
 /// Using a specific context:
 /// ```text
-/// itez3!(&ctx, a, b, c)
+/// ite_z3!(&ctx, a, b, c)
 /// ```
 /// Requires that a is Bool sort and that b and c are of same sort.
 #[macro_export]
-macro_rules! itez3 {
+macro_rules! ite_z3 {
     // ($a:expr, $b:expr, $c:expr) => {
     //     ITEZ3::new(&CTX, $a, $b, $c).r
     // };
@@ -282,23 +298,23 @@ macro_rules! itez3 {
     }
 }
 
-/// Z3 a if and only if b
+/// a if and only if b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::IFFZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// iffz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / iff_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// iffz3!(&ctx, a, b)
+/// iff_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are Bool sort.
 #[macro_export]
-macro_rules! iffz3 {
+macro_rules! iff_z3 {
     // ($a:expr, $b:expr) => {
     //     IFFZ3::new(&CTX, $a, $b).r
     // };
@@ -307,23 +323,23 @@ macro_rules! iffz3 {
     }
 }
 
-/// Z3 a implies b
+/// a implies b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::IMPZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// impz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / imp_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// impz3!(&ctx, a, b)
+/// imp_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are Bool sort.
 #[macro_export]
-macro_rules! impz3 {
+macro_rules! imp_z3 {
     // ($a:expr, $b:expr) => {
     //     IMPZ3::new(&CTX, $a, $b).r
     // };
@@ -332,23 +348,23 @@ macro_rules! impz3 {
     }
 }
 
-/// Z3 either a or b
+/// either a or b
 /// 
 /// Macro rule for:
 /// ```text
 /// z3logics::XORZ3::new(&ctx, a, b).r
 /// ```
-/// Using the default context:
-/// ```text
-/// xorz3!(a, b)
-/// ```
+// / Using the default context:
+// / ```text
+// / xor_z3!(a, b)
+// / ```
 /// Using a specific context:
 /// ```text
-/// xorz3!(&ctx, a, b)
+/// xor_z3!(&ctx, a, b)
 /// ```
 /// Requires that a and b are Bool sort.
 #[macro_export]
-macro_rules! xorz3 {
+macro_rules! xor_z3 {
     // ($a:expr, $b:expr) => {
     //     XORZ3::new(&CTX, $a, $b).r
     // };
@@ -500,9 +516,22 @@ fn test_new_xor(){
 
 #[test]
 fn test_and_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let and1 = andz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
+    );
+    let and1 = and_z3!(&ctx, some);
+    assert_eq!("(and x true y)", ast_to_string_z3!(&ctx, and1));
+}
+
+#[test]
+fn test_and_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let and1 = and_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_z3!(&ctx, true),
         bool_var_z3!(&ctx, "y")
@@ -512,9 +541,9 @@ fn test_and_macro_1(){
 
 #[test]
 fn test_or_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let or1 = orz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let or1 = or_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_z3!(&ctx, true),
         bool_var_z3!(&ctx, "y")
@@ -523,10 +552,23 @@ fn test_or_macro_1(){
 }
 
 #[test]
+fn test_or_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true),
+        bool_var_z3!(&ctx, "y")
+    );
+    let or1 = or_z3!(&ctx, some);
+    assert_eq!("(or x true y)", ast_to_string_z3!(&ctx, or1));
+}
+
+#[test]
 fn test_not_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let not1 = notz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let not1 = not_z3!(&ctx,
         bool_z3!(&ctx, true)
     );
     assert_eq!("(not true)", ast_to_string_z3!(&ctx, not1));
@@ -534,9 +576,9 @@ fn test_not_macro_1(){
 
 #[test]
 fn test_ite_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let ite1 = itez3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let ite1 = ite_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_z3!(&ctx, true),
         bool_var_z3!(&ctx, "y")
@@ -546,9 +588,9 @@ fn test_ite_macro_1(){
 
 #[test]
 fn test_iff_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let iff1 = iffz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let iff1 = iff_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_var_z3!(&ctx, "y")
     );
@@ -557,9 +599,9 @@ fn test_iff_macro_1(){
 
 #[test]
 fn test_imp_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let imp1 = impz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let imp1 = imp_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_var_z3!(&ctx, "y")
     );
@@ -568,9 +610,9 @@ fn test_imp_macro_1(){
 
 #[test]
 fn test_xor_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let xor1 = xorz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let xor1 = xor_z3!(&ctx,
         bool_var_z3!(&ctx, "x"),
         bool_var_z3!(&ctx, "y")
     );

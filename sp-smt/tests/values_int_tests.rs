@@ -37,8 +37,8 @@ fn test_new_string(){
 
 #[test]
 fn test_bool_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let bool1 = bool_z3!(&ctx, true);
     assert_eq!("true", ast_to_string_z3!(&ctx, bool1));
     assert_eq!("Bool", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, bool1)));
@@ -46,8 +46,8 @@ fn test_bool_macro_1(){
 
 #[test]
 fn test_int_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let int1 = int_z3!(&ctx, 76);
     assert_eq!("76", ast_to_string_z3!(&ctx, int1));
     assert_eq!("Int", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, int1)));
@@ -55,8 +55,8 @@ fn test_int_macro_1(){
 
 #[test]
 fn test_real_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let real1 = real_z3!(&ctx, 76.456);
     assert_eq!("(/ 9557.0 125.0)", ast_to_string_z3!(&ctx, real1));
     assert_eq!("Real", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, real1)));
@@ -64,8 +64,8 @@ fn test_real_macro_1(){
 
 #[test]
 fn test_string_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
     let string1 = string_z3!(&ctx, "asdf_ASDF_!@#$");
     assert_eq!("\"asdf_ASDF_!@#$\"", ast_to_string_z3!(&ctx, string1));
     assert_eq!("String", sort_to_string_z3!(&ctx, get_sort_z3!(&ctx, string1)));

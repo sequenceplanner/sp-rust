@@ -12,9 +12,9 @@ fn main(){
  - Activity 3 is worth twice as much as activities 1 and 2 \n");
 
     // setup the optimization context:
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let opt = optz3!(&ctx);
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let opt = opt_z3!(&ctx);
 
     // variables:
     let x = int_var_z3!(&ctx, "x");
@@ -29,14 +29,14 @@ fn main(){
     let i4 = int_z3!(&ctx, 4);
 
     // objective:
-    opt_maximize_z3!(&ctx, &opt, addz3!(&ctx, x, y, mulz3!(&ctx, i2, z)));
+    opt_maximize_z3!(&ctx, &opt, add_z3!(&ctx, x, y, mul_z3!(&ctx, i2, z)));
 
     // constraints:
-    let c1 = lez3!(&ctx, addz3!(&ctx, x, mulz3!(&ctx, i2, y), mulz3!(&ctx, i3, z)), i4);
-    let c2 = gez3!(&ctx, addz3!(&ctx, x, y), i1);
-    let c3 = andz3!(&ctx, gez3!(&ctx, x, i0), lez3!(&ctx, x, i1));
-    let c4 = andz3!(&ctx, gez3!(&ctx, y, i0), lez3!(&ctx, y, i1));
-    let c5 = andz3!(&ctx, gez3!(&ctx, z, i0), lez3!(&ctx, z, i1));
+    let c1 = le_z3!(&ctx, add_z3!(&ctx, x, mul_z3!(&ctx, i2, y), mul_z3!(&ctx, i3, z)), i4);
+    let c2 = ge_z3!(&ctx, add_z3!(&ctx, x, y), i1);
+    let c3 = and_z3!(&ctx, ge_z3!(&ctx, x, i0), le_z3!(&ctx, x, i1));
+    let c4 = and_z3!(&ctx, ge_z3!(&ctx, y, i0), le_z3!(&ctx, y, i1));
+    let c5 = and_z3!(&ctx, ge_z3!(&ctx, z, i0), le_z3!(&ctx, z, i1));
 
     // assert constraints:
     opt_assert_z3!(&ctx, &opt, c1);

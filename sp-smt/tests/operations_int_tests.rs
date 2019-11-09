@@ -208,9 +208,22 @@ fn test_new_pow(){
 
 #[test]
 fn test_mul_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let mul1 = mulz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_z3!(&ctx, 142),
+        int_var_z3!(&ctx, "y")
+    );
+    let mul1 = mul_z3!(&ctx, some);
+    assert_eq!("(* x 142 y)", ast_to_string_z3!(&ctx, mul1));
+}
+
+#[test]
+fn test_mul_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let mul1 = mul_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y")
@@ -220,9 +233,9 @@ fn test_mul_macro_1(){
 
 #[test]
 fn test_div_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let div1 = divz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let div1 = div_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
@@ -231,9 +244,9 @@ fn test_div_macro_1(){
 
 #[test]
 fn test_mod_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let mod1 = modz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let mod1 = mod_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
@@ -242,9 +255,9 @@ fn test_mod_macro_1(){
 
 #[test]
 fn test_rem_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let rem1 = remz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let rem1 = rem_z3!(&ctx,
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
@@ -253,9 +266,23 @@ fn test_rem_macro_1(){
 
 #[test]
 fn test_add_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let add1 = addz3!(&ctx, 
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_z3!(&ctx, 142),
+        int_var_z3!(&ctx, "y"),
+        int_z3!(&ctx, 1213442)
+    );
+    let add1 = add_z3!(&ctx, some);
+    assert_eq!("(+ x 142 y 1213442)", ast_to_string_z3!(&ctx, add1));
+}
+
+#[test]
+fn test_add_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let add1 = add_z3!(&ctx, 
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y"),
@@ -266,9 +293,23 @@ fn test_add_macro_1(){
 
 #[test]
 fn test_sub_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let sub1 = subz3!(&ctx, 
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_z3!(&ctx, 142),
+        int_var_z3!(&ctx, "y"),
+        int_z3!(&ctx, 1213442)
+    );
+    let sub1 = sub_z3!(&ctx, some);
+    assert_eq!("(- (- (- x 142) y) 1213442)", ast_to_string_z3!(&ctx, sub1));
+}
+
+#[test]
+fn test_sub_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let sub1 = sub_z3!(&ctx, 
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142),
         int_var_z3!(&ctx, "y"),
@@ -279,9 +320,9 @@ fn test_sub_macro_1(){
 
 #[test]
 fn test_neg_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let neg1 = negz3!(&ctx,
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let neg1 = neg_z3!(&ctx,
         int_z3!(&ctx, 1213442)
     );
     assert_eq!("(- 1213442)", ast_to_string_z3!(&ctx, neg1));
@@ -289,9 +330,9 @@ fn test_neg_macro_1(){
 
 #[test]
 fn test_pow_macro_1(){
-    let cfg = cfgz3!();
-    let ctx = ctxz3!(&cfg);
-    let pow1 = powz3!(&ctx, 
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let pow1 = pow_z3!(&ctx, 
         int_var_z3!(&ctx, "x"),
         int_z3!(&ctx, 142)
     );
