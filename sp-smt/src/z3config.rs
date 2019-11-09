@@ -2,7 +2,7 @@
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
-// use std::sync::Mutex;
+use std::sync::Mutex;
 
 pub struct ConfigZ3 {
     pub r: Z3_config
@@ -104,9 +104,9 @@ impl Drop for ConfigZ3 {
 // Taken from the original library, credits: Bruce Mitchener, Graydon Hoare 
 // Z3 appears to be only mostly-threadsafe, a few initializers
 // and such race; so we mutex-guard all access to the library.
-// lazy_static! {
-//     pub static ref Z3_MUTEX: Mutex<()> = Mutex::new(());
-// }
+lazy_static! {
+    pub static ref Z3_MUTEX: Mutex<()> = Mutex::new(());
+}
 
 // // Unsafe sync takes toll... avoid this. 
 // lazy_static! {
