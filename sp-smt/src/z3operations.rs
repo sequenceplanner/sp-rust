@@ -137,7 +137,7 @@ impl<'ctx> ADDZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             Z3_mk_add(ctx.r, args_slice.len() as u32, args_slice.as_ptr())
         };
         ADDZ3 {ctx, r: z3, args}.r
