@@ -4,15 +4,14 @@ High-level rust bindings to the Z3 theorem prover with a completely macro based 
 
 Z3 is a SMT solver from Microsoft Research which supports the SMT-LIB format.
 
-Go to the documentation with:
+Look at the documentation with:
 ```
 cargo doc --open
 ```
-since time has been spent to actually write it.
 
 Look at `lib.rs` to find the list of currently implemented interfaces.
 
-Look in `tests` to find examples of how to use mathods and macros.
+Look in `tests` to find examples of how to use methods and macros.
 
 Run a specific test with:
 ```
