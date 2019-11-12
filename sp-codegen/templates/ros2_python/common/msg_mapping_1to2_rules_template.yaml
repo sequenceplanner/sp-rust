@@ -1,0 +1,12 @@
+-
+  ros1_package_name: '{{ ros1_package_name }}'
+  ros1_message_name: '{{ message_name }}' 
+  ros2_package_name: '{{ package_name }}'
+  ros2_message_name: '{{ message_name }}'
+  fields_1_to_2:
+    {% for item in command_variables -%}
+    got_{{ item }}: 'got_{{ item }}'
+    {% endfor -%}
+    {% for item in measured_variables -%}
+    {{ item }}: '{{ item }}'
+    {% endfor -%}

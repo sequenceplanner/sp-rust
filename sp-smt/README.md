@@ -25,4 +25,4 @@ Run a specific example with:
 cargo run --example <example_name>
 ```
 
-Don't look in `experiments`.
+Skip experimental examples indicated by the `exp` suffix.
