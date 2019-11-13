@@ -1,10 +1,11 @@
 //! # Code generation for SP
 
-pub mod ros2_generic;
-pub use crate::ros2_generic::{Directories};
+pub mod ros2_common;
+pub use crate::ros2_common::{Directories};
 
-pub mod ros2_python;
-pub use crate::ros2_python::{ConfigurationFile, DescriptionFile, SetupFile};
+pub mod ros2_python_common;
+pub use crate::ros2_python_common::{ConfigurationFile, ReadmeFile, ResourceFile, DescriptionFile, 
+    SetupFile, TestCopyrightFile, TestPep257File, TestFlake8File};
 
 // pub mod ros2_messages;
 // pub use crate::ros2_python::{Directories, ConfigurationFile};
