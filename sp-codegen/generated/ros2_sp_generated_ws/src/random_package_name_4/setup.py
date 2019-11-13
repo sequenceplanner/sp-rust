@@ -1,15 +1,16 @@
 from setuptools import setup
 
-package_name = '{{ package_name }}'
+package_name = 'random_package_name_4'
 
 setup(
     name=package_name,
     version='0.0.1',
     packages=[],
     py_modules=[
-    {% for module in modules %}
-    '{{ module }}',
-    {%- endfor %}
+    
+    'a',
+    'b',
+    'c',
     ],
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -18,24 +19,27 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    author='{{ author_name }}',
-    author_email='{{ email_address }}',
-    maintainer='{{ author_name }}',
-    maintainer_email='{{ email_address }}',
+    author='endre',
+    author_email='e@e.com',
+    maintainer='endre',
+    maintainer_email='e@e.com',
     keywords=['ROS2'],
     classifiers=[
         'Intended Audience :: Developers',
         'Programming Language :: Python',
         'Topic :: Software Development',
     ],
-    description='{{ description }}',
+    description='somedescr',
     license='',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        {% for script in scripts %}
-        '{{ script }}',
-        {%- endfor %}
+        
+        'a',
+        'b',
+        'c',
+        'asdf',
+        'asdf2',
         ],
     },
 )

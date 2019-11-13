@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="2">
-  <name>{{ package_name }}</name>
+  <name>random_package_name_4</name>
   <version>0.0.1</version>
-  <description>{{ description }}</description>
-  <maintainer email="{{ email_address }}">{{ author_name }}</maintainer>
+  <description>somedescr</description>
+  <maintainer email="e@e.com">endre</maintainer>
   <license>TODO: License declaration</license>
 
   <exec_depend>rclpy</exec_depend>

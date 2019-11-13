@@ -1,32 +1,22 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format{{ format }}.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<package format="{{ format }}">
-  <name>{{ package_name }}</name>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>{{ package_name }}_msgs</name>
   <version>0.0.1</version>
   <description>{{ description }}</description>
-
   <maintainer email="{{ email_address }}">{{ author_name }}</maintainer>
-  <license>Apache License 2.0</license>
+  <license>TODO: License declaration</license>
 
-  {% for item in buildtool_depends -%}
-  <buildtool_depend>{{ item }}</buildtool_depend>
-  {% endfor -%}
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  {% for item in exec_depends -%}
-  <exec_depend>{{ item }}</exec_depend>
-  {% endfor -%}
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
-  {% for item in build_depends -%}
-  <build_depend>{{ item }}</build_depend>
-  {% endfor -%}
-
-  {% for item in test_depends -%}
-  <test_depend>{{ item }}</test_depend>
-  {% endfor -%}
-
-  {% for item in member_of_groups -%}
-  <member_of_group>{{ item }}</member_of_group>
-  {% endfor -%}
+  <build_depend>builtin_interfaces</build_depend>
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
 
@@ -34,6 +24,7 @@
     <ros1_bridge mapping_rules='{{ item }}'/>
     {% endfor -%}
 
-    <build_type>{{ build_type }}</build_type>
+    <build_type>ament_cmake</build_type>
   </export>
+
 </package>
