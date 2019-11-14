@@ -181,14 +181,25 @@ fn test_dummy_door() {
 
     let s = make_initial_state(&m);
 
+    let mut variables = Vec::new();
+    let mut predicates = Vec::new();
+
     for (key, value) in &s.s {
-        println!("{} / {:#?}", key, value);
+        let mut st = key.to_string();
+
+        st.drain(..st.rfind('/').unwrap_or(st.len()));
+        st.retain(|c| c != '/');
+
+        let v: Vec<&str> = st.rsplit('_').collect();
+
+        if v[0] == "m" || v[0] == "c" {
+            variables.push(st);
+        } else {
+            predicates.push(st);
+        };      
     }
-
-    // println!("{:#?}", s.s);
-
-    println!("{:#?}", s.s[&SPPath::from(&["G:dummy_robot_model/door1/close/close_enabled".to_string()])]);
-
+    println!("variables: {:#?}", variables);
+    println!("predicates: {:#?}", predicates);
     assert!(false);
 }
 
