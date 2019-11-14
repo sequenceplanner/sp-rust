@@ -1,8 +1,6 @@
-use sp_codegen::*;
-
+use crate::runners::*;
 use sp_domain::*;
 use sp_runner_api::*;
-use sp_runner::*;
 
 fn pred_path(name: &str) -> SPPath {
     TemporaryPath::from_array(TemporaryPathNS::Predicate, &[name]).to_sp()
@@ -181,37 +179,9 @@ fn test_dummy_door() {
 
     let s = make_initial_state(&m);
 
-    for (key, value) in &s.s {
-        println!("{} / {:#?}", key, value);
-    }
+    println!("{:#?}", rm);
 
-    // println!("{:#?}", s.s);
-
-    println!("{:#?}", s.s[&SPPath::from(&["G:dummy_robot_model/door1/close/close_enabled".to_string()])]);
+    println!("{:#?}", s);
 
     assert!(false);
-}
-
-
-#[test]
-fn stuff_gen_macro() {
-    generate_python_common!("macro_test_gen1");
-}
-
-#[test]
-fn stuff_gen() {
-    Directories::new("random_package_name_4");
-    ConfigurationFile::new("random_package_name_4");
-    ReadmeFile::new("random_package_name_4");
-    ResourceFile::new("random_package_name_4");
-    TestCopyrightFile::new("random_package_name_4");
-    TestPep257File::new("random_package_name_4");
-    TestFlake8File::new("random_package_name_4");
-    DescriptionFile::new("random_package_name_4", "somedescr", "e@e.com", "endre");
-    SetupFile::new("random_package_name_4", 
-        vec!["a", "b", "c"], 
-        "e@e.com", 
-        "endre",
-        "somedescr", 
-        vec!["a", "b", "c", "asdf", "asdf2"],)
 }

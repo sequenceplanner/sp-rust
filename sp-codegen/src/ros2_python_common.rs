@@ -1,4 +1,4 @@
-//! ROS2 python package generation for SP
+//! ROS2 python package common component generation for SP
 
 extern crate askama;
 extern crate dirs;

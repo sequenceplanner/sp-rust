@@ -11,18 +11,18 @@ import rclpy
 import time
 import random
 from rclpy.node import Node
-from {{ package_name }}.msg import {{ message_type_interfacer_to_driver }}
-from {{ package_name }}.msg import {{ message_type_driver_to_interfacer }}
+from {{ package_name }}.msg import {{ message_type_interfacer_to_emulator }}
+from {{ package_name }}.msg import {{ message_type_emulator_to_interfacer }}
 
 class {{ capitalized_resource_name }}Emulator(Node):
 
     def __init__(self):
         super().__init__("{{ resource_name }}_emulator")
         
-        self.msg_emulator_to_interfacer = {{ message_type_driver_to_interfacer }}()
-        self.msg_interfacer_to_emulator = {{ message_type_interfacer_to_driver }}()
+        self.msg_emulator_to_interfacer = {{ message_type_emulator_to_interfacer }}()
+        self.msg_interfacer_to_emulator = {{ message_type_interfacer_to_emulator }}()
 
-        self.driver_to_interfacer_tmr_period = 0.5
+        self.emulator_to_interfacer_tmr_period = 0.5
 
         # Be careful what init values are since they are being published immediately the node is up!
         {% for item in measured_variables %}
@@ -46,32 +46,32 @@ class {{ capitalized_resource_name }}Emulator(Node):
                         {% endfor -%}]
 
         # Could be good to start the subscribers first so that they update the variables if other nodes are up
-        self.{{ resource_name }}_interfacer_to_driver_subscriber = self.create_subscription(
-            {{ message_type_interfacer_to_driver }}, 
+        self.{{ resource_name }}_interfacer_to_emulator_subscriber = self.create_subscription(
+            {{ message_type_interfacer_to_emulator }}, 
             "/{{ resource_name }}_interfacer_to_driver",
-            self.{{ resource_name }}_interfacer_to_driver_callback,
+            self.{{ resource_name }}_interfacer_to_emulator_callback,
             10)
 
         # Then sleep for a bit so that the node get the updated variables before publishing them
         time.sleep(2)
 
-        self.{{ resource_name }}_driver_to_interfacer_publisher_ = self.create_publisher(
-            {{ message_type_driver_to_interfacer }},
+        self.{{ resource_name }}_emulator_to_interfacer_publisher_ = self.create_publisher(
+            {{ message_type_emulator_to_interfacer }},
             "/{{ resource_name }}_driver_to_interfacer",
             10)
 
-        self.driver_to_interfacer_tmr = self.create_timer(
-            self.driver_to_interfacer_tmr_period, 
-            self.driver_to_interfacer_publisher_callback)
+        self.emulator_to_interfacer_tmr = self.create_timer(
+            self.emulator_to_interfacer_tmr_period, 
+            self.emulator_to_interfacer_publisher_callback)
  
     # SP updating the command variables through the interfacer
-    def {{ resource_name }}_interfacer_to_driver_callback(self, data):
+    def {{ resource_name }}_interfacer_to_emulator_callback(self, data):
         {% for item in command_variables %}
         self.{{ item }} = data.{{ item }}
         self.msg_emulator_to_interfacer.got_{{ item }} = data.{{ item }}
         {%- endfor %}
 
-    def driver_to_interfacer_publisher_callback(self):
+    def emulator_to_interfacer_publisher_callback(self):
         effects_to_exec = []
         random_effects_list = []
         for ability in self.abilities:
@@ -111,9 +111,9 @@ class {{ capitalized_resource_name }}Emulator(Node):
         self.msg_emulator_to_interfacer.{{ item }} = self.{{ item }}
         {%- endfor %}
 
-        self.{{ resource_name }}_driver_to_interfacer_publisher_.publish(self.msg_emulator_to_interfacer)
+        self.{{ resource_name }}_emulator_to_interfacer_publisher_.publish(self.msg_emulator_to_interfacer)
 
-    def driver_to_interfacer_publisher_callback(self):
+    def emulator_to_interfacer_publisher_callback(self):
         store_eval_indexes = []
         for pred in range(len(self.predicates)):
             if eval(self.predicates[pred]):
@@ -130,7 +130,7 @@ class {{ capitalized_resource_name }}Emulator(Node):
         self.msg_emulator_to_interfacer.{{ item }} = self.{{ item }}
         {%- endfor %}
 
-        self.{{ resource_name }}_driver_to_interfacer_publisher_.publish(self.msg_emulator_to_interfacer)
+        self.{{ resource_name }}_emulator_to_interfacer_publisher_.publish(self.msg_emulator_to_interfacer)
 
 def main(args=None):
     rclpy.init(args=args)

@@ -104,7 +104,10 @@ pub fn make_dummy_robot(name: &str) -> Resource {
             vec![start, finish],
             vec![enabled, executing, finished],
         )
+
     };
+
+    // println!("{:#?}", to_table);
 
     let to_away = {
         let enabled = pr! {{p!(active_m == true)} && {p!(rp_c != "away")} && {p!(ap_m != "away")}};
