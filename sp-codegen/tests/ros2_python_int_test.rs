@@ -69,6 +69,8 @@ pub fn make_dummy_door(name: &str) -> Resource {
         ],
     );
 
+    println!("{:#?}", state_msg);
+
     let state_topic = Topic::new("door_state", MessageField::Msg(state_msg));
 
     let mut r = Resource::new(name);
@@ -176,29 +178,13 @@ pub fn make_dummy_door(name: &str) -> Resource {
 #[test]
 fn test_dummy_door() {
     let r1 = make_dummy_door("door1");
-    let m = Model::new_root("dummy_robot_model", vec![SPItem::Resource(r1)]);
-    let rm = make_runner_model(&m);
 
-    let s = make_initial_state(&m);
+    let measured = GetSPModelVariables::new(r1.clone(), "door1").0;
+    let command = GetSPModelVariables::new(r1.clone(), "door1").1;
+    let predicates = GetSPModelVariables::new(r1.clone(), "door1").2;
 
-    let mut variables = Vec::new();
-    let mut predicates = Vec::new();
-
-    for (key, value) in &s.s {
-        let mut st = key.to_string();
-
-        st.drain(..st.rfind('/').unwrap_or(st.len()));
-        st.retain(|c| c != '/');
-
-        let v: Vec<&str> = st.rsplit('_').collect();
-
-        if v[0] == "m" || v[0] == "c" {
-            variables.push(st);
-        } else {
-            predicates.push(st);
-        };      
-    }
-    println!("variables: {:#?}", variables);
+    println!("variables: {:#?}", measured);
+    println!("variables: {:#?}", command);
     println!("predicates: {:#?}", predicates);
     assert!(false);
 }

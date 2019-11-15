@@ -173,15 +173,68 @@ pub fn make_dummy_door(name: &str) -> Resource {
 
 #[test]
 fn test_dummy_door() {
-    let r1 = make_dummy_door("door1");
-    let m = Model::new_root("dummy_robot_model", vec![SPItem::Resource(r1)]);
+    let r1 = make_dummy_door("door_asdf1");
+    let m = Model::new_root("dummy_robot_model", vec![SPItem::Resource(r1.clone())]);
     let rm = make_runner_model(&m);
 
     let s = make_initial_state(&m);
+    let mut node = r1.node().to_string();
+    node.drain(node.find('<').unwrap_or(node.len())..);
+    let asdf = node.find('_').unwrap_or(node.len());
 
-    println!("{:#?}", rm);
+    fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        }
+    }
 
-    println!("{:#?}", s);
+    let mut asdf = capitalize("asdf_asdf!");
+    asdf.retain(|c| c != '_');
+
+    for ab in r1.abilities(){
+        for predicate in ab.predicates() {
+            println!("{:#?}", predicate );
+            println!("====================================");
+        }
+    }
+
+    // println!("{:#?}", r1);
+
+    // println!("{}", &format!("{}InterfacerToEmulator", asdf));
+
+    // let mut capitalized_resource_name = node;
+    //     // while capitalized_resource_name.contains('_') {
+    //         let mut index = capitalized_resource_name.find('_').unwrap_or(capitalized_resource_name.len());
+    //         capitalized_resource_name.chars().nth(index).unwrap().to_uppercase();
+    //     // };
+
+    // println!("{:#?}", capitalized_resource_name);
+
+    // let asdf = capitalize("asdfasdf");
+    // capitalize(node.chars().nth(asdf+1).unwrap().as_str());
+
+    // let mut c = node[..].chars();
+    // match c.next() {
+    //     None => String::new(),
+    //     Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    // }
+    // let node2 = node[..].chars().nth(asdf+1).unwrap().to_uppercase().to_string();
+    // node.retain(|c| c != '_');
+
+    // node;
+
+    // println!("{:#?}", asdf);
+
+    // println!("{:#?}", node);
+
+    // for (key, value) in &r1.node {
+    //         let mut st = key.to_string();
+
+    // println!("{:#?}", r1);
+
+    // println!("{:#?}", s);
 
     assert!(false);
 }

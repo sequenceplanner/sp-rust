@@ -11,8 +11,8 @@ import rclpy
 import time
 import random
 from rclpy.node import Node
-from {{ package_name }}.msg import {{ message_type_interfacer_to_emulator }}
-from {{ package_name }}.msg import {{ message_type_emulator_to_interfacer }}
+from {{ package_name }}_msgs.msg import {{ message_type_interfacer_to_emulator }}
+from {{ package_name }}_msgs.msg import {{ message_type_emulator_to_interfacer }}
 
 class {{ capitalized_resource_name }}Emulator(Node):
 
