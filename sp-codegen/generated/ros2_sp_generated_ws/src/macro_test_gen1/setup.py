@@ -8,6 +8,8 @@ setup(
     packages=[],
     py_modules=[
     
+    'src.door1_basic_emulator',
+    'src.door1_basic_interfacer',
     ],
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -32,6 +34,8 @@ setup(
     entry_points={
         'console_scripts': [
         
+        'door1_basic_emulator = src.door1_basic_emulator:main',
+        'door1_basic_interfacer = src.door1_basic_interfacer:main',
         ],
     },
 )

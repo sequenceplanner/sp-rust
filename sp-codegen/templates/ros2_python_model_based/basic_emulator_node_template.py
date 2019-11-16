@@ -11,16 +11,16 @@ import rclpy
 import time
 import random
 from rclpy.node import Node
-from {{ package_name }}_msgs.msg import {{ message_type_interfacer_to_emulator }}
-from {{ package_name }}_msgs.msg import {{ message_type_emulator_to_interfacer }}
+from {{ package_name }}_msgs.msg import {{ message_type_interfacer_to_driver }}
+from {{ package_name }}_msgs.msg import {{ message_type_driver_to_interfacer }}
 
 class {{ capitalized_resource_name }}Emulator(Node):
 
     def __init__(self):
         super().__init__("{{ resource_name }}_emulator")
         
-        self.msg_emulator_to_interfacer = {{ message_type_emulator_to_interfacer }}()
-        self.msg_interfacer_to_emulator = {{ message_type_interfacer_to_emulator }}()
+        self.msg_emulator_to_interfacer = {{ message_type_driver_to_interfacer }}()
+        self.msg_interfacer_to_emulator = {{ message_type_interfacer_to_driver }}()
 
         self.emulator_to_interfacer_tmr_period = 0.5
 
@@ -33,21 +33,19 @@ class {{ capitalized_resource_name }}Emulator(Node):
         self.got_{{ item }} = False
         {%- endfor %}     
 
-        self.predicates = [{% for item in predicates -%}
-                           '{{ item }}',
-                           {% endfor -%}]
+        # Predicates
+        {% for item in predicates -%}
+        {{ item }}
+        {% endfor -%}
 
-        self.actions = [{% for item in actions -%}
+        # Transitions
+        self.transitions = [{% for item in transitions -%}
                         {{ item }},
                         {% endfor -%}]
         
-        self.effects = [{% for item in effects -%}
-                        {{ item }},
-                        {% endfor -%}]
-
         # Could be good to start the subscribers first so that they update the variables if other nodes are up
         self.{{ resource_name }}_interfacer_to_emulator_subscriber = self.create_subscription(
-            {{ message_type_interfacer_to_emulator }}, 
+            {{ message_type_interfacer_to_driver }}, 
             "/{{ resource_name }}_interfacer_to_driver",
             self.{{ resource_name }}_interfacer_to_emulator_callback,
             10)
@@ -56,7 +54,7 @@ class {{ capitalized_resource_name }}Emulator(Node):
         time.sleep(2)
 
         self.{{ resource_name }}_emulator_to_interfacer_publisher_ = self.create_publisher(
-            {{ message_type_emulator_to_interfacer }},
+            {{ message_type_driver_to_interfacer }},
             "/{{ resource_name }}_driver_to_interfacer",
             10)
 
@@ -72,57 +70,15 @@ class {{ capitalized_resource_name }}Emulator(Node):
         {%- endfor %}
 
     def emulator_to_interfacer_publisher_callback(self):
-        effects_to_exec = []
-        random_effects_list = []
-        for ability in self.abilities:
-            for transition in self.abilities[ability]['transitions']:
-                if all(eval(partial_guard) for partial_guard in self.abilities[ability]['transitions'][transition]['guard']):
-                    if not 'alternatives' in self.abilities[ability]['transitions'][transition]['effects']:
-                        effects_to_exec.append(self.abilities[ability]['transitions'][transition]['effects']['nominal']['effect'])
-                    # make a list with a hundred * probability (if the max decimal precision is 2, actually check it first) elemets per effect
-                    # and then choose a random one and add it to the exec list
-                    # ALSO: in check type, add max decimal length or change algorithm
-                    # Must be a better way to do it, this seems inneficient...
-                    elif 'alternatives' in self.abilities[ability]['transitions'][transition]['effects']:
-                        i = 0
-                        for i in (0, 1000*self.abilities[ability]['transitions'][transition]['effects']['nominal']['probability']):
-                            random_effects_list.append(self.abilities[ability]['transitions'][transition]['effects']['nominal']['effect'])
-                        
-                        for alternative in self.abilities[ability]['transitions'][transition]['effects']['alternatives']:
-                            j = 0
-                            for j in (0, 1000*self.abilities[ability]['transitions'][transition]['effects']['alternatives'][alternative]['probability']):
-                                random_effects_list.append(self.abilities[ability]['transitions'][transition]['effects']['alternatives'][alternative]['effect'])
-                    
-                        effects_to_exec.append(random(random_effects_list))
-                    # execution pair or sometjing...for cases with alternative effects?
-                    # habe to include some algorithm that has to take random effects into account with probability
-                
-        print(effects_to_exec)
-
-        for effect_to_exec in effects_to_exec:
-
-
-        for store_eval_index in store_eval_indexes:
-            for effect in self.effects[store_eval_index]:
-                # print(effect)
-                exec(effect)
-        
-        {% for item in measured_variables %}
-        self.msg_emulator_to_interfacer.{{ item }} = self.{{ item }}
-        {%- endfor %}
-
-        self.{{ resource_name }}_emulator_to_interfacer_publisher_.publish(self.msg_emulator_to_interfacer)
-
-    def emulator_to_interfacer_publisher_callback(self):
         store_eval_indexes = []
-        for pred in range(len(self.predicates)):
-            if eval(self.predicates[pred]):
+        for pred in range(len(self.transitions)):
+            if eval(self.transitions[pred][0]):
                 store_eval_indexes.append(pred)
         
         print(store_eval_indexes)
 
         for store_eval_index in store_eval_indexes:
-            for effect in self.effects[store_eval_index]:
+            for effect in self.transitions[store_eval_index][2]:
                 print(effect)
                 exec(effect)
         

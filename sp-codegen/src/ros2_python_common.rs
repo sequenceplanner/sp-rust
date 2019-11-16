@@ -56,11 +56,11 @@ pub struct DescriptionFile<'a> {
 #[template(path = "ros2_python_common/setup_file_template.py", print = "all", escape = "none")]
 pub struct SetupFile<'a> {
     package_name: &'a str,
-    modules: Vec<&'a str>,
+    modules: Vec<String>,
     email_address: &'a str,
     author_name: &'a str,
     description: &'a str,
-    scripts: Vec<&'a str>
+    scripts: Vec<String>
 }
 
 impl <'a> ConfigurationFile<'a> {
@@ -111,18 +111,29 @@ impl <'a> DescriptionFile<'a> {
 
 impl <'a> SetupFile<'a> {
     pub fn new(package_name: &'a str,
-               modules: Vec<&'a str>,
+               resources: Vec<&'a str>,
                email_address: &'a str,
                author_name: &'a str,
-               description: &'a str,
-               scripts: Vec<&'a str>) -> () {
+               description: &'a str) -> () {
+
+        let mut modules_val: Vec<String> = Vec::new();
+        let mut scripts_val: Vec<String> = Vec::new();
+
+        for resource in resources {
+            modules_val.push(format!("src.{}_basic_emulator", resource.to_string()));
+            modules_val.push(format!("src.{}_basic_interfacer", resource.to_string()));
+
+            scripts_val.push(format!("{}_basic_emulator = src.{}_basic_emulator:main", resource.to_string(), resource.to_string()));
+            scripts_val.push(format!("{}_basic_interfacer = src.{}_basic_interfacer:main", resource.to_string(), resource.to_string()));
+        }
+
         let file = SetupFile {
             package_name: package_name,
-            modules: modules,
+            modules: modules_val,
             email_address: email_address,
             author_name: author_name,
             description: description,
-            scripts: scripts
+            scripts: scripts_val
         }.render().unwrap();
 
         let mut f = File::create(format!("generated/ros2_sp_generated_ws/src/{}/setup.py", package_name)).unwrap();
@@ -165,7 +176,7 @@ impl <'a> TestFlake8File<'a> {
 
 #[macro_export]
 macro_rules! generate_python_common {
-    ($pn:expr) => {
+    ($pn:expr, $res:expr) => {
         Directories::new($pn);
         ConfigurationFile::new($pn);
         ReadmeFile::new($pn);
@@ -175,10 +186,9 @@ macro_rules! generate_python_common {
         TestFlake8File::new($pn);
         DescriptionFile::new($pn, "somedescription", "e@e.com", "endre");
         SetupFile::new($pn, 
-            vec![], 
+            vec!["door1"], 
             "e@e.com", 
             "endre",
-            "somedescription", 
-            vec![],)
+            "somedescription")
     }
 }

@@ -4,4 +4,3 @@
 {% for item in measured_variables %}
 {{ msg_type }} {{ item }}
 {%- endfor %}
-

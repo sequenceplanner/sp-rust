@@ -12,7 +12,7 @@ fn pred_true(name: &str) -> Predicate {
     )
 }
 
-pub fn make_dummy_door(name: &str) -> Resource {
+pub fn make_dummy_door(name: &str) -> (Resource, Vec<String>) {
     let command_msg = Message::new(
         "dummy_door_messages/msg/DoorControl".into(),
         vec![
@@ -78,18 +78,25 @@ pub fn make_dummy_door(name: &str) -> Resource {
     let opened_m = r.find_item("opened_m", &[]).unwrap_local_path().to_sp();
     let closed_m = r.find_item("closed_m", &[]).unwrap_local_path().to_sp();
 
+    let mut py_emul_predicates: Vec<String> = Vec::new();
+
     let open = {
+
         let open_enabled = pr! {{p!(opened_c == false)} && {p!(opened_m == false)}};
         let open_enabled = Variable::new_predicate("open_enabled", open_enabled);
+        py_emul_predicates.push("open_enabled = not opened_c and not opened_m".to_string());
 
         let open_executing = pr! {{p!(opened_c == true)} && {p!(opened_m == false)}};
         let open_executing = Variable::new_predicate("open_executing", open_executing);
+        py_emul_predicates.push("open_executing = opened_c and not opened_m".to_string());
 
         let open_finishing = pr! {{p!(opened_c == true)} && {p!(opened_m == true)}};
         let open_finishing = Variable::new_predicate("open_finishing", open_finishing);
+        py_emul_predicates.push("open_executing = opened_c and opened_m".to_string());
 
         let open_done = pr! {{p!(opened_c == false)} && {p!(opened_m == true)}};
         let open_done = Variable::new_predicate("open_done", open_done);
+        py_emul_predicates.push("open_executing = not opened_c and opened_m".to_string());
 
         let open_start = Transition::new(
             "open_start",
@@ -123,17 +130,22 @@ pub fn make_dummy_door(name: &str) -> Resource {
     };
 
     let close = {
+
         let close_enabled = pr! {{p!(closed_c == false)} && {p!(closed_m == false)}};
         let close_enabled = Variable::new_predicate("close_enabled", close_enabled);
+        py_emul_predicates.push("close_enabled = not closed_c and not closed_m".to_string());
 
         let close_executing = pr! {{p!(closed_c == true)} && {p!(closed_m == false)}};
         let close_executing = Variable::new_predicate("close_executing", close_executing);
+        py_emul_predicates.push("close_executing = closed_c and not closed_m".to_string());
 
         let close_finishing = pr! {{p!(closed_c == true)} && {p!(closed_m == true)}};
         let close_finishing = Variable::new_predicate("close_finishing", close_finishing);
+        py_emul_predicates.push("close_finishing = closed_c and closed_m".to_string());
 
         let close_done = pr! {{p!(closed_c == false)} && {p!(closed_m == true)}};
         let close_done = Variable::new_predicate("close_done", close_done);
+        py_emul_predicates.push("close_done = not closed_c and closed_m".to_string());
 
         let close_start = Transition::new(
             "close_start",
@@ -168,17 +180,17 @@ pub fn make_dummy_door(name: &str) -> Resource {
 
     r.add_ability(open);
     r.add_ability(close);
-    return r;
+    return (r, py_emul_predicates);
 }
 
 #[test]
 fn test_dummy_door() {
     let r1 = make_dummy_door("door_asdf1");
-    let m = Model::new_root("dummy_robot_model", vec![SPItem::Resource(r1.clone())]);
+    let m = Model::new_root("dummy_robot_model", vec![SPItem::Resource(r1.0.clone())]);
     let rm = make_runner_model(&m);
 
     let s = make_initial_state(&m);
-    let mut node = r1.node().to_string();
+    let mut node = r1.0.node().to_string();
     node.drain(node.find('<').unwrap_or(node.len())..);
     let asdf = node.find('_').unwrap_or(node.len());
 
@@ -193,12 +205,15 @@ fn test_dummy_door() {
     let mut asdf = capitalize("asdf_asdf!");
     asdf.retain(|c| c != '_');
 
-    for ab in r1.abilities(){
-        for predicate in ab.predicates() {
-            println!("{:#?}", predicate );
-            println!("====================================");
-        }
+    println!("{:#?}", r1.1);
+
+    for ab in r1.0.abilities(){
+        // println!("{:#?}", ab.as_ref());
+    //     // for predicate in ab {
+    //     //     println!("{:#?}", predicate );
+    //     //     println!("====================================");
     }
+    // }
 
     // println!("{:#?}", r1);
 
