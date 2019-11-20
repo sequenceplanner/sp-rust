@@ -11,41 +11,45 @@ use askama::Template;
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/configuration_file_template.cfg", print = "all", escape = "none")]
-pub struct ConfigurationFile<'a> {
+pub struct PyConfigurationFile<'a> {
     package_name: &'a str
 }
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/readme_template.md", print = "all", escape = "none")]
-pub struct ReadmeFile<'a> {
+pub struct PyReadmeFile<'a> {
     package_name: &'a str
 }
 
-pub struct ResourceFile<'a> {
+pub struct PyResourceFile<'a> {
+    package_name: &'a str
+}
+
+pub struct PyInitFile<'a> {
     package_name: &'a str
 }
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/test_copyright_template.py", print = "all", escape = "none")]
-pub struct TestCopyrightFile<'a> {
+pub struct PyTestCopyrightFile<'a> {
     package_name: &'a str
 }
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/test_flake8_template.py", print = "all", escape = "none")]
-pub struct TestFlake8File<'a> {
+pub struct PyTestFlake8File<'a> {
     package_name: &'a str
 }
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/test_pep257_template.py", print = "all", escape = "none")]
-pub struct TestPep257File<'a> {
+pub struct PyTestPep257File<'a> {
     package_name: &'a str
 }
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/description_file_template.xml", print = "all", escape = "none")]
-pub struct DescriptionFile<'a> {
+pub struct PyDescriptionFile<'a> {
     package_name: &'a str,
     description: &'a str,
     email_address: &'a str,
@@ -54,7 +58,7 @@ pub struct DescriptionFile<'a> {
 
 #[derive(Template)] 
 #[template(path = "ros2_python_common/setup_file_template.py", print = "all", escape = "none")]
-pub struct SetupFile<'a> {
+pub struct PySetupFile<'a> {
     package_name: &'a str,
     modules: Vec<String>,
     email_address: &'a str,
@@ -63,9 +67,9 @@ pub struct SetupFile<'a> {
     scripts: Vec<String>
 }
 
-impl <'a> ConfigurationFile<'a> {
+impl <'a> PyConfigurationFile<'a> {
     pub fn new(package_name: &'a str) -> () {
-        let file = ConfigurationFile {
+        let file = PyConfigurationFile {
             package_name: package_name
         }.render().unwrap();
 
@@ -74,9 +78,9 @@ impl <'a> ConfigurationFile<'a> {
     }
 }
 
-impl <'a> ReadmeFile<'a> {
+impl <'a> PyReadmeFile<'a> {
     pub fn new(package_name: &'a str) -> () {
-        let file = ReadmeFile {
+        let file = PyReadmeFile {
             package_name: package_name
         }.render().unwrap();
 
@@ -85,19 +89,26 @@ impl <'a> ReadmeFile<'a> {
     }
 }
 
-impl <'a> ResourceFile<'a> {
+impl <'a> PyResourceFile<'a> {
     pub fn new(package_name: &'a str) -> () {
         let mut f = File::create(format!("generated/ros2_sp_generated_ws/src/{}/resource/{}", package_name, package_name)).unwrap();
         write!(f, "{}", "").unwrap();
     }
 }
 
-impl <'a> DescriptionFile<'a> {
+impl <'a> PyInitFile<'a> {
+    pub fn new(package_name: &'a str) -> () {
+        let mut f = File::create(format!("generated/ros2_sp_generated_ws/src/{}/src/__init__.py", package_name)).unwrap();
+        write!(f, "{}", "").unwrap();
+    }
+}
+
+impl <'a> PyDescriptionFile<'a> {
     pub fn new(package_name: &'a str,
                description: &'a str,
                email_address: &'a str,
                author_name: &'a str) -> () {
-        let file = DescriptionFile {
+        let file = PyDescriptionFile {
             package_name: package_name,
             description: description,
             email_address: email_address,
@@ -109,7 +120,7 @@ impl <'a> DescriptionFile<'a> {
     }
 }
 
-impl <'a> SetupFile<'a> {
+impl <'a> PySetupFile<'a> {
     pub fn new(package_name: &'a str,
                resources: Vec<&'a str>,
                email_address: &'a str,
@@ -127,7 +138,7 @@ impl <'a> SetupFile<'a> {
             scripts_val.push(format!("{}_basic_interfacer = src.{}_basic_interfacer:main", resource.to_string(), resource.to_string()));
         }
 
-        let file = SetupFile {
+        let file = PySetupFile {
             package_name: package_name,
             modules: modules_val,
             email_address: email_address,
@@ -141,9 +152,9 @@ impl <'a> SetupFile<'a> {
     }
 }
 
-impl <'a> TestCopyrightFile<'a> {
+impl <'a> PyTestCopyrightFile<'a> {
     pub fn new(package_name: &'a str) -> () {
-        let file = TestCopyrightFile {
+        let file = PyTestCopyrightFile {
             package_name: package_name
         }.render().unwrap();
 
@@ -152,9 +163,9 @@ impl <'a> TestCopyrightFile<'a> {
     }
 }
 
-impl <'a> TestPep257File<'a> {
+impl <'a> PyTestPep257File<'a> {
     pub fn new(package_name: &'a str) -> () {
-        let file = TestPep257File {
+        let file = PyTestPep257File {
             package_name: package_name
         }.render().unwrap();
 
@@ -163,9 +174,9 @@ impl <'a> TestPep257File<'a> {
     }
 }
 
-impl <'a> TestFlake8File<'a> {
+impl <'a> PyTestFlake8File<'a> {
     pub fn new(package_name: &'a str) -> () {
-        let file = TestFlake8File {
+        let file = PyTestFlake8File {
             package_name: package_name
         }.render().unwrap();
 
@@ -178,14 +189,15 @@ impl <'a> TestFlake8File<'a> {
 macro_rules! generate_python_common {
     ($pn:expr, $res:expr) => {
         Directories::new($pn);
-        ConfigurationFile::new($pn);
-        ReadmeFile::new($pn);
-        ResourceFile::new($pn);
-        TestCopyrightFile::new($pn);
-        TestPep257File::new($pn);
-        TestFlake8File::new($pn);
-        DescriptionFile::new($pn, "somedescription", "e@e.com", "endre");
-        SetupFile::new($pn, 
+        PyConfigurationFile::new($pn);
+        PyInitFile::new($pn);
+        PyReadmeFile::new($pn);
+        PyResourceFile::new($pn);
+        PyTestCopyrightFile::new($pn);
+        PyTestPep257File::new($pn);
+        PyTestFlake8File::new($pn);
+        PyDescriptionFile::new($pn, "somedescription", "e@e.com", "endre");
+        PySetupFile::new($pn, 
             vec!["door1"], 
             "e@e.com", 
             "endre",

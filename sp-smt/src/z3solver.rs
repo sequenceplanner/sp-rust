@@ -99,6 +99,7 @@ impl <'ctx> SolverZ3<'ctx> {
     /// NOTE: See macro! `slv_z3!`
     pub fn new(ctx: &ContextZ3) -> SolverZ3 {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             let solv = Z3_mk_solver(ctx.r);
             Z3_solver_inc_ref(ctx.r, solv);
             solv
@@ -113,6 +114,7 @@ impl <'ctx, 'slv> SlvAssertZ3<'ctx, 'slv> {
     /// NOTE: See macro! `slv_assert_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_solver_assert(ctx.r, slv.r, cst)
         };
         SlvAssertZ3 {ctx, slv, cst, r: z3}.r
@@ -141,6 +143,7 @@ impl <'ctx, 'slv> SlvCheckZ3<'ctx, 'slv> {
     /// NOTE: See macro! `slv_check_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_lbool {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_solver_check(ctx.r, slv.r)
         };
         SlvCheckZ3 {ctx, slv, r: z3}.r
@@ -156,6 +159,7 @@ impl<'ctx, 'slv> SlvGetModelZ3<'ctx, 'slv> {
     /// NOTE: See macro! `slv_get_model_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_model {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_solver_get_model(ctx.r, slv.r)
         };
         SlvGetModelZ3 {ctx, r: z3, slv}.r        
@@ -244,7 +248,8 @@ impl<'ctx> SlvProofToStringZ3<'ctx> {
 impl <'ctx> Drop for SolverZ3<'ctx> {
     /// Decrement the reference counter of the given solver.
     fn drop(&mut self) {
-        unsafe { 
+        unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_solver_dec_ref(self.ctx.r, self.r)
         }
     }

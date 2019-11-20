@@ -10,11 +10,10 @@ use std::fs;
 use askama::Template;
 
 #[derive(Template)] 
-#[template(path = "ros2_messages_common/cmakelists_template.txt", print = "all", escape = "none")]
-pub struct MsgCMakeListsFile<'a> {
+#[template(path = "ros2_messages_model_based/msg_basic_command_template.msg", print = "all", escape = "none")]
+pub struct MsgCommandType<'a> {
     package_name: &'a str,
-    messages: Vec<String>,
-    mapping_rules: Vec<String>
+    command_variables: Vec<String>
 }
 
 #[derive(Template)] 

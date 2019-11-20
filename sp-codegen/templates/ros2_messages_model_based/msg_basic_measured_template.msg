@@ -1,7 +1,7 @@
 {% for item in command_variables %}
-{{ msg_type }} got_{{ item }}
+{{ item }}
 {%- endfor %}
 {% for item in measured_variables %}
-{{ msg_type }} {{ item }}
+{{ item }}
 {%- endfor %}
 

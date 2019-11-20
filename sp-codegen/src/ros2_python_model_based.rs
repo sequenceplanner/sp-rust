@@ -16,7 +16,7 @@ use askama::Template;
 
 #[derive(Template)] 
 #[template(path = "ros2_python_model_based/basic_interfacer_node_template.py", print = "all", escape = "none")]
-pub struct BasicInterfacerNode<'a> {
+pub struct PyBasicInterfacerNode<'a> {
     package_name: &'a str,
     resource_name: String,
     capitalized_resource_name: String,
@@ -30,7 +30,7 @@ pub struct BasicInterfacerNode<'a> {
 
 #[derive(Template)] 
 #[template(path = "ros2_python_model_based/basic_emulator_node_template.py", print = "all", escape = "none")]
-pub struct BasicEmulatorNode<'a> {
+pub struct PyBasicEmulatorNode<'a> {
     package_name: &'a str,
     resource_name: String,
     capitalized_resource_name: String,
@@ -42,7 +42,7 @@ pub struct BasicEmulatorNode<'a> {
     transitions: Vec<String>
 }
 
-impl <'a> BasicInterfacerNode<'a> {
+impl <'a> PyBasicInterfacerNode<'a> {
     pub fn new(package_name: &'a str, resource: Resource ) -> () {
 
         let mut resource_name_val = resource.node().to_string();
@@ -68,7 +68,7 @@ impl <'a> BasicInterfacerNode<'a> {
         let measured_variables_val = GetSPModelVariables::new(resource.clone(), &resource_name_val[..]).0;
         let command_variables_val = GetSPModelVariables::new(resource.clone(), &resource_name_val[..]).1;
 
-        let file = BasicInterfacerNode {
+        let file = PyBasicInterfacerNode {
             package_name: package_name,
             resource_name: resource_name_val,
             capitalized_resource_name: capitalized_resource_name_val,
@@ -86,7 +86,7 @@ impl <'a> BasicInterfacerNode<'a> {
     }
 }
 
-impl <'a> BasicEmulatorNode<'a> {
+impl <'a> PyBasicEmulatorNode<'a> {
     pub fn new(package_name: &'a str, resource: Resource, predicates_val: Vec<String>, transitions_val: Vec<String>) -> () {
 
         let mut resource_name_val = resource.node().to_string();
@@ -112,7 +112,7 @@ impl <'a> BasicEmulatorNode<'a> {
         let predicate_variables_val = GetSPModelVariables::new(resource.clone(), &resource_name_val[..]).2;
 
         // Hmmm, need to parse transitions into a python executable format
-        let file = BasicEmulatorNode {
+        let file = PyBasicEmulatorNode {
             package_name: package_name,
             resource_name: resource_name_val,
             capitalized_resource_name: capitalized_resource_name_val,

@@ -63,6 +63,7 @@ impl<'ctx> ANDZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_mk_and(ctx.r, args_slice.len() as u32, args_slice.as_ptr())
         };
         ANDZ3{ctx, r: z3, args}.r   
@@ -81,6 +82,7 @@ impl<'ctx> ORZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_mk_or(ctx.r, args_slice.len() as u32, args_slice.as_ptr())
         };
         ORZ3 {ctx, r: z3, args}.r       
@@ -95,6 +97,7 @@ impl<'ctx> NOTZ3<'ctx> {
     /// NOTE: See macro! `not_z3!`
     pub fn new(ctx: &'ctx ContextZ3, arg: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_mk_not(ctx.r, arg)
         };
         NOTZ3 {ctx, r: z3, arg}.r  
@@ -110,6 +113,7 @@ impl<'ctx> ITEZ3<'ctx> {
     /// NOTE: See macro! `ite_z3!`
     pub fn new(ctx: &'ctx ContextZ3, ifz3: Z3_ast, thenz3: Z3_ast, elsez3: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_mk_ite(ctx.r, ifz3, thenz3, elsez3)
         };
         ITEZ3 {ctx, ifz3, thenz3, elsez3, r: z3}.r

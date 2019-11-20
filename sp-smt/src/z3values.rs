@@ -34,8 +34,10 @@ impl <'ctx> BoolZ3<'ctx> {
     /// NOTE: See macro! `bool_z3!`
     pub fn new(ctx: &'ctx ContextZ3, val: bool) -> Z3_ast {
         let z3 = if val == true { unsafe {
+                Z3_MUTEX.lock().unwrap();
                 Z3_mk_true(ctx.r)
             }} else { unsafe { 
+                Z3_MUTEX.lock().unwrap();
                 Z3_mk_false(ctx.r)
             }
         };

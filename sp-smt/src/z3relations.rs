@@ -47,6 +47,7 @@ impl <'ctx> EQZ3<'ctx> {
     /// NOTE: See macro! `eq_z3!`
     pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
+            Z3_MUTEX.lock().unwrap();
             Z3_mk_eq(ctx.r, left, right)
         };
         EQZ3 {ctx, left, right, r: z3}.r

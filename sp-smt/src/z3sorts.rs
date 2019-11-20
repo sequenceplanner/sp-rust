@@ -55,6 +55,7 @@ impl <'ctx> BoolSortZ3<'ctx> {
     /// NOTE: See macro! `bool_sort_z3!`
     pub fn new(ctx: &'ctx ContextZ3) -> BoolSortZ3 {
         let z3 = unsafe { 
+            Z3_MUTEX.lock().unwrap();
             Z3_mk_bool_sort(ctx.r)
         };
         BoolSortZ3 {ctx, r: z3}
