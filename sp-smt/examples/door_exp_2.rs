@@ -16,8 +16,10 @@ fn main() {
     let opened_m = bool_var_z3!(&ctx, "opened_m");
     let closed_c = bool_var_z3!(&ctx, "closed_c");
     let closed_m = bool_var_z3!(&ctx, "closed_m");
-    let locked_c = bool_var_z3!(&ctx, "locked_c");
-    let locked_m = bool_var_z3!(&ctx, "locked_m");
+    // let locked_c = bool_var_z3!(&ctx, "locked_c");
+    // let locked_m = bool_var_z3!(&ctx, "locked_m");
+    // let unlocked_c = bool_var_z3!(&ctx, "unlocked_c");
+    // let unlocked_m = bool_var_z3!(&ctx, "unlocked_m");
 
     let t = bool_z3!(&ctx, true);
     let f = bool_z3!(&ctx, false);
@@ -44,11 +46,11 @@ fn main() {
     // forbidden behavior (this has not to hold in the assert):
     let forb1 = not_z3!(&ctx, and_z3!(&ctx, closed_c, opened_c));
     let forb2 = not_z3!(&ctx, and_z3!(&ctx, closed_m, opened_m));
-    let forb3 = not_z3!(&ctx, and_z3!(&ctx, open_executing, locked_m));
+    // let forb3 = not_z3!(&ctx, and_z3!(&ctx, open_executing, locked_m));
 
     // open door transitions:
     // let open_start = ite_z3!(&ctx, and_z3!(&ctx, open_enabled, not_z3!(&ctx, locked_m)), opened_c, not_z3!(&ctx, opened_c));
-    let open_start = ite_z3!(&ctx, t, opened_c, not_z3!(&ctx, opened_c));
+    let open_start = ite_z3!(&ctx, open_enabled, opened_c, not_z3!(&ctx, opened_c));
     let open_finish = ite_z3!(&ctx, open_executing, opened_m, or_z3!(&ctx, opened_m, not_z3!(&ctx, opened_m)));
     let open_reset = ite_z3!(&ctx, open_finishing, not_z3!(&ctx, opened_c), opened_c);
 
@@ -57,7 +59,7 @@ fn main() {
     let close_finish = ite_z3!(&ctx, close_executing, closed_m, or_z3!(&ctx, closed_m, not_z3!(&ctx, closed_m)));
     let close_reset = ite_z3!(&ctx, close_finishing, not_z3!(&ctx, closed_c), closed_c);
 
-        // slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, t, f));
+    // slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, t, f));
 
     // slv_assert_z3!(&ctx, &slv, close_done);
     slv_assert_z3!(&ctx, &slv, open_start);
