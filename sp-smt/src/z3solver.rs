@@ -99,7 +99,7 @@ impl <'ctx> SolverZ3<'ctx> {
     /// NOTE: See macro! `slv_z3!`
     pub fn new(ctx: &ContextZ3) -> SolverZ3 {
         let z3 = unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             let solv = Z3_mk_solver(ctx.r);
             Z3_solver_inc_ref(ctx.r, solv);
             solv
@@ -114,7 +114,7 @@ impl <'ctx, 'slv> SlvAssertZ3<'ctx, 'slv> {
     /// NOTE: See macro! `slv_assert_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, cst: Z3_ast) -> () {
         let z3 = unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             Z3_solver_assert(ctx.r, slv.r, cst)
         };
         SlvAssertZ3 {ctx, slv, cst, r: z3}.r
@@ -143,7 +143,7 @@ impl <'ctx, 'slv> SlvCheckZ3<'ctx, 'slv> {
     /// NOTE: See macro! `slv_check_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_lbool {
         let z3 = unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             Z3_solver_check(ctx.r, slv.r)
         };
         SlvCheckZ3 {ctx, slv, r: z3}.r
@@ -159,7 +159,7 @@ impl<'ctx, 'slv> SlvGetModelZ3<'ctx, 'slv> {
     /// NOTE: See macro! `slv_get_model_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_model {
         let z3 = unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             Z3_solver_get_model(ctx.r, slv.r)
         };
         SlvGetModelZ3 {ctx, r: z3, slv}.r        
@@ -222,6 +222,10 @@ impl<'ctx, 'slv> SlvToStringZ3<'ctx, 'slv> {
 }
 
 impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
+    /// Retrieve all models for previos assertions. This method works iteratively,
+    /// adding constraints one by one from feasible solutions.
+    /// 
+    /// NOTE: See macro! `slv_get_all_models_z3!`
     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> SlvGetAllModelsZ3<'ctx, 'slv> {
         let z3 = unsafe {
             let mut models: Vec<Z3_model> = Vec::new();
@@ -253,64 +257,6 @@ impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
     }
 }
 
-
-// while slv_check_z3!(&ctx, &slv) == 1 {
-//         let model = slv_get_model_z3!(&ctx, &slv);
-//         model_to_string_z3!(&ctx, model);
-//         println!("{}", model_to_string_z3!(&ctx, model));
-//         let mut to_assert = Vec::new();
-//         unsafe{
-//             let fnum = Z3_model_get_num_consts(ctx.r, model);
-//             for i in 0..fnum {
-//                 let fd = Z3_model_get_const_decl(ctx.r, model, i);
-//                 let fname = Z3_get_decl_name(ctx.r, fd);
-//                 // let fd_ast = Z3_func_decl_to_ast(ctx.r, fd);
-//                 let val = Z3_model_get_const_interp(ctx.r, model, fd);
-//                 let val_str = ast_to_string_z3!(&ctx, val);
-//                 if val_str == "true" {
-//                     to_assert.push(bool_var_z3!(&ctx, &CStr::from_ptr(Z3_get_symbol_string(ctx.r, fname)).to_str().unwrap().to_owned()));
-//                     println!("TRUE{}", val_str);
-//                 } else {
-//                     to_assert.push(not_z3!(&ctx, bool_var_z3!(&ctx, &CStr::from_ptr(Z3_get_symbol_string(ctx.r, fname)).to_str().unwrap().to_owned())));
-//                     println!("FALSE{}", val_str)
-//                 }
-//                 // to_assert.push(bool_var_z3!(&ctx, &CStr::from_ptr(Z3_get_symbol_string(ctx.r, fname)).to_str().unwrap().to_owned()));
-//                 // Z3_get_symbol_string(&ctx, fname);
-//                 // println!("{:#?}", CStr::from_ptr(Z3_get_symbol_string(ctx.r, fname)).to_str().unwrap().to_owned());
-//                 // println!("{:#?}", fname);
-                
-//                 // let sort = get_sort_z3!(&ctx, fd_ast);
-//                 // println!("{}", sort_to_string_z3!(&ctx, sort));
-//                 let ci = Z3_model_get_const_interp(ctx.r, model, fd);
-//                 // to_assert.push(fd_ast);
-//         }
-//         let asrt = and_z3!(&ctx, to_assert);
-//         println!("{}", ast_to_string_z3!(&ctx, asrt));
-//         slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, asrt));
-//         // slv_check_z3!(&ctx, &slv);
-//             // println!("{}", fnum);
-//             // let fd = Z3_model_get_const_decl(ctx.r, model, 3);
-//             // let fd_ast = Z3_func_decl_to_ast(ctx.r, fd);
-//             // let ci = Z3_model_get_const_interp(ctx.r, model, fd);
-//             // println!("=====================================");
-//             // slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, ci));
-//             // println!("=====================================");
-//             // println!("{}", slv_to_string_z3!(&ctx, &slv));
-//             // let asdf = not_z3!(&ctx, ci);
-//             // slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, fd_ast));
-//             // let fd = Z3_model_get_func_decl(ctx.r, model, 1);
-//             // let fi = Z3_model_get_func_interp(ctx.r, model, fd);
-//             // println!("{:#?}", CStr::from_ptr(Z3_ast_to_string(ctx.r, fd_ast)).to_str().unwrap().to_owned());
-//             // CStr::from_ptr(Z3_ast_to_string(ctx.r, opt.r)).to_str().unwrap().to_owned()
-//         }
-        
-//         // slv_assert_z3!(&ctx, &slv, slv_get_model_z3!(&ctx, &slv));
-//     }
-
-
-
-
-
 impl<'ctx> SlvUnsatCoreToStringZ3<'ctx> {
     /// Z3 optimizer to readable string
     /// 
@@ -339,7 +285,7 @@ impl <'ctx> Drop for SolverZ3<'ctx> {
     /// Decrement the reference counter of the given solver.
     fn drop(&mut self) {
         unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             Z3_solver_dec_ref(self.ctx.r, self.r)
         }
     }

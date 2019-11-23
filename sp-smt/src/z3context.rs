@@ -22,7 +22,7 @@ impl ContextZ3 {
     pub fn new(cfg: &ConfigZ3) -> ContextZ3 {
         ContextZ3 {
             r: unsafe {
-                Z3_MUTEX.lock().unwrap();
+                // Z3_MUTEX.lock().unwrap();
                 let ctx = Z3_mk_context(cfg.r);
                 ctx
             }

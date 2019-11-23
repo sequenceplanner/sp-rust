@@ -10,7 +10,7 @@ fn main(){
  sending a cargo ship (each of which carries one plasma conduit), as shown
  in the table below:
              
-             | Triacus | New Berlin | Strnad | Vega |  SUPPLY
+    Table 1. | Triacus | New Berlin | Strnad | Vega |  SUPPLY
     -----------------------------------------------------------
     Farpoint |     6   |      9     |   10   |   8  |    35
     Yorktown |     9   |      5     |   16   |  14  |    40

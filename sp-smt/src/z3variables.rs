@@ -74,7 +74,7 @@ impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
         let bool_sort = bsrt.r;
         let str_name = CString::new(name).unwrap();
         let z3 = unsafe {
-            Z3_MUTEX.lock().unwrap();
+            // Z3_MUTEX.lock().unwrap();
             Z3_mk_const(ctx.r, Z3_mk_string_symbol(ctx.r, str_name.as_ptr()), bool_sort)
         };
         BoolVarZ3 {ctx, bsrt, name, r: z3}.r

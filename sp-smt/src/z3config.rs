@@ -47,7 +47,7 @@ impl ConfigZ3 {
     pub fn new() -> ConfigZ3 {
         ConfigZ3 {
             r: unsafe {
-                Z3_MUTEX.lock().unwrap();
+                // Z3_MUTEX.lock().unwrap();
                 let conf = Z3_mk_config();
                 conf
             }
