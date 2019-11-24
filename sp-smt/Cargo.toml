@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 env_logger = "0.6.2"
 log = "0.4.8"
-# z3-sys = { path = "../../z3.rs/z3-sys/" }
-z3-sys = "0.5.0"
+z3-sys = { path = "../../z3.rs/z3-sys/" }
+#z3-sys = "0.5.0"
 itertools = "0.8.0"
 lazy_static = "1.4.0"

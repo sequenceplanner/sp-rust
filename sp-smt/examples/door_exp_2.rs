@@ -72,7 +72,7 @@ fn main() {
     slv_assert_z3!(&ctx, &slv, forb2);
     // slv_assert_z3!(&ctx, &slv, forb3);
 
-    let models = SlvGetAllModelsZ3::new(&ctx, &slv).s;
+    let models = SlvGetAllModelsZ3::new(&ctx, &slv, 10).s;
 
     for model in models {
         println!("{}", model);

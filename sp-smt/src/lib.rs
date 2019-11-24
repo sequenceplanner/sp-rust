@@ -24,7 +24,7 @@ pub mod z3values;
 pub use crate::z3values::{BoolZ3, IntZ3, RealZ3, StringZ3};
 
 pub mod z3variables;
-pub use crate::z3variables::{BoolVarZ3, IntVarZ3, RealVarZ3};
+pub use crate::z3variables::{BoolVarZ3, IntVarZ3, RealVarZ3, StringVarZ3};
 
 pub mod z3relations;
 pub use crate::z3relations::{EQZ3, LEZ3, LTZ3, GEZ3, GTZ3};

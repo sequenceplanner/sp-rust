@@ -222,17 +222,20 @@ impl<'ctx, 'slv> SlvToStringZ3<'ctx, 'slv> {
 }
 
 impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
-    /// Retrieve all models for previos assertions. This method works iteratively,
-    /// adding constraints one by one from feasible solutions.
+    /// Retrieve all models for previos assertions (actually, specify the nr of solutions you want). 
+    /// This method works iteratively, adding constraints one by one from feasible solutions.
     /// 
     /// NOTE: See macro! `slv_get_all_models_z3!`
-    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> SlvGetAllModelsZ3<'ctx, 'slv> {
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, nr_solutions: i32) -> SlvGetAllModelsZ3<'ctx, 'slv> {
         let z3 = unsafe {
             let mut models: Vec<Z3_model> = Vec::new();
             let mut models_str: Vec<String> = Vec::new();
-            while SlvCheckZ3::new(&ctx, &slv) == 1 {
+            let mut nr_st: i32 = 0;
+            while SlvCheckZ3::new(&ctx, &slv) == 1 && nr_st < nr_solutions {
+                nr_st = nr_st + 1;
                 let model = SlvGetModelZ3::new(&ctx, &slv);
                 models.push(model);
+                models_str.push(nr_st.to_string());
                 models_str.push(ModelToStringZ3::new(&ctx, model));
                 let mut to_assert = Vec::new();
                 let num = ModelGetNumConstsZ3::new(&ctx, model);
