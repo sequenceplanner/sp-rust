@@ -1,6 +1,8 @@
 //! The SPPath is used for idetifying items in the model
 
 use super::*;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 
 /// The SPPath is used for identifying all objects in a model. The path will be defined
@@ -48,14 +50,14 @@ impl SPPath {
         match self {
             SPPath::LocalPath(ref mut xs) => xs.add(name),
             SPPath::GlobalPath(ref mut xs) => xs.add(name),
-            SPPath::TemporaryPath(ref mut xs) => panic!("TODO"),
+            SPPath::TemporaryPath(_) => panic!("TODO"),
         }
     }
     pub fn add_root(&mut self, name: String) {
         match self {
             SPPath::LocalPath(ref mut xs) => xs.add_root(name),
             SPPath::GlobalPath(ref mut xs) => xs.add_root(name),
-            SPPath::TemporaryPath(ref mut xs) => panic!("TODO"),
+            SPPath::TemporaryPath(_) => panic!("TODO"),
         }
     }
     pub fn from(xs: &[String]) -> SPPath {
@@ -72,28 +74,28 @@ impl SPPath {
         match what_type.as_slice() {
             ["L", tail] => {
                 let res: Vec<&str> = tail.split("/").collect();
-                return Ok(SPPath::from_array(&res));
+                Ok(SPPath::from_array(&res))
             }
             ["G", tail] if tail != &"" => {
                 let res: Vec<&str> = tail.split("/").filter(|x| !x.is_empty()).collect();
-                return Ok(SPPath::from_array_to_global(&res));
+                Ok(SPPath::from_array_as_global(&res))
             }
-            _ => return Err(SPError::No(format!("Can not convert {} into a path", s))),
+            _ => Err(SPError::No(format!("Can not convert {} into a path", s))),
         }
     }
-    pub fn from_to_global(n: &[String]) -> SPPath {
+    pub fn from_as_global(n: &[String]) -> SPPath {
         let v: Vec<String> = n.iter().map(|s| s.to_string()).collect();
         SPPath::GlobalPath(GlobalPath::from(v))
     }
-    pub fn from_array_to_global(n: &[&str]) -> SPPath {
-        let v: Vec<String> = n.iter().map(|s| s.to_string()).collect();
+    pub fn from_array_as_global(n: &[&str]) -> SPPath {
+        let v: Vec<String> = n.iter().map(|s| (*s).to_string()).collect();
         SPPath::GlobalPath(GlobalPath::from(v))
     }
     pub fn path(&self) -> Vec<String> {
         match self {
             SPPath::LocalPath(x) => x.path(),
             SPPath::GlobalPath(x) => x.path(),
-            SPPath::TemporaryPath(x) => panic!("TODO")
+            SPPath::TemporaryPath(_) => panic!("TODO")
         }
     }
     pub fn as_global(&self) -> Option<&GlobalPath> {
@@ -133,7 +135,7 @@ impl SPPath {
         match self {
             SPPath::LocalPath(x) => x.as_slice(),
             SPPath::GlobalPath(x) => x.as_slice(),
-            SPPath::TemporaryPath(x) => panic!("TODO"),
+            SPPath::TemporaryPath(_) => panic!("TODO"),
         }
     }
 }
@@ -146,7 +148,7 @@ impl SPPath {
 
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
 pub struct LocalPath {
-    path: Vec<String>,
+    path: Vec<String>
 }
 impl LocalPath {
     pub fn new() -> LocalPath {
@@ -327,14 +329,14 @@ impl SPPaths {
         match path {
             SPPath::LocalPath(p) => self.local.as_ref().map(|l| l == p).unwrap_or(false),
             SPPath::GlobalPath(p) => self.global.as_ref().map(|g| g == p).unwrap_or(false),
-            SPPath::TemporaryPath(p) => false, // TODO
+            SPPath::TemporaryPath(_) => false, // TODO
         }
     }
     pub fn is_parent_of(&self, path: &SPPath) -> bool {
         match path {
             SPPath::LocalPath(p) => self.local.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
             SPPath::GlobalPath(p) => self.global.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
-            SPPath::TemporaryPath(p) => false, // TODO
+            SPPath::TemporaryPath(_) => false, // TODO
         }
     }
 
@@ -351,7 +353,7 @@ impl SPPaths {
                 SPPath::GlobalPath(x) => {
                     Some(x.as_slice()[g_len].clone())
                 },
-                SPPath::TemporaryPath(x) => {
+                SPPath::TemporaryPath(_) => {
                     None
                 },
             }
@@ -384,7 +386,7 @@ mod tests_paths {
     use super::*;
     #[test]
     fn making() {
-        let g_ab = SPPath::from_array_to_global(&["a", "b"]);
+        let g_ab = SPPath::from_array_as_global(&["a", "b"]);
         let l_ab = SPPath::from_array(&["a", "b"]);
 
         assert_eq!(g_ab.string_path(), "G:a/b".to_string());
@@ -399,19 +401,19 @@ mod tests_paths {
         assert!(SPPath::from_string("G:top_path").is_ok());
         assert_eq!(
             SPPath::from_string("G:a/b//k/"),
-            Ok(SPPath::from_array_to_global(&["a", "b", "k"]))
+            Ok(SPPath::from_array_as_global(&["a", "b", "k"]))
         );
     }
 
     #[test]
     fn get_next_name() {
-        let g_ab = SPPath::from_array_to_global(&["a", "b", "c"]);
+        let g_ab = SPPath::from_array_as_global(&["a", "b", "c"]);
         let l_ab = SPPath::from_array(&["a", "b", "c"]);
 
         let l_a = SPPath::from_array(&["a"]);
         let l_b = SPPath::from_array(&["a", "b"]);
-        let g_a = SPPath::from_array_to_global(&["a"]);
-        let g_b = SPPath::from_array_to_global(&["a", "b"]);
+        let g_a = SPPath::from_array_as_global(&["a"]);
+        let g_b = SPPath::from_array_as_global(&["a", "b"]);
         let l_k = SPPath::from_array(&["k"]);
 
         assert_eq!(g_ab.next_node_in_path(&l_a), Some("b".to_string()));

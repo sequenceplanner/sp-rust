@@ -21,12 +21,13 @@ pub enum Predicate {
 pub struct Action {
     pub var: SPPath,
     pub value: Compute,
+    state_path: Option<StatePath>
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PredicateValue {
     SPValue(SPValue),
-    SPPath(SPPath),
+    SPPath(SPPath, Option<StatePath>),
 }
 
 /// Used in actions to compute a new SPValue.
@@ -48,22 +49,34 @@ pub enum Compute {
 }
 
 impl<'a> PredicateValue {
-    pub fn get_value(&'a self, state: &'a SPState) -> Option<&'a SPValue> {
+    pub fn sp_value(&'a mut self, state: &'a SPState) -> Option<&'a SPValue> {
         match self {
             PredicateValue::SPValue(x) => Some(x),
-            PredicateValue::SPPath(name) => state.get_value(&name),
+            PredicateValue::SPPath(path, sp) => {
+                if sp.is_none() {
+                    if let Some(the_path) = state.state_path(&path) {
+                        *sp = Some(the_path.clone());
+                        return state.sp_value(&the_path)
+                    }
+                } else {
+                    if let Some(the_path) = sp {
+                        return state.sp_value(the_path);
+                    }
+                }
+                return None;
+            },
         }
     }
 
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> PredicateValue {
         match self {
-            PredicateValue::SPPath(p) => {
+            PredicateValue::SPPath(p,_) => {
                 let np = match p {
                     SPPath::GlobalPath(gp) => SPPath::GlobalPath(gp.clone()),
                     SPPath::LocalPath(lp) => lp.to_global(parent).to_sp(),
                     SPPath::TemporaryPath(_tp) => panic!("temporary path must be resolved"),
                 };
-                return PredicateValue::SPPath(np);
+                PredicateValue::SPPath(np, None)
             },
             _ => self.clone()
         }
@@ -72,7 +85,7 @@ impl<'a> PredicateValue {
     // ns_to can be Local when you are done...
     pub fn temp_add_parent(&mut self, ns_from: TemporaryPathNS, ns_to: TemporaryPathNS, parent: &str) {
         match self {
-            PredicateValue::SPPath(p) => {
+            PredicateValue::SPPath(p,_) => {
                 match p {
                     SPPath::TemporaryPath(tp) if tp.namespace == ns_from => {
                         let mut np = vec![parent.to_string()];
@@ -176,6 +189,14 @@ impl Predicate {
 
 impl Action {
 
+    pub fn new(var: SPPath, value: Compute) -> Self {
+        Action {
+            var,
+            value,
+            state_path: None
+        }
+    }
+
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Action {
         let mut clone = self.clone();
         let np = match clone.var {
@@ -185,8 +206,9 @@ impl Action {
         };
         clone.var = np;
         clone.value = self.value.clone_with_global_paths(parent);
+        clone.state_path = None;
 
-        return clone;
+        clone
     }
 
     // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
@@ -225,52 +247,64 @@ impl Compute {
 
 /// Eval is used to evaluate a predicate (or an operation ).
 pub trait EvaluatePredicate {
-    fn eval(&self, state: &SPState) -> bool;
+    fn eval(&mut self, state: &SPState) -> bool;
 }
 
 pub trait NextAction {
-    fn next(&self, state: &SPState) -> SPResult<AssignState>;
+    fn next(&mut self, state: &mut SPState) -> SPResult<()>;
 }
 
 impl EvaluatePredicate for Predicate {
-    fn eval(&self, state: &SPState) -> bool {
+    fn eval(&mut self, state: &SPState) -> bool {
         match self {
-            Predicate::AND(ps) => ps.iter().all(|p| p.eval(state)),
-            Predicate::OR(ps) => ps.iter().any(|p| p.eval(state)),
+            Predicate::AND(ps) => ps.iter_mut().all(|p| p.eval(state)),
+            Predicate::OR(ps) => ps.iter_mut().any(|p| p.eval(state)),
             Predicate::XOR(ps) => {
-                ps.iter()
-                    .filter(|p| p.eval(state))
-                    .count()
-                    == 1
+                let mut c = 0;
+                for p in ps.iter_mut() {
+                    if p.eval(state) {
+                        c += 1;
+                    }
+                }
+                c == 1
+                // ps.iter_mut()  
+                //     .filter(|p| p.eval(state))  // for some reason does not filter with &mut
+                //     .count()
+                //     == 1
             }
             Predicate::NOT(p) => !p.eval(state),
             Predicate::TRUE => true,
             Predicate::FALSE => false,
-            Predicate::EQ(lp, rp) => lp.get_value(state) == rp.get_value(state),
-            Predicate::NEQ(lp, rp) => lp.get_value(state) != rp.get_value(state), // Predicate::GT(lp, rp) => {}
-                                                                                  // Predicate::LT(lp, rp) => {}
-                                                                                  // Predicate::INDOMAIN(value, domain) => {}
+            Predicate::EQ(lp, rp) => lp.sp_value(state) == rp.sp_value(state),
+            Predicate::NEQ(lp, rp) => lp.sp_value(state) != rp.sp_value(state), 
+            // Predicate::GT(lp, rp) => {}
+            // Predicate::LT(lp, rp) => {}
+            // Predicate::INDOMAIN(value, domain) => {}
         }
     }
 }
 
 impl NextAction for Action {
-    fn next(&self, state: &SPState) -> SPResult<AssignState> {
-        let c = match &self.value {
+    fn next(&mut self, state: &mut SPState) -> SPResult<()> {
+        if self.state_path.is_none() {
+            self.state_path = state.state_path(&self.var);
+        }
+        
+        let c = match &mut self.value {
             Compute::PredicateValue(pv) => {
                 match pv
-                    .get_value(state)
+                    .sp_value(state)
                     .map(|x| AssignStateValue::SPValue(x.clone()))
                 {
                     Some(x) => x,
                     None => {
                         eprintln!(
-                            "The action {:?}, next did not find a value for variable: {:?}",
-                            self, pv
+                            "The action PredicateValue, next did not find a value for variable: {:?}",
+                             pv
                         );
                         return Err(SPError::No(format!(
-                            "The action {:?}, next did not find a value for variable: {:?}",
-                            self, pv
+                            "The action PredicateValue, next did not find a value for variable: {:?}",
+                             pv
                         )));
                     }
                 }
@@ -281,53 +315,58 @@ impl NextAction for Action {
             }
             Compute::Delay(pv, ms) => {
                 match pv
-                    .get_value(state)
+                    .sp_value(state)
                     .map(|x| AssignStateValue::Delay(x.clone(), *ms))
                 {
                     Some(x) => x,
                     None => {
                         eprintln!(
-                            "The action {:?}, next did not find a value for variable: {:?}",
-                            self, pv
+                            "The action Delay, next did not find a value for variable: {:?}",
+                            pv
                         );
                         return Err(SPError::No(format!(
-                            "The action {:?}, next did not find a value for variable: {:?}",
-                            self, pv
+                            "The action Delay, next did not find a value for variable: {:?}",
+                            pv
                         )));
                     }
                 }
             }
             Compute::CancelDelay => {
-                match state
-                    .get_value(&self.var)
-                    .map(|x| AssignStateValue::SPValue(x.clone()))
+                let v = self.state_path.as_ref().and_then(|sp| state.sp_value(sp))
+                .map(|x| AssignStateValue::SPValue(x.clone()));
+                match v
                 {
                     Some(x) => x,
                     None => {
-                        eprintln!("The delay action {:?}, did not exist in the state", self);
+                        eprintln!("The delay action {:?}, did not exist in the state", self.clone());
                         return Err(SPError::No(format!(
                             "The delay action {:?}, did not exist in the state",
-                            self
+                            self.clone()
                         )));
                     }
                 }
             }
         };
-        let s: HashMap<SPPath, AssignStateValue> =
-            vec![(self.var.clone(), c)].into_iter().collect();
-        Ok(AssignState { s })
+
+        match self.state_path.as_ref().map(|sp| state.next(sp, c)) {
+            Some(r) => r,
+            None => Err(SPError::No(format!("The Action {:?} does not have a correct path", self)))
+        }
     }
 }
 
 impl EvaluatePredicate for Action {
-    fn eval(&self, state: &SPState) -> bool {
-        match state.get(&self.var) {
+    fn eval(&mut self, state: &SPState) -> bool {
+        if self.state_path.is_none() {
+            self.state_path = state.state_path(&self.var);
+        }
+        match self.state_path.as_ref().and_then(|sp| state.state_value(sp)) {
             Some(StateValue::SPValue(_)) => true,
             Some(StateValue::Unknown) => true,
             Some(StateValue::Next(_)) => false,
             Some(StateValue::Delay(_)) => self.value == Compute::CancelDelay,
-            None => true, // We allow actions to add new state variables. But maybe this is not ok?
-        }
+            None => false, // We do not allow actions to add new state variables. But maybe this should change?
+        }  
     }
 }
 
@@ -339,69 +378,69 @@ macro_rules! p {
     // EQ
     ($name:ident == $value:expr) => {
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath($name.to_sp()),
+            $crate::predicates::PredicateValue::SPPath($name.to_sp(), None),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     };
     ($name:block == $value:expr) => {{
         let xs: Vec<String> = $name.iter().map(|x| x.to_string()).collect();
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs)),
+            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs), None),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     }};
     ($name:block == $value:block) => {{
         let xs: Vec<String> = $name.iter().map(|x| x.to_string()).collect();
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs)),
+            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs), None),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     }};
     // NEQ
     ($name:ident != $value:expr) => {
         Predicate::NEQ(
-            $crate::predicates::PredicateValue::SPPath($name.clone()),
+            $crate::predicates::PredicateValue::SPPath($name.clone(), None),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     };
     ($name:block != $value:expr) => {{
         let xs: Vec<String> = $name.iter().map(|x| x.to_string()).collect();
         Predicate::NEQ(
-            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs)),
+            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs), None),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     }};
     ($name:block != $value:block) => {{
         let xs: Vec<String> = $name.iter().map(|x| x.to_string()).collect();
         Predicate::NEQ(
-            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs)),
+            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs), None),
             $crate::predicates::PredicateValue::SPValue($value.to_spvalue()),
         )
     }};
     // Boolean variable
     ($name:ident) => {
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath($name.to_sp()),
+            $crate::predicates::PredicateValue::SPPath($name.to_sp(), None),
             $crate::predicates::PredicateValue::SPValue(true.to_spvalue()),
         )
     };
     (!$name:ident) => {
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath($name.to_sp()),
+            $crate::predicates::PredicateValue::SPPath($name.to_sp(), None),
             $crate::predicates::PredicateValue::SPValue(false.to_spvalue()),
         )
     };
     ($name:block) => {
         let xs: Vec<String> = $name.iter().map(|x| x.to_string()).collect();
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs)),
+            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs), None),
             $crate::predicates::PredicateValue::SPValue(true.to_spvalue()),
         )
     };
     (!$name:block) => {
         let xs: Vec<String> = $name.iter().map(|x| x.to_string()).collect();
         Predicate::EQ(
-            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs)),
+            $crate::predicates::PredicateValue::SPPath(SPPath::from(&xs), None),
             $crate::predicates::PredicateValue::SPValue(false.to_spvalue()),
         )
     };
@@ -459,42 +498,42 @@ macro_rules! pr {
 #[macro_export]
 macro_rules! a {
     ($var:ident) => {
-        Action {
-            var: $var.to_sp(),
-            value: $crate::predicates::Compute::PredicateValue(
+        Action::new(
+            $var.to_sp(),
+            $crate::predicates::Compute::PredicateValue(
                 $crate::predicates::PredicateValue::SPValue(true.to_spvalue()),
             ),
-        }
+        )
     };
     (!$var:ident) => {
-        Action {
-            var: $var.to_sp(),
-            value: $crate::predicates::Compute::PredicateValue(
+        Action::new(
+            $var.to_sp(),
+            $crate::predicates::Compute::PredicateValue(
                 $crate::predicates::PredicateValue::SPValue(false.to_spvalue()),
             ),
-        }
+        )
     };
     ($var:ident = $val:expr) => {
-        Action {
-            var: $var.to_sp(),
-            value: $crate::predicates::Compute::PredicateValue(
+        Action::new(
+            $var.to_sp(),
+            $crate::predicates::Compute::PredicateValue(
                 $crate::predicates::PredicateValue::SPValue($val.to_spvalue()),
             ),
-        }
+        )
     };
     ($var:ident <- $val:expr) => {
-        Action {
-            var: $var.clone(),
-            value: $crate::predicates::Compute::PredicateValue(
-                $crate::predicates::PredicateValue::SPPath($val.clone()),
+        Action::new(
+            $var.clone(),
+            $crate::predicates::Compute::PredicateValue(
+                $crate::predicates::PredicateValue::SPPath($val.clone(), None),
             ),
-        }
+        )
     };
     ($var:ident ? $val:expr) => {
-        Action {
-            var: $var.clone(),
-            value: $crate::predicates::Compute::Predicate($val.clone()),
-        }
+        Action::new(
+            $var.clone(),
+            $crate::predicates::Compute::Predicate($val.clone()),
+        )
     };
 }
 
@@ -538,13 +577,13 @@ mod sp_value_test {
     fn eval_pred() {
         let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
         let v = SPPath::from_array(&["a", "b"]);
-        let eq = Predicate::EQ(
+        let mut eq = Predicate::EQ(
             PredicateValue::SPValue(2.to_spvalue()),
-            PredicateValue::SPPath(v.clone()),
+            PredicateValue::SPPath(v.clone(), None),
         );
-        let eq2 = Predicate::EQ(
+        let mut eq2 = Predicate::EQ(
             PredicateValue::SPValue(3.to_spvalue()),
-            PredicateValue::SPPath(v.clone()),
+            PredicateValue::SPPath(v.clone(), None),
         );
         assert!(eq.eval(&s));
         assert!(!eq2.eval(&s));
@@ -558,48 +597,48 @@ mod sp_value_test {
         let mut s = state!(ab => 2, ac => true, kl => true, xy => false);
         let p = pr! {{p!(ac)} && {p!(kl)}};
 
-        let a = Action {
-            var: ac.clone(),
-            value: Compute::PredicateValue(PredicateValue::default()),
-        };
-        let a2 = Action {
-            var: ab.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPPath(kl)),
-        };
-        let a3 = Action {
-            var: xy.clone(),
-            value: Compute::Predicate(p),
-        };
+        let mut a = Action::new(
+            ac.clone(),
+            Compute::PredicateValue(PredicateValue::default()),
+        );
+        let mut a2 = Action::new(
+            ab.clone(),
+            Compute::PredicateValue(PredicateValue::SPPath(kl, None)),
+        );
+        let mut a3 = Action::new(
+            xy.clone(),
+            Compute::Predicate(p),
+        );
 
-        a3.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        a3.next(&mut s);
         let next = StateValue::Next(states::Next {
             current_value: false.to_spvalue(),
             next_value: true.to_spvalue(),
         });
-        assert_eq!(s.get(&xy), Some(&next));
+        assert_eq!(s.state_value_from_path(&xy), Some(&next));
 
-        a.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        a.next(&mut s);
         let next = StateValue::Next(states::Next {
             current_value: true.to_spvalue(),
             next_value: false.to_spvalue(),
         });
-        assert_eq!(s.get(&ac), Some(&next));
+        assert_eq!(s.state_value_from_path(&ac), Some(&next));
 
-        a2.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        a2.next(&mut s);
         let next = StateValue::Next(states::Next {
             current_value: 2.to_spvalue(),
             next_value: true.to_spvalue(),
         });
-        assert_eq!(s.get(&ab), Some(&next));
+        assert_eq!(s.state_value_from_path(&ab), Some(&next));
 
-        s.take_all_next();
+        s.take_transition();
 
-        a3.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        a3.next(&mut s);
         let next = StateValue::Next(states::Next {
             current_value: true.to_spvalue(),
             next_value: false.to_spvalue(),
         });
-        assert_eq!(s.get(&xy), Some(&next));
+        assert_eq!(s.state_value_from_path(&xy), Some(&next));
 
         println!("res from action: {:?} is: {:?}", &a2, &s);
     }
@@ -616,6 +655,7 @@ mod sp_value_test {
         let a = Action {
             var: ac.clone(),
             value: Compute::PredicateValue(PredicateValue::default()),
+            state_path: None,
         };
         assert_eq!(a_m, a);
 
@@ -623,6 +663,7 @@ mod sp_value_test {
         let a = Action {
             var: ac.clone(),
             value: Compute::PredicateValue(PredicateValue::default()),
+            state_path: None,
         };
         assert_eq!(a_m, a);
 
@@ -630,13 +671,15 @@ mod sp_value_test {
         let a = Action {
             var: ac.clone(),
             value: Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())),
+            state_path: None,
         };
         assert_eq!(a_m, a);
 
         let a2_m = a!(ab <- kl);
         let a2 = Action {
             var: ab.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPPath(kl)),
+            value: Compute::PredicateValue(PredicateValue::SPPath(kl, None)),
+            state_path: None,
         };
         assert_eq!(a2_m, a2);
 
@@ -644,6 +687,7 @@ mod sp_value_test {
         let a3 = Action {
             var: xy.clone(),
             value: Compute::Predicate(p),
+            state_path: None,
         };
         assert_eq!(a3_m, a3);
     }
@@ -655,16 +699,18 @@ mod sp_value_test {
         let kl = SPPath::from_array(&["k", "l"]);
         let mut s = state!(ab => 2, ac => true, kl => true);
 
-        let a = Action {
+        let mut a = Action {
             var: ac.clone(),
             value: Compute::PredicateValue(PredicateValue::default()),
+            state_path: None,
         };
-        let a2 = Action {
+        let mut a2 = Action {
             var: ab.clone(),
-            value: Compute::PredicateValue(PredicateValue::SPPath(kl)),
+            value: Compute::PredicateValue(PredicateValue::SPPath(kl, None)),
+            state_path: None,
         };
 
-        a.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        a.next(&mut s);
 
         assert!(a2.eval(&s));
         assert!(!a.eval(&s));

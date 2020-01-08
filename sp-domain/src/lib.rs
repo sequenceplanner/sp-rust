@@ -22,7 +22,6 @@ pub mod items;
 pub use items::*;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::error;
 use std::fmt;
 

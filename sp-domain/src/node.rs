@@ -218,9 +218,9 @@ mod node_tesing {
 
         m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
 
-        let g_ab = SPPath::from_array_to_global(&["m", "a", "b"]);
-        let g_acd = SPPath::from_array_to_global(&["m", "a", "c", "d"]);
-        let g_k = SPPath::from_array_to_global(&["m", "k"]);
+        let g_ab = SPPath::from_array_as_global(&["m", "a", "b"]);
+        let g_acd = SPPath::from_array_as_global(&["m", "a", "c", "d"]);
+        let g_k = SPPath::from_array_as_global(&["m", "k"]);
         let ab = m.get(&g_ab);
         let acd = m.get(&g_acd);
         let k = m.get(&g_k);
@@ -258,9 +258,9 @@ mod node_tesing {
 
         m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
 
-        let g_ab = SPPath::from_array_to_global(&["m", "a", "b"]);
-        let g_acd = SPPath::from_array_to_global(&["m", "a", "c", "d"]);
-        let g_k = SPPath::from_array_to_global(&["m", "k"]);
+        let g_ab = SPPath::from_array_as_global(&["m", "a", "b"]);
+        let g_acd = SPPath::from_array_as_global(&["m", "a", "c", "d"]);
+        let g_k = SPPath::from_array_as_global(&["m", "k"]);
         let ab = m.find_item("b", &[]);
         let acd = m.find_item("d", &[]);
         let k = m.find_item("k", &[]);
@@ -298,8 +298,8 @@ mod node_tesing {
 
         m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
 
-        let g_acd = SPPath::from_array_to_global(&["m", "a", "c", "d"]);
-        let g_k = SPPath::from_array_to_global(&["m", "k", "d"]);
+        let g_acd = SPPath::from_array_as_global(&["m", "a", "c", "d"]);
+        let g_k = SPPath::from_array_as_global(&["m", "k", "d"]);
         let t1 = m.find_item("d", &["a"]);
         let t2 = m.find_item("d", &["c"]);
         let t3 = m.find_item("d", &["k", "m"]);

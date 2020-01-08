@@ -372,7 +372,7 @@ impl Resource {
                      }
                  },
                  MessageField::Var(var) => {
-                     let _res = acum.insert(&var.node().global_path().as_ref().unwrap().to_sp(),
+                     let _res = acum.next_from_path(&var.node().global_path().as_ref().unwrap().to_sp(),
                                             AssignStateValue::SPValue(var.initial_value.clone()));
                  },
              }
@@ -385,7 +385,7 @@ impl Resource {
 
          for a in &self.abilities {
              for v in &a.predicates {
-                 let _res = s.insert(&v.node().global_path().as_ref().unwrap().to_sp(),
+                 let _res = s.next_from_path(&v.node().global_path().as_ref().unwrap().to_sp(),
                                      AssignStateValue::SPValue(v.initial_value.clone()));
              }
          }
@@ -489,8 +489,7 @@ impl Topic {
         fn is_pub(f: &MessageField) -> bool {
             match f {
                 MessageField::Msg(msg) => msg.fields.iter().all(|m| is_pub(m)),
-                MessageField::Var(v) => v.type_ == VariableType::Command ||
-                    v.type_ == VariableType::Command,
+                MessageField::Var(v) => v.type_ == VariableType::Command,
             }
         }
         return is_pub(&self.msg);
@@ -804,24 +803,24 @@ impl Transition {
         clone.effects = self.effects.iter().map(|e|e.clone_with_global_paths(parent)).collect();
 
 
-        return clone;
+        clone
     }
 }
 
 impl EvaluatePredicate for Transition {
-    fn eval(&self, state: &SPState) -> bool {
-        self.guard.eval(state) && self.actions.iter().all(|a| a.eval(state))
+    fn eval(&mut self, state: &SPState) -> bool {
+        self.guard.eval(state) && self.actions.iter_mut().all(|a| a.eval(state))
     }
 }
 
 impl NextAction for Transition {
-    fn next(&self, state: &SPState) -> SPResult<AssignState> {
-        let mut s: HashMap<SPPath, AssignStateValue> = HashMap::new();
-        for a in self.actions.iter() {
-            let next = a.next(state)?;
-            s.extend(next.s);
+    fn next(&mut self, state: &mut SPState) -> SPResult<()> {
+        for a in self.actions.iter_mut() {
+            if let Err(e) = a.next(state) {
+                return Err(e)
+            }
         }
-        Ok(AssignState { s })
+        Ok(())
     }
 }
 
@@ -1067,38 +1066,33 @@ mod test_items {
         let b = a!(ab <- kl);
         let c = a!(xy ? p);
 
-        let t1 = Transition::new("t1", p!(ac), vec![a], vec![], false);
-        let t2 = Transition::new("t2", p!(!ac), vec![b], vec![], false);
-        let t3 = Transition::new("t3", Predicate::TRUE, vec![c], vec![], false);
+        let mut t1 = Transition::new("t1", p!(ac), vec![a], vec![], false);
+        let mut t2 = Transition::new("t2", p!(!ac), vec![b], vec![], false);
+        let mut t3 = Transition::new("t3", Predicate::TRUE, vec![c], vec![], false);
 
         let res = t1.eval(&s);
         println!("t1.eval: {:?}", res);
         assert!(res);
 
-        let res = t1.next(&s).unwrap();
+        let res = t1.next(&mut s);
         println!("t1.next: {:?}", res);
 
-        s.insert_map(res).unwrap();
-        println!("s after t1: {:?}", s);
-        assert_eq!(s.get_value(&ac).unwrap(), &false.to_spvalue());
+        assert_eq!(s.sp_value_from_path(&ac).unwrap(), &false.to_spvalue());
 
         let res = t2.eval(&s);
         println!("t2: {:?}", res);
         assert!(res);
 
-        let res = t2.next(&s).unwrap();
+        let res = t2.next(&mut s);
         println!("t2.next: {:?}", res);
+        assert_eq!(s.sp_value_from_path(&ab).unwrap(), &3.to_spvalue());
 
-        s.insert_map(res).unwrap();
-        println!("s after t2{:?}", s);
-        assert_eq!(s.get_value(&ab).unwrap(), &3.to_spvalue());
-
-        s.take_all_next();
+        s.take_transition();
         let res = t3.eval(&s);
         println!("t3: {:?}", res);
         assert!(res);
-        s.insert_map(t3.next(&s).unwrap()).unwrap();
-        assert_eq!(s.get_value(&xy).unwrap(), &true.to_spvalue());
+        t3.next(&mut s);
+        assert_eq!(s.sp_value_from_path(&xy).unwrap(), &true.to_spvalue());
     }
 
     // #[test]
