@@ -4,7 +4,6 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-
 /// The SPPath is used for identifying all objects in a model. The path will be defined
 /// based on where the item is in the model hierarchy
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone)]
@@ -16,7 +15,7 @@ pub enum SPPath {
 
 impl Default for SPPath {
     fn default() -> Self {
-        SPPath::LocalPath(LocalPath{path: vec!()})
+        SPPath::LocalPath(LocalPath { path: vec![] })
     }
 }
 
@@ -95,13 +94,13 @@ impl SPPath {
         match self {
             SPPath::LocalPath(x) => x.path(),
             SPPath::GlobalPath(x) => x.path(),
-            SPPath::TemporaryPath(_) => panic!("TODO")
+            SPPath::TemporaryPath(_) => panic!("TODO"),
         }
     }
     pub fn as_global(&self) -> Option<&GlobalPath> {
         match self {
             SPPath::GlobalPath(x) => Some(x),
-            _ => None
+            _ => None,
         }
     }
     pub fn string_path(&self) -> String {
@@ -148,27 +147,27 @@ impl SPPath {
 
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
 pub struct LocalPath {
-    path: Vec<String>
+    path: Vec<String>,
 }
 impl LocalPath {
     pub fn new() -> LocalPath {
-        LocalPath{path: vec!()}
+        LocalPath { path: vec![] }
     }
     pub fn path(&self) -> Vec<String> {
         self.path.clone()
     }
     pub fn from(path: Vec<String>) -> LocalPath {
-        LocalPath{path}
+        LocalPath { path }
     }
     pub fn from_str(n: &[&str]) -> LocalPath {
-        let path: Vec<String> = n.iter().map(|s|s.to_string()).collect();
-        LocalPath{path}
+        let path: Vec<String> = n.iter().map(|s| s.to_string()).collect();
+        LocalPath { path }
     }
     pub fn add(&mut self, name: String) {
         self.path.push(name);
     }
     pub fn add_root(&mut self, name: String) {
-        self.path.insert(0,name);
+        self.path.insert(0, name);
     }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
@@ -203,44 +202,56 @@ impl std::fmt::Debug for LocalPath {
 }
 
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Clone, Default)]
-pub struct GlobalPath{
+pub struct GlobalPath {
     path: Vec<String>,
 }
 impl GlobalPath {
     pub fn new() -> GlobalPath {
-        GlobalPath{path: vec!()}
+        GlobalPath { path: vec![] }
     }
     pub fn path(&self) -> Vec<String> {
         self.path.clone()
     }
     pub fn from(path: Vec<String>) -> GlobalPath {
-        GlobalPath{path}
+        GlobalPath { path }
     }
     pub fn from_str(n: &[&str]) -> GlobalPath {
-        let path: Vec<String> = n.iter().map(|s|s.to_string()).collect();
-        GlobalPath{path}
+        let path: Vec<String> = n.iter().map(|s| s.to_string()).collect();
+        GlobalPath { path }
     }
     pub fn add(&mut self, name: String) {
         self.path.push(name);
     }
     pub fn add_root(&mut self, name: String) {
-        self.path.insert(0,name);
+        self.path.insert(0, name);
     }
     pub fn as_slice(&self) -> &[String] {
         self.path.as_slice()
     }
     pub fn parent(&self) -> GlobalPath {
-        let s = self.path.iter().take(self.path.len() - 1).map(|e|e.to_owned()).collect();
+        let s = self
+            .path
+            .iter()
+            .take(self.path.len() - 1)
+            .map(|e| e.to_owned())
+            .collect();
         GlobalPath { path: s }
     }
     pub fn to_sp(&self) -> SPPath {
         SPPath::GlobalPath(self.clone())
     }
     pub fn to_local(&self, prefix: &GlobalPath) -> LocalPath {
-        let num_matching = self.path.iter().zip(prefix.path.iter()).take_while(|(a,b)|a==b).
-            map(|(a,_b)|a).count();
+        let num_matching = self
+            .path
+            .iter()
+            .zip(prefix.path.iter())
+            .take_while(|(a, b)| a == b)
+            .map(|(a, _b)| a)
+            .count();
         let slice = &self.path[num_matching..self.path.len()];
-        LocalPath { path: slice.to_vec() }
+        LocalPath {
+            path: slice.to_vec(),
+        }
     }
     pub fn is_child_of(&self, other: &GlobalPath) -> bool {
         (self.as_slice().len() > other.as_slice().len())
@@ -283,11 +294,11 @@ impl std::fmt::Display for TemporaryPath {
 
 impl TemporaryPath {
     pub fn from(namespace: TemporaryPathNS, path: Vec<String>) -> TemporaryPath {
-        TemporaryPath{namespace, path}
+        TemporaryPath { namespace, path }
     }
     pub fn from_array(namespace: TemporaryPathNS, n: &[&str]) -> TemporaryPath {
-        let path: Vec<String> = n.iter().map(|s|s.to_string()).collect();
-        TemporaryPath{namespace, path}
+        let path: Vec<String> = n.iter().map(|s| s.to_string()).collect();
+        TemporaryPath { namespace, path }
     }
     pub fn to_sp(&self) -> SPPath {
         SPPath::TemporaryPath(self.clone())
@@ -302,18 +313,23 @@ pub struct SPPaths {
 
 impl std::fmt::Display for SPPaths {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let l: String = self.local.as_ref().map(|x| format!("{}", x)).unwrap_or("".to_string());
-        let g: String = self.global.as_ref().map(|x| format!("{}", x)).unwrap_or("".to_string());
+        let l: String = self
+            .local
+            .as_ref()
+            .map(|x| format!("{}", x))
+            .unwrap_or("".to_string());
+        let g: String = self
+            .global
+            .as_ref()
+            .map(|x| format!("{}", x))
+            .unwrap_or("".to_string());
         write!(f, "<{},{}>", l, g)
     }
 }
 
 impl SPPaths {
     pub fn new(local: Option<LocalPath>, global: Option<GlobalPath>) -> SPPaths {
-        SPPaths {
-            local,
-            global
-        }
+        SPPaths { local, global }
     }
     pub fn empty() -> SPPaths {
         SPPaths::default()
@@ -334,8 +350,16 @@ impl SPPaths {
     }
     pub fn is_parent_of(&self, path: &SPPath) -> bool {
         match path {
-            SPPath::LocalPath(p) => self.local.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
-            SPPath::GlobalPath(p) => self.global.as_ref().map(|x| p.is_child_of(&x)).unwrap_or(false),
+            SPPath::LocalPath(p) => self
+                .local
+                .as_ref()
+                .map(|x| p.is_child_of(&x))
+                .unwrap_or(false),
+            SPPath::GlobalPath(p) => self
+                .global
+                .as_ref()
+                .map(|x| p.is_child_of(&x))
+                .unwrap_or(false),
             SPPath::TemporaryPath(_) => false, // TODO
         }
     }
@@ -344,24 +368,21 @@ impl SPPaths {
     /// in this SPPaths
     pub fn next_node_in_path(&self, path: &SPPath) -> Option<String> {
         let l_len: usize = self.local.as_ref().map(|x| x.as_slice().len()).unwrap_or(0);
-        let g_len: usize = self.global.as_ref().map(|x| x.as_slice().len()).unwrap_or(0);
-        if self.is_parent_of(path){
+        let g_len: usize = self
+            .global
+            .as_ref()
+            .map(|x| x.as_slice().len())
+            .unwrap_or(0);
+        if self.is_parent_of(path) {
             match path {
-                SPPath::LocalPath(x) =>  {
-                    Some(x.as_slice()[l_len].clone())
-                },
-                SPPath::GlobalPath(x) => {
-                    Some(x.as_slice()[g_len].clone())
-                },
-                SPPath::TemporaryPath(_) => {
-                    None
-                },
+                SPPath::LocalPath(x) => Some(x.as_slice()[l_len].clone()),
+                SPPath::GlobalPath(x) => Some(x.as_slice()[g_len].clone()),
+                SPPath::TemporaryPath(_) => None,
             }
         } else {
             None
         }
     }
-
 
     pub fn upd(&mut self, paths: &SPPaths) {
         self.local = paths.local.clone();
@@ -378,8 +399,6 @@ impl SPPaths {
         self.global = path;
     }
 }
-
-
 
 #[cfg(test)]
 mod tests_paths {
@@ -425,6 +444,5 @@ mod tests_paths {
         assert_eq!(l_ab.next_node_in_path(&g_a), Some("b".to_string()));
         assert_eq!(l_ab.next_node_in_path(&g_b), Some("c".to_string()));
         assert_eq!(l_ab.next_node_in_path(&l_k), None);
-
     }
 }

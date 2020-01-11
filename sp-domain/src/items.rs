@@ -140,23 +140,22 @@ impl<'a> SPItemRef<'a> {
     }
     pub fn item(&self) -> SPItem {
         match self {
-            SPItemRef::Model(x) => SPItem::Model({*x}.clone()),
-            SPItemRef::Resource(x) => SPItem::Resource({*x}.clone()),
-            SPItemRef::Message(x) => SPItem::Message({*x}.clone()),
-            SPItemRef::Topic(x) => SPItem::Topic({*x}.clone()),
-            SPItemRef::Variable(x) => SPItem::Variable({*x}.clone()),
-            SPItemRef::Operation(x) => SPItem::Operation({*x}.clone()),
-            SPItemRef::Ability(x) => SPItem::Ability({*x}.clone()),
-            SPItemRef::Transition(x) => SPItem::Transition({*x}.clone()),
-            SPItemRef::IfThen(x) => SPItem::IfThen({*x}.clone()),
-            SPItemRef::Spec(x) => SPItem::Spec({*x}.clone()),
+            SPItemRef::Model(x) => SPItem::Model({ *x }.clone()),
+            SPItemRef::Resource(x) => SPItem::Resource({ *x }.clone()),
+            SPItemRef::Message(x) => SPItem::Message({ *x }.clone()),
+            SPItemRef::Topic(x) => SPItem::Topic({ *x }.clone()),
+            SPItemRef::Variable(x) => SPItem::Variable({ *x }.clone()),
+            SPItemRef::Operation(x) => SPItem::Operation({ *x }.clone()),
+            SPItemRef::Ability(x) => SPItem::Ability({ *x }.clone()),
+            SPItemRef::Transition(x) => SPItem::Transition({ *x }.clone()),
+            SPItemRef::IfThen(x) => SPItem::IfThen({ *x }.clone()),
+            SPItemRef::Spec(x) => SPItem::Spec({ *x }.clone()),
         }
     }
     pub fn name(&self) -> &str {
         self.node().name()
     }
 }
-
 
 /// A trait for unwrapping SPItemRefs and cloning the items
 pub trait SPItemUnwrapper {
@@ -174,13 +173,21 @@ pub trait SPItemUnwrapper {
         self.global_path().unwrap()
     }
     fn as_variable(&self) -> Option<Variable> {
-        if let SPItem::Variable(x) = self.item() { Some(x) } else { None }
+        if let SPItem::Variable(x) = self.item() {
+            Some(x)
+        } else {
+            None
+        }
     }
     fn unwrap_variable(&self) -> Variable {
         self.as_variable().unwrap()
     }
     fn as_resource(&self) -> Option<Resource> {
-        if let SPItem::Resource(x) = self.item() { Some(x) } else { None }
+        if let SPItem::Resource(x) = self.item() {
+            Some(x)
+        } else {
+            None
+        }
     }
     fn unwrap_resource(&self) -> Resource {
         self.as_resource().unwrap()
@@ -206,10 +213,8 @@ impl SPItemUnwrapper for SPItem {
     }
 }
 
-
 // ####################
 // Items below
-
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Model {
@@ -270,7 +275,7 @@ pub struct Resource {
     abilities: Vec<Ability>,
     parameters: Vec<Variable>,
     messages: Vec<Topic>, // Also include estimated here on an estimated topic
-    sub_items: Vec<SPItem>
+    sub_items: Vec<SPItem>,
 }
 
 impl Noder for Resource {
@@ -281,21 +286,20 @@ impl Noder for Resource {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.abilities.as_slice(), next, path).or_else(||
-        get_from_list(self.parameters.as_slice(), next, path)).or_else(||
-        get_from_list(self.sub_items.as_slice(), next, path)).or_else(||
-        get_from_list(self.messages.as_slice(), next, path))
-
+        get_from_list(self.abilities.as_slice(), next, path)
+            .or_else(|| get_from_list(self.parameters.as_slice(), next, path))
+            .or_else(|| get_from_list(self.sub_items.as_slice(), next, path))
+            .or_else(|| get_from_list(self.messages.as_slice(), next, path))
     }
     fn find_item_among_childs<'a>(
         &'a self,
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.abilities.as_slice(), name, path_sections).or_else(||
-        find_item_in_list(self.parameters.as_slice(), name, path_sections)).or_else(||
-        find_item_in_list(self.sub_items.as_slice(), name, path_sections)).or_else(||
-        find_item_in_list(self.messages.as_slice(), name, path_sections))
+        find_item_in_list(self.abilities.as_slice(), name, path_sections)
+            .or_else(|| find_item_in_list(self.parameters.as_slice(), name, path_sections))
+            .or_else(|| find_item_in_list(self.sub_items.as_slice(), name, path_sections))
+            .or_else(|| find_item_in_list(self.messages.as_slice(), name, path_sections))
     }
     fn update_path_children(&mut self, _paths: &SPPaths) {
         let mut local = LocalPath::from(vec![self.node.name().to_string()]);
@@ -325,11 +329,13 @@ impl Resource {
         self.abilities.as_slice()
     }
     pub fn add_ability(&mut self, mut ability: Ability) -> SPPaths {
-        ability.transitions.iter_mut().
-            for_each(|t|t.
-                     add_path_to_temps(TemporaryPathNS::AbilityPredicate,
-                                       TemporaryPathNS::Local,
-                                       self.name()));
+        ability.transitions.iter_mut().for_each(|t| {
+            t.add_path_to_temps(
+                TemporaryPathNS::AbilityPredicate,
+                TemporaryPathNS::Local,
+                self.name(),
+            )
+        });
 
         let paths = ability.update_path(self.node.paths());
         self.abilities.push(ability);
@@ -363,34 +369,38 @@ impl Resource {
         paths
     }
 
-     pub fn make_initial_state(&self) -> SPState {
-         fn r(m: &MessageField, acum: &mut SPState) {
-             match m {
-                 MessageField::Msg(msg) => {
-                     for f in &msg.fields {
-                         r(f, acum);
-                     }
-                 },
-                 MessageField::Var(var) => {
-                     let _res = acum.next_from_path(&var.node().global_path().as_ref().unwrap().to_sp(),
-                                            AssignStateValue::SPValue(var.initial_value.clone()));
-                 },
-             }
-         }
+    pub fn make_initial_state(&self) -> SPState {
+        fn r(m: &MessageField, acum: &mut SPState) {
+            match m {
+                MessageField::Msg(msg) => {
+                    for f in &msg.fields {
+                        r(f, acum);
+                    }
+                }
+                MessageField::Var(var) => {
+                    let _res = acum.next_from_path(
+                        &var.node().global_path().as_ref().unwrap().to_sp(),
+                        AssignStateValue::SPValue(var.initial_value.clone()),
+                    );
+                }
+            }
+        }
 
-         let mut s = SPState::default();
-         for t in &self.messages {
-             r(&t.msg, &mut s);
-         }
+        let mut s = SPState::default();
+        for t in &self.messages {
+            r(&t.msg, &mut s);
+        }
 
-         for a in &self.abilities {
-             for v in &a.predicates {
-                 let _res = s.next_from_path(&v.node().global_path().as_ref().unwrap().to_sp(),
-                                     AssignStateValue::SPValue(v.initial_value.clone()));
-             }
-         }
+        for a in &self.abilities {
+            for v in &a.predicates {
+                let _res = s.next_from_path(
+                    &v.node().global_path().as_ref().unwrap().to_sp(),
+                    AssignStateValue::SPValue(v.initial_value.clone()),
+                );
+            }
+        }
 
-         return s;
+        return s;
     }
 
     // requires resource to have a global path
@@ -428,7 +438,6 @@ impl Resource {
         }
         return r;
     }
-
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -704,10 +713,9 @@ impl Variable {
                 new.type_ = VariableType::Predicate(pred.clone_with_global_paths(parent));
                 new
             }
-            _ => self.clone()
+            _ => self.clone(),
         }
     }
-
 }
 
 /// The possible variable types used by operations to define parameters
@@ -773,7 +781,7 @@ impl Transition {
             guard,
             actions,
             effects,
-            controlled
+            controlled,
         }
     }
 
@@ -790,8 +798,12 @@ impl Transition {
         self.controlled
     }
 
-    pub fn add_path_to_temps(&mut self, namespace_from: TemporaryPathNS,
-                             namespace_to: TemporaryPathNS, name: &str) {
+    pub fn add_path_to_temps(
+        &mut self,
+        namespace_from: TemporaryPathNS,
+        namespace_to: TemporaryPathNS,
+        name: &str,
+    ) {
         self.guard.change_temps(namespace_from, namespace_to, name);
     }
 
@@ -799,9 +811,16 @@ impl Transition {
         let mut clone = self.clone();
 
         clone.guard = self.guard.clone_with_global_paths(parent);
-        clone.actions = self.actions.iter().map(|a|a.clone_with_global_paths(parent)).collect();
-        clone.effects = self.effects.iter().map(|e|e.clone_with_global_paths(parent)).collect();
-
+        clone.actions = self
+            .actions
+            .iter()
+            .map(|a| a.clone_with_global_paths(parent))
+            .collect();
+        clone.effects = self
+            .effects
+            .iter()
+            .map(|e| e.clone_with_global_paths(parent))
+            .collect();
 
         clone
     }
@@ -817,7 +836,7 @@ impl NextAction for Transition {
     fn next(&mut self, state: &mut SPState) -> SPResult<()> {
         for a in self.actions.iter_mut() {
             if let Err(e) = a.next(state) {
-                return Err(e)
+                return Err(e);
             }
         }
         Ok(())
@@ -839,16 +858,16 @@ impl Noder for Ability {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.transitions.as_slice(), next, path).or_else(||
-        get_from_list(self.predicates.as_slice(), next, path))
+        get_from_list(self.transitions.as_slice(), next, path)
+            .or_else(|| get_from_list(self.predicates.as_slice(), next, path))
     }
     fn find_item_among_childs<'a>(
         &'a self,
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.transitions.as_slice(), name, path_sections).or_else(||
-        find_item_in_list(self.predicates.as_slice(), name, path_sections))
+        find_item_in_list(self.transitions.as_slice(), name, path_sections)
+            .or_else(|| find_item_in_list(self.predicates.as_slice(), name, path_sections))
     }
     fn update_path_children(&mut self, paths: &SPPaths) {
         update_path_in_list(self.transitions.as_mut_slice(), paths);
@@ -860,15 +879,15 @@ impl Noder for Ability {
 }
 
 impl Ability {
-    pub fn new(
-        name: &str,
-        mut transitions: Vec<Transition>,
-        predicates: Vec<Variable>,
-    ) -> Ability {
+    pub fn new(name: &str, mut transitions: Vec<Transition>, predicates: Vec<Variable>) -> Ability {
         let node = SPNode::new(name);
-        transitions.iter_mut().
-            for_each(|t|t.add_path_to_temps(
-                TemporaryPathNS::Predicate, TemporaryPathNS::AbilityPredicate, name));
+        transitions.iter_mut().for_each(|t| {
+            t.add_path_to_temps(
+                TemporaryPathNS::Predicate,
+                TemporaryPathNS::AbilityPredicate,
+                name,
+            )
+        });
         Ability {
             node,
             transitions,
@@ -879,7 +898,6 @@ impl Ability {
     pub fn predicates(&self) -> &[Variable] {
         self.predicates.as_slice()
     }
-
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -902,20 +920,28 @@ impl Noder for Operation {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.start.as_slice(), next, path).or_else(||
-        get_from_list(self.finish.as_slice(), next, path)).or_else(||
-        self.goal.as_ref().and_then(|x| x.get(path))).or_else(||
-        self.invariant.as_ref().and_then(|ref x| x.get(path)))
+        get_from_list(self.start.as_slice(), next, path)
+            .or_else(|| get_from_list(self.finish.as_slice(), next, path))
+            .or_else(|| self.goal.as_ref().and_then(|x| x.get(path)))
+            .or_else(|| self.invariant.as_ref().and_then(|ref x| x.get(path)))
     }
     fn find_item_among_childs<'a>(
         &'a self,
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.start.as_slice(), name, path_sections).or_else(||
-        find_item_in_list(self.finish.as_slice(), name, path_sections)).or_else(||
-        self.goal.as_ref().and_then(|x| x.find_item(name, path_sections))).or_else(||
-        self.invariant.as_ref().and_then(|ref x| x.find_item(name, path_sections)))
+        find_item_in_list(self.start.as_slice(), name, path_sections)
+            .or_else(|| find_item_in_list(self.finish.as_slice(), name, path_sections))
+            .or_else(|| {
+                self.goal
+                    .as_ref()
+                    .and_then(|x| x.find_item(name, path_sections))
+            })
+            .or_else(|| {
+                self.invariant
+                    .as_ref()
+                    .and_then(|ref x| x.find_item(name, path_sections))
+            })
     }
     fn update_path_children(&mut self, paths: &SPPaths) {
         update_path_in_list(self.start.as_mut_slice(), paths);
@@ -1004,7 +1030,6 @@ impl IfThen {
         &self.then_
     }
 }
-
 
 /// Specs are used to define global constraints
 /// TODO: should we allow ltl expressions?

@@ -1,13 +1,10 @@
 //use sp_domain::*;
 //use std::collections::HashMap;
 
-
 // TODO: Update the test for the new domain
 
 // Testing show we know that SPValues and support can be used outside
-// 
-
-
+//
 
 // #[test]
 // fn sp_value_testing_external() {

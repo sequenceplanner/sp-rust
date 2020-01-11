@@ -3,13 +3,13 @@
 
 use super::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fmt;
 use uuid::Uuid;
 
-/// Representing a State in SP with variables and their values. The values are 
+/// Representing a State in SP with variables and their values. The values are
 /// stored in a vec to speed up reading and writing. The position of a value in the
-/// vec is stored in the Hashmap. This should be cashed by user of the state for 
+/// vec is stored in the Hashmap. This should be cashed by user of the state for
 /// index access.
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct SPState {
@@ -43,13 +43,20 @@ impl<'a> StateProjection<'a> {
         SPState::new_from_state_values(&self.clone_vec())
     }
     fn clone_vec(&self) -> Vec<(SPPath, StateValue)> {
-        self.projection.iter().map(|(p, v)| {((*p).clone(), (*v).clone())}).collect()
+        self.projection
+            .iter()
+            .map(|(p, v)| ((*p).clone(), (*v).clone()))
+            .collect()
     }
     fn clone_vec_value(&self) -> Vec<(SPPath, SPValue)> {
-        self.projection.iter().map(|(p, v)| {((*p).clone(), (*v).get_value().clone())}).collect()
+        self.projection
+            .iter()
+            .map(|(p, v)| ((*p).clone(), (*v).get_value().clone()))
+            .collect()
     }
     fn sort(&mut self) {
-        self.projection.sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
+        self.projection
+            .sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
     }
 }
 
@@ -109,7 +116,7 @@ pub struct Next {
 impl SPState {
     /// Creates a new empty state.
     pub fn new() -> SPState {
-        SPState{
+        SPState {
             index: HashMap::new(),
             values: Vec::new(),
             id: Uuid::new_v4(),
@@ -122,9 +129,9 @@ impl SPState {
         let mut v = Vec::with_capacity(hm.len());
         for (key, value) in hm.iter() {
             v.push(StateValue::SPValue(value.clone()));
-            xs.insert(key.clone(), v.len()-1);
+            xs.insert(key.clone(), v.len() - 1);
         }
-        SPState{
+        SPState {
             index: xs,
             values: v,
             id: Uuid::new_v4(),
@@ -137,9 +144,9 @@ impl SPState {
         let mut v = Vec::with_capacity(hm.len());
         for (key, value) in hm.iter() {
             v.push(value.clone());
-            xs.insert(key.clone(), v.len()-1);
+            xs.insert(key.clone(), v.len() - 1);
         }
-        SPState{
+        SPState {
             index: xs,
             values: v,
             id: Uuid::new_v4(),
@@ -154,8 +161,8 @@ impl SPState {
             self.values[*self.index.get(&path).unwrap()] = new_v;
         } else {
             self.values.push(new_v);
-            self.index.insert(path, self.values.len()-1);
-            self.id = Uuid::new_v4();  // the index has changed and it is probably better to reload
+            self.index.insert(path, self.values.len() - 1);
+            self.id = Uuid::new_v4(); // the index has changed and it is probably better to reload
         }
     }
 
@@ -167,10 +174,10 @@ impl SPState {
                 self.values[*self.index.get(&path).unwrap()] = StateValue::SPValue(value.clone());
             } else {
                 self.values.push(StateValue::SPValue(value.clone()));
-                self.index.insert(path.clone(), self.values.len()-1);
+                self.index.insert(path.clone(), self.values.len() - 1);
             }
-            self.id = Uuid::new_v4();  // the index has changed and it is probably better to reload
-        }        
+            self.id = Uuid::new_v4(); // the index has changed and it is probably better to reload
+        }
     }
 
     pub fn id(&self) -> Uuid {
@@ -180,15 +187,15 @@ impl SPState {
     /// Returns the index of a variable to be used for faster access. Cash this and compare with
     /// the id of the state if it is still valid
     pub fn state_path(&self, path: &SPPath) -> Option<StatePath> {
-        self.index.get(path).map(|index| StatePath{
+        self.index.get(path).map(|index| StatePath {
             path: path.clone(),
             index: *index,
-            state_id: self.id
+            state_id: self.id,
         })
     }
 
     pub fn check_state_path(&self, state_path: &StatePath) -> bool {
-        state_path.state_id == self.id 
+        state_path.state_id == self.id
     }
 
     /// The standard way of getting values from the state. Get the state_path first
@@ -204,9 +211,6 @@ impl SPState {
         self.state_value(state_path).map(|x| x.get_value())
     }
 
-
-
-
     /// Get a StateValue from the state based on a path. Only use this when you need do not
     /// need to get the same variable multiple times. Else use state_value_with_index
     pub fn state_value_from_path(&self, path: &SPPath) -> Option<&StateValue> {
@@ -214,13 +218,12 @@ impl SPState {
     }
 
     /// Get a StateValue based on its index when you need to access the same variable multiple
-    /// times. First get and cash the index from fn state_path(&path), and then use that index. 
+    /// times. First get and cash the index from fn state_path(&path), and then use that index.
     /// If you do not know if the state can change, check the state id.
     /// This fn will panic if i is larger than no of values
     pub fn state_value_from_index(&self, i: usize) -> &StateValue {
         &self.values[i]
     }
-
 
     /// Get a SPValue from the state based on a path. Only use this when you need do not
     /// need to get the same variable multiple times. Else use sp_value
@@ -229,7 +232,7 @@ impl SPState {
     }
 
     /// Get a SPValue based on its index when you need to access the same variable multiple
-    /// times. First get and cash the index from fn state_path(&path), and then use that index. 
+    /// times. First get and cash the index from fn state_path(&path), and then use that index.
     /// If you do not know if the state can change, check the state id.
     /// This fn will panic if i is larger than no of values
     pub fn sp_value_from_index(&self, i: usize) -> &SPValue {
@@ -244,13 +247,12 @@ impl SPState {
             .map(|(key, i)| (key, &self.values[*i]))
             .collect();
 
-        let mut p = StateProjection{
+        let mut p = StateProjection {
             projection: s,
-            id: self.id
+            id: self.id,
         };
         p.sort();
         p
-
     }
 
     /// Returns a projection of the sub part of the state where the variables are children to the path
@@ -266,7 +268,7 @@ impl SPState {
             .map(|(key, i)| (key, &self.values[*i]))
             .collect();
 
-        StateProjection{
+        StateProjection {
             projection: s,
             id: self.id,
         }
@@ -278,9 +280,13 @@ impl SPState {
         self.index
             .iter()
             .filter(|(key, _)| key.is_child_of(path))
-            .all(|(key, i)| state.sp_value_from_path(key).map(|x| x == self.values[*i].get_value()).unwrap_or(false))
+            .all(|(key, i)| {
+                state
+                    .sp_value_from_path(key)
+                    .map(|x| x == self.values[*i].get_value())
+                    .unwrap_or(false)
+            })
     }
-
 
     pub fn prefix_paths(&mut self, parent: &GlobalPath) {
         let mut xs = HashMap::new();
@@ -315,16 +321,14 @@ impl SPState {
                 Err(e) => Err(e),
             }
         }
-        
     }
     pub fn next_from_path(&mut self, path: &SPPath, value: AssignStateValue) -> SPResult<()> {
         if let Some(sp) = self.state_path(&path) {
             self.next(&sp, value)
         } else {
-            Err(SPError::No(format!{"Can not find the path: {:?}", path}))
+            Err(SPError::No(format! {"Can not find the path: {:?}", path}))
         }
     }
-
 
     fn create_next_state_value(next: AssignStateValue, prev: &StateValue) -> SPResult<StateValue> {
         match (next, prev.clone()) {
@@ -333,23 +337,25 @@ impl SPState {
                 Ok(StateValue::SPValue(p.current_value))
             }
             (AssignStateValue::CompleteDelay, StateValue::Delay(d)) => {
-                let n = Next{
+                let n = Next {
                     current_value: d.current_value,
-                    next_value: d.next_value
+                    next_value: d.next_value,
                 };
                 Ok(StateValue::Next(n))
             }
             (x, StateValue::Next(p)) => {
                 std::eprintln!(
                     "Your are trying to overwrite a next: current: {:?}, new: {:?} ",
-                    x, p
+                    x,
+                    p
                 );
                 Err(SPError::OverwriteNext(p, x))
             }
             (x, StateValue::Delay(p)) => {
                 std::eprintln!(
                     "Your are trying to overwrite a delay: current: {:?}, new: {:?} ",
-                    x, p
+                    x,
+                    p
                 );
                 Err(SPError::OverwriteDelay(p, x))
             }
@@ -404,7 +410,8 @@ impl SPState {
     }
 
     pub fn is_allowed(&self, state_path: &StatePath, value: AssignStateValue) -> bool {
-        self.check_state_path(state_path) && SPState::create_next_state_value(value, &self.values[state_path.index]).is_ok()
+        self.check_state_path(state_path)
+            && SPState::create_next_state_value(value, &self.values[state_path.index]).is_ok()
     }
 
     pub fn extend(&mut self, other_state: SPState) {
@@ -412,7 +419,6 @@ impl SPState {
         self.add_state_variables(&p);
     }
 }
-
 
 impl fmt::Display for SPState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -436,7 +442,6 @@ impl StateValue {
         }
     }
 }
-
 
 /// helping making states with a macro
 #[macro_export]
@@ -595,7 +600,10 @@ mod sp_value_test {
                 has_been_spawned: true
             }))
         );
-        assert_eq!(s.state_value(&p_ab), Some(&StateValue::SPValue(5.to_spvalue())));
+        assert_eq!(
+            s.state_value(&p_ab),
+            Some(&StateValue::SPValue(5.to_spvalue()))
+        );
 
         println!("The state: {:?}", s);
     }

@@ -21,7 +21,7 @@ pub enum Predicate {
 pub struct Action {
     pub var: SPPath,
     pub value: Compute,
-    state_path: Option<StatePath>
+    state_path: Option<StatePath>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -56,7 +56,7 @@ impl<'a> PredicateValue {
                 if sp.is_none() {
                     if let Some(the_path) = state.state_path(&path) {
                         *sp = Some(the_path.clone());
-                        return state.sp_value(&the_path)
+                        return state.sp_value(&the_path);
                     }
                 } else {
                     if let Some(the_path) = sp {
@@ -64,28 +64,33 @@ impl<'a> PredicateValue {
                     }
                 }
                 return None;
-            },
+            }
         }
     }
 
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> PredicateValue {
         match self {
-            PredicateValue::SPPath(p,_) => {
+            PredicateValue::SPPath(p, _) => {
                 let np = match p {
                     SPPath::GlobalPath(gp) => SPPath::GlobalPath(gp.clone()),
                     SPPath::LocalPath(lp) => lp.to_global(parent).to_sp(),
                     SPPath::TemporaryPath(_tp) => panic!("temporary path must be resolved"),
                 };
                 PredicateValue::SPPath(np, None)
-            },
-            _ => self.clone()
+            }
+            _ => self.clone(),
         }
     }
 
     // ns_to can be Local when you are done...
-    pub fn temp_add_parent(&mut self, ns_from: TemporaryPathNS, ns_to: TemporaryPathNS, parent: &str) {
+    pub fn temp_add_parent(
+        &mut self,
+        ns_from: TemporaryPathNS,
+        ns_to: TemporaryPathNS,
+        parent: &str,
+    ) {
         match self {
-            PredicateValue::SPPath(p,_) => {
+            PredicateValue::SPPath(p, _) => {
                 match p {
                     SPPath::TemporaryPath(tp) if tp.namespace == ns_from => {
                         let mut np = vec![parent.to_string()];
@@ -97,10 +102,10 @@ impl<'a> PredicateValue {
                             let lp = TemporaryPath::from(ns_to, np);
                             *p = lp.to_sp();
                         }
-                    },
+                    }
                     _ => {}
                 };
-            },
+            }
             _ => {}
         }
     }
@@ -129,20 +134,41 @@ impl Default for PredicateValue {
 impl Predicate {
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Predicate {
         match self {
-            Predicate::AND(x) => Predicate::AND(x.iter().map(|p|p.clone_with_global_paths(parent)).collect()),
-            Predicate::OR(x) => Predicate::OR(x.iter().map(|p|p.clone_with_global_paths(parent)).collect()),
-            Predicate::XOR(x) => Predicate::XOR(x.iter().map(|p|p.clone_with_global_paths(parent)).collect()),
+            Predicate::AND(x) => Predicate::AND(
+                x.iter()
+                    .map(|p| p.clone_with_global_paths(parent))
+                    .collect(),
+            ),
+            Predicate::OR(x) => Predicate::OR(
+                x.iter()
+                    .map(|p| p.clone_with_global_paths(parent))
+                    .collect(),
+            ),
+            Predicate::XOR(x) => Predicate::XOR(
+                x.iter()
+                    .map(|p| p.clone_with_global_paths(parent))
+                    .collect(),
+            ),
             Predicate::NOT(x) => Predicate::NOT(Box::new(x.clone_with_global_paths(parent))),
             Predicate::TRUE => self.clone(),
             Predicate::FALSE => self.clone(),
-            Predicate::EQ(x, y) => Predicate::EQ(x.clone_with_global_paths(parent),
-                                                 y.clone_with_global_paths(parent)),
-            Predicate::NEQ(x, y) => Predicate::NEQ(x.clone_with_global_paths(parent),
-                                                   y.clone_with_global_paths(parent)),
+            Predicate::EQ(x, y) => Predicate::EQ(
+                x.clone_with_global_paths(parent),
+                y.clone_with_global_paths(parent),
+            ),
+            Predicate::NEQ(x, y) => Predicate::NEQ(
+                x.clone_with_global_paths(parent),
+                y.clone_with_global_paths(parent),
+            ),
         }
     }
 
-    pub fn change_temps(&mut self, ns_from: TemporaryPathNS, ns_to: TemporaryPathNS, new_parent: &str) {
+    pub fn change_temps(
+        &mut self,
+        ns_from: TemporaryPathNS,
+        ns_to: TemporaryPathNS,
+        new_parent: &str,
+    ) {
         let upd_vec = |xs: &mut Vec<Predicate>| {
             xs.iter_mut().for_each(|p| {
                 p.change_temps(ns_from, ns_to, new_parent);
@@ -150,20 +176,28 @@ impl Predicate {
         };
 
         match self {
-            Predicate::AND(x) => { upd_vec(x); }
-            Predicate::OR(x) => { upd_vec(x); },
-            Predicate::XOR(x) => { upd_vec(x); },
-            Predicate::NOT(x) => { x.change_temps(ns_from, ns_to, new_parent); },
-            Predicate::TRUE => {},
-            Predicate::FALSE => {},
+            Predicate::AND(x) => {
+                upd_vec(x);
+            }
+            Predicate::OR(x) => {
+                upd_vec(x);
+            }
+            Predicate::XOR(x) => {
+                upd_vec(x);
+            }
+            Predicate::NOT(x) => {
+                x.change_temps(ns_from, ns_to, new_parent);
+            }
+            Predicate::TRUE => {}
+            Predicate::FALSE => {}
             Predicate::EQ(x, y) => {
                 x.temp_add_parent(ns_from, ns_to, new_parent);
                 y.temp_add_parent(ns_from, ns_to, new_parent);
-            },
+            }
             Predicate::NEQ(x, y) => {
                 x.temp_add_parent(ns_from, ns_to, new_parent);
                 y.temp_add_parent(ns_from, ns_to, new_parent);
-            },
+            }
         }
     }
 
@@ -188,12 +222,11 @@ impl Predicate {
 }
 
 impl Action {
-
     pub fn new(var: SPPath, value: Compute) -> Self {
         Action {
             var,
             value,
-            state_path: None
+            state_path: None,
         }
     }
 
@@ -236,14 +269,15 @@ impl Default for Compute {
 impl Compute {
     pub fn clone_with_global_paths(&self, parent: &GlobalPath) -> Compute {
         match self {
-            Compute::PredicateValue(p) => Compute::PredicateValue(p.clone_with_global_paths(parent)),
+            Compute::PredicateValue(p) => {
+                Compute::PredicateValue(p.clone_with_global_paths(parent))
+            }
             Compute::Predicate(p) => Compute::Predicate(p.clone_with_global_paths(parent)),
             Compute::Delay(p, u) => Compute::Delay(p.clone_with_global_paths(parent), *u),
-            Compute::CancelDelay => Compute::CancelDelay
+            Compute::CancelDelay => Compute::CancelDelay,
         }
     }
 }
-
 
 /// Eval is used to evaluate a predicate (or an operation ).
 pub trait EvaluatePredicate {
@@ -267,7 +301,7 @@ impl EvaluatePredicate for Predicate {
                     }
                 }
                 c == 1
-                // ps.iter_mut()  
+                // ps.iter_mut()
                 //     .filter(|p| p.eval(state))  // for some reason does not filter with &mut
                 //     .count()
                 //     == 1
@@ -276,7 +310,7 @@ impl EvaluatePredicate for Predicate {
             Predicate::TRUE => true,
             Predicate::FALSE => false,
             Predicate::EQ(lp, rp) => lp.sp_value(state) == rp.sp_value(state),
-            Predicate::NEQ(lp, rp) => lp.sp_value(state) != rp.sp_value(state), 
+            Predicate::NEQ(lp, rp) => lp.sp_value(state) != rp.sp_value(state),
             // Predicate::GT(lp, rp) => {}
             // Predicate::LT(lp, rp) => {}
             // Predicate::INDOMAIN(value, domain) => {}
@@ -289,7 +323,7 @@ impl NextAction for Action {
         if self.state_path.is_none() {
             self.state_path = state.state_path(&self.var);
         }
-        
+
         let c = match &mut self.value {
             Compute::PredicateValue(pv) => {
                 match pv
@@ -332,13 +366,18 @@ impl NextAction for Action {
                 }
             }
             Compute::CancelDelay => {
-                let v = self.state_path.as_ref().and_then(|sp| state.sp_value(sp))
-                .map(|x| AssignStateValue::SPValue(x.clone()));
-                match v
-                {
+                let v = self
+                    .state_path
+                    .as_ref()
+                    .and_then(|sp| state.sp_value(sp))
+                    .map(|x| AssignStateValue::SPValue(x.clone()));
+                match v {
                     Some(x) => x,
                     None => {
-                        eprintln!("The delay action {:?}, did not exist in the state", self.clone());
+                        eprintln!(
+                            "The delay action {:?}, did not exist in the state",
+                            self.clone()
+                        );
                         return Err(SPError::No(format!(
                             "The delay action {:?}, did not exist in the state",
                             self.clone()
@@ -350,7 +389,10 @@ impl NextAction for Action {
 
         match self.state_path.as_ref().map(|sp| state.next(sp, c)) {
             Some(r) => r,
-            None => Err(SPError::No(format!("The Action {:?} does not have a correct path", self)))
+            None => Err(SPError::No(format!(
+                "The Action {:?} does not have a correct path",
+                self
+            ))),
         }
     }
 }
@@ -360,13 +402,17 @@ impl EvaluatePredicate for Action {
         if self.state_path.is_none() {
             self.state_path = state.state_path(&self.var);
         }
-        match self.state_path.as_ref().and_then(|sp| state.state_value(sp)) {
+        match self
+            .state_path
+            .as_ref()
+            .and_then(|sp| state.state_value(sp))
+        {
             Some(StateValue::SPValue(_)) => true,
             Some(StateValue::Unknown) => true,
             Some(StateValue::Next(_)) => false,
             Some(StateValue::Delay(_)) => self.value == Compute::CancelDelay,
             None => false, // We do not allow actions to add new state variables. But maybe this should change?
-        }  
+        }
     }
 }
 
@@ -576,7 +622,7 @@ mod sp_value_test {
     #[test]
     fn eval_pred() {
         let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
-        let v = SPPath::from_array(&["a", "b"]);
+        let v = SPPath::from_array_as_global(&["a", "b"]);
         let mut eq = Predicate::EQ(
             PredicateValue::SPValue(2.to_spvalue()),
             PredicateValue::SPPath(v.clone(), None),
@@ -605,10 +651,7 @@ mod sp_value_test {
             ab.clone(),
             Compute::PredicateValue(PredicateValue::SPPath(kl, None)),
         );
-        let mut a3 = Action::new(
-            xy.clone(),
-            Compute::Predicate(p),
-        );
+        let mut a3 = Action::new(xy.clone(), Compute::Predicate(p));
 
         a3.next(&mut s);
         let next = StateValue::Next(states::Next {

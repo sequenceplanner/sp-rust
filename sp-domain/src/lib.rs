@@ -69,7 +69,6 @@ impl error::Error for SPError {
     }
 }
 
-
 #[cfg(test)]
 mod tests_domain {
     use super::*;
@@ -117,9 +116,13 @@ mod tests_domain {
         r1.add_message(Topic::new("cmd", MessageField::Msg(robot_cmd)));
         r1.add_message(Topic::new("state", MessageField::Msg(robot_state)));
 
-
-
-        let v_ref = r1.find_item("ref", &["robot_cmd"]).unwrap().node().local_path().clone().unwrap();  // this is kept here just to show what unwrap_local_path() is doing
+        let v_ref = r1
+            .find_item("ref", &["robot_cmd"])
+            .unwrap()
+            .node()
+            .local_path()
+            .clone()
+            .unwrap(); // this is kept here just to show what unwrap_local_path() is doing
         let v_activate = r1.find_item("activate", &["robot_cmd"]).unwrap_local_path();
         let v_ref_echo = r1.find_item("ref", &["echo"]).unwrap_local_path();
         let v_activate_echo = r1.find_item("activate", &["echo"]).unwrap_local_path();
@@ -133,42 +136,41 @@ mod tests_domain {
         println!("v_act: {:?}", v_act);
         println!("v_active: {:?}", v_active);
 
-
         let name = "r1";
         let upper = 10;
         let to_upper = Transition::new(
             &format!("{}_to_upper", name),
             p!(v_act == 0), // p!(r != upper), // added req on v_act== 0 just for testing
-            vec!(a!(v_ref = upper)),
-            vec!(a!(v_act = upper)),
-            false
+            vec![a!(v_ref = upper)],
+            vec![a!(v_act = upper)],
+            false,
         );
         let to_lower = Transition::new(
             &format!("{}_to_lower", name),
             p!(v_act == upper), // p!(r != 0), // added req on v_act == upper just for testing
-            vec!(a!(v_ref = 0)),
-            vec!(a!(v_act= 0)),
-            false
+            vec![a!(v_ref = 0)],
+            vec![a!(v_act = 0)],
+            false,
         );
         let t_activate = Transition::new(
             &format!("{}_activate", name),
             p!(!v_active),
-            vec!(a!(v_activate)),
-            vec!(a!(v_active)),
-            true
+            vec![a!(v_activate)],
+            vec![a!(v_active)],
+            true,
         );
         let t_deactivate = Transition::new(
             &format!("{}_deactivate", name),
             p!(v_active),
-            vec!(a!(!v_activate)),
-            vec!(a!(!v_active)),
-            true
+            vec![a!(!v_activate)],
+            vec![a!(!v_active)],
+            true,
         );
 
         let _ability = Ability::new(
             "all",
-            vec!(t_activate, t_deactivate, to_upper, to_lower),
-            vec!()
+            vec![t_activate, t_deactivate, to_upper, to_lower],
+            vec![],
         );
 
         // let _ability = r1.add_ability(ability);
