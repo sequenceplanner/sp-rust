@@ -87,7 +87,7 @@ pub fn make_dummy_robot(name: &str) -> Resource {
             "start",
             pred_true("enabled"),
             vec![a!(rp_c = "at")],
-            vec![],
+            vec![a!(ap_m = "unknown")],
             true,
         );
 
@@ -121,7 +121,7 @@ pub fn make_dummy_robot(name: &str) -> Resource {
             "start",
             pred_true("enabled"),
             vec![a!(rp_c = "away")],
-            vec![],
+            vec![a!(ap_m = "unknown")],
             true,
         );
 
@@ -300,11 +300,16 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
+    // For now, we manually add the guards resulting from synthesis...
+    let r1_to_start = m.find_item("start", &["to_table", "r1"]).unwrap_global_path().to_sp();
+    let r2_to_start = m.find_item("start", &["to_table", "r2"]).unwrap_global_path().to_sp();
+
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(r1_p_a != "at"), p!(r1_p_a == "at"), vec![]);
 
     let r2_to_at = add_op(&mut m, "r2_to_at", false,
-                          pr!{{p!(r2_p_a != "at")} && {p!(r1_p_a == "at")}}, // can start when r1 is at "at". what will happen?
+                          // pr!{{p!(r2_p_a != "at")} && {p!(r1_p_a == "at")}}, // can start when r1 is at "at". what will happen?
+                          p!(r2_p_a != "at"),
                           p!(r2_p_a == "at"), vec![]);
 
     // reset previous ops so we can start over

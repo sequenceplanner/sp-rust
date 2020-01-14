@@ -22,6 +22,8 @@ class Interfacer(Node):
         self.to_r = JointState()
         self.tmr_period = 0.02
         self.tmr_period2 = 0.5
+        self.counter_period = 1
+        self.idle_counter = 0
 
         self.act_pos_j1 = 0.0
         self.ref_pos_j1 = 0.0
@@ -67,6 +69,23 @@ class Interfacer(Node):
             self.tmr_period,
             self.interfacer_to_r_publisher_callback)
 
+        self.idle_timer = self.create_timer(
+            1.0,
+            self.idle_timer_callback)
+
+    def idle_timer_callback(self):
+        self.idle_counter += 1
+        if self.idle_counter > 5:
+            self.idle_counter = 0
+            self.active = False
+            self.act_pos = "unknown"
+            self.ref_pos = "unknown"
+            self.act_pos_j1 = 0.0
+            self.ref_pos_j1 = 0.0
+            self.act_pos_j2 = 0.0
+            self.ref_pos_j2 = 0.0
+            self.to_r.position = [0.0, 0.0]
+
     def joint_callback(self, data):
         self.act_pos_j1 = data.position[0]
         self.act_pos_j2 = data.position[1]
@@ -78,6 +97,7 @@ class Interfacer(Node):
             self.act_pos = "unknown"
 
     def sp_callback(self, data):
+        self.idle_counter = 0
         self.active = data.activate
         self.ref_pos = data.ref_pos
         if self.ref_pos == "at":
@@ -90,16 +110,14 @@ class Interfacer(Node):
             pass
 
     def interfacer_to_r_publisher_callback(self):
-        if not self.active:
-            pass
-        if self.ref_pos_j1 < self.act_pos_j1:
+        if self.active and self.ref_pos_j1 < self.act_pos_j1:
             if self.ref_pos_j2 < self.act_pos_j2:
                 self.to_r.position = [round(self.act_pos_j1 - 0.01, 2), round(self.act_pos_j2 - 0.01, 2)]
             elif self.ref_pos_j2 > self.act_pos_j2:
                 self.to_r.position = [round(self.act_pos_j1 - 0.01, 2), round(self.act_pos_j2 + 0.01, 2)]
             else:
                 pass
-        elif self.ref_pos_j1 > self.act_pos_j1:
+        elif self.active and self.ref_pos_j1 > self.act_pos_j1:
             if self.ref_pos_j2 < self.act_pos_j2:
                 self.to_r.position = [round(self.act_pos_j1 + 0.01, 2), round(self.act_pos_j2 - 0.01, 2)]
             elif self.ref_pos_j2 > self.act_pos_j2:

@@ -138,7 +138,7 @@ fn action_to_string(a: &Action) -> Option<String> {
     }
 }
 
-fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerModel, vars: &HashMap<SPPath, Variable>, specs: &Vec<Spec>) -> String {
+fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &StateExternal, model: &RunnerModel, vars: &HashMap<SPPath, Variable>, specs: &Vec<Spec>) -> String {
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
@@ -215,12 +215,6 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
             }
         }
     }
-
-//DEFINE
-//  dummy_robot_model#r1#to_table#enabled := dummy_robot_model#r1#State#dr_m#act_pos=unknown;
-//  dummy_robot_model#r1#to_away#enabled := dummy_robot_model#r1#State#dr_m#act_pos=unknown;
-
-
 
     lines.push_str("\n\n");
     lines.push_str("ASSIGN\n");
@@ -308,33 +302,38 @@ fn create_nuxmv_problem(goal: &Predicate, state: &StateExternal, model: &RunnerM
 
     // add invariant stating only one controllable event can be active at a time
     lines.push_str("\n\n");
-    lines.push_str("INVAR\n");
-    let ctrl_names: Vec<_> = model.ab_transitions
-        .ctrl
-        .iter()
-        .map(|c| NuXMVPath(g_path_or_panic_node(c.node())).to_string())
-        .collect();
-    let ctrl_names_sep = ctrl_names.join(",");
-    lines.push_str(&format!(
-        "{i}count({n}) <= 1;\n",
-        i = indent(2),
-        n = ctrl_names_sep
-    ));
+    // lines.push_str("INVAR\n");
+    // let ctrl_names: Vec<_> = model.ab_transitions
+    //     .ctrl
+    //     .iter()
+    //     .map(|c| NuXMVPath(g_path_or_panic_node(c.node())).to_string())
+    //     .collect();
+    // let ctrl_names_sep = ctrl_names.join(",");
+    // lines.push_str(&format!(
+    //     "{i}count({n}) <= 1;\n",
+    //     i = indent(2),
+    //     n = ctrl_names_sep
+    // ));
 
-    // finally, print out the ltl spec
     lines.push_str("\n\n");
 
-    println!("GOAL IS: {:?}", goal);
-    let goal = NuXMVPredicate(goal);
-
-//    LTLSPEC ! ( G s & F g1 & F g2);
+    // finally, print out the ltl spec on the form
+    // LTLSPEC ! ( G s1 & G s2 & F g1 & F g2);
     let global_str: Vec<String> = global.iter().map(|p| format!("G ( {} )", p)).collect();
     let g = if global_str.is_empty() {
         "TRUE".to_string()
     } else {
         global_str.join("&")
     };
-    lines.push_str(&format!("LTLSPEC ! ( {} & F ( {} ) );", g, goal));
+
+    let goal_str: Vec<String> = goals.iter().map(|p| format!("F ( {} )", &NuXMVPredicate(p))).collect();
+    let goals = if goal_str.is_empty() {
+        "TRUE".to_string()
+    } else {
+        goal_str.join("&")
+    };
+
+    lines.push_str(&format!("LTLSPEC ! ( {} & {} );", g, goals));
 
     return lines;
 }
@@ -423,8 +422,9 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
             // check for controllable actions
             if model.ab_transitions.ctrl.iter().find(|t| g_path_or_panic_node(t.node()) == &path).is_some() {
                 if val == &"TRUE" {
-                    assert!(last.ctrl.is_none());
-                    last.ctrl = Some(sppath);
+                    // assert!(last.ctrl.is_none());
+                    // last.ctrl = Some(sppath);
+                    last.ctrl.push(sppath.clone());
                 }
             } else {
                 // get SP type from path
@@ -444,7 +444,14 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
                     };
 
                 let spval = spval_from_nuxvm(val, spt);
-                last.state.s.insert(sppath, spval);
+
+                // temp test
+                if vars.contains_key(&sppath) {
+                    let v = vars.get(&sppath).unwrap();
+                    if v.variable_type() == VariableType::Measured {
+                        last.state.s.insert(sppath, spval);
+                    }
+                }
             }
         }
     }
@@ -453,7 +460,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
 }
 
 pub fn compute_plan(
-    goal: &Predicate,
+    goals: &Vec<Predicate>,
     state: &StateExternal,
     model: &RunnerModel,
     max_steps: u32,
@@ -478,7 +485,7 @@ pub fn compute_plan(
         _ => None,
     }).cloned().collect();
 
-    let lines = create_nuxmv_problem(&goal, &state, &model, &vars, &specs);
+    let lines = create_nuxmv_problem(&goals, &state, &model, &vars, &specs);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder

@@ -14,7 +14,7 @@ fn plan_fail_1_step() {
     let goal = p!(activated);
 
     // requires at least step = 2 to find a plan
-    let result = compute_plan(&goal, &state, &model, 1);
+    let result = compute_plan(&vec![goal], &state, &model, 1);
 
     assert!(!result.plan_found);
 
@@ -39,7 +39,7 @@ fn plan_success_2_steps() {
     let goal = p!(activated);
 
     // requires at least step = 2 to find a plan
-    let result = compute_plan(&goal, &state, &model, 2);
+    let result = compute_plan(&vec![goal], &state, &model, 2);
 
     assert!(result.plan_found);
 
@@ -63,12 +63,12 @@ fn planner_debug_printouts() {
         .unwrap_global_path();
     let goal = p!(activated);
 
-    let result = compute_plan(&goal, &state, &model, 20);
-
     println!("INITIAL STATE");
     println!("{}", state);
     println!("GOAL PREDICATE: {:?}", goal);
     println!("-------\n");
+
+    let result = compute_plan(&vec![goal], &state, &model, 20);
 
     println!("TIME TO SOLVE: {}ms", result.time_to_solve.as_millis());
 
@@ -132,7 +132,7 @@ fn planner_fail_due_to_conflicting_specs_and_goal() {
 
     let goal = pr!{{p!(r1_p_a == "at")} && {p!(r2_p_a == "at")}};
 
-    let result = compute_plan(&goal, &state, &model, 20);
+    let result = compute_plan(&vec![goal], &state, &model, 20);
     assert!(!result.plan_found);
 }
 
@@ -146,6 +146,6 @@ fn planner_succeed_when_no_conflicting_spec_and_goal() {
 
     let goal = pr!{{p!(r1_p_a == "at")} && {p!(r2_p_a == "at")}};
 
-    let result = compute_plan(&goal, &state, &model, 20);
+    let result = compute_plan(&vec![goal], &state, &model, 20);
     assert!(result.plan_found);
 }

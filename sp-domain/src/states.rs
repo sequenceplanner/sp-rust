@@ -129,10 +129,10 @@ impl SPState {
                 Ok(StateValue::SPValue(p.current_value))
             }
             (x, StateValue::Next(p)) => {
-                eprintln!(
-                    "Your are trying to overwrite a next: current: {:?}, new: {:?} ",
-                    x, p
-                );
+                // eprintln!(
+                //     "Your are trying to overwrite a next: current: {:?}, new: {:?} ",
+                //     x, p
+                // );
                 Err(SPError::OverwriteNext(p, x))
             }
             (x, StateValue::Delay(p)) => {

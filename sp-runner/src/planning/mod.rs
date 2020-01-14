@@ -14,7 +14,7 @@ pub struct PlanningResult {
 pub struct PlanningFrame {
     pub state: StateExternal,
     // The controllable transition taken this frame, if one was taken.
-    pub ctrl: Option<SPPath>,
+    pub ctrl: Vec<SPPath>,
 }
 
 mod nuxmv;

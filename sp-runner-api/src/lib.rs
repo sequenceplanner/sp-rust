@@ -14,9 +14,15 @@ pub struct RunnerModel {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct AbPlanItem {
+    pub transition: Vec<SPPath>,
+    pub guard: Predicate,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerPlans {
     pub op_plan: Vec<SPPath>,         // maybe have spids here?
-    pub ab_plan: Vec<SPPath>,
+    pub ab_plan: Vec<AbPlanItem>,
 }
 
 

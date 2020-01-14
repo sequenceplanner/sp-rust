@@ -90,7 +90,7 @@ impl Runner {
         let mut r = Runner {
             model,
             state: SPState::default(),
-            ctrl: RunnerCtrl { pause: true,
+            ctrl: RunnerCtrl { pause: false,
                                override_ability_transitions: vec![],
                                override_operation_transitions: vec![]
             },
@@ -122,7 +122,8 @@ impl Runner {
         if let Some(p) = cmd {
             match p {
                 PlannerResult::OpPlan(x) => self.model.plans.op_plan = x,
-                PlannerResult::AbPlan(x) => self.model.plans.ab_plan = x,
+                PlannerResult::AbPlan(x) => { panic!("NOT YET"); self.model.plans.ab_plan =
+                                              x.iter().map(|p| AbPlanItem { transition: vec![], guard: Predicate::TRUE }).collect() },
             }
         }
     }
@@ -168,22 +169,39 @@ impl Runner {
             self.tick_transitions(&mut state, &mut temp, &self.model.op_transitions)
         };
 
-        let (goal, _inv) = self.next_op_functions(&state);
+        let (goals, _invs) = self.next_op_functions(&state);
         // validate plan with new goals here and if needed, clear the plan
-        if !goal.is_empty() {
-            println!("we have a goal! {:?}", goal);
+        if !goals.is_empty() {
+            println!("we have goals! {:?}", goals);
         }
         let state_ext = state.external();
-        let pred = Predicate::AND(goal.iter().map(|x|x.then_().clone()).collect());
-        let result = crate::planning::compute_plan(&pred, &state_ext, &self.model, 20);
+        let goals = goals.iter().map(|x|x.then_().clone()).collect();
+        let result = crate::planning::compute_plan(&goals, &state_ext, &self.model, 20);
         println!("we have a plan? {} -- got it in {}ms",
                  result.plan_found, result.time_to_solve.as_millis());
-        let new_ab_plan: Vec<_> = result.trace.into_iter().flat_map(|f|f.ctrl).collect();
+
+        let mut new_ab_plan = Vec::new();
+
+        for f in &result.trace {
+            let pred = Predicate::AND(f.state.s.iter().map(
+                    |(k,v)| Predicate::EQ(
+                        PredicateValue::SPPath(k.clone()),
+                        PredicateValue::SPValue(v.clone()))).collect());
+            let mut api = AbPlanItem { transition: vec![], guard: pred};
+
+            for p in &f.ctrl {
+                api.transition.push(p.clone());
+            }
+            if !api.transition.is_empty() {
+                new_ab_plan.push(api);
+            }
+        }
+
         println!("plan is: {:?}", new_ab_plan);
         plans.ab_plan = new_ab_plan;
 
         let ab_fired = if !self.ctrl.pause {
-            self.tick_transitions(&mut state, &mut plans.ab_plan, &self.model.ab_transitions)
+            self.tick_transitions_with_plan_guards(&mut state, &mut plans.ab_plan, &self.model.ab_transitions)
         } else {
             // if we are paused, we can take transitions only if they are in the override list
             let mut temp = self.ctrl.override_ability_transitions.clone();
@@ -198,6 +216,51 @@ impl Runner {
     fn enabled_ctrl(&self, state: &SPState, trans: &RunnerTransitions) -> Vec<SPPath> {
         trans.ctrl.iter().filter(|t|t.eval(state)).flat_map(|t|t.node().global_path()).
             map(|p|p.to_sp()).collect()
+    }
+
+    fn tick_transitions_with_plan_guards(&self, state: &mut SPState, plan: &mut Vec<AbPlanItem>, trans: &RunnerTransitions) -> Vec<SPPaths> {
+        let (ctrl, un_ctrl) = (&trans.ctrl, &trans.un_ctrl);
+
+        let to_run = if !plan.is_empty() && plan.first().unwrap().guard.eval(&state) {
+            let pi = plan.first().unwrap();
+            println!("taking trans: {:?}", pi.transition);
+            ctrl.iter().filter(|t| pi.transition.contains(&t.paths().global_path().as_ref().unwrap().to_sp())).collect()
+        } else {
+            if !plan.is_empty() {
+                println!("guard not satisfied: {:?}", plan.first().unwrap().guard);
+            }
+            Vec::new()
+        };
+        let mut fired = Vec::new();
+        for t in &to_run {
+            if !t.eval(&state) {
+                println!("WARNING guard\n\n {:?}", t.guard());
+            }
+            // else
+            {
+                let n = t.next(&state).unwrap(); // Must return Ok, else something is bad
+                self.insert_into_state(state, n);
+
+                println!("TAKING TRANSITION: {}", t.paths());
+                fired.push(t.paths().clone());
+            }
+        }
+        if !to_run.is_empty() {
+            plan.remove(0);
+        }
+
+        //println!("state: {:?}", &state);
+        for t in un_ctrl.iter() {
+            //println!("{:?}, t: {:?}", t.eval(&state), t);
+            if t.eval(&state) {
+                let n = t.next(&state).unwrap(); // should always work since eval works
+                self.insert_into_state(state, n);
+                fired.push(t.paths().clone());
+            }
+        };
+
+        fired
+
     }
 
     /// Ticks all transitions that are enabled, starting first with the controlled that is first in the
@@ -339,7 +402,6 @@ impl Future for Runner {
             self.tick_in_que = true;
         }
 
-
         let mut new_state = self.state.clone();
         self.upd_state(&mut new_state, extr_option(upd_s));
         self.upd_command(extr_option(upd_cmd));
@@ -352,7 +414,7 @@ impl Future for Runner {
         let enabled_op_ctrl = self.enabled_ctrl(&state, &self.model.op_transitions);
         let ri = RunnerInfo {
             state: state.external(),
-            ability_plan: plans.ab_plan.clone(),
+            ability_plan: plans.ab_plan.iter().map(|abpi|abpi.transition.clone()).flatten().collect(),
             enabled_ability_transitions: enabled_ab_ctrl,
             operation_plan: plans.op_plan.clone(),
             enabled_operation_transitions: enabled_op_ctrl,
