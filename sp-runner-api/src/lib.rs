@@ -15,7 +15,7 @@ pub struct RunnerModel {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AbPlanItem {
-    pub transition: Vec<SPPath>,
+    pub transition: SPPath,
     pub guard: Predicate,
 }
 

@@ -670,6 +670,42 @@ mod sp_value_test {
         assert!(!a.eval(&s));
     }
 
+
+    #[test]
+    fn test_make_guard() {
+        let ab = SPPath::from_array(&["a", "b"]);
+        let mut s = SPState::default();
+
+        let a = Action {
+            var: ab.clone(),
+            value: Compute::PredicateValue(PredicateValue::SPValue(SPValue::Bool(true)))
+        };
+
+        let a2 = Action {
+            var: ab.clone(),
+            value: Compute::PredicateValue(PredicateValue::SPValue(SPValue::Bool(false)))
+        };
+
+        a.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        s.take_all_next();
+        println!("STATE: {:?}", s);
+        a2.next(&s).map(|x| s.insert_map(x).unwrap()).unwrap();
+        s.take_all_next();
+        println!("STATE: {:?}", s);
+
+        let guard = Predicate::AND(s.s.iter().flat_map(|(k,v)| {
+            if let StateValue::SPValue(spval) = v {
+                Some(Predicate::EQ(PredicateValue::SPPath(k.clone()),
+                                   PredicateValue::SPValue(spval.clone())))
+            } else { None }
+        }).collect());
+
+
+        println!("GUARD: {:?}", guard);
+
+        assert!(false);
+    }
+
     //#[test]
     // fn replace_variable_path() {
     //     let ab = SPPath::from_array(&["a", "b"]);

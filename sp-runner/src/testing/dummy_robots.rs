@@ -1,6 +1,9 @@
 use crate::runners::*;
 use sp_domain::*;
 use sp_runner_api::*;
+use std::collections::HashMap;
+
+use guard_extraction::*;
 
 // helpers
 fn pred_path(name: &str) -> SPPath {
@@ -283,6 +286,32 @@ fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predica
     m.add_item(SPItem::Operation(op)).global_path().as_ref().unwrap().to_sp()
 }
 
+
+
+#[test]
+fn test_guard_extraction() {
+    // Make model
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+
+    // Make some global stuff
+    let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
+    let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+
+    // Specifications
+    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
+    let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
+    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+
+    let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
+
+    assert_eq!(new_guards.len(), 4);
+    assert_ne!(new_initial, Predicate::TRUE);
+}
+
 pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     // Make model
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
@@ -303,6 +332,8 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     // For now, we manually add the guards resulting from synthesis...
     let r1_to_start = m.find_item("start", &["to_table", "r1"]).unwrap_global_path().to_sp();
     let r2_to_start = m.find_item("start", &["to_table", "r2"]).unwrap_global_path().to_sp();
+
+    // TODO: here we should use the guard_extraction crate to compute these guards
 
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(r1_p_a != "at"), p!(r1_p_a == "at"), vec![]);

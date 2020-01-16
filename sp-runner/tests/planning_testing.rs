@@ -81,9 +81,11 @@ fn planner_debug_printouts() {
 
     for (i, f) in result.trace.iter().enumerate() {
         println!("FRAME ID: {}\n{}", i, f.state);
-        println!("ACTION: {:?}", f.ctrl);
+        println!("TRANSITION: {:?}", f.transition);
         println!("-------");
     }
+
+    assert!(false);
 }
 
 fn model_with_spec() -> (RunnerModel, SPState) {

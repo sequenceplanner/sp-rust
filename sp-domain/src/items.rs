@@ -393,6 +393,29 @@ impl Resource {
          return s;
     }
 
+    pub fn get_variables(&self) -> Vec<Variable> {
+        fn r(m: &MessageField, acum: &mut Vec<Variable>) {
+            match m {
+                MessageField::Msg(msg) => {
+                    for f in &msg.fields {
+                        r(f, acum);
+                    }
+                },
+                MessageField::Var(var) => {
+                    let _res = acum.push(var.clone());
+                },
+            }
+        }
+
+        let mut vs = Vec::new();
+        for t in &self.messages {
+            r(&t.msg, &mut vs);
+        }
+
+        return vs;
+    }
+
+
     // requires resource to have a global path
     pub fn make_global_transitions(&self) -> Vec<Transition> {
         // local transitions are defined per resource
@@ -776,6 +799,11 @@ impl Transition {
             effects,
             controlled
         }
+    }
+
+    // hack
+    pub fn mut_guard(&mut self) -> &mut Predicate {
+        &mut self.guard
     }
 
     pub fn guard(&self) -> &Predicate {
