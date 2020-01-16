@@ -1,0 +1,13 @@
+/home/endre/sp-rust/sp-codegen/target/rls/debug/deps/tokio_uds-20b2409ee19275b8.rmeta: /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/lib.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/datagram.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/frame.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/incoming.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/listener.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/recv_dgram.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/send_dgram.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/stream.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/ucred.rs
+
+/home/endre/sp-rust/sp-codegen/target/rls/debug/deps/tokio_uds-20b2409ee19275b8.d: /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/lib.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/datagram.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/frame.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/incoming.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/listener.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/recv_dgram.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/send_dgram.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/stream.rs /home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/ucred.rs
+
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/lib.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/datagram.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/frame.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/incoming.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/listener.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/recv_dgram.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/send_dgram.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/stream.rs:
+/home/endre/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-uds-0.2.5/src/ucred.rs:

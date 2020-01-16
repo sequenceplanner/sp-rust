@@ -3,6 +3,8 @@
 mod two_robots;
 pub use two_robots::*;
 
-
 mod dummy_robots;
 pub use dummy_robots::*;
+
+mod dummy_door;
+pub use dummy_door::*;
