@@ -43,7 +43,7 @@ class Interfacer(Node):
         # Could be good to start the subscribers first so that they update the variables if other nodes are up
         self.cmd_subscriber = self.create_subscription(
             Control,
-            "/dummy_robot_model/{}/Control".format(self.r_name),
+            "/{}/Control".format(self.r_name),
             self.sp_callback,
             10)
 
@@ -52,7 +52,7 @@ class Interfacer(Node):
 
         self.state_to_sp_publisher_ = self.create_publisher(
             State,
-            "/dummy_robot_model/{}/State".format(self.r_name),
+            "/{}/State".format(self.r_name),
             10)
 
         self.joint_cmd_publisher_ = self.create_publisher(

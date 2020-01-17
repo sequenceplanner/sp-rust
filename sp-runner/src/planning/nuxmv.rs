@@ -410,20 +410,15 @@ pub fn compute_plan(
     model: &RunnerModel,
     max_steps: u32,
 ) -> PlanningResult {
-    // create variable definitions based on the state
-    // note, we need to exclude predicates...
-    let vars: HashMap<SPPath, Variable> = state.s.iter().flat_map(|(k,_v)| match k {
-        SPPath::GlobalPath(gp) => {
-            // exclude predicates from this map... should really BUILD the map in a different way...
-            if model.state_predicates.iter().any(|p|p.node().global_path().as_ref() == Some(gp)) {
-                None
-            } else {
-                let v = model.model.get(&gp.to_sp()).expect("variable must exist!");
-                Some((gp.to_sp(),v.unwrap_variable()))
-            }
-        }
-        _ => None
-    }).collect();
+    let items = model.model.items();
+    let resources: Vec<&Resource> = items
+        .iter()
+        .flat_map(|i| match i {
+            SPItem::Resource(r) => Some(r),
+            _ => None,
+        })
+        .collect();
+    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.get_path(), v.clone())).collect();
 
     let lines = create_nuxmv_problem(&goals, &state, &model);
 

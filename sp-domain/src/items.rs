@@ -248,8 +248,16 @@ impl Model {
         Model { node, items }
     }
     pub fn new_root(name: &str, items: Vec<SPItem>) -> Model {
-        let mut m = Model::new(name, items);
-        m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
+        // we need to hack away the prefix...
+        // let mut m = Model::new(name, items);
+        // m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
+        // m
+
+        let mut new_items = items.clone();
+        new_items.iter_mut().
+            for_each(|i| {i.update_path(&SPPaths::new(None, Some(GlobalPath::new())));});
+
+        let mut m = Model::new(name, new_items);
         m
     }
 
@@ -258,7 +266,8 @@ impl Model {
     }
 
     pub fn add_item(&mut self, mut item: SPItem) -> SPPaths {
-        let paths = item.update_path(self.node.paths());
+        // let paths = item.update_path(self.node.paths());
+        let paths = item.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
         self.items.push(item);
         paths
     }
