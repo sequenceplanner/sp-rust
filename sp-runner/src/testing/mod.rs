@@ -3,6 +3,9 @@
 mod two_robots;
 pub use two_robots::*;
 
+mod dummy_robot;
+pub use dummy_robot::*;
+
 mod dummy_robots;
 pub use dummy_robots::*;
 
