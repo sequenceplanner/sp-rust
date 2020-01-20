@@ -10,7 +10,7 @@ use tokio::prelude::*;
 use tokio_threadpool;
 
 fn main() -> Result<(), Error> {
-    let (runner_model, initial_state) = two_dummy_robots();
+    let (runner_model, initial_state) = two_mecademic_robots();
 
     // start ros node
     let mut node = sp_ros::start_node()?;

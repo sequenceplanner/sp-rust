@@ -10,14 +10,16 @@ pub fn make_dummy_robot(name: &str) -> Resource {
 
     let command = command_topic("Control", "dr_c", "dummy_robot_messages/msg/Control",
                                 &[
-                                    ( "ref_pos", Some(&["unknown", "at", "away"])),
+                                    ( "ref_pos",
+                                       Some(&["unknown".to_spvalue(), "at".to_spvalue(), "away".to_spvalue()])),
                                     ( "activate", None )  // none is boolean
                                 ]);
     r.add_message(command);
 
     let measured = measured_topic("State", "dr_m", "dummy_robot_messages/msg/State",
                                   &[
-                                      ( "act_pos", Some(&["unknown", "at", "away"])),
+                                      ( "act_pos",
+                                         Some(&["unknown".to_spvalue(), "at".to_spvalue(), "away".to_spvalue()])),
                                       ( "active", None )
                                   ]);
     r.add_message(measured);

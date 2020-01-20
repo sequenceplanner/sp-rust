@@ -191,7 +191,7 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
 
     for t in &trans {
         let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
-        println!("guard: {:?}", guard);
+        // println!("guard: {:?}", guard);
 
         let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
         // println!("action: {:?}", actions);
@@ -203,7 +203,7 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
         a.extend(actions.iter().cloned());
         a.extend(effects.iter().cloned());
         let a = Ex::AND(a);
-        println!("all a/effects: {:?}", a);
+        // println!("all a/effects: {:?}", a);
 
         if t.controlled() {
             bc.c_trans(&t.get_path().to_string(), guard, a);
@@ -229,7 +229,11 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
     // let sex = sp_pred_to_ex(&s, &var_map, &pred_map);
     // println!("forbidden {:?}", sex);
 
-    let forbidden = bc.from_expr(&forbidden);
+        // hack ...
+        let forbidden = match forbidden {
+            Ex::AND(l) if l.len() == 0 => bc.from_expr(&Ex::FALSE),
+            _ => bc.from_expr(&forbidden),
+        };
     // println!("{:#?}", bc);
 
 
@@ -257,7 +261,7 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
         // println!("NEW GUARD FOR {}: {}", trans, s);
         // println!("NEW GUARD FOR {}: {:?}", trans, guard);
         let sppred = ex_to_sp_pred(&guard, &var_map, &pred_map);
-        println!("sppred guard {}: {:?}", trans, sppred);
+        println!("NEW sppred guard {}: {:?}", trans, sppred);
     }
 
     let new_initial = bc.to_expr(controllable);
@@ -413,12 +417,12 @@ pub fn make_initial_state(model: &Model) -> SPState {
 // modeling helpers
 
 
-fn msg_topic<T: ToSPValue>(
+fn msg_topic(
     topic: &str,
     type_: VariableType,
     short_name: &str, // probably remove this
     msg_type: &str,
-    var: &[ (&str, Option<&[T]>) ]) -> Topic {
+    var: &[ (&str, Option<&[SPValue]>) ]) -> Topic {
     let msg = Message::new_with_type(
         short_name.into(),
         msg_type.into(),
@@ -431,7 +435,7 @@ fn msg_topic<T: ToSPValue>(
                                                 SPValue::Bool(false),
                                                 vec![]))
             } else {
-                let dom: Vec<_> = domain.unwrap().iter().map(|v|v.to_spvalue()).collect();
+                let dom: Vec<_> = domain.unwrap().to_vec();
                 let sp_val_type = dom[0].has_type();
                 let initial = dom[0].clone();
                 MessageField::Var(Variable::new(name,
@@ -445,13 +449,13 @@ fn msg_topic<T: ToSPValue>(
     Topic::new(topic, MessageField::Msg(msg))
 }
 
-pub fn command_topic<T: ToSPValue>(topic: &str, short_name: &str, msg_type: &str,
-                               var: &[ (&str, Option<&[T]>) ]) -> Topic {
+pub fn command_topic(topic: &str, short_name: &str, msg_type: &str,
+                     var: &[ (&str, Option<&[SPValue]>) ]) -> Topic {
     msg_topic(topic, VariableType::Command, short_name, msg_type, var)
 }
 
-pub fn measured_topic<T: ToSPValue>(topic: &str, short_name: &str, msg_type: &str,
-                                var: &[ (&str, Option<&[T]>) ]) -> Topic {
+pub fn measured_topic(topic: &str, short_name: &str, msg_type: &str,
+                      var: &[ (&str, Option<&[SPValue]>) ]) -> Topic {
     msg_topic(topic, VariableType::Measured, short_name, msg_type, var)
 }
 

@@ -11,3 +11,9 @@ pub use dummy_robots::*;
 
 mod dummy_door;
 pub use dummy_door::*;
+
+mod mecademic_robot;
+pub use mecademic_robot::*;
+
+mod mecademic_robots;
+pub use mecademic_robots::*;

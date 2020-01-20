@@ -5,27 +5,17 @@ use std::collections::HashMap;
 
 use crate::testing::*;
 
-pub fn one_dummy_robot() -> (RunnerModel, SPState) {
-    let r1 = make_dummy_robot("r1");
-    let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
-
-    let s = make_initial_state(&m);
-    let rm = make_runner_model(&m);
-
-    (rm, s)
-}
-
-pub fn two_dummy_robots() -> (RunnerModel, SPState) {
+pub fn two_mecademic_robots() -> (RunnerModel, SPState) {
     // Make model
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+    let mut m = Model::new_root("mecademic_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_mecademic_robot("robot1")));
+    m.add_item(SPItem::Resource(make_mecademic_robot("robot2")));
 
     // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+    let r1_p_a = m.find_item("actual_pose", &["robot1"]).unwrap_global_path().to_sp();
+    let r2_p_a = m.find_item("actual_pose", &["robot2"]).unwrap_global_path().to_sp();
 
     // Specifications
     let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
@@ -54,8 +44,8 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
 }
 
 #[test]
-fn test_two_dummy_robots() {
-    let (rm, s) = two_dummy_robots();
+fn test_two_mecademic_robots() {
+    let (rm, s) = two_mecademic_robots();
 
     println!("{:#?}", rm);
     println!("=================================");
