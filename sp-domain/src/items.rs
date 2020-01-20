@@ -124,6 +124,10 @@ pub enum SPItemRef<'a> {
 }
 
 impl<'a> SPItemRef<'a> {
+    pub fn path(&self) -> SPPath {
+        self.node().path().clone()
+    }
+
     pub fn node(&self) -> &SPNode {
         match self {
             SPItemRef::Model(x) => &x.node,

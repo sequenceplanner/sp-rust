@@ -22,10 +22,10 @@ pub fn make_dummy_robot(name: &str) -> Resource {
                                   ]);
     r.add_message(measured);
 
-    let rp_c = r.find_item("ref_pos", &[]).unwrap_local_path().to_sp();
-    let ap_m = r.find_item("act_pos", &[]).unwrap_local_path().to_sp();
-    let activate_c = r.find_item("activate", &[]).unwrap_local_path().to_sp();
-    let active_m = r.find_item("active", &[]).unwrap_local_path().to_sp();
+    let rp_c = r.find_item("ref_pos", &[]).expect("check spelling").path();
+    let ap_m = r.find_item("act_pos", &[]).expect("check spelling").path();
+    let activate_c = r.find_item("activate", &[]).expect("check spelling").path();
+    let active_m = r.find_item("active", &[]).expect("check spelling").path();
 
     let to_table =
         ability("to_table",

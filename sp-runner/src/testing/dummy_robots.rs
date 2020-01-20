@@ -24,8 +24,8 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     m.add_item(SPItem::Resource(make_dummy_robot("r2")));
 
     // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
 
     // Specifications
     let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
@@ -33,8 +33,8 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
     // For now, we manually add the guards resulting from synthesis...
-    let r1_to_start = m.find_item("start", &["to_table", "r1"]).unwrap_global_path().to_sp();
-    let r2_to_start = m.find_item("start", &["to_table", "r2"]).unwrap_global_path().to_sp();
+    let r1_to_start = m.find_item("start", &["to_table", "r1"]).expect("check spelling").path();
+    let r2_to_start = m.find_item("start", &["to_table", "r2"]).expect("check spelling").path();
 
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(r1_p_a != "at"), p!(r1_p_a == "at"), vec![]);

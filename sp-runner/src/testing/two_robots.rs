@@ -69,16 +69,12 @@ fn make_robot(name: &str, upper: i32) -> Resource {
     r.add_message(act_topic);
     r.add_message(activated_topic);
 
-    let p_r = r.find_item("data", &["ref"]).unwrap_local_path().to_sp();
-    let p_a = r.find_item("data", &["act"]).unwrap_local_path().to_sp();
+    let p_r = r.find_item("data", &["ref"]).expect("check spelling").path();
+    let p_a = r.find_item("data", &["act"]).expect("check spelling").path();
     let p_activate = r
-        .find_item("data", &["activate"])
-        .unwrap_local_path()
-        .to_sp();
+        .find_item("data", &["activate"]).expect("check spelling").path();
     let p_activated = r
-        .find_item("data", &["activated"])
-        .unwrap_local_path()
-        .to_sp();
+        .find_item("data", &["activated"]).expect("check spelling").path();
 
     let to_upper = Transition::new(
         "trans_to_upper",
@@ -141,7 +137,7 @@ pub fn two_robots() -> (RunnerModel, SPState) {
     m.add_item(SPItem::Resource(make_robot("r2", 10)));
 
     // Make some global stuff
-    let r1_p_a = m.find_item("data", &["r1", "act"]).unwrap_global_path().to_sp();
+    let r1_p_a = m.find_item("data", &["r1", "act"]).expect("check spelling").path();
     // let r2_p_a = m.find_item("data", &["r2", "act"]).unwrap_global_path().to_sp();
     let r1_op1it = IfThen::new("goal", p!(r1_p_a != 10), p!(r1_p_a == 10));
     let op = Operation::new("some_robot_at_upper", Vec::new(), Vec::new(),

@@ -410,119 +410,110 @@ fn sp_action_to_ex(a: &Action,
 // }
 
 
-// // modeling helpers
+// modeling helpers
 
 
-// fn msg_topic<T: ToSPValue>(
-//     topic: &str,
-//     type_: VariableType,
-//     short_name: &str, // probably remove this
-//     msg_type: &str,
-//     var: &[ (&str, Option<&[T]>) ]) -> Topic {
-//     let msg = Message::new_with_type(
-//         short_name.into(),
-//         msg_type.into(),
-//         var.iter().map(|(name, domain)| {
-//             let is_bool = domain.is_none();
-//             if is_bool {
-//                 MessageField::Var(Variable::new(name,
-//                                                 type_.clone(),
-//                                                 SPValueType::Bool,
-//                                                 SPValue::Bool(false),
-//                                                 vec![]))
-//             } else {
-//                 let dom: Vec<_> = domain.unwrap().iter().map(|v|v.to_spvalue()).collect();
-//                 let sp_val_type = dom[0].has_type();
-//                 let initial = dom[0].clone();
-//                 MessageField::Var(Variable::new(name,
-//                                                 type_.clone(),
-//                                                 sp_val_type,
-//                                                 initial,
-//                                                 dom))
-//             }
-//         }).collect());
+fn msg_topic<T: ToSPValue>(
+    topic: &str,
+    type_: VariableType,
+    short_name: &str, // probably remove this
+    msg_type: &str,
+    var: &[ (&str, Option<&[T]>) ]) -> Topic {
+    let msg = Message::new_with_type(
+        short_name.into(),
+        msg_type.into(),
+        var.iter().map(|(name, domain)| {
+            let is_bool = domain.is_none();
+            if is_bool {
+                MessageField::Var(Variable::new(name,
+                                                type_.clone(),
+                                                SPValueType::Bool,
+                                                SPValue::Bool(false),
+                                                vec![]))
+            } else {
+                let dom: Vec<_> = domain.unwrap().iter().map(|v|v.to_spvalue()).collect();
+                let sp_val_type = dom[0].has_type();
+                let initial = dom[0].clone();
+                MessageField::Var(Variable::new(name,
+                                                type_.clone(),
+                                                sp_val_type,
+                                                initial,
+                                                dom))
+            }
+        }).collect());
 
-//     Topic::new(topic, MessageField::Msg(msg))
-// }
+    Topic::new(topic, MessageField::Msg(msg))
+}
 
-// pub fn command_topic<T: ToSPValue>(topic: &str, short_name: &str, msg_type: &str,
-//                                var: &[ (&str, Option<&[T]>) ]) -> Topic {
-//     msg_topic(topic, VariableType::Command, short_name, msg_type, var)
-// }
+pub fn command_topic<T: ToSPValue>(topic: &str, short_name: &str, msg_type: &str,
+                               var: &[ (&str, Option<&[T]>) ]) -> Topic {
+    msg_topic(topic, VariableType::Command, short_name, msg_type, var)
+}
 
-// pub fn measured_topic<T: ToSPValue>(topic: &str, short_name: &str, msg_type: &str,
-//                                 var: &[ (&str, Option<&[T]>) ]) -> Topic {
-//     msg_topic(topic, VariableType::Measured, short_name, msg_type, var)
-// }
+pub fn measured_topic<T: ToSPValue>(topic: &str, short_name: &str, msg_type: &str,
+                                var: &[ (&str, Option<&[T]>) ]) -> Topic {
+    msg_topic(topic, VariableType::Measured, short_name, msg_type, var)
+}
 
-// fn pred_path(name: &str) -> SPPath {
-//     TemporaryPath::from_array(TemporaryPathNS::Predicate, &[name]).to_sp()
-// }
-
-// pub fn pred_true(name: &str) -> Predicate {
-//     Predicate::EQ(
-//         PredicateValue::SPPath(pred_path(name)),
-//         PredicateValue::SPValue(true.to_spvalue()),
-//     )
-// }
+pub fn pred_true(name: &str) -> Predicate {
+    Predicate::EQ(
+        PredicateValue::SPPath(SPPath::from_string(name), None),  // TODO: wont work
+        PredicateValue::SPValue(true.to_spvalue()),
+    )
+}
 
 
-// pub fn ability(name: &str,
-//            predicates: &[ (&str, Predicate) ],
-//            transitions: &[ (&str, bool, Predicate, &[Action], &[Action]) ]) -> Ability {
+pub fn ability(name: &str,
+           predicates: &[ (&str, Predicate) ],
+           transitions: &[ (&str, bool, Predicate, &[Action], &[Action]) ]) -> Ability {
 
-//     let p = predicates.iter().map(|(n,p)| Variable::new_predicate(n, p.clone())).collect();
-//     let t = transitions.iter().map(|(n, controlled, guard, actions, effects)|
-//                                    Transition::new(n, guard.clone(), actions.to_vec(), effects.to_vec(),
-//                                                    *controlled)).collect();
-//     Ability::new(name, t, p)
-// }
+    let p = predicates.iter().map(|(n,p)| Variable::new_predicate(n, p.clone())).collect();
+    let t = transitions.iter().map(|(n, controlled, guard, actions, effects)|
+                                   Transition::new(n, guard.clone(), actions.to_vec(), effects.to_vec(),
+                                                   *controlled)).collect();
+    Ability::new(name, t, p)
+}
 
-// pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate, post_actions: Vec<Action>) -> SPPath {
-//     let op_state = Variable::new(
-//         name,
-//         VariableType::Estimated,
-//         SPValueType::String,
-//         "i".to_spvalue(),
-//         vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
-//     );
-//     let op_state = m
-//         .add_item(SPItem::Variable(op_state))
-//         .global_path()
-//         .as_ref()
-//         .unwrap()
-//         .to_sp();
+pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate, post_actions: Vec<Action>) -> SPPath {
+    let op_state = Variable::new(
+        name,
+        VariableType::Estimated,
+        SPValueType::String,
+        "i".to_spvalue(),
+        vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+    );
+    let op_state = m.add_item(SPItem::Variable(op_state));
 
-//     let op_start = Transition::new(
-//         "start",
-//         Predicate::AND(vec![p!(op_state == "i"), pre.clone()]),
-//         vec![a!(op_state = "e")],
-//         vec![],
-//         true,
-//     );
-//     let mut f_actions =
-//         if resets {
-//             vec![a!(op_state = "i")]
-//         } else {
-//             vec![a!(op_state = "f")]
-//         };
-//     f_actions.extend(post_actions);
-//     let op_finish = Transition::new(
-//         "finish",
-//         Predicate::AND(vec![p!(op_state == "e"), post.clone()]),
-//         f_actions,
-//         vec![],
-//         false,
-//     );
-//     let op_goal = IfThen::new("goal", p!(op_state == "e"), post.clone());
+    let op_start = Transition::new(
+        "start",
+        Predicate::AND(vec![p!(op_state == "i"), pre.clone()]),
+        vec![a!(op_state = "e")],
+        vec![],
+        true,
+    );
+    let mut f_actions =
+        if resets {
+            vec![a!(op_state = "i")]
+        } else {
+            vec![a!(op_state = "f")]
+        };
+    f_actions.extend(post_actions);
+    let op_finish = Transition::new(
+        "finish",
+        Predicate::AND(vec![p!(op_state == "e"), post.clone()]),
+        f_actions,
+        vec![],
+        false,
+    );
+    let op_goal = IfThen::new("goal", p!(op_state == "e"), post.clone());
 
-//     let op = Operation::new(
-//         name,
-//         vec![op_start],
-//         vec![op_finish],
-//         Some(op_goal),
-//         None,
-//     );
+    let op = Operation::new(
+        name,
+        vec![op_start],
+        vec![op_finish],
+        Some(op_goal),
+        None,
+    );
 
-//     m.add_item(SPItem::Operation(op)).global_path().as_ref().unwrap().to_sp()
-// }
+    m.add_item(SPItem::Operation(op))
+}
