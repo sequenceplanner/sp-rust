@@ -52,7 +52,7 @@ pub enum PlannerResult {
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RunnerInfo {
-    pub state: StateExternal,
+    pub state: SPState,
     pub ability_plan: Vec<SPPath>,
     pub enabled_ability_transitions: Vec<SPPath>,
     pub operation_plan: Vec<SPPath>,

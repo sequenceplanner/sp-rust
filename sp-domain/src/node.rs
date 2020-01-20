@@ -9,14 +9,14 @@ use super::*;
 #[derive(PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct SPNode {
     name: String,
-    paths: SPPaths,
+    path: SPPath,
 }
 
 impl SPNode {
     pub fn new(name: &str) -> SPNode {
         SPNode {
             name: name.to_string(),
-            paths: SPPaths::empty(),
+            path: SPPath::new(),
         }
     }
 
@@ -24,35 +24,26 @@ impl SPNode {
         &self.name
     }
 
-    pub fn local_path(&self) -> &Option<LocalPath> {
-        &self.paths.local_path()
+    pub fn path(&self) -> &SPPath {
+        &self.path
     }
-    pub fn global_path(&self) -> &Option<GlobalPath> {
-        &self.paths.global_path()
-    }
-    pub fn paths(&self) -> &SPPaths {
-        &self.paths
-    }
-    pub fn paths_mut(&mut self) -> &mut SPPaths {
-        &mut self.paths
+    pub fn path_mut(&mut self) -> &mut SPPath {
+        &mut self.path
     }
 
-    pub fn update_path(&mut self, paths: &SPPaths) -> SPPaths {
-        self.paths.upd(paths);
-        self.paths.add(self.name.clone());
-        self.paths().clone()
+    pub fn update_path(&mut self, path: &SPPath) -> SPPath {
+        let mut p = path.clone();
+        self.path = p.add_child(&self.name);
+        self.path().clone()
     }
 
     pub fn is_eq(&self, path: &SPPath) -> bool {
-        self.paths().is_eq(path)
+        self.path() == path
     }
 
-    pub fn next_node_in_path(&self, path: &SPPath) -> Option<String> {
-        self.paths().next_node_in_path(path)
-    }
 
     fn write_nice(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}{}", self.name, self.paths())
+        write!(f, "{}:{}", self.name, self.path)
     }
 }
 
@@ -72,32 +63,19 @@ pub trait Noder {
     fn node(&self) -> &SPNode;
     fn node_mut(&mut self) -> &mut SPNode;
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>>;
-    fn find_item_among_childs<'a>(
+    fn find_item_among_children<'a>(
         &'a self,
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>>;
-    fn update_path_children(&mut self, paths: &SPPaths);
+    fn update_path_children(&mut self, path: &SPPath);
     fn as_ref(&self) -> SPItemRef<'_>;
-    fn paths(&self) -> &SPPaths {
-        self.node().paths()
+    fn path(&self) -> &SPPath {
+        self.node().path()
     }
     fn is_eq(&self, path: &SPPath) -> bool {
-        self.paths().is_eq(path)
+        self.path() == path
     }
-    fn has_global(&self) -> bool {
-        self.paths().global_path().is_some()
-    }
-    fn get_path(&self) -> SPPath {
-        if let Some(g) = self.paths().global_path() {
-            return g.to_sp().clone();
-        }
-        if let Some(l) = self.paths().local_path() {
-            return l.to_sp().clone();
-        }
-        panic!("We do not have a path in {} and get_path", self.node());
-    }
-
     fn name(&self) -> &str {
         &self.node().name
     }
@@ -108,38 +86,31 @@ pub trait Noder {
         if self.node().is_eq(path) {
             return Some(self.as_ref());
         }
-        let next = self.node().next_node_in_path(path)?;
-        self.get_child(&next, path)
+        let next = path.next_node_in_path(self.path());
+        next.as_ref().and_then(|n| self.get_child(n, path) )
     }
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item<'a>(&'a self, name: &str, path_sections: &[&str]) -> Option<SPItemRef<'a>> {
         if self.node().name() == name {
-            let g_p = path_sections.iter().all(|x| {
+            let found_it = path_sections.iter().all(|x| {
                 self.node()
-                    .global_path()
-                    .as_ref()
-                    .map(|p| p.as_slice().contains(&x.to_string()))
-                    .unwrap_or(false)
+                    .path()
+                    .path
+                    .contains(&x.to_string())
+                    
             });
-            let l_p = path_sections.iter().all(|x| {
-                self.node()
-                    .local_path()
-                    .as_ref()
-                    .map(|p| p.as_slice().contains(&x.to_string()))
-                    .unwrap_or(false)
-            });
-            if g_p || l_p {
+            if found_it {
                 return Some(self.as_ref());
             }
         }
-        self.find_item_among_childs(name, path_sections)
+        self.find_item_among_children(name, path_sections)
     }
 
     /// updates the path of this item and its children
-    fn update_path(&mut self, paths: &SPPaths) -> SPPaths {
-        let paths = self.node_mut().update_path(paths);
-        self.update_path_children(&paths);
-        paths
+    fn update_path(&mut self, path: &SPPath) -> SPPath {
+        let p = self.node_mut().update_path(path);
+        self.update_path_children(&p);
+        p
     }
 }
 
@@ -182,12 +153,12 @@ where
 
 /// A method used by the items when impl the Noder trait
 /// Updates the path in items in the list of items impl Noder
-pub fn update_path_in_list<'a, T>(xs: &'a mut [T], paths: &SPPaths)
+pub fn update_path_in_list<'a, T>(xs: &'a mut [T], path: &SPPath)
 where
     T: Noder,
 {
     for i in xs.iter_mut() {
-        i.update_path(paths);
+        i.update_path(path);
     }
 }
 
@@ -216,11 +187,11 @@ mod node_tesing {
             ],
         );
 
-        m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
+        m.update_path(&SPPath::new());
 
-        let g_ab = SPPath::from_array_to_global(&["m", "a", "b"]);
-        let g_acd = SPPath::from_array_to_global(&["m", "a", "c", "d"]);
-        let g_k = SPPath::from_array_to_global(&["m", "k"]);
+        let g_ab = SPPath::from_slice(&["m", "a", "b"]);
+        let g_acd = SPPath::from_slice(&["m", "a", "c", "d"]);
+        let g_k = SPPath::from_slice(&["m", "k"]);
         let ab = m.get(&g_ab);
         let acd = m.get(&g_acd);
         let k = m.get(&g_k);
@@ -256,11 +227,11 @@ mod node_tesing {
             ],
         );
 
-        m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
+        m.update_path(&SPPath::new());
 
-        let g_ab = SPPath::from_array_to_global(&["m", "a", "b"]);
-        let g_acd = SPPath::from_array_to_global(&["m", "a", "c", "d"]);
-        let g_k = SPPath::from_array_to_global(&["m", "k"]);
+        let g_ab = SPPath::from_slice(&["m", "a", "b"]);
+        let g_acd = SPPath::from_slice(&["m", "a", "c", "d"]);
+        let g_k = SPPath::from_slice(&["m", "k"]);
         let ab = m.find_item("b", &[]);
         let acd = m.find_item("d", &[]);
         let k = m.find_item("k", &[]);
@@ -269,9 +240,9 @@ mod node_tesing {
         println!("{:?}", &acd);
         println!("{:?}", &k);
 
-        assert!(ab.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_ab);
-        assert!(acd.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_acd);
-        assert!(k.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_k);
+        assert!(*ab.unwrap().node().path() == g_ab);
+        assert!(*acd.unwrap().node().path() == g_acd);
+        assert!(*k.unwrap().node().path() == g_k);
     }
 
     #[test]
@@ -296,10 +267,10 @@ mod node_tesing {
             ],
         );
 
-        m.update_path(&SPPaths::new(None, Some(GlobalPath::new())));
+        m.update_path(&SPPath::new());
 
-        let g_acd = SPPath::from_array_to_global(&["m", "a", "c", "d"]);
-        let g_k = SPPath::from_array_to_global(&["m", "k", "d"]);
+        let g_acd = SPPath::from_slice(&["m", "a", "c", "d"]);
+        let g_k = SPPath::from_slice(&["m", "k", "d"]);
         let t1 = m.find_item("d", &["a"]);
         let t2 = m.find_item("d", &["c"]);
         let t3 = m.find_item("d", &["k", "m"]);
@@ -314,10 +285,10 @@ mod node_tesing {
         println!("{:?}", &t5);
         println!("{:?}", &t6);
 
-        assert!(t1.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_acd);
-        assert!(t2.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_acd);
-        assert!(t3.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_k);
-        assert!(t4.unwrap().node().global_path().as_ref().unwrap().to_sp() == g_k);
+        assert!(*t1.unwrap().node().path() == g_acd);
+        assert!(*t2.unwrap().node().path() == g_acd);
+        assert!(*t3.unwrap().node().path() == g_k);
+        assert!(*t4.unwrap().node().path() == g_k);
         assert!(t5.is_none());
         assert!(t6.is_some());
     }

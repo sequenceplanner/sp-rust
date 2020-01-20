@@ -34,7 +34,7 @@ struct RunnerCtrl {
 
 #[derive(Debug)]
 struct RunnerCommInternal {
-    state_input: mpsc::Receiver<AssignState>,
+    state_input: mpsc::Receiver<SPState>,
     command_input: mpsc::Receiver<RunnerCommand>,
     planner_input: mpsc::Receiver<PlannerResult>,
     state_output: mpsc::Sender<SPState>,
@@ -44,7 +44,7 @@ struct RunnerCommInternal {
 
 #[derive(Debug)]
 pub struct RunnerComm {
-    pub state_input: mpsc::Sender<AssignState>,
+    pub state_input: mpsc::Sender<SPState>,
     pub command_input: mpsc::Sender<RunnerCommand>,
     pub planner_input: mpsc::Sender<PlannerResult>,
     pub state_output: mpsc::Receiver<SPState>,
@@ -55,13 +55,12 @@ pub struct RunnerComm {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 enum RunnerTicker {
     Tick,
-    Delay(states::Delay)
 }
 
 #[allow(dead_code)]
 impl RunnerCommInternal {
     fn new() -> (RunnerCommInternal, RunnerComm) {
-        let (state_to, state_input) = tokio::sync::mpsc::channel::<AssignState>(2);
+        let (state_to, state_input) = tokio::sync::mpsc::channel::<SPState>(2);
         let (command_to, command_input) = tokio::sync::mpsc::channel::<RunnerCommand>(2);
         let (planner_to, planner_input) = tokio::sync::mpsc::channel::<PlannerResult>(2);
         let (state_output, state_from) = tokio::sync::mpsc::channel::<SPState>(2);
@@ -101,7 +100,7 @@ impl Runner {
             .collect();
         let vars: HashMap<SPPath, Variable> = resources.iter().
             flat_map(|r| r.get_variables()).
-            map(|v| (v.get_path(), v.clone())).collect();
+            map(|v| (v.path(), v.clone())).collect();
         let measured_states: HashSet<SPPath> = vars.iter().
             filter_map(|(p,v)|
                 if v.variable_type() == VariableType::Measured {
@@ -151,11 +150,11 @@ impl Runner {
     }
 
     /// Upd the runner based on incoming state
-    fn upd_state(&mut self, state: &mut SPState, assign: Option<AssignState>) {
+    fn upd_state(&mut self, state: &mut SPState, assign: Option<SPState>) {
         // println!("upd state: {:?}", state);
         if let Some(s) = assign {
             // update touched paths.
-            s.s.keys().for_each(|p| {self.untouched_state_paths.remove(&p);});
+            s.keys().for_each(|p| {self.untouched_state_paths.remove(&p);});
 
             // let res = self.state.insert_map(s);
             // need to always react to predicate changes
@@ -217,7 +216,7 @@ impl Runner {
         let mut wait_for = SPState::default();
         for f in &result.trace {
             if let Some(uc) = self.model.
-                ab_transitions.un_ctrl.iter().find(|c| c.get_path() == f.transition) {
+                ab_transitions.un_ctrl.iter().find(|c| c.path() == f.transition) {
                     uc.actions().iter().for_each(|a| {
                         a.next(&wait_for).map(|x| wait_for.insert_map(x).unwrap()).unwrap();
                         wait_for.take_all_next();
@@ -226,10 +225,10 @@ impl Runner {
                         a.next(&wait_for).map(|x| wait_for.insert_map(x).unwrap()).unwrap();
                         wait_for.take_all_next();
                     });
-                    println!("ADDING EFFECT OF TRANS {}: {:?}", uc.get_path(), wait_for.s);
+                    println!("ADDING EFFECT OF TRANS {}: {:?}", uc.path(), wait_for.s);
                 }
             if let Some(c) = self.model.
-                ab_transitions.ctrl.iter().find(|c| c.get_path() == f.transition) {
+                ab_transitions.ctrl.iter().find(|c| c.path() == f.transition) {
                     // turn current wait for state into a guard.
                     let guard = Predicate::AND(wait_for.s.iter().flat_map(|(k,v)| {
                         if let StateValue::SPValue(spval) = v {
@@ -251,7 +250,7 @@ impl Runner {
                         a.next(&wait_for).map(|x| wait_for.insert_map(x).unwrap()).unwrap();
                         wait_for.take_all_next();
                     });
-                    println!("ADDING EFFECT OF TRANS {}: {:?}", c.get_path(), wait_for.s);
+                    println!("ADDING EFFECT OF TRANS {}: {:?}", c.path(), wait_for.s);
                 }
         }
 
@@ -282,7 +281,7 @@ impl Runner {
         let to_run = if !plan.is_empty() && plan.first().unwrap().guard.eval(&state) {
             let pi = plan.first().unwrap();
             println!("taking trans: {:?}", pi.transition);
-            ctrl.iter().find(|t| t.get_path() == pi.transition)
+            ctrl.iter().find(|t| t.path() == pi.transition)
         } else {
             if !plan.is_empty() {
                 println!("guard not satisfied: {:?}", plan.first().unwrap().guard);
@@ -362,7 +361,7 @@ impl Runner {
     fn upd_state_predicates(&self,state: &mut SPState) {
         self.model.state_predicates.iter().for_each(|v| match v.variable_type() {
             VariableType::Predicate(ref p) if v.has_global() => {
-                let _res = state.insert(&v.get_path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
+                let _res = state.insert(&v.path(), AssignStateValue::SPValue(p.eval(state).to_spvalue()));
             },
             _ => {},
         });

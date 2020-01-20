@@ -85,7 +85,11 @@ impl SPValue {
     pub fn from_json(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
         // as we have more options than json we switch on the spval type
         let tm = |msg: &str| {
-            format!("type mismatch! got {}, expected {}! re-generate ros sources!", &json.to_string(), msg)
+            format!(
+                "type mismatch! got {}, expected {}! re-generate ros sources!",
+                &json.to_string(),
+                msg
+            )
         };
         match spv_t {
             SPValueType::Bool => json.as_bool().expect(&tm("bool")).to_spvalue(),
@@ -110,8 +114,6 @@ impl SPValue {
             _ => unimplemented!("TODO"),
         }
     }
-
-
 }
 
 impl SPValueType {

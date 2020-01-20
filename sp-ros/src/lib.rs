@@ -14,8 +14,8 @@ mod ros {
     pub fn roscomm_setup(
         _node: &mut RosNode,
         _model: &Model,
-        _tx_in: channel::Sender<StateExternal>,
-    ) -> Result<channel::Sender<StateExternal>, Error> {
+        _tx_in: channel::Sender<SPState>,
+    ) -> Result<channel::Sender<SPState>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
@@ -46,7 +46,7 @@ mod ros {
     pub fn json_to_state(
         json: &serde_json::Value,
         md: &MessageField,
-    ) -> StateExternal {
+    ) -> SPState {
         fn json_to_state_<'a>(
             json: &serde_json::Value,
             md: &'a MessageField,
@@ -77,7 +77,7 @@ mod ros {
         let mut p = Vec::new();
         let mut a = Vec::new();
         json_to_state_(json, md, &mut p, &mut a);
-        StateExternal {
+        SPState {
             s: a.iter()
                 .map(|(path, spval)| (SPPath::from_array(path), spval.clone()))
                 .collect(),
@@ -86,11 +86,11 @@ mod ros {
 
 
     pub fn state_to_json(
-        state: &StateExternal,
+        state: &SPState,
         md: &MessageField,
     ) -> serde_json::Value {
         fn state_to_json_<'a>(
-            state: &StateExternal,
+            state: &SPState,
             md: &'a MessageField,
             p: &mut Vec<&'a str>,
         ) -> serde_json::Value {
@@ -138,8 +138,8 @@ mod ros {
     pub fn roscomm_setup(
         node: &mut RosNode,
         model: &Model,
-        tx_in: channel::Sender<StateExternal>,
-    ) -> Result<channel::Sender<StateExternal>, Error> {
+        tx_in: channel::Sender<SPState>,
+    ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
         let rcs: Vec<_> = model
@@ -178,7 +178,7 @@ mod ros {
                         let rp = node.0.create_publisher_untyped(&topic_str, m.msg_type())?;
                         let topic_cb = topic.clone();
                         let msgtype = t.msg().clone();
-                        let cb = move |state: &StateExternal| {
+                        let cb = move |state: &SPState| {
                             let local_state = state.unprefix_paths(&topic_cb);
                             let to_send = state_to_json(&local_state, &msgtype);
                             rp.publish(to_send).unwrap();

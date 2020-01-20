@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "sp-domain",
-    "sp-runner",
-    "sp-ros",
-#    "sp-smt",
-#    "sp-codegen"
+    "sp-domain", 
+    "sp-runner", 
+    #"sp-ros",
+    #"sp-smt",
+    #"sp-codegen"
 ]

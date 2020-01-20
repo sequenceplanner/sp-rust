@@ -13,10 +13,10 @@ pub struct PlanningResult {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct PlanningFrame {
     // The state (for debug)
-    pub state: StateExternal,
+    pub state: SPState,
     // The transition taken this frame
     pub transition: SPPath,
 }
 
 mod nuxmv;
-pub use nuxmv::*;
+pub use nuxmv::*; 
