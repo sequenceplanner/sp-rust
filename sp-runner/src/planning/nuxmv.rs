@@ -513,11 +513,11 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
     lines.push_str("-- GLOBAL SPECIFICATIONS\n");
     let mut global = Vec::new();
     for s in &specs {
-        let path = (s.node().path());
+        let path = s.node().path();
 
         for (i,p) in s.always().iter().enumerate() {
-            let mut pp = path.clone();
-            pp.add_child(&i.to_string());
+            let pp = path.clone();
+            let pp = pp.add_child(&i.to_string());
             let path = NuXMVPath(&pp);
             let p = NuXMVPredicate(&p);
             lines.push_str(&format!(

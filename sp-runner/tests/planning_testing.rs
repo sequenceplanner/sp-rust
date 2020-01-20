@@ -2,6 +2,7 @@ use sp_domain::*;
 use sp_runner::*;
 use sp_runner_api::*;
 
+/*
 #[test]
 fn plan_fail_1_step() {
     let (model, state) = one_robot();
@@ -151,3 +152,5 @@ fn planner_succeed_when_no_conflicting_spec_and_goal() {
     let result = compute_plan(&vec![goal], &state, &model, 20);
     assert!(result.plan_found);
 }
+
+*/
