@@ -407,6 +407,42 @@ impl Resource {
         return vs;
     }
 
+    // TODO
+    pub fn make_global_transitions(&self) -> Vec<Transition> {
+        // local transitions are defined per resource
+        let rgp = self.node().path().clone();
+        // thus parent of the resource needs to be added to all paths
+        let parent = rgp.parent();
+
+        let mut r = Vec::new();
+
+        for a in &self.abilities {
+            for t in &a.transitions {
+                let updt = t.clone_with_global_paths(&parent);
+                r.push(updt);
+            }
+        }
+        return r;
+    }
+
+    // requires resource to have a global path
+    pub fn make_global_state_predicates(&self) -> Vec<Variable> {
+        // local transitions are defined per resource
+        let rgp = self.node().path().clone();
+        // thus parent of the resource needs to be added to all paths
+        let parent = rgp.parent();
+
+        let mut r = Vec::new();
+
+        for a in &self.abilities {
+            for p in &a.predicates {
+                let updp = p.clone_with_global_paths(&parent);
+                r.push(updp);
+            }
+        }
+        return r;
+    }
+
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
