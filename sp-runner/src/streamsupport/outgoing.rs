@@ -44,9 +44,10 @@ impl Future for OutGoingHandler {
         match try_ready!(self.incoming_channel.poll().map_err(|_| ())) {
             Some(state) => {
                 for oc in self.outgoing.iter_mut() {
-                    if !state.is_sub_state_the_same(&self.prev_state, &oc.filter) {
-                        oc.c.try_send(state.sub_state(&oc.filter)).expect("The resource channel is full. SHOULD NEVER HAPPEN. CHECK IT")
-                    }
+                    oc.c.try_send(state).expect("The resource channel is full. SHOULD NEVER HAPPEN. CHECK IT");
+                    // if !state.is_sub_state_the_same(&self.prev_state, &oc.filter) {
+                    //     oc.c.try_send(state.sub_state(&oc.filter)).expect("The resource channel is full. SHOULD NEVER HAPPEN. CHECK IT")
+                    // }
                 }
                 self.prev_state = state;
                 task::current().notify();
@@ -74,12 +75,12 @@ mod outgoing_test {
             let (to_r1, r1) = mpsc::channel::<SPState>(10);
             let (to_r2, r2) = mpsc::channel::<SPState>(10);
 
-            let _a = SPPath::from_array(&["a"]);
-            let ab = SPPath::from_array(&["a", "b"]);
-            let ax = SPPath::from_array(&["a", "x"]);
-            let abc = SPPath::from_array(&["a", "b", "c"]);
-            let abx = SPPath::from_array(&["a", "b", "x"]);
-            let c = SPPath::from_array(&["c"]);
+            let _a = SPPath::from_slice(&["a"]);
+            let ab = SPPath::from_slice(&["a", "b"]);
+            let ax = SPPath::from_slice(&["a", "x"]);
+            let abc = SPPath::from_slice(&["a", "b", "c"]);
+            let abx = SPPath::from_slice(&["a", "b", "x"]);
+            let c = SPPath::from_slice(&["c"]);
 
             let mut out = OutGoingHandler::new(in_out);
             out.add_outgoing(to_r1, &ab);

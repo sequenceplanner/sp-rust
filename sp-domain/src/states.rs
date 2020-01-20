@@ -40,22 +40,22 @@ impl PartialEq for StateProjection<'_> {
 }
 
 impl<'a> StateProjection<'a> {
-    fn clone_state(&self) -> SPState {
+    pub fn clone_state(&self) -> SPState {
         SPState::new_from_state_values(&self.clone_vec())
     }
-    fn clone_vec(&self) -> Vec<(SPPath, StateValue)> {
+    pub fn clone_vec(&self) -> Vec<(SPPath, StateValue)> {
         self.projection
             .iter()
             .map(|(p, v)| ((*p).clone(), (*v).clone()))
             .collect()
     }
-    fn clone_vec_value(&self) -> Vec<(SPPath, SPValue)> {
+    pub fn clone_vec_value(&self) -> Vec<(SPPath, SPValue)> {
         self.projection
             .iter()
             .map(|(p, v)| ((*p).clone(), (*v).value().clone()))
             .collect()
     }
-    fn sort(&mut self) {
+    pub fn sort(&mut self) {
         self.projection
             .sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
     }

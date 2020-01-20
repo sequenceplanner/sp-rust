@@ -7,9 +7,9 @@ use sp_domain::*;
 use tokio::sync::mpsc;
 
 pub(crate) struct IncomingHandler {
-    pub buffer: MessageBuffer<AssignState>,
-    pub channel: mpsc::Sender<AssignState>,
-    pub runner_channel: mpsc::Receiver<AssignState>
+    pub buffer: MessageBuffer<SPState>,
+    pub channel: mpsc::Sender<SPState>,
+    pub runner_channel: mpsc::Receiver<SPState>
 }
 
 impl IncomingHandler {
@@ -18,18 +18,24 @@ impl IncomingHandler {
         IncomingHandler { buffer, channel, runner_channel }
     }
 
-    pub fn extract(self) -> (MessageBuffer<AssignState>, mpsc::Sender<AssignState>, mpsc::Receiver<AssignState>)  {
+    pub fn extract(self) -> (MessageBuffer<SPState>, mpsc::Sender<SPState>, mpsc::Receiver<SPState>)  {
         (self.buffer, self.channel, self.runner_channel)
     }
 
 
-    fn merge(prev: &mut AssignState, next: &AssignState) -> bool {
-        if next.will_overwrite(prev){
-            false
-        } else {
-            prev.merge(next.clone());
-            true
+    fn merge(prev: &mut SPState, next: &SPState) -> bool {
+        let p = prev.projection().projection;
+        let n = next.projection();
+        let merge_me = n.projection.iter().all( |(n_p, n_v)| {
+            p.iter().all(|(p_p, p_v)|{
+                p_p != n_p || (p_v.current_value() == n_v.current_value())
+            })
+            
+        });
+        if merge_me {
+            prev.extend(n.clone_state());
         }
+        merge_me
     }
 }
 
@@ -41,42 +47,21 @@ impl IncomingHandler {
 #[cfg(test)]
 mod incoming_test {
     use super::*;
-    use std::collections::HashMap;
     use tokio::prelude::*;
 
-    fn ab() -> SPPath { SPPath::from_array(&["a", "b"])}
-    fn ac() -> SPPath { SPPath::from_array(&["a", "c"])}
-    fn initial_ab() -> AssignState {
-        let s: HashMap<SPPath, AssignStateValue> = [
-            (ab(), AssignStateValue::SPValue(false.to_spvalue())),
-        ].into_iter().cloned().collect();
-        AssignState {
-           s
-        }
+    fn ab() -> SPPath { SPPath::from_slice(&["a", "b"])}
+    fn ac() -> SPPath { SPPath::from_slice(&["a", "c"])}
+    fn initial_ab() -> SPState {
+        state!(["a", "b"] => false)
     }
-    fn next_ab() -> AssignState {
-        let s: HashMap<SPPath, AssignStateValue> = [
-            (ab(), AssignStateValue::SPValue(true.to_spvalue())),
-        ].into_iter().cloned().collect();
-        AssignState {
-           s
-        }
+    fn next_ab() -> SPState {
+        state!(["a", "b"] => true)
     }
-    fn initial_ac() -> AssignState {
-        let s: HashMap<SPPath, AssignStateValue> = [
-            (ac(), AssignStateValue::SPValue(false.to_spvalue())),
-        ].into_iter().cloned().collect();
-        AssignState {
-           s
-        }
+    fn initial_ac() -> SPState {
+        state!(["a", "c"] => false)
     }
-    fn next_ac() -> AssignState {
-        let s: HashMap<SPPath, AssignStateValue> = [
-            (ac(), AssignStateValue::SPValue(true.to_spvalue())),
-        ].into_iter().cloned().collect();
-        AssignState {
-           s
-        }
+    fn next_ac() -> SPState {
+        state!(["a", "c"] => false)
     }
 
 
