@@ -6,7 +6,7 @@ use super::*;
 pub enum SPItem {
     Model(Model),
     Resource(Resource),
-    Message(Message),
+//    Message(Message),
     Topic(Topic),
     Variable(Variable),
     Operation(Operation),
@@ -22,7 +22,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.node(),
             SPItem::Resource(x) => x.node(),
-            SPItem::Message(x) => x.node(),
             SPItem::Topic(x) => x.node(),
             SPItem::Variable(x) => x.node(),
             SPItem::Operation(x) => x.node(),
@@ -36,7 +35,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(ref mut x) => x.node_mut(),
             SPItem::Resource(ref mut x) => x.node_mut(),
-            SPItem::Message(ref mut x) => x.node_mut(),
             SPItem::Topic(ref mut x) => x.node_mut(),
             SPItem::Variable(ref mut x) => x.node_mut(),
             SPItem::Operation(ref mut x) => x.node_mut(),
@@ -50,7 +48,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.get_child(next, path),
             SPItem::Resource(x) => x.get_child(next, path),
-            SPItem::Message(x) => x.get_child(next, path),
             SPItem::Topic(x) => x.get_child(next, path),
             SPItem::Variable(x) => x.get_child(next, path),
             SPItem::Operation(x) => x.get_child(next, path),
@@ -68,7 +65,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.find_item_among_children(name, path_sections),
             SPItem::Resource(x) => x.find_item_among_children(name, path_sections),
-            SPItem::Message(x) => x.find_item_among_children(name, path_sections),
             SPItem::Topic(x) => x.find_item_among_children(name, path_sections),
             SPItem::Variable(x) => x.find_item_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_among_children(name, path_sections),
@@ -82,7 +78,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.update_path_children(path),
             SPItem::Resource(x) => x.update_path_children(path),
-            SPItem::Message(x) => x.update_path_children(path),
             SPItem::Topic(x) => x.update_path_children(path),
             SPItem::Variable(x) => x.update_path_children(path),
             SPItem::Operation(x) => x.update_path_children(path),
@@ -96,7 +91,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.as_ref(),
             SPItem::Resource(x) => x.as_ref(),
-            SPItem::Message(x) => x.as_ref(),
             SPItem::Topic(x) => x.as_ref(),
             SPItem::Variable(x) => x.as_ref(),
             SPItem::Operation(x) => x.as_ref(),
@@ -112,7 +106,6 @@ impl Noder for SPItem {
 pub enum SPItemRef<'a> {
     Model(&'a Model),
     Resource(&'a Resource),
-    Message(&'a Message),
     Topic(&'a Topic),
     Variable(&'a Variable),
     Operation(&'a Operation),
@@ -132,7 +125,6 @@ impl<'a> SPItemRef<'a> {
         match self {
             SPItemRef::Model(x) => &x.node,
             SPItemRef::Resource(x) => &x.node,
-            SPItemRef::Message(x) => &x.node,
             SPItemRef::Topic(x) => &x.node,
             SPItemRef::Variable(x) => &x.node,
             SPItemRef::Operation(x) => &x.node,
@@ -146,7 +138,6 @@ impl<'a> SPItemRef<'a> {
         match self {
             SPItemRef::Model(x) => SPItem::Model({ *x }.clone()),
             SPItemRef::Resource(x) => SPItem::Resource({ *x }.clone()),
-            SPItemRef::Message(x) => SPItem::Message({ *x }.clone()),
             SPItemRef::Topic(x) => SPItem::Topic({ *x }.clone()),
             SPItemRef::Variable(x) => SPItem::Variable({ *x }.clone()),
             SPItemRef::Operation(x) => SPItem::Operation({ *x }.clone()),
@@ -446,7 +437,7 @@ impl Resource {
 
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Topic {
     node: SPNode,
     msg: MessageField,
@@ -460,20 +451,38 @@ impl Noder for Topic {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        if self.msg.name() != next {
-            return None;
-        }
-        self.msg.get(path)
+        // I dont understand what next and path are, also, does not seem to be used for anything?
+        panic!("todo");
+        None
     }
     fn find_item_among_children<'a>(
         &'a self,
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        self.msg.find_item(name, path_sections)
+        let mut stack = vec![&self.msg];
+        loop {
+            match stack.pop() {
+                Some(MessageField::Msg(msg)) => {
+                    stack.extend(msg.fields.iter().collect::<Vec<_>>()); },
+                Some(MessageField::Var(v)) => {
+                    if let Some(item) = v.find_item(name, path_sections) {
+                        return Some(item)
+                    }
+                },
+                None => { return None; } // all done
+            }
+        }
     }
     fn update_path_children(&mut self, path:&SPPath) {
-        self.msg.update_path(path);
+        let mut stack = vec![&mut self.msg];
+        loop {
+            match stack.pop() {
+                Some(MessageField::Msg(msg)) => { stack.extend(msg.fields.iter_mut().collect::<Vec<_>>()); },
+                Some(MessageField::Var(v)) => { v.update_path(path); },
+                None => { return; } // all done
+            }
+        }
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Topic(self)
@@ -513,49 +522,14 @@ impl Topic {
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
-    node: SPNode,
-    type_: String,
+    type_: String, // ros type
     fields: Vec<MessageField>, // note, the field name is in each node
 }
 
-impl Noder for Message {
-    fn node(&self) -> &SPNode {
-        &self.node
-    }
-    fn node_mut(&mut self) -> &mut SPNode {
-        &mut self.node
-    }
-    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.fields.as_slice(), next, path)
-    }
-    fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
-    ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.fields.as_slice(), name, path_sections)
-    }
-    fn update_path_children(&mut self, path:&SPPath) {
-        update_path_in_list(self.fields.as_mut_slice(), path);
-    }
-    fn as_ref(&self) -> SPItemRef<'_> {
-        SPItemRef::Message(self)
-    }
-}
-
 impl Message {
-    pub fn new(name: &str, fields: Vec<MessageField>) -> Message {
-        let node = SPNode::new(name);
+
+    pub fn new(type_: &str, fields: Vec<MessageField>) -> Message {
         Message {
-            node,
-            type_: String::default(),
-            fields,
-        }
-    }
-    pub fn new_with_type(name: &str, type_: &str, fields: Vec<MessageField>) -> Message {
-        let node = SPNode::new(name);
-        Message {
-            node,
             type_: type_.to_string(),
             fields,
         }
@@ -569,65 +543,12 @@ impl Message {
     pub fn update_msg_type(&mut self, type_: String) {
         self.type_ = type_;
     }
-    pub fn instantiate(&self, new_name: &str) -> Message {
-        Message::new_with_type(new_name, &self.type_, self.fields.clone())
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum MessageField {
     Msg(Message),
     Var(Variable),
-}
-
-impl Noder for MessageField {
-    fn node(&self) -> &SPNode {
-        match self {
-            MessageField::Msg(ref x) => x.node(),
-            MessageField::Var(ref x) => x.node(),
-        }
-    }
-    fn node_mut(&mut self) -> &mut SPNode {
-        match self {
-            MessageField::Msg(ref mut x) => x.node_mut(),
-            MessageField::Var(ref mut x) => x.node_mut(),
-        }
-    }
-
-    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        match self {
-            MessageField::Msg(ref x) => x.get_child(next, path),
-            MessageField::Var(ref x) => x.get_child(next, path),
-        }
-    }
-    fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
-    ) -> Option<SPItemRef<'a>> {
-        match self {
-            MessageField::Msg(ref x) => x.find_item(name, path_sections),
-            MessageField::Var(ref x) => x.find_item(name, path_sections),
-        }
-    }
-    fn update_path_children(&mut self, path:&SPPath) {
-        match self {
-            MessageField::Msg(ref mut x) => x.update_path_children(path),
-            MessageField::Var(ref mut x) => x.update_path_children(path),
-        }
-    }
-    fn as_ref(&self) -> SPItemRef<'_> {
-        match self {
-            MessageField::Msg(ref x) => x.as_ref(),
-            MessageField::Var(ref x) => x.as_ref(),
-        }
-    }
-}
-
-impl Default for MessageField {
-    fn default() -> Self {
-        MessageField::Var(Variable::default())
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
