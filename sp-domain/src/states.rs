@@ -326,6 +326,19 @@ impl SPState {
             })
     }
 
+    pub fn are_new_values_the_same(&self, new_values: &SPState) -> bool {
+        new_values
+            .index
+            .iter()
+            .all(|(key, i)| {
+                self
+                    .sp_value_from_path(key)
+                    .map(|x| x == new_values.values[*i].current_value())
+                    .unwrap_or(false)
+            })
+    }
+
+
     pub fn prefix_paths(&mut self, parent: &SPPath) {
         let mut xs = HashMap::new();
         for (path, i) in self.index.iter() {

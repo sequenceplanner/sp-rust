@@ -30,6 +30,15 @@ pub enum PredicateValue {
     SPPath(SPPath, Option<StatePath>),
 }
 
+impl PredicateValue {
+    pub fn value(v: SPValue) -> Self {
+        PredicateValue::SPValue(v)
+    }
+    pub fn path(p: SPPath) -> Self {
+        PredicateValue::SPPath(p, None)
+    }
+}
+
 /// Used in actions to compute a new SPValue.
 /// When using delay and fetching a value from another variable, the current value of that
 /// variable will be taken and assigned to the action variable after the delay, and not the

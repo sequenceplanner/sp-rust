@@ -44,7 +44,7 @@ impl Future for OutGoingHandler {
         match try_ready!(self.incoming_channel.poll().map_err(|_| ())) {
             Some(state) => {
                 for oc in self.outgoing.iter_mut() {
-                    oc.c.try_send(state).expect("The resource channel is full. SHOULD NEVER HAPPEN. CHECK IT");
+                    oc.c.try_send(state.clone()).expect("The resource channel is full. SHOULD NEVER HAPPEN. CHECK IT");
                     // if !state.is_sub_state_the_same(&self.prev_state, &oc.filter) {
                     //     oc.c.try_send(state.sub_state(&oc.filter)).expect("The resource channel is full. SHOULD NEVER HAPPEN. CHECK IT")
                     // }

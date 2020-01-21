@@ -734,10 +734,10 @@ impl Default for VariableType {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Transition {
     node: SPNode,
-    guard: Predicate,
-    actions: Vec<Action>,
-    effects: Vec<Action>,
-    controlled: bool,
+    pub guard: Predicate,
+    pub actions: Vec<Action>,
+    pub effects: Vec<Action>,
+    pub controlled: bool,
 }
 
 impl Noder for Transition {
@@ -960,8 +960,8 @@ impl Operation {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct IfThen {
     node: SPNode,
-    if_: Predicate,
-    then_: Predicate,
+    pub if_: Predicate,
+    pub then_: Predicate,
 }
 
 impl Noder for IfThen {
