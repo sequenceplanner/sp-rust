@@ -798,19 +798,22 @@ impl Transition {
     pub fn controlled(&self) -> bool {
         self.controlled
     }
-
+    pub fn upd_state_path(&mut self, state: &mut SPState) {
+        self.guard.upd_state_path(state);
+        self.actions.iter_mut().for_each(|a| a.upd_state_path(state));
+    }
 
 }
 
 impl EvaluatePredicate for Transition {
-    fn eval(&mut self, state: &SPState) -> bool {
-        self.guard.eval(state) && self.actions.iter_mut().all(|a| a.eval(state))
+    fn eval(&self, state: &SPState) -> bool {
+        self.guard.eval(state) && self.actions.iter().all(|a| a.eval(state))
     }
 }
 
 impl NextAction for Transition {
-    fn next(&mut self, state: &mut SPState) -> SPResult<()> {
-        for a in self.actions.iter_mut() {
+    fn next(&self, state: &mut SPState) -> SPResult<()> {
+        for a in self.actions.iter() {
             if let Err(e) = a.next(state) {
                 return Err(e);
             }

@@ -140,9 +140,9 @@ impl StateValue {
 /// you do not have control over the state. However, the methods that take a path will also check it.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct StatePath {
-    path: SPPath,
-    index: usize,
-    state_id: Uuid,
+    pub path: SPPath,
+    pub index: usize,
+    pub state_id: Uuid,
 }
 
 

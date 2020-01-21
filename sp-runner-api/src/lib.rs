@@ -13,6 +13,12 @@ pub struct RunnerModel {
     pub model: Model,
 }
 
+impl RunnerModel {
+    pub fn upd_state_paths(&mut self, state: &SPState) {
+        self.op_transitions.ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AbPlanItem {
     pub transition: SPPath,
@@ -24,6 +30,7 @@ pub struct RunnerPlans {
     pub op_plan: Vec<SPPath>,         // maybe have spids here?
     pub ab_plan: Vec<AbPlanItem>,
 }
+
 
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
