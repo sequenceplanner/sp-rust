@@ -66,7 +66,7 @@ impl<'a> PredicateValue {
         }
     }
 
-    pub fn upd_state_path(&mut self, state: &mut SPState) {
+    pub fn upd_state_path(&mut self, state: &SPState) {
         match self {
             PredicateValue::SPPath(path, sp) => {
                 if sp.is_none() {
@@ -105,7 +105,7 @@ impl Default for PredicateValue {
 // }
 
 impl Predicate {
-    pub fn upd_state_path(&mut self, state: &mut SPState) {
+    pub fn upd_state_path(&mut self, state: &SPState) {
         match self {
                 Predicate::AND(x) => { x.iter_mut().for_each(|p| p.upd_state_path(state)) },
                 Predicate::OR(x) => { x.iter_mut().for_each(|p| p.upd_state_path(state)) },
@@ -154,7 +154,7 @@ impl Action {
         }
     }
     
-    pub fn upd_state_path(&mut self, state: &mut SPState) {
+    pub fn upd_state_path(&mut self, state: &SPState) {
         match &self.state_path {
             Some(sp) if sp.state_id != state.id() => 
                 self.state_path = state.state_path(&self.var),

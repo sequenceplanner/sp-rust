@@ -24,9 +24,9 @@ impl IncomingHandler {
 
 
     fn merge(prev: &mut SPState, next: &SPState) -> bool {
-        let p = prev.projection().projection;
+        let p = prev.projection().state;
         let n = next.projection();
-        let merge_me = n.projection.iter().all( |(n_p, n_v)| {
+        let merge_me = n.state.iter().all( |(n_p, n_v)| {
             p.iter().all(|(p_p, p_v)|{
                 p_p != n_p || (p_v.current_value() == n_v.current_value())
             })

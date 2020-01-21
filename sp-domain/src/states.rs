@@ -29,13 +29,13 @@ impl PartialEq for SPState {
 
 #[derive(Debug, Clone)]
 pub struct StateProjection<'a> {
-    pub projection: Vec<(&'a SPPath, &'a StateValue)>,
+    pub state: Vec<(&'a SPPath, &'a StateValue)>,
     pub id: Uuid,
 }
 
 impl PartialEq for StateProjection<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.projection == other.projection
+        self.state == other.state
     }
 }
 
@@ -44,19 +44,19 @@ impl<'a> StateProjection<'a> {
         SPState::new_from_state_values(&self.clone_vec())
     }
     pub fn clone_vec(&self) -> Vec<(SPPath, StateValue)> {
-        self.projection
+        self.state
             .iter()
             .map(|(p, v)| ((*p).clone(), (*v).clone()))
             .collect()
     }
     pub fn clone_vec_value(&self) -> Vec<(SPPath, SPValue)> {
-        self.projection
+        self.state
             .iter()
             .map(|(p, v)| ((*p).clone(), (*v).value().clone()))
             .collect()
     }
     pub fn sort(&mut self) {
-        self.projection
+        self.state
             .sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
     }
 }
@@ -286,7 +286,7 @@ impl SPState {
             .collect();
 
         let mut p = StateProjection {
-            projection: s,
+            state: s,
             id: self.id,
         };
         //p.sort();  // Maybe not this?
@@ -307,7 +307,7 @@ impl SPState {
             .collect();
 
         StateProjection {
-            projection: s,
+            state: s,
             id: self.id,
         }
     } 
@@ -423,7 +423,7 @@ impl fmt::Display for SPState {
         // Sort keys by name.
         let proj = self.projection();
         let mut buf = Vec::new();
-        for (p, val) in proj.projection {
+        for (p, val) in proj.state {
             buf.push(format!("{}: {:?}", p, val));
         }
         write!(f, "{}", buf.join("\n"))

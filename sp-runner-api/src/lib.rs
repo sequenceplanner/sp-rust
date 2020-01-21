@@ -15,7 +15,11 @@ pub struct RunnerModel {
 
 impl RunnerModel {
     pub fn upd_state_paths(&mut self, state: &SPState) {
+        // TODO. Add all other actions, preds etc...
         self.op_transitions.ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
+        self.op_transitions.un_ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
+        self.ab_transitions.ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
+        self.ab_transitions.un_ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
     }
 }
 

@@ -122,6 +122,7 @@ impl Runner {
 
         // Set state here to allow for predicates to run first
         r.state = initial_state;
+        r.model.upd_state_paths(&r.state);
         Runner::upd_state_predicates(&mut r.model.state_predicates, &mut r.state);
 
         (r, external_comm)
@@ -151,10 +152,10 @@ impl Runner {
     /// Upd the runner based on incoming state
     fn upd_state(&mut self, assign: Option<SPState>) -> bool {
         // println!("upd state: {:?}", state);
-        if let Some(mut s) = assign {
+        if let Some(s) = assign {
             // temp-fix to handle uninitialized measured
             if self.untouched_state_paths.is_empty() {
-                s.projection().projection.iter().for_each(|(p, _)| {self.untouched_state_paths.remove(&p);});
+                s.projection().state.iter().for_each(|(p, _)| {self.untouched_state_paths.remove(&p);});
             }
             if !self.state.are_new_values_the_same(&s) {
                 self.state.extend(s);
@@ -190,14 +191,13 @@ impl Runner {
 
         let mut fired = if !self.ctrl.pause {
             // for now, fake the queue...
-            let mut x = self.model.op_transitions.clone(); // TODO: FIX this clone!!!
-            let mut temp_q = Runner::enabled_ctrl(&self.state, &mut self.model.op_transitions);
+            let mut temp_q = Runner::enabled_ctrl(&self.state, &self.model.op_transitions);
             // self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions)
-            Runner::tick_transitions(&mut self.state, temp_q, &mut x,  &mut self.model.state_predicates)
+            Runner::tick_transitions(&mut self.state, temp_q, &self.model.op_transitions,  &self.model.state_predicates)
         } else {
             // if we are paused, we can take transitions only if they are in the override list
             let mut temp: Vec<&SPPath> = self.ctrl.override_operation_transitions.iter().collect();
-            Runner::tick_transitions(&mut self.state, temp, &mut self.model.op_transitions, &mut self.model.state_predicates)
+            Runner::tick_transitions(&mut self.state, temp, &self.model.op_transitions, &self.model.state_predicates)
         };
 
         let (goals, _invs) = self.next_op_functions();
@@ -266,9 +266,9 @@ impl Runner {
     }
 
     /// Enabled controllable transitions
-    fn enabled_ctrl<'a>(state: &SPState, trans: &'a mut RunnerTransitions) -> Vec<&'a SPPath> {
+    fn enabled_ctrl<'a>(state: &SPState, trans: &'a RunnerTransitions) -> Vec<&'a SPPath> {
         let mut res = vec!();
-        for t in &mut trans.ctrl {
+        for t in &trans.ctrl {
             if t.eval(state) {
                 res.push(t.path());
             }
@@ -276,13 +276,13 @@ impl Runner {
         res
     }
 
-    fn tick_transitions_with_plan_guards(state: &mut SPState, plan: &mut Vec<AbPlanItem>, trans: &mut RunnerTransitions, predicates: &mut Vec<Variable>) -> Vec<SPPath> {
-        let (ctrl, un_ctrl) = (&mut trans.ctrl, &mut trans.un_ctrl);
+    fn tick_transitions_with_plan_guards(state: &mut SPState, plan: &mut Vec<AbPlanItem>, trans: &RunnerTransitions, predicates: &Vec<Variable>) -> Vec<SPPath> {
+        let (ctrl, un_ctrl) = (&trans.ctrl, &trans.un_ctrl);
 
-        let to_run: Option<&mut Transition> = if !plan.is_empty() && plan.first_mut().unwrap().guard.eval(&state) {
+        let to_run: Option<&Transition> = if !plan.is_empty() && plan.first().unwrap().guard.eval(&state) {
             let pi = plan.first().unwrap();
             println!("taking trans: {:?}", pi.transition);
-            ctrl.iter_mut().find(|t| t.path() == &pi.transition)
+            ctrl.iter().find(|t| t.path() == &pi.transition)
         } else {
             if !plan.is_empty() {
                 println!("guard not satisfied: {:?}", plan.first().unwrap().guard);
@@ -291,7 +291,7 @@ impl Runner {
         };
         let mut fired = Vec::new();
         if to_run.is_some() {
-            let mut tt = to_run.unwrap();
+            let tt = to_run.unwrap();
             tt.next(state).expect(&format!("In tick transition ctrl with plan, next must be ok, {:?}", tt)); // Must return Ok, else something is bad
             Runner::upd_state_predicates(predicates, state);
 
@@ -302,7 +302,7 @@ impl Runner {
         }
 
         //println!("state: {:?}", &state);
-        for t in un_ctrl.iter_mut() {
+        for t in un_ctrl.iter() {
             //println!("{:?}, t: {:?}", t.eval(&state), t);
             if t.eval(&state) {
                 let n = t.next(state).expect(&format!("In tick transition un_ctrl with plan, next must be ok, {:?}", t)); // Must return Ok, else something is bad
@@ -317,15 +317,15 @@ impl Runner {
 
     /// Ticks all transitions that are enabled, starting first with the controlled that is first in the
     /// plan. Mutates the runner state
-    fn tick_transitions(state: &mut SPState, mut plan: Vec<&SPPath>, trans: &mut RunnerTransitions, predicates: &mut Vec<Variable>) -> Vec<SPPath> {
-        let (ctrl, un_ctrl) = (&mut trans.ctrl, &mut trans.un_ctrl);
+    fn tick_transitions(state: &mut SPState, mut plan: Vec<&SPPath>, trans: &RunnerTransitions, predicates: &Vec<Variable>) -> Vec<SPPath> {
+        let (ctrl, un_ctrl) = (&trans.ctrl, &trans.un_ctrl);
 
-        let mut first = plan.first_mut().and_then(|path| {
-            ctrl.iter_mut().find(|t| t.is_eq(path))
+        let mut first = plan.first().and_then(|path| {
+            ctrl.iter().find(|t| t.is_eq(path))
         });
         let mut fired = {
             if first.is_some() {
-                let mut t = first.unwrap();
+                let t = first.unwrap();
                 if t.eval(state) {
                     let n = t.next(state).expect(&format!("In tick transition ctrl, next must be ok, {:?}", t)); // Must return Ok, else something is bad
                     Runner::upd_state_predicates(predicates, state);
@@ -340,7 +340,7 @@ impl Runner {
         };
 
         //println!("state: {:?}", &state);
-        for t in un_ctrl.iter_mut() {
+        for t in un_ctrl.iter() {
             //println!("{:?}, t: {:?}", t.eval(&state), t);
             if t.eval(&state) {
                 let n = t.next(state).expect(&format!("In tick transition unctrl, next must be ok, {:?}", t)); // Must return Ok, else something is bad
@@ -357,12 +357,12 @@ impl Runner {
 
         let mut goals: Vec<IfThen> = vec!();
         let mut inv: Vec<IfThen> = vec!();
-        for x in self.model.goals.iter_mut() {
+        for x in self.model.goals.iter() {
             if x.if_.eval(&self.state) {
                 goals.push(x.clone());
             }
         }
-        for mut x in self.model.invariants.iter_mut() {
+        for x in self.model.invariants.iter() {
             if x.if_.eval(&self.state) {
                 inv.push(x.clone());
             }
@@ -374,9 +374,9 @@ impl Runner {
 
 
 
-    fn upd_state_predicates(predicates: &mut Vec<Variable>, state: &mut SPState) {
-        predicates.iter_mut().for_each(|v| match v.variable_type() {
-            VariableType::Predicate(mut p) => {
+    fn upd_state_predicates(predicates: &Vec<Variable>, state: &mut SPState) {
+        predicates.iter().for_each(|v| match v.variable_type() {
+            VariableType::Predicate(p) => {
                 let upd = p.eval(state).to_spvalue();
                 if let Some(x) = state.sp_value_from_path(v.path()) {
                     if x != &upd {
@@ -438,7 +438,7 @@ impl Future for Runner {
     type Error = ();
 
     fn poll(&mut self) -> Poll<(), ()> {
-        // curretly will crash / terminate if any of the channels fail. Maybe we should not do that. Let us test
+        // currently will crash / terminate if any of the channels fail. Maybe we should not do that. Let us test
         let upd_s = self.comm.state_input.poll().unwrap();
         let upd_cmd = self.comm.command_input.poll().unwrap();
         let upd_plan = self.comm.planner_input.poll().unwrap();
@@ -481,8 +481,8 @@ impl Future for Runner {
 
         let plans = self.tick();
 
-        let enabled_ab_ctrl = Runner::enabled_ctrl(&self.state, &mut self.model.ab_transitions).into_iter().cloned().collect();
-        let enabled_op_ctrl = Runner::enabled_ctrl(&self.state, &mut self.model.op_transitions).into_iter().cloned().collect();
+        let enabled_ab_ctrl = Runner::enabled_ctrl(&self.state, &self.model.ab_transitions).into_iter().cloned().collect();
+        let enabled_op_ctrl = Runner::enabled_ctrl(&self.state, &self.model.op_transitions).into_iter().cloned().collect();
         let ri = RunnerInfo {
             state: self.state.clone(),
             ability_plan: plans.ab_plan.iter().map(|abpi|abpi.transition.clone()).collect(),

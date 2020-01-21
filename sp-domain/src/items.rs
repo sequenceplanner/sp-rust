@@ -798,7 +798,7 @@ impl Transition {
     pub fn controlled(&self) -> bool {
         self.controlled
     }
-    pub fn upd_state_path(&mut self, state: &mut SPState) {
+    pub fn upd_state_path(&mut self, state: &SPState) {
         self.guard.upd_state_path(state);
         self.actions.iter_mut().for_each(|a| a.upd_state_path(state));
     }
