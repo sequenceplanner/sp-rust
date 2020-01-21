@@ -42,13 +42,13 @@ fn main() -> Result<(), Error> {
 fn launch_tokio(
     runner: Runner,
     comm: RunnerComm,
-    rx: channel::Receiver<StateExternal>,
-    tx: channel::Sender<StateExternal>,
+    rx: channel::Receiver<SPState>,
+    tx: channel::Sender<SPState>,
     rx_command: channel::Receiver<RunnerCommand>,
     tx_info: channel::Sender<RunnerInfo>,
 ) {
     let (buf, mut to_buf, from_buf) =
-        MessageBuffer::new(2, |_: &mut StateExternal, _: &StateExternal| {
+        MessageBuffer::new(2, |_: &mut SPState, _: &SPState| {
             false // no merge
         });
 
@@ -88,7 +88,7 @@ fn launch_tokio(
             .for_each(move |result| {
                 // println!("INTO RUNNER");
                 // println!("{}", result);
-                runner_in.try_send(result.to_assignstate()).unwrap(); // if we fail, the runner do not keep up
+                runner_in.try_send(result).unwrap(); // if we fail, the runner do not keep up
                 Ok(())
             })
             .map(move |_| ())
@@ -101,8 +101,8 @@ fn launch_tokio(
             .for_each(move |result| {
                 println!("***************************");
                 println!("RUNNER CURRENT STATE");
-                println!("{}", result.external());
-                tx.try_send(result.external()).unwrap(); // if we fail the ROS side to do not keep up
+                println!("{}", result);
+                tx.try_send(result).unwrap(); // if we fail the ROS side to do not keep up
                 Ok(())
             })
             .map(move |_| ())
