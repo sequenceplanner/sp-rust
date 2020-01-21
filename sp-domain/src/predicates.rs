@@ -16,7 +16,7 @@ pub enum Predicate {
     // LT(PredicateValue, PredicateValue),
     // INDOMAIN(PredicateValue, Vec<PredicateValue>),
 }
-
+ 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct Action {
     pub var: SPPath,

@@ -10,7 +10,7 @@ mod ros {
     pub fn start_node() -> Result<RosNode, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
-
+ 
     pub fn roscomm_setup(
         _node: &mut RosNode,
         _model: &Model,
@@ -71,17 +71,14 @@ mod ros {
                     let sp_val = SPValue::from_json(json, var.value_type());
                     a.push((p.clone(), sp_val));
                 }
-            }
+            } 
         }
 
         let mut p = Vec::new();
         let mut a = Vec::new();
         json_to_state_(json, md, &mut p, &mut a);
-        SPState {
-            s: a.iter()
-                .map(|(path, spval)| (SPPath::from_array(path), spval.clone()))
-                .collect(),
-        }
+        let res: Vec<(SPPath, SPValue)> = a.iter().map(|(path, spval)| (SPPath::from_slice(path), spval.clone())).collect();
+        SPState::new_from_values(&res)
     }
 
 
@@ -109,7 +106,7 @@ mod ros {
                     serde_json::Value::Object(map)
                 }
                 MessageField::Var(var) => {
-                    if let Some(spval) = state.s.get(&SPPath::from_array(p)) {
+                    if let Some(spval) = state.sp_value_from_path(&SPPath::from_slice(p)) {
                         // TODO use sp type
                         let json = spval.to_json(); // , var.variable_data().type_);
                         json
@@ -155,16 +152,16 @@ mod ros {
             for t in r.messages() {
                 if let MessageField::Msg(m) = t.msg() {
                     if t.is_subscriber() {
-                        let topic = t.node().global_path().as_ref().unwrap();
-                        let topic_str = topic.path().join("/");
+                        let topic = t.path();
+                        let topic_str = topic.to_string();
 
                         let tx = tx_in.clone();
                         let topic_cb = topic.clone();
                         let msgtype = t.msg().clone();
                         let cb = move |msg: r2r::Result<serde_json::Value>| {
                             let json = msg.unwrap();
-                            let state = json_to_state(&json, &msgtype);
-                            let state = state.prefix_paths(&topic_cb);
+                            let mut state = json_to_state(&json, &msgtype);
+                            state.prefix_paths(&topic_cb);
                             tx.send(state).unwrap();
                         };
                         println!("setting up subscription to topic: {}", topic);
@@ -172,15 +169,15 @@ mod ros {
                     }
 
                     else if t.is_publisher() {
-                        let topic = t.node().global_path().as_ref().unwrap();
-                        let topic_str = topic.path().join("/");
+                        let topic = t.path();
+                        let topic_str = topic.to_string();
                         println!("setting up publishing to topic: {}", topic);
                         let rp = node.0.create_publisher_untyped(&topic_str, m.msg_type())?;
                         let topic_cb = topic.clone();
                         let msgtype = t.msg().clone();
                         let cb = move |state: &SPState| {
-                            let local_state = state.unprefix_paths(&topic_cb);
-                            let to_send = state_to_json(&local_state, &msgtype);
+                            let local_state = state.sub_state_projection(&topic_cb);
+                            let to_send = state_to_json(&local_state.clone_state(), &msgtype);
                             rp.publish(to_send).unwrap();
                         };
                         ros_pubs.push(cb);
@@ -214,11 +211,11 @@ mod ros {
         let cb = {
             let tx_in = tx_in.clone();
             move |msg: r2r::sp_messages::msg::RunnerCommand| {
-                let oat = msg.override_ability_transitions.iter().flat_map(|s| {
+                let oat = msg.override_ability_transitions.iter().map(|s| {
                     let path = format!("G:{}", s);
                     SPPath::from_string(&path)
                 }).collect();
-                let oot = msg.override_operation_transitions.iter().flat_map(|s| {
+                let oot = msg.override_operation_transitions.iter().map(|s| {
                     let path = format!("G:{}", s);
                     SPPath::from_string(&path)
                 }).collect();
@@ -239,20 +236,21 @@ mod ros {
         println!("setting up publishing to topic: {}", runner_info_topic);
         let rp = node.0.create_publisher::<r2r::sp_messages::msg::RunnerInfo>(runner_info_topic)?;
         let info_cb = move |info: sp_runner_api::RunnerInfo| {
-            let sorted_state: BTreeMap<_, _> = info.state.s.iter().collect();
+            let mut sorted_state = info.state.projection();
+            sorted_state.sort();
             let ri = r2r::sp_messages::msg::RunnerInfo {
-                state: sorted_state.iter().map(|(k,v)| {
-                    let s = k.path().join("/");
+                state: sorted_state.clone_vec_value().into_iter().map(|(k,v)| {
+                    let s = k.to_string();
                     let val = v.to_json().to_string();
                     r2r::sp_messages::msg::State {
                         path: s,
                         value_as_json: val,
                     }
                 }).collect(),
-                ability_plan: info.ability_plan.iter().map(|p|p.path().join("/")).collect(),
-                enabled_ability_transitions: info.enabled_ability_transitions.iter().map(|p|p.path().join("/")).collect(),
-                operation_plan: info.operation_plan.iter().map(|p|p.path().join("/")).collect(),
-                enabled_operation_transitions: info.enabled_operation_transitions.iter().map(|p|p.path().join("/")).collect(),
+                ability_plan: info.ability_plan.iter().map(|p|p.to_string()).collect(),
+                enabled_ability_transitions: info.enabled_ability_transitions.iter().map(|p|p.to_string()).collect(),
+                operation_plan: info.operation_plan.iter().map(|p|p.to_string()).collect(),
+                enabled_operation_transitions: info.enabled_operation_transitions.iter().map(|p|p.to_string()).collect(),
             };
             rp.publish(&ri).unwrap();
         };
@@ -300,7 +298,7 @@ mod ros {
             let msg = MessageField::Msg(msg);
 
             let s = json_to_state(&json, &msg);
-            assert_eq!(s.s.get(&SPPath::from_array(&["str", "data"])), Some(&SPValue::String(payload.clone())));
+            assert_eq!(s.sp_value_from_path(&SPPath::from_slice(&["str", "data"])), Some(&SPValue::String(payload.clone())));
         }
 
         #[test]
@@ -308,8 +306,8 @@ mod ros {
             let payload = "hej".to_string();
 
             let mut state = SPState::default();
-            state.insert(&SPPath::GlobalPath(GlobalPath::from_str(&["x", "y", "topic", "str", "data"])),
-                         AssignStateValue::SPValue(SPValue::String(payload.clone())));
+            state.add_variable(SPPath::from_slice(&["x", "y", "topic", "str", "data"]),
+                         SPValue::String(payload.clone()));
 
             let v = Variable::new(
                 "data",
@@ -327,9 +325,8 @@ mod ros {
 
             let msg = MessageField::Msg(msg);
 
-            let external = state.external();
-            let local_state = external.unprefix_paths(&GlobalPath::from_str(&["x", "y", "topic"]));
-            let json = state_to_json(&local_state, &msg);
+            let local_state = state.sub_state_projection(&SPPath::from_slice(&["x", "y", "topic"]));
+            let json = state_to_json(&local_state.clone_state(), &msg);
 
             let data = json.get("data");
             assert!(data.is_some());

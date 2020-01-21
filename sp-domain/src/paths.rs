@@ -30,7 +30,6 @@ impl SPPath {
     pub fn from_string(s: &str) -> SPPath {
         let res: Vec<&str> = s.split("/").collect();
         SPPath::from_slice(&res)
-
     }
     pub fn add_child(mut self, sub: &str) -> Self {
         self.path.push(sub.to_string()); self
