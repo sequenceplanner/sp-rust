@@ -516,7 +516,7 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
         let path = s.node().path();
 
         for (i,p) in s.always().iter().enumerate() {
-            let pp = path.clone();
+            let mut pp = path.clone();
             let pp = pp.add_child(&i.to_string());
             let path = NuXMVPath(&pp);
             let p = NuXMVPredicate(&p);

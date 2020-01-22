@@ -29,13 +29,13 @@ impl PartialEq for SPState {
 
 #[derive(Debug, Clone)]
 pub struct StateProjection<'a> {
-    pub projection: Vec<(&'a SPPath, &'a StateValue)>,
+    pub state: Vec<(&'a SPPath, &'a StateValue)>,
     pub id: Uuid,
 }
 
 impl PartialEq for StateProjection<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.projection == other.projection
+        self.state == other.state
     }
 }
 
@@ -44,19 +44,19 @@ impl<'a> StateProjection<'a> {
         SPState::new_from_state_values(&self.clone_vec())
     }
     pub fn clone_vec(&self) -> Vec<(SPPath, StateValue)> {
-        self.projection
+        self.state
             .iter()
             .map(|(p, v)| ((*p).clone(), (*v).clone()))
             .collect()
     }
     pub fn clone_vec_value(&self) -> Vec<(SPPath, SPValue)> {
-        self.projection
+        self.state
             .iter()
             .map(|(p, v)| ((*p).clone(), (*v).value().clone()))
             .collect()
     }
     pub fn sort(&mut self) {
-        self.projection
+        self.state
             .sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
     }
 }
@@ -135,14 +135,14 @@ impl StateValue {
     }
 }
 
-/// The StatePath is used to speed up the access of variables in the state by instead using the index of the variable 
+/// The StatePath is used to speed up the access of variables in the state by instead using the index of the variable
 /// in the state instead of the path. You may have to check that the state has the same id as the state path if
 /// you do not have control over the state. However, the methods that take a path will also check it.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct StatePath {
-    path: SPPath,
-    index: usize,
-    state_id: Uuid,
+    pub path: SPPath,
+    pub index: usize,
+    pub state_id: Uuid,
 }
 
 
@@ -201,7 +201,7 @@ impl SPState {
             self.add_state_variable(path, value);
         });
     }
-    
+
 
     /// Add a new state variable to the state. If the path already is included, the value is updated.
     /// Maybe we should change this and not update the state? This will also change the id of the state
@@ -286,7 +286,7 @@ impl SPState {
             .collect();
 
         let mut p = StateProjection {
-            projection: s,
+            state: s,
             id: self.id,
         };
         //p.sort();  // Maybe not this?
@@ -307,10 +307,10 @@ impl SPState {
             .collect();
 
         StateProjection {
-            projection: s,
+            state: s,
             id: self.id,
         }
-    } 
+    }
 
     /// Checks if a sub state is the same as another states sub state given the same path
     /// This is used to check this so we do not need to create a clone with sub_state.
@@ -326,6 +326,19 @@ impl SPState {
             })
     }
 
+    pub fn are_new_values_the_same(&self, new_values: &SPState) -> bool {
+        new_values
+            .index
+            .iter()
+            .all(|(key, i)| {
+                self
+                    .sp_value_from_path(key)
+                    .map(|x| x == new_values.values[*i].current_value())
+                    .unwrap_or(false)
+            })
+    }
+
+
     pub fn prefix_paths(&mut self, parent: &SPPath) {
         let mut xs = HashMap::new();
         for (path, i) in self.index.iter() {
@@ -334,6 +347,17 @@ impl SPState {
             xs.insert(new_p, *i);
         }
         self.index = xs;
+        self.id = Uuid::new_v4(); // Changing id since the paths changes
+    }
+
+    pub fn unprefix_paths(&mut self, parent: &SPPath) { // return a new state without parent for all variables
+        let mut new_index = HashMap::new();
+        for (path, i) in &self.index {
+            let mut new_key = path.clone();
+            new_key.drop_parent(parent);
+            new_index.insert(new_key, *i);
+        }
+        self.index = new_index;
         self.id = Uuid::new_v4(); // Changing id since the paths changes
     }
 
@@ -373,7 +397,7 @@ impl SPState {
         }
     }
 
-    
+
     pub fn next_map(&mut self, map: Vec<(StatePath, SPValue)>) -> bool {
         let ok = map.iter().all(|(p, _)| {
             self.next_is_allowed(p)
@@ -410,7 +434,7 @@ impl fmt::Display for SPState {
         // Sort keys by name.
         let proj = self.projection();
         let mut buf = Vec::new();
-        for (p, val) in proj.projection {
+        for (p, val) in proj.state {
             buf.push(format!("{}: {:?}", p, val));
         }
         write!(f, "{}", buf.join("\n"))
@@ -530,28 +554,27 @@ mod sp_value_test {
         // println!("The state: {:?}", s);
     }
 
-    // #[test]
-    // fn sub_state_testing() {
-    //     let a = SPPath::from_slice(&["a"]);
-    //     let ab = SPPath::from_array(&["a", "b"]);
-    //     let ax = SPPath::from_array(&["a", "x"]);
-    //     let abc = SPPath::from_array(&["a", "b", "c"]);
-    //     let abx = SPPath::from_array(&["a", "b", "x"]);
-    //     let b = SPPath::from_array(&["b"]);
-    //     let s = state!(abc => false, abx => false, ax => true);
+    #[test]
+    fn sub_state_testing() {
+        let a = SPPath::from_slice(&["a"]);
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let ax = SPPath::from_slice(&["a", "x"]);
+        let abc = SPPath::from_slice(&["a", "b", "c"]);
+        let abx = SPPath::from_slice(&["a", "b", "x"]);
+        let b = SPPath::from_slice(&["b"]);
+        let s = state!(abc => false, abx => false, ax => true);
 
-    //     assert_eq!(s.sub_state(&ab), state!(abc => false, abx => false));
-    //     assert_eq!(s.sub_state(&abc), state!(abc => false));
-    //     assert_eq!(s.sub_state(&b), state!());
-    //     assert_eq!(s.sub_state(&a), s.clone());
+        // sub_state_projection
+        assert_eq!(s.sub_state_projection(&ab).clone_state(), state!(abc => false, abx => false));
+        assert_eq!(s.sub_state_projection(&abc).clone_state(), state!(abc => false));
+        assert_eq!(s.sub_state_projection(&b).clone_state(), state!());
+        assert_eq!(s.sub_state_projection(&a).clone_state(), s.clone());
 
-    //     let mut s2 = s.clone();
-    //     assert!(s.is_sub_state_the_same(&s2, &ab));
-    //     s2.insert(&ax, false.to_spvalue()
-    //        .unwrap();
-    //     assert!(s.is_sub_state_the_same(&s2, &ab));
-    //     s2.insert(&abc, true.to_spvalue()
-    //        .unwrap();
-    //     assert!(!s.is_sub_state_the_same(&s2, &ab));
-    // }
+        let mut s2 = s.clone();
+        assert!(s.is_sub_state_the_same(&s2, &ab));
+        s2.add_variable(ax, false.to_spvalue());
+        assert!(s.is_sub_state_the_same(&s2, &ab));
+        s2.add_variable(abc, true.to_spvalue());
+        assert!(!s.is_sub_state_the_same(&s2, &ab));
+    }
 }

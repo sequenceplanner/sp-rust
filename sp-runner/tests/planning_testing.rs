@@ -129,26 +129,6 @@ fn model_without_spec() -> (RunnerModel, SPState) {
 fn planner_fail_due_to_conflicting_specs_and_goal() {
     let (model, state) = model_with_spec();
     let state = state.external();
-
-    let r1_p_a = model.model.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-    let r2_p_a = model.model.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
-
-    let goal = pr!{{p!(r1_p_a == "at")} && {p!(r2_p_a == "at")}};
-
-    let result = compute_plan(&vec![goal], &state, &model, 20);
-    assert!(!result.plan_found);
-}
-
-#[test]
-fn planner_succeed_when_no_conflicting_spec_and_goal() {
-    let (model, state) = model_without_spec();
-    let state = state.external();
-
-    let r1_p_a = model.model.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-    let r2_p_a = model.model.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
-
-    let goal = pr!{{p!(r1_p_a == "at")} && {p!(r2_p_a == "at")}};
-
     let result = compute_plan(&vec![goal], &state, &model, 20);
     assert!(result.plan_found);
 }

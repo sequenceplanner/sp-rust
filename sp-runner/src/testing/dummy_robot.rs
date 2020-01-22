@@ -158,7 +158,7 @@ fn build_resource(r: &MResource) -> Resource {
             t.vars.iter().map(|(name, d)| {
 
                 let is_bool = d.domain.is_none();
-                if is_bool {
+                let var = if is_bool {
                     MessageField::Var(Variable::new(name,
                                                     VariableType::Command,
                                                     SPValueType::Bool,
@@ -173,7 +173,8 @@ fn build_resource(r: &MResource) -> Resource {
                                                     sp_val_type,
                                                     initial,
                                                     dom))
-                }
+                };
+                (name.clone(), var)
             }).collect());
 
         let topic = Topic::new(&t.topic, MessageField::Msg(msg));
@@ -186,7 +187,7 @@ fn build_resource(r: &MResource) -> Resource {
             t.vars.iter().map(|(name, d)| {
 
                 let is_bool = d.domain.is_none();
-                if is_bool {
+                let var = if is_bool {
                     MessageField::Var(Variable::new(name,
                                                     VariableType::Measured,
                                                     SPValueType::Bool,
@@ -201,7 +202,8 @@ fn build_resource(r: &MResource) -> Resource {
                                                     sp_val_type,
                                                     initial,
                                                     dom))
-                }
+                };
+                (name.clone(), var)
             }).collect());
 
         let topic = Topic::new(&t.topic, MessageField::Msg(msg));
@@ -299,9 +301,7 @@ fn test_dummy() {
     let r1_p_a = r1.find_item("act_pos", &["r1"]).expect("check spelling").path();
     println!("path: {}", r1_p_a);
 
-
-
-    let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1), SPItem::Resource(make_dummy_robot("r2"))]);
+    let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
 
     let r1_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
     println!("path: {}", r1_p_a);

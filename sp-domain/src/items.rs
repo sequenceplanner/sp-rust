@@ -1,6 +1,7 @@
 //!
 //!
 use super::*;
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum SPItem {
@@ -347,13 +348,13 @@ impl Resource {
         fn r(m: &MessageField, acum: &mut SPState) {
             match m {
                 MessageField::Msg(msg) => {
-                    for f in &msg.fields {
+                    for (n, f) in &msg.fields {
                         r(f, acum);
                     }
                 }
                 MessageField::Var(var) => {
-                    let _res = acum.next_from_path(
-                        &var.path(),
+                    let _res = acum.add_variable(
+                        var.path().clone(),
                         var.initial_value.clone(),
                     );
                 }
@@ -374,13 +375,15 @@ impl Resource {
             }
         }
 
+        println!("runner intial state: {:?}", s);
+
         return s;
     }
     pub fn get_variables(&self) -> Vec<Variable> {
         fn r(m: &MessageField, acum: &mut Vec<Variable>) {
             match m {
                 MessageField::Msg(msg) => {
-                    for f in &msg.fields {
+                    for (_n, f) in &msg.fields {
                         r(f, acum);
                     }
                 },
@@ -464,7 +467,7 @@ impl Noder for Topic {
         loop {
             match stack.pop() {
                 Some(MessageField::Msg(msg)) => {
-                    stack.extend(msg.fields.iter().collect::<Vec<_>>()); },
+                    stack.extend(msg.fields.iter().map(|(_n, m)|m).collect::<Vec<_>>()); },
                 Some(MessageField::Var(v)) => {
                     if let Some(item) = v.find_item(name, path_sections) {
                         return Some(item)
@@ -478,7 +481,7 @@ impl Noder for Topic {
         let mut stack = vec![&mut self.msg];
         loop {
             match stack.pop() {
-                Some(MessageField::Msg(msg)) => { stack.extend(msg.fields.iter_mut().collect::<Vec<_>>()); },
+                Some(MessageField::Msg(msg)) => { stack.extend(msg.fields.iter_mut().map(|(_n, m)|m).collect::<Vec<_>>()); },
                 Some(MessageField::Var(v)) => { v.update_path(path); },
                 None => { return; } // all done
             }
@@ -502,7 +505,7 @@ impl Topic {
     pub fn is_subscriber(&self) -> bool {
         fn is_sub(f: &MessageField) -> bool {
             match f {
-                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_sub(m)),
+                MessageField::Msg(msg) => msg.fields.iter().all(|(_n,m)| is_sub(m)),
                 MessageField::Var(v) => v.type_ == VariableType::Measured,
             }
         }
@@ -512,7 +515,7 @@ impl Topic {
     pub fn is_publisher(&self) -> bool {
         fn is_pub(f: &MessageField) -> bool {
             match f {
-                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_pub(m)),
+                MessageField::Msg(msg) => msg.fields.iter().all(|(_n,m)| is_pub(m)),
                 MessageField::Var(v) => v.type_ == VariableType::Command,
             }
         }
@@ -520,28 +523,19 @@ impl Topic {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Message {
-    type_: String, // ros type
-    fields: Vec<MessageField>, // note, the field name is in each node
+    pub type_: String, // ros type
+    pub fields: HashMap<String, MessageField>,
 }
 
 impl Message {
 
-    pub fn new(type_: &str, fields: Vec<MessageField>) -> Message {
+    pub fn new(type_: &str, fields: HashMap<String, MessageField>) -> Message {
         Message {
             type_: type_.to_string(),
             fields,
         }
-    }
-    pub fn fields(&self) -> &[MessageField] {
-        self.fields.as_slice()
-    }
-    pub fn msg_type(&self) -> &str {
-        &self.type_
-    }
-    pub fn update_msg_type(&mut self, type_: String) {
-        self.type_ = type_;
     }
 }
 
@@ -655,10 +649,10 @@ impl Default for VariableType {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Transition {
     node: SPNode,
-    guard: Predicate,
-    actions: Vec<Action>,
-    effects: Vec<Action>,
-    controlled: bool,
+    pub guard: Predicate,
+    pub actions: Vec<Action>,
+    pub effects: Vec<Action>,
+    pub controlled: bool,
 }
 
 impl Noder for Transition {
@@ -719,19 +713,22 @@ impl Transition {
     pub fn controlled(&self) -> bool {
         self.controlled
     }
-
+    pub fn upd_state_path(&mut self, state: &SPState) {
+        self.guard.upd_state_path(state);
+        self.actions.iter_mut().for_each(|a| a.upd_state_path(state));
+    }
 
 }
 
 impl EvaluatePredicate for Transition {
-    fn eval(&mut self, state: &SPState) -> bool {
-        self.guard.eval(state) && self.actions.iter_mut().all(|a| a.eval(state))
+    fn eval(&self, state: &SPState) -> bool {
+        self.guard.eval(state) && self.actions.iter().all(|a| a.eval(state))
     }
 }
 
 impl NextAction for Transition {
-    fn next(&mut self, state: &mut SPState) -> SPResult<()> {
-        for a in self.actions.iter_mut() {
+    fn next(&self, state: &mut SPState) -> SPResult<()> {
+        for a in self.actions.iter() {
             if let Err(e) = a.next(state) {
                 return Err(e);
             }
@@ -881,8 +878,8 @@ impl Operation {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct IfThen {
     node: SPNode,
-    if_: Predicate,
-    then_: Predicate,
+    pub if_: Predicate,
+    pub then_: Predicate,
 }
 
 impl Noder for IfThen {

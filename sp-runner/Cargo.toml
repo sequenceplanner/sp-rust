@@ -16,7 +16,7 @@ crossbeam = "0.7"
 #petgraph = "0.4.13"
 sp-domain = { path = "../sp-domain/" }
 sp-runner-api = { path = "../sp-runner-api/" }
-sp-ros = { path = "../sp-ros/", features = [ ] }
+sp-ros = { path = "../sp-ros/", features = ["ros"] }
 failure = "0.1.5"
 failure_derive = "0.1.5"
 lazy_static = "1.4.0"

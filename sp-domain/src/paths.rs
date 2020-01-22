@@ -30,7 +30,6 @@ impl SPPath {
     pub fn from_string(s: &str) -> SPPath {
         let res: Vec<&str> = s.split("/").collect();
         SPPath::from_slice(&res)
-
     }
     pub fn add_child(mut self, sub: &str) -> Self {
         self.path.push(sub.to_string()); self
@@ -45,6 +44,17 @@ impl SPPath {
         let mut new_path = root.path.clone();
         new_path.append(&mut self.path);
         self.path = new_path;
+    }
+    // maybe should return result instead of panicing. use with caution.
+    pub fn drop_parent(&mut self, parent: &SPPath) {
+        let zipped = self.path.iter().zip(parent.path.iter());
+        let match_len = zipped.filter(|(a,b)| a == b).count();
+        if match_len == parent.path.len() {
+            // all parent paths matched, remove
+            self.path.drain(0..match_len);
+        } else {
+            panic!("cannot drop parent as it does not exist: {} - {}", self, parent);
+        }
     }
 
     pub fn is_child_of(&self, other: &SPPath) -> bool {
@@ -94,8 +104,35 @@ mod tests_paths {
         assert_ne!(SPPath::from_string("b/a"), ab);
         assert_ne!(SPPath::from_slice(&["b", "a"]), ab);
         assert_ne!(SPPath::from_slice(&["a", "b", "c"]), ab);
-        
+
     }
+
+    #[test]
+    fn drop_parent() {
+        let mut ab = SPPath::from_slice(&["a", "b", "c"]);
+        let parent = SPPath::from_slice(&["a", "b"]);
+        ab.drop_parent(&parent);
+        assert_eq!(ab, SPPath::from_slice(&["c"]));
+
+        let mut ab = SPPath::from_slice(&["a", "b", "c"]);
+        let parent = SPPath::from_slice(&["a", "b", "c"]);
+        ab.drop_parent(&parent);
+        assert_eq!(ab, SPPath::new());
+
+        let mut ab = SPPath::from_slice(&["a", "b", "c"]);
+        let parent = SPPath::from_slice(&["a"]);
+        ab.drop_parent(&parent);
+        assert_eq!(ab, SPPath::from_slice(&["b", "c"]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn drop_parent_fail() {
+        let mut ab = SPPath::from_slice(&["a", "b", "c"]);
+        let parent = SPPath::from_slice(&["a", "c"]);
+        ab.drop_parent(&parent);
+    }
+
 
     #[test]
     fn get_next_name() {
