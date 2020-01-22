@@ -129,13 +129,25 @@ fn build_resource(r: &MResource) -> Resource {
 
     // fix ability paths
     for a in &mut abilities {
+
+        // first try to find a local remap (e.g. to our own predicates).
+        let mut local_remaps = Vec::new();
+        for (name, _pred) in &mut a.predicates {
+            let path = SPPath::from_slice(&[r.name.clone(), a.name.clone(), name.clone()]);
+            let op = SPPath::from_string(name);
+            local_remaps.push((op, path));
+        }
+
+
         for (_name, pred) in &mut a.predicates {
             println!("original predicate: {:?}", pred);
+            fix_predicate(pred, &local_remaps);
             fix_predicate(pred, &valid_remaps);
             println!("new predicate: {:?}", pred);
         }
         for (_name, trans) in &mut a.transitions {
             println!("original guard: {:?}", trans.guard);
+            fix_predicate(&mut trans.guard, &local_remaps);
             fix_predicate(&mut trans.guard, &valid_remaps);
             println!("new guard: {:?}", trans.guard);
 
@@ -255,30 +267,165 @@ pub fn make_dummy_robot(name: &str) -> Resource {
     let activate_c = SPPath::from_string("activate");
     let active_m = SPPath::from_string("active");
 
-    let mut predicates = HashMap::new();
-    predicates.insert("enabled".to_string(), pr! {{p!(active_m)} && {p!(rp_c != "at")} && {p!(ap_m != "at")}});
-    predicates.insert("executing".to_string(), pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m != "at")}});
-    predicates.insert("finished".to_string(), pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m == "at")}});
+    {
+        let mut predicates = HashMap::new();
+        predicates.insert("enabled".to_string(), pr! {{p!(active_m)} && {p!(rp_c != "at")} && {p!(ap_m != "at")}});
+        predicates.insert("executing".to_string(), pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m != "at")}});
+        predicates.insert("finished".to_string(), pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m == "at")}});
 
-    let enabled = SPPath::from_string("enabled");
+        let enabled = SPPath::from_string("enabled");
+        let executing = SPPath::from_string("executing");
+        let finished = SPPath::from_string("finished");
 
-    let mut transitions = HashMap::new();
-    let start = MTransition {
-        controlled: true,
-        guard: pr! {{p!(enabled)} && {p!(rp_c == "at")} && {p!(ap_m == "at")}},
-        actions: vec![ a!(rp_c = "at")],
-        effects: vec![ a!(ap_m = "unknown")],
-    };
+        let mut transitions = HashMap::new();
+        let start = MTransition {
+            controlled: true,
+            guard: p!(enabled),
+            actions: vec![ a!(rp_c = "at")],
+            effects: vec![ a!(ap_m = "unknown")],
+        };
 
-    transitions.insert("start".to_string(), start);
+        transitions.insert("start".to_string(), start);
 
-    let to_table = MAbility {
-        name: "to_table".to_string(),
-        predicates : predicates,
-        transitions: transitions,
-    };
 
-    new_resource.push(ModelItem::MAbility(to_table));
+        let finish = MTransition {
+            controlled: false,
+            guard: p!(executing),
+            actions: vec![],
+            effects: vec![ a!(ap_m = "at")],
+        };
+
+        transitions.insert("finish".to_string(), finish);
+
+
+        let to_table = MAbility {
+            name: "to_table".to_string(),
+            predicates : predicates,
+            transitions: transitions,
+        };
+
+        new_resource.push(ModelItem::MAbility(to_table));
+    }
+
+
+    {
+        let mut predicates = HashMap::new();
+        predicates.insert("enabled".to_string(), pr! {{p!(active_m)} && {p!(rp_c != "away")} && {p!(ap_m != "away")}});
+        predicates.insert("executing".to_string(), pr! {{p!(active_m)} && {p!(rp_c == "away")} && {p!(ap_m != "away")}});
+        predicates.insert("finished".to_string(), pr! {{p!(active_m)} && {p!(rp_c == "away")} && {p!(ap_m == "away")}});
+
+        let enabled = SPPath::from_string("enabled");
+        let executing = SPPath::from_string("executing");
+        let finished = SPPath::from_string("finished");
+
+        let mut transitions = HashMap::new();
+        let start = MTransition {
+            controlled: true,
+            guard: p!(enabled),
+            actions: vec![ a!(rp_c = "away")],
+            effects: vec![ a!(ap_m = "unknown")],
+        };
+
+        transitions.insert("start".to_string(), start);
+
+
+        let finish = MTransition {
+            controlled: false,
+            guard: p!(executing),
+            actions: vec![],
+            effects: vec![ a!(ap_m = "away")],
+        };
+
+        transitions.insert("finish".to_string(), finish);
+
+        let to_away = MAbility {
+            name: "to_away".to_string(),
+            predicates : predicates,
+            transitions: transitions,
+        };
+
+        new_resource.push(ModelItem::MAbility(to_away));
+    }
+
+    {
+        let mut predicates = HashMap::new();
+        predicates.insert("enabled".to_string(), pr! {{p!(activate_c == false)} && {p!(active_m == false)}});
+        predicates.insert("executing".to_string(), pr! {{p!(activate_c == true)} && {p!(active_m == false)}});
+        predicates.insert("finished".to_string(), pr! {{p!(activate_c == true)} && {p!(active_m == true)}});
+
+        let enabled = SPPath::from_string("enabled");
+        let executing = SPPath::from_string("executing");
+        let finished = SPPath::from_string("finished");
+
+        let mut transitions = HashMap::new();
+        let start = MTransition {
+            controlled: true,
+            guard: p!(enabled),
+            actions: vec![ a!(activate_c = true)],
+            effects: vec![ ],
+        };
+
+        transitions.insert("start".to_string(), start);
+
+
+        let finish = MTransition {
+            controlled: false,
+            guard: p!(executing),
+            actions: vec![],
+            effects: vec![ a!(active_m = true)],
+        };
+
+        transitions.insert("finish".to_string(), finish);
+
+        let ab = MAbility {
+            name: "activate".to_string(),
+            predicates : predicates,
+            transitions: transitions,
+        };
+
+        new_resource.push(ModelItem::MAbility(ab));
+    }
+
+
+    {
+        let mut predicates = HashMap::new();
+        predicates.insert("enabled".to_string(), pr! {{p!(activate_c == true)} && {p!(active_m == true)}});
+        predicates.insert("executing".to_string(), pr! {{p!(activate_c == false)} && {p!(active_m == true)}});
+        predicates.insert("finished".to_string(), pr! {{p!(activate_c == false)} && {p!(active_m == false)}});
+
+        let enabled = SPPath::from_string("enabled");
+        let executing = SPPath::from_string("executing");
+        let finished = SPPath::from_string("finished");
+
+        let mut transitions = HashMap::new();
+        let start = MTransition {
+            controlled: true,
+            guard: p!(enabled),
+            actions: vec![ a!(activate_c = false)],
+            effects: vec![ ],
+        };
+
+        transitions.insert("start".to_string(), start);
+
+
+        let finish = MTransition {
+            controlled: false,
+            guard: p!(executing),
+            actions: vec![],
+            effects: vec![ a!(active_m = false)],
+        };
+
+        transitions.insert("finish".to_string(), finish);
+
+        let ab = MAbility {
+            name: "deactivate".to_string(),
+            predicates : predicates,
+            transitions: transitions,
+        };
+
+        new_resource.push(ModelItem::MAbility(ab));
+    }
+
 
     println!("NEW RESOURCE:");
     println!("{:#?}", new_resource);

@@ -75,17 +75,17 @@ impl Noder for SPItem {
             SPItem::Spec(x) => x.find_item_among_children(name, path_sections),
         }
     }
-    fn update_path_children(&mut self, path:&SPPath) {
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         match self {
-            SPItem::Model(x) => x.update_path_children(path),
-            SPItem::Resource(x) => x.update_path_children(path),
-            SPItem::Topic(x) => x.update_path_children(path),
-            SPItem::Variable(x) => x.update_path_children(path),
-            SPItem::Operation(x) => x.update_path_children(path),
-            SPItem::Ability(x) => x.update_path_children(path),
-            SPItem::Transition(x) => x.update_path_children(path),
-            SPItem::IfThen(x) => x.update_path_children(path),
-            SPItem::Spec(x) => x.update_path_children(path),
+            SPItem::Model(x) => x.update_path_children(path, changes),
+            SPItem::Resource(x) => x.update_path_children(path, changes),
+            SPItem::Topic(x) => x.update_path_children(path, changes),
+            SPItem::Variable(x) => x.update_path_children(path, changes),
+            SPItem::Operation(x) => x.update_path_children(path, changes),
+            SPItem::Ability(x) => x.update_path_children(path, changes),
+            SPItem::Transition(x) => x.update_path_children(path, changes),
+            SPItem::IfThen(x) => x.update_path_children(path, changes),
+            SPItem::Spec(x) => x.update_path_children(path, changes),
         }
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -223,8 +223,8 @@ impl Noder for Model {
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.items.as_slice(), name, path_sections)
     }
-    fn update_path_children(&mut self, path:&SPPath) {
-        update_path_in_list(self.items.as_mut_slice(), path);
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        update_path_in_list(self.items.as_mut_slice(), path, changes);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Model(self)
@@ -238,7 +238,9 @@ impl Model {
     }
     pub fn new_root(name: &str, items: Vec<SPItem>) -> Model {
         let mut m = Model::new(name, items);
-        m.update_path(&SPPath::new());
+        let mut changes = HashMap::new();
+        m.update_path(&SPPath::new(), &mut changes);
+        println!("MODEL CHANGES!!!: {:?}", changes);
         m
     }
 
@@ -247,7 +249,9 @@ impl Model {
     }
 
     pub fn add_item(&mut self, mut item: SPItem) -> SPPath {
-        let path = item.update_path(self.node.path());
+        let mut changes = HashMap::new();
+        let path = item.update_path(self.node.path(), &mut changes);
+        println!("ATT ITEM CHANGES!!!: {:?}", changes);
         self.items.push(item);
         path
     }
@@ -285,13 +289,13 @@ impl Noder for Resource {
             .or_else(|| find_item_in_list(self.sub_items.as_slice(), name, path_sections))
             .or_else(|| find_item_in_list(self.messages.as_slice(), name, path_sections))
     }
-    fn update_path_children(&mut self, _path:&SPPath) {
-        let mut local = SPPath::from(vec![self.node.name().to_string()]);
-        let path = self.node.path();
-        update_path_in_list(self.abilities.as_mut_slice(), &path);
-        update_path_in_list(self.parameters.as_mut_slice(), &path);
-        update_path_in_list(self.sub_items.as_mut_slice(), &path);
-        update_path_in_list(self.messages.as_mut_slice(), &path);
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        // let mut local = SPPath::from(vec![self.node.name().to_string()]);
+        // let path = self.node.path();
+        update_path_in_list(self.abilities.as_mut_slice(), &path, changes);
+        update_path_in_list(self.parameters.as_mut_slice(), &path, changes);
+        update_path_in_list(self.sub_items.as_mut_slice(), &path, changes);
+        update_path_in_list(self.messages.as_mut_slice(), &path, changes);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Resource(self)
@@ -312,7 +316,8 @@ impl Resource {
         self.abilities.as_slice()
     }
     pub fn add_ability(&mut self, mut ability: Ability) -> SPPath {
-        let ab_path = ability.update_path(self.node.path());
+        let mut changes = HashMap::new();
+        let ab_path = ability.update_path(self.node.path(), &mut changes);
         self.abilities.push(ability);
         ab_path
     }
@@ -321,7 +326,8 @@ impl Resource {
         self.parameters.as_slice()
     }
     pub fn add_parameter(&mut self, mut parameter: Variable) -> SPPath {
-        let path = parameter.update_path(self.node.path());
+        let mut changes = HashMap::new();
+        let path = parameter.update_path(self.node.path(), &mut changes);
         self.parameters.push(parameter);
         path
     }
@@ -330,7 +336,8 @@ impl Resource {
         self.messages.as_slice()
     }
     pub fn add_message(&mut self, mut message: Topic) -> SPPath {
-        let path = message.update_path(self.node.path());
+        let mut changes = HashMap::new();
+        let path = message.update_path(self.node.path(), &mut changes);
         self.messages.push(message);
         path
     }
@@ -339,7 +346,8 @@ impl Resource {
         self.sub_items.as_slice()
     }
     pub fn add_sub_item(&mut self, mut sub_item: SPItem) -> SPPath {
-        let path = sub_item.update_path(self.node.path());
+        let mut changes = HashMap::new();
+        let path = sub_item.update_path(self.node.path(), &mut changes);
         self.sub_items.push(sub_item);
         path
     }
@@ -477,12 +485,12 @@ impl Noder for Topic {
             }
         }
     }
-    fn update_path_children(&mut self, path:&SPPath) {
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         let mut stack = vec![&mut self.msg];
         loop {
             match stack.pop() {
                 Some(MessageField::Msg(msg)) => { stack.extend(msg.fields.iter_mut().map(|(_n, m)|m).collect::<Vec<_>>()); },
-                Some(MessageField::Var(v)) => { v.update_path(path); },
+                Some(MessageField::Var(v)) => { v.update_path(path, changes); },
                 None => { return; } // all done
             }
         }
@@ -571,7 +579,7 @@ impl Noder for Variable {
     ) -> Option<SPItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path:&SPPath) {}
+    fn update_path_children(&mut self, _path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {}
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Variable(self)
     }
@@ -672,7 +680,8 @@ impl Noder for Transition {
     ) -> Option<SPItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path:&SPPath) {}
+    fn update_path_children(&mut self, _path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Transition(self)
     }
@@ -763,9 +772,9 @@ impl Noder for Ability {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| find_item_in_list(self.predicates.as_slice(), name, path_sections))
     }
-    fn update_path_children(&mut self, path:&SPPath) {
-        update_path_in_list(self.transitions.as_mut_slice(), path);
-        update_path_in_list(self.predicates.as_mut_slice(), path);
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        update_path_in_list(self.transitions.as_mut_slice(), path, changes);
+        update_path_in_list(self.predicates.as_mut_slice(), path, changes);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Ability(self)
@@ -830,11 +839,11 @@ impl Noder for Operation {
                     .and_then(|ref x| x.find_item(name, path_sections))
             })
     }
-    fn update_path_children(&mut self, path:&SPPath) {
-        update_path_in_list(self.start.as_mut_slice(), path);
-        update_path_in_list(self.finish.as_mut_slice(), path);
-        self.goal.as_mut().map(|mut x| x.update_path(path));
-        self.invariant.as_mut().map(|mut x| x.update_path(path));
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        update_path_in_list(self.start.as_mut_slice(), path, changes);
+        update_path_in_list(self.finish.as_mut_slice(), path, changes);
+        self.goal.as_mut().map(|mut x| x.update_path(path, changes));
+        self.invariant.as_mut().map(|mut x| x.update_path(path, changes));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
@@ -899,7 +908,7 @@ impl Noder for IfThen {
     ) -> Option<SPItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path:&SPPath) {}
+    fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::IfThen(self)
     }
@@ -944,7 +953,7 @@ impl Noder for Spec {
     ) -> Option<SPItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path:&SPPath) {}
+    fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Spec(self)
     }

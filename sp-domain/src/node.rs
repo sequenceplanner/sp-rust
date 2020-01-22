@@ -2,6 +2,7 @@
 //!
 
 use super::*;
+use std::collections::HashMap;
 
 /// The SPNode is tracking the name and the local and global path of an item
 /// The SPNode should be wrapped inside the item struct and the item should
@@ -31,10 +32,12 @@ impl SPNode {
         &mut self.path
     }
 
-    pub fn update_path(&mut self, path: &SPPath) -> SPPath {
+    // returns the node's new path and optionally its old path, if it was not empty
+    pub fn update_path(&mut self, path: &SPPath) -> (SPPath, Option<SPPath>) {
         let mut p = path.clone();
+        let old = if p.path.is_empty() { None } else { Some(self.path().clone()) };
         self.path = p.add_child(&self.name);
-        self.path().clone()
+        (self.path().clone(), old)
     }
 
     pub fn is_eq(&self, path: &SPPath) -> bool {
@@ -68,7 +71,7 @@ pub trait Noder {
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>>;
-    fn update_path_children(&mut self, path: &SPPath);
+    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>);
     fn as_ref(&self) -> SPItemRef<'_>;
     fn path(&self) -> &SPPath {
         self.node().path()
@@ -97,7 +100,7 @@ pub trait Noder {
                     .path()
                     .path
                     .contains(&x.to_string())
-                    
+
             });
             if found_it {
                 return Some(self.as_ref());
@@ -107,9 +110,12 @@ pub trait Noder {
     }
 
     /// updates the path of this item and its children
-    fn update_path(&mut self, path: &SPPath) -> SPPath {
-        let p = self.node_mut().update_path(path);
-        self.update_path_children(&p);
+    fn update_path(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) -> SPPath {
+        let (p, old) = self.node_mut().update_path(path);
+        if let Some(old) = old {
+            changes.insert(old, p.clone());
+        }
+        self.update_path_children(&p, changes);
         p
     }
 }
@@ -153,12 +159,12 @@ where
 
 /// A method used by the items when impl the Noder trait
 /// Updates the path in items in the list of items impl Noder
-pub fn update_path_in_list<'a, T>(xs: &'a mut [T], path: &SPPath)
+pub fn update_path_in_list<'a, T>(xs: &'a mut [T], path: &SPPath, changes: &mut HashMap<SPPath, SPPath>)
 where
     T: Noder,
 {
     for i in xs.iter_mut() {
-        i.update_path(path);
+        i.update_path(path, changes);
     }
 }
 

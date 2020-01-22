@@ -2,20 +2,21 @@ use sp_domain::*;
 use sp_runner::*;
 use sp_runner_api::*;
 
-/*
+
 #[test]
 fn plan_fail_1_step() {
-    let (model, state) = one_robot();
-    let state = state.external();
+    let (model, state) = one_dummy_robot();
 
     let activated = model
         .model
-        .find_item("data", &["activated"])
-        .unwrap_global_path();
+        .find_item("active", &[])
+        .expect("check spelling").path();
     let goal = p!(activated);
 
+    assert!(false);
+
     // requires at least step = 2 to find a plan
-    let result = compute_plan(&vec![goal], &state, &model, 1);
+    let result = compute_plan(&vec![goal], &state, &model, 2);
 
     assert!(!result.plan_found);
 
@@ -23,11 +24,12 @@ fn plan_fail_1_step() {
         result
             .trace
             .last()
-            .and_then(|f| f.state.s.get(&SPPath::GlobalPath(activated))),
+            .and_then(|f| f.state.sp_value_from_path(&activated)),
         Some(&true.to_spvalue())
     );
 }
 
+/*
 #[test]
 fn plan_success_2_steps() {
     let (model, state) = one_robot();
@@ -132,5 +134,4 @@ fn planner_fail_due_to_conflicting_specs_and_goal() {
     let result = compute_plan(&vec![goal], &state, &model, 20);
     assert!(result.plan_found);
 }
-
 */

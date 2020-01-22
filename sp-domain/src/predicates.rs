@@ -16,7 +16,7 @@ pub enum Predicate {
     // LT(PredicateValue, PredicateValue),
     // INDOMAIN(PredicateValue, Vec<PredicateValue>),
 }
- 
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct Action {
     pub var: SPPath,
@@ -74,8 +74,8 @@ impl<'a> PredicateValue {
                 } else if sp.clone().map(|x| x.state_id != state.id()).unwrap_or(false) {
                     *sp = state.state_path(path);
                 }
-                    
-                
+
+
             }
             _ => {}
         }
@@ -89,6 +89,14 @@ impl<'a> PredicateValue {
     }
 
 
+    pub fn replace_variable_path(&mut self, mapping: &[(SPPath,SPPath)]) {
+        match self {
+            PredicateValue::SPValue(_) => {} ,
+            PredicateValue::SPPath(op, _) => {
+                mapping.iter().find(|(p, _np)| op == p).iter_mut().for_each(|(_p, np)| *op = np.clone());
+            }
+        }
+    }
 }
 
 
@@ -97,12 +105,6 @@ impl Default for PredicateValue {
         PredicateValue::SPValue(false.to_spvalue())
     }
 }
-
-// fn replace_in_vec(xs: &mut Vec<Predicate>, map: &HashMap<SPPath, SPPath>) {
-//     xs.iter_mut().for_each(|p| {
-//         p.replace_variable_path(map);
-//     })
-// }
 
 impl Predicate {
     pub fn upd_state_path(&mut self, state: &SPState) {
@@ -125,24 +127,24 @@ impl Predicate {
     }
 
 
-    // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
-    //     match self {
-    //         Predicate::AND(x) => { replace_in_vec(x, map) }
-    //         Predicate::OR(x) => { replace_in_vec(x, map) },
-    //         Predicate::XOR(x) => { replace_in_vec(x, map) },
-    //         Predicate::NOT(x) => { x.replace_variable_path(map)},
-    //         Predicate::TRUE => {},
-    //         Predicate::FALSE => {},
-    //         Predicate::EQ(x, y) => {
-    //             x.replace_variable_path(map);
-    //             y.replace_variable_path(map);
-    //         },
-    //         Predicate::NEQ(x, y) => {
-    //             x.replace_variable_path(map);
-    //             y.replace_variable_path(map);
-    //         },
-    //     }
-    // }
+    pub fn replace_variable_path(&mut self, mapping: &[(SPPath,SPPath)]) {
+        match self {
+            Predicate::AND(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
+            Predicate::OR(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
+            Predicate::XOR(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
+            Predicate::NOT(b) => { b.replace_variable_path(mapping);},
+            Predicate::TRUE => {},
+            Predicate::FALSE => {},
+            Predicate::EQ(pv1, pv2) => {
+                pv1.replace_variable_path(mapping);
+                pv2.replace_variable_path(mapping);
+            },
+            Predicate::NEQ(pv1, pv2) => {
+                pv1.replace_variable_path(mapping);
+                pv2.replace_variable_path(mapping);
+            },
+        }
+    }
 }
 
 impl Action {
@@ -153,26 +155,25 @@ impl Action {
             state_path: None,
         }
     }
-    
+
     pub fn upd_state_path(&mut self, state: &SPState) {
         match &self.state_path {
-            Some(sp) if sp.state_id != state.id() => 
+            Some(sp) if sp.state_id != state.id() =>
                 self.state_path = state.state_path(&self.var),
-            None => 
+            None =>
                 self.state_path = state.state_path(&self.var),
             _ => {}
         }
     }
 
 
-    // pub fn replace_variable_path(&mut self, map: &HashMap<SPPath, SPPath>) {
-    //     match &mut self.value {
-    //         Compute::PredicateValue(x) => { x.replace_variable_path(map) }
-    //         Compute::Predicate(x) => { x.replace_variable_path(map) }
-    //         Compute::Delay(x, _) => { x.replace_variable_path(map) }
-    //         _ => (),
-    //     }
-    // }
+    pub fn replace_variable_path(&mut self, mapping: &[(SPPath,SPPath)]) {
+        mapping.iter().find(|(p, _np)| &self.var == p).iter_mut().for_each(|(_p, np)| self.var = np.clone());
+        match &mut self.value {
+            Compute::PredicateValue(pv) => { pv.replace_variable_path(mapping); }
+            Compute::Predicate(p) => { p.replace_variable_path(mapping); }
+        }
+    }
 }
 
 impl Default for Predicate {
@@ -281,7 +282,7 @@ impl EvaluatePredicate for Action {
         }
     }
 
-    
+
 }
 
 // TODO: Just an experimental impl to learn. Hard to make it general
@@ -656,25 +657,27 @@ mod sp_value_test {
         assert!(false);
     }
 
-    //#[test]
-    // fn replace_variable_path() {
-    //     let ab = SPPath::from_slice(&["a", "b"]);
-    //     let ac = SPPath::from_slice(&["a", "c"]);
-    //     let kl = SPPath::from_slice(&["k", "l"]);
+    #[test]
+    fn replace_variable_path() {
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let ac = SPPath::from_slice(&["a", "c"]);
+        let kl = SPPath::from_slice(&["k", "l"]);
 
-    //     let p = p!{ab == 2};
-    //     let p2 = p!{{["a", "b"]} == 2};
-    //     let x = pr!{p2 && p && p && p};
-    //     let y = pr!{{p!{{["a", "c"]} == 10}} && {p!{{["a", "b"]} == 20}}};
-    //     let z = pr!{ {p!{{["a", "c"]}}} && {p!{ab == 2}}};
-    //     let k = pr!{{pr!{x || y}} && {p!{ab != 5}}};
-    //     let mut long = pr!{z || k};
-    //     println!("TEST: {:?}", &long.clone());
+        let p = p!{ab == 2};
+        let p2 = p!{{["a", "b"]} == 2};
+        let x = pr!{p2 && p && p && p};
+        let y = pr!{{p!{{["a", "c"]} == 10}} && {p!{{["a", "b"]} == 20}}};
+        let z = pr!{ {p!{{["a", "c"]}}} && {p!{ab == 2}}};
+        let k = pr!{{pr!{x || y}} && {p!{ab != 5}}};
+        let mut long = pr!{z || k};
+        println!("before");
+        println!("{:?}", &long.clone());
 
-    //     let mut m = HashMap::new();
-    //     m.insert(ab, kl);
-    //     long.replace_variable_path(&m);
-    //     println!("After replace: {:?}", &long);
+        long.replace_variable_path(&[(ab, kl)]);
+        println!("after");
+        println!("{:?}", &long);
 
-    // }
+        assert!(false);
+
+    }
 }
