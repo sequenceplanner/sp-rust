@@ -182,7 +182,7 @@ impl Runner {
         if !self.untouched_state_paths.is_empty() {
             let rn = self.untouched_state_paths.iter().map(|s|s.to_string()).collect::<Vec<_>>().join(", ");
             println!("WAITING FOR RESOURCES: {}", rn);
-            // return RunnerPlans::default();
+            return RunnerPlans::default();
         }
 
 
@@ -211,7 +211,11 @@ impl Runner {
 
         let mut new_ab_plan: Vec<AbPlanItem> = Vec::new();
 
-        let mut wait_for = SPState::default();
+        // the following is super hacky. orig is just to have a state
+        // with all correct paths... since we can no longer add
+        // variables using action.next.
+        let mut wait_for = self.state.clone();
+        let orig = self.state.clone();
         for f in &result.trace {
             if let Some(mut uc) = self.model.ab_transitions.un_ctrl.iter_mut().find(|c| c.path() == &f.transition) {
                     uc.actions.iter_mut().for_each(|a| {
@@ -224,27 +228,31 @@ impl Runner {
                     });
                     println!("ADDING EFFECT OF TRANS {}: {:?}", uc.path(), wait_for);
                 }
-            if let Some(mut c) = self.model.ab_transitions.ctrl.iter_mut().find(|c| c.path() == &f.transition) {
-                    // turn current wait for state into a guard.
-                    let guard = Predicate::AND(wait_for.projection().clone_vec_value().into_iter().map(|(k,v)| {
-                            Predicate::EQ(PredicateValue::path(k), PredicateValue::value(v))
-                    }).collect());
+            if let Some(c) = self.model.ab_transitions.ctrl.iter_mut().find(|c| c.path() == &f.transition) {
+                // turn current wait for state into a guard.
+                let guard = Predicate::AND(wait_for.projection().clone_vec_value().into_iter().flat_map(|(k,v)| {
+                    // only collect if value has changed.
+                    match orig.sp_value_from_path(&k) {
+                        Some(nv) if nv != &v => Some(Predicate::EQ(PredicateValue::path(k), PredicateValue::value(v))),
+                        _ => None
+                    }
+                }).collect());
 
-                    let api = AbPlanItem { transition: f.transition.clone(), guard: guard};
-                    println!("GUARD FOR TRANS {}: {:?}", api.transition, api.guard);
-                    new_ab_plan.push(api);
+                let api = AbPlanItem { transition: f.transition.clone(), guard: guard};
+                println!("GUARD FOR TRANS {}: {:?}", api.transition, api.guard);
+                new_ab_plan.push(api);
 
 
-                    // reset wait_for state
-                    wait_for = SPState::default();
+                // reset wait_for state
+                wait_for = orig.clone();
 
-                    // add any effects of taking this trans to new wait for
-                    c.effects.iter_mut().for_each(|a| {
-                        a.next(&mut wait_for);
-                        wait_for.take_transition();
-                    });
-                    println!("ADDING EFFECT OF TRANS {}: {:?}", c.path(), wait_for);
-                }
+                // add any effects of taking this trans to new wait for
+                c.effects.iter_mut().for_each(|a| {
+                    a.next(&mut wait_for);
+                    wait_for.take_transition();
+                });
+                println!("ADDING EFFECT OF TRANS {}: {:?}", c.path(), wait_for);
+            }
         }
 
         println!("plan is: {:?}", new_ab_plan.iter().map(|p|p.transition.clone()).collect::<Vec<_>>());

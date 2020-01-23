@@ -147,157 +147,159 @@ fn sp_action_to_ex(a: &Action,
 }
 
 
-// pub fn extract_guards(model: &Model, init: &Predicate) ->
-//     (HashMap<String, Predicate>, Predicate) {
-//     let items = model.items();
+pub fn extract_guards(model: &Model, init: &Predicate) ->
+    (HashMap<String, Predicate>, Predicate) {
+    let items = model.items();
 
-//     // find "ab" transitions from resources
-//     let resources: Vec<&Resource> = items
-//         .iter()
-//         .flat_map(|i| match i {
-//             SPItem::Resource(r) => Some(r),
-//             _ => None,
-//         })
-//         .collect();
+    // find "ab" transitions from resources
+    let resources: Vec<&Resource> = items
+        .iter()
+        .flat_map(|i| match i {
+            SPItem::Resource(r) => Some(r),
+            _ => None,
+        })
+        .collect();
 
-//     let trans: Vec<_> = resources.iter().flat_map(|r| r.make_global_transitions()).collect();
+    let trans: Vec<_> = resources.iter().flat_map(|r| r.make_global_transitions()).collect();
 
-//     let preds: Vec<_> = resources.iter().flat_map(|r| r.make_global_state_predicates()).collect();
-//     let pred_map: HashMap<_,_> = preds.iter().flat_map(|p| {
-//         match p.variable_type() {
-//             VariableType::Predicate(x) => Some((p.get_path(), x.clone())),
-//             _ => None
-//         }
-//     }).collect();
+    let preds: Vec<_> = resources.iter().flat_map(|r| r.make_global_state_predicates()).collect();
+    let pred_map: HashMap<_,_> = preds.iter().flat_map(|p| {
+        match p.variable_type() {
+            VariableType::Predicate(x) => Some((p.path().clone(), x.clone())),
+            _ => None
+        }
+    }).collect();
 
-//     let vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
+    let vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
 
-//     let mut c = Context::new(); // guard extraction context
-//     let mut var_map = HashMap::new();
+    let mut c = Context::new(); // guard extraction context
+    let mut var_map = HashMap::new();
 
-//     for v in &vars {
-//         println!("{} {:?} {}", v.get_path(), v.value_type(), v.domain().len());
+    for v in &vars {
+        println!("{} {:?} {}", v.path(), v.value_type(), v.domain().len());
 
-//         let index = if v.value_type() == SPValueType::Bool {
-//             c.add_bool(&v.get_path().to_string())
-//         } else {
-//             c.add_enum(&v.get_path().to_string(), v.domain().len())
-//         };
-//         var_map.insert(v.get_path().clone(), (index, v.clone()));
-//     }
+        let index = if v.value_type() == SPValueType::Bool {
+            c.add_bool(&v.path().to_string())
+        } else {
+            c.add_enum(&v.path().to_string(), v.domain().len())
+        };
+        var_map.insert(v.path().clone(), (index, v.clone()));
+    }
 
-//     // that was all vars, now add the transitions...
-//     let mut bc = BDDContext::from(&c);
+    // that was all vars, now add the transitions...
+    let mut bc = BDDContext::from(&c);
 
-//     for t in &trans {
-//         let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
-//         println!("guard: {:?}", guard);
+    for t in &trans {
+        let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
+        println!("guard: {:?}", guard);
 
-//         let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-//         // println!("action: {:?}", actions);
+        let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+        // println!("action: {:?}", actions);
 
-//         let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-//         //println!("effects: {:?}", effects);
+        let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+        //println!("effects: {:?}", effects);
 
-//         let mut a = Vec::new();
-//         a.extend(actions.iter().cloned());
-//         a.extend(effects.iter().cloned());
-//         let a = Ex::AND(a);
-//         println!("all a/effects: {:?}", a);
+        let mut a = Vec::new();
+        a.extend(actions.iter().cloned());
+        a.extend(effects.iter().cloned());
+        let a = Ex::AND(a);
+        println!("all a/effects: {:?}", a);
 
-//         if t.controlled() {
-//             bc.c_trans(&t.get_path().to_string(), guard, a);
-//         } else {
-//             bc.uc_trans(&t.get_path().to_string(), guard, a);
-//         }
-//     }
-
-
-//     // pull out all specs.
-//     let forbidden =  Ex::AND(model.items().iter().flat_map(|i| match i {
-//         SPItem::Spec(s) => {
-//             // todo... now we just care about the first expression in each spec
-//             let s = s.always().first().unwrap().clone();
-//             let ex = Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)));
-//             // forbidden = not always
-//             Some(ex)
-//         },
-//         _ => None,
-//     }).collect());
-
-//     // let s = spec.always().first().unwrap().clone(); // lazy
-//     // let sex = sp_pred_to_ex(&s, &var_map, &pred_map);
-//     // println!("forbidden {:?}", sex);
-
-//     let forbidden = bc.from_expr(&forbidden);
-//     // println!("{:#?}", bc);
+        if t.controlled() {
+            bc.c_trans(&t.path().to_string(), guard, a);
+        } else {
+            bc.uc_trans(&t.path().to_string(), guard, a);
+        }
+    }
 
 
-//     let init = sp_pred_to_ex(&init, &var_map, &pred_map);
-//     println!("init {:?}", init);
+    // pull out all specs.
+    let forbidden =  Ex::AND(model.items().iter().flat_map(|i| match i {
+        SPItem::Spec(s) => {
+            // todo... now we just care about the first expression in each spec
+            let s = s.always().first().unwrap().clone();
+            let ex = Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)));
+            // forbidden = not always
+            Some(ex)
+        },
+        _ => None,
+    }).collect());
 
-//     let init = bc.from_expr(&init);
+    // let s = spec.always().first().unwrap().clone(); // lazy
+    // let sex = sp_pred_to_ex(&s, &var_map, &pred_map);
+    // println!("forbidden {:?}", sex);
 
-
-//     let initial = bc.from_expr(&Ex::TRUE); // all states
-//     println!("bdd one {:?}", initial);
-
-//     let (reachable, bad, controllable) = bc.controllable(initial, forbidden);
-
-//     let state_count = satcount(&mut bc.b, controllable, bc.num_vars);
-//     println!("Nbr of states in supervisor: {}\n", state_count);
-//     let reachable_state_count = satcount(&mut bc.b, reachable, bc.num_vars);
-//     println!("Nbr of reachable states: {}\n", reachable_state_count);
-
-
-//     let new_guards = bc.compute_guards(controllable, bad);
-
-//     for (trans, guard) in &new_guards {
-//         let s = c.pretty_print(&guard);
-//         // println!("NEW GUARD FOR {}: {}", trans, s);
-//         // println!("NEW GUARD FOR {}: {:?}", trans, guard);
-//         let sppred = ex_to_sp_pred(&guard, &var_map, &pred_map);
-//         println!("sppred guard {}: {:?}", trans, sppred);
-//     }
-
-//     let new_initial = bc.to_expr(controllable);
-//     let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
+    let forbidden = bc.from_expr(&forbidden);
+    // println!("{:#?}", bc);
 
 
-//     let gm = new_guards.iter().map(|(path,guard)| (path.clone(),
-//                                                    ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
-//     (gm, new_initial)
-//     }
+    let init = sp_pred_to_ex(&init, &var_map, &pred_map);
+    println!("init {:?}", init);
 
-// #[test]
-// fn test_guard_extraction() {
-//     use crate::testing::*;
+    let init = bc.from_expr(&init);
 
-//     // Make model
-//     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
-//     // Make resoureces
-//     m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-//     m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    let initial = bc.from_expr(&Ex::TRUE); // all states
+    println!("bdd one {:?}", initial);
 
-//     // Make some global stuff
-//     let r1_p_a = m.find_item("act_pos", &["r1"]).unwrap_global_path().to_sp();
-//     let r2_p_a = m.find_item("act_pos", &["r2"]).unwrap_global_path().to_sp();
+    let (reachable, bad, controllable) = bc.controllable(initial, forbidden);
 
-//     // Specifications
-//     let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
-//     let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
-//     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    let state_count = satcount(&mut bc.b, controllable, bc.num_vars);
+    println!("Nbr of states in supervisor: {}\n", state_count);
+    let reachable_state_count = satcount(&mut bc.b, reachable, bc.num_vars);
+    println!("Nbr of reachable states: {}\n", reachable_state_count);
 
-//     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
-//     assert_eq!(new_guards.len(), 4);
-//     assert_ne!(new_initial, Predicate::TRUE);
-// }
+    let new_guards = bc.compute_guards(controllable, bad);
+
+    for (trans, guard) in &new_guards {
+        let s = c.pretty_print(&guard);
+        // println!("NEW GUARD FOR {}: {}", trans, s);
+        // println!("NEW GUARD FOR {}: {:?}", trans, guard);
+        let sppred = ex_to_sp_pred(&guard, &var_map, &pred_map);
+        println!("sppred guard {}: {:?}", trans, sppred);
+    }
+
+    let new_initial = bc.to_expr(controllable);
+    let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
+
+
+    let gm = new_guards.iter().map(|(path,guard)| (path.clone(),
+                                                   ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
+    (gm, new_initial)
+    }
+
+#[test]
+fn test_guard_extraction() {
+    use crate::testing::*;
+
+    // Make model
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+
+    // Make some global stuff
+    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+
+    // Specifications
+    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
+    let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
+    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+
+    let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
+
+    assert_eq!(new_guards.len(), 4);
+    assert_ne!(new_initial, Predicate::TRUE);
+
+    assert!(false);
+}
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {
 
-    // let (new_guards, new_initial) = extract_guards(&model, &Predicate::TRUE);
+    let (new_guards, new_initial) = extract_guards(&model, &Predicate::TRUE);
 
 
     let items = model.items();
@@ -314,16 +316,16 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     let trans: Vec<_> = resources.iter().flat_map(|r| r.make_global_transitions()).collect();
 
     let mut ab_ctrl: Vec<_> = trans.iter().filter(|t|t.controlled()).cloned().collect();
-    // ab_ctrl.iter_mut().for_each(|ct| {
-    //     match new_guards.get(&ct.get_path().to_string()) {
-    //         Some(t) => // AND with new guards.
-    //         {
-    //             println!("UPDATING GUARD FOR TRANS {}", ct.get_path());
-    //             *ct.mut_guard() = Predicate::AND(vec![ct.guard().clone(), t.clone()]);
-    //         },
-    //         None => {},
-    //     }
-    // });
+    ab_ctrl.iter_mut().for_each(|ct| {
+        match new_guards.get(&ct.path().to_string()) {
+            Some(t) => // AND with new guards.
+            {
+                println!("UPDATING GUARD FOR TRANS {}", ct.path());
+                *ct.mut_guard() = Predicate::AND(vec![ct.guard().clone(), t.clone()]);
+            },
+            None => {},
+        }
+    });
     let ab_un_ctrl = trans.iter().filter(|t|!t.controlled()).cloned().collect();
 
     let preds: Vec<_> = resources.iter().flat_map(|r| r.make_global_state_predicates()).collect();
