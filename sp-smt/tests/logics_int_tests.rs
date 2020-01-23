@@ -35,6 +35,21 @@ fn test_new_or(){
 }
 
 #[test]
+fn test_new_distinct(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let boolsort = BoolSortZ3::new(&ctx);
+
+    let bool1 = BoolZ3::new(&ctx, true);
+
+    let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
+
+    let dist1 = DISTINCTZ3::new(&ctx, vec!(x1, bool1));
+
+    assert_eq!("(distinct x1 true)", ast_to_string_z3!(&ctx, dist1));
+}
+
+#[test]
 fn test_new_not(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
@@ -189,6 +204,53 @@ fn test_or_macro_2(){
     );
     let or1 = or_z3!(&ctx, some);
     assert_eq!("(or x true y)", ast_to_string_z3!(&ctx, or1));
+}
+
+#[test]
+fn test_distinct_macro_1(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let dist1 = distinct_z3!(&ctx,
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true)
+    );
+    assert_eq!("(distinct x true)", ast_to_string_z3!(&ctx, dist1));
+}
+
+#[test]
+fn test_distinct_macro_2(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let some = vec!(
+        bool_var_z3!(&ctx, "x"),
+        bool_z3!(&ctx, true)
+    );
+    let dist1 = distinct_z3!(&ctx, some);
+    assert_eq!("(distinct x true)", ast_to_string_z3!(&ctx, dist1));
+}
+
+#[test]
+fn test_distinct_macro_3(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let slv = slv_z3!(&ctx);
+    let some = vec!(
+        int_var_z3!(&ctx, "x"),
+        int_var_z3!(&ctx, "y"),
+        int_var_z3!(&ctx, "z"),
+        int_var_z3!(&ctx, "m"),
+        int_z3!(&ctx, -1)
+    );
+    let dist1 = distinct_z3!(&ctx, some);
+    slv_assert_z3!(&ctx, &slv, dist1);
+    slv_check_z3!(&ctx, &slv);
+    let model = slv_get_model_z3!(&ctx, &slv);
+    println!("{}", model_to_string_z3!(&ctx, model));
+    assert_eq!("z -> (- 3)
+y -> (- 4)
+x -> (- 5)
+m -> (- 2)
+", model_to_string_z3!(&ctx, model));
 }
 
 #[test]

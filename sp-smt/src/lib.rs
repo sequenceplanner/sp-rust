@@ -34,7 +34,7 @@ pub mod z3operations;
 pub use crate::z3operations::{MULZ3, DIVZ3, MODZ3, REMZ3, ADDZ3, SUBZ3, NEGZ3, POWZ3};
 
 pub mod z3logics;
-pub use crate::z3logics::{ANDZ3, ORZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, XORZ3};
+pub use crate::z3logics::{ANDZ3, ORZ3, DISTINCTZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, XORZ3};
 
 pub mod z3utils;
 pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3, ModelGetNumConstsZ3, ModelGetConstDeclZ3, 
