@@ -1,5 +1,6 @@
 use super::*;
 /// In this file both predicates and actions are defined
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -89,11 +90,13 @@ impl<'a> PredicateValue {
     }
 
 
-    pub fn replace_variable_path(&mut self, mapping: &[(SPPath,SPPath)]) {
+    pub fn replace_variable_path(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         match self {
             PredicateValue::SPValue(_) => {} ,
             PredicateValue::SPPath(op, _) => {
-                mapping.iter().find(|(p, _np)| op == p).iter_mut().for_each(|(_p, np)| *op = np.clone());
+                if let Some(np) = mapping.get(op) {
+                    *op = np.clone();
+                }
             }
         }
     }
@@ -127,7 +130,7 @@ impl Predicate {
     }
 
 
-    pub fn replace_variable_path(&mut self, mapping: &[(SPPath,SPPath)]) {
+    pub fn replace_variable_path(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         match self {
             Predicate::AND(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
             Predicate::OR(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
@@ -167,8 +170,10 @@ impl Action {
     }
 
 
-    pub fn replace_variable_path(&mut self, mapping: &[(SPPath,SPPath)]) {
-        mapping.iter().find(|(p, _np)| &self.var == p).iter_mut().for_each(|(_p, np)| self.var = np.clone());
+    pub fn replace_variable_path(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        if let Some(np) = mapping.get(&self.var) {
+            self.var = np.clone();
+        }
         match &mut self.value {
             Compute::PredicateValue(pv) => { pv.replace_variable_path(mapping); }
             Compute::Predicate(p) => { p.replace_variable_path(mapping); }
@@ -673,7 +678,8 @@ mod sp_value_test {
         println!("before");
         println!("{:?}", &long.clone());
 
-        long.replace_variable_path(&[(ab, kl)]);
+        let mapping = hashmap![ ab => kl ];
+        long.replace_variable_path(&mapping);
         println!("after");
         println!("{:?}", &long);
 

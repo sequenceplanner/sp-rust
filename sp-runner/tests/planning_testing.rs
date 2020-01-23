@@ -13,10 +13,9 @@ fn plan_fail_1_step() {
         .expect("check spelling").path();
     let goal = p!(activated);
 
-    assert!(false);
 
     // requires at least step = 2 to find a plan
-    let result = compute_plan(&vec![goal], &state, &model, 2);
+    let result = compute_plan(&vec![goal], &state, &model, 1);
 
     assert!(!result.plan_found);
 
@@ -29,16 +28,15 @@ fn plan_fail_1_step() {
     );
 }
 
-/*
+
 #[test]
 fn plan_success_2_steps() {
-    let (model, state) = one_robot();
-    let state = state.external();
+    let (model, state) = one_dummy_robot();
 
     let activated = model
         .model
-        .find_item("data", &["activated"])
-        .unwrap_global_path();
+        .find_item("active", &[])
+        .expect("check spelling").path();
     let goal = p!(activated);
 
     // requires at least step = 2 to find a plan
@@ -46,15 +44,18 @@ fn plan_success_2_steps() {
 
     assert!(result.plan_found);
 
+    println!("{:#?}", result);
+
     assert_eq!(
         result
             .trace
             .last()
-            .and_then(|f| f.state.s.get(&SPPath::GlobalPath(activated))),
+            .and_then(|f| f.state.sp_value_from_path(&activated)),
         Some(&true.to_spvalue())
     );
 }
 
+/*
 #[test]
 fn planner_debug_printouts() {
     let (model, state) = one_robot();

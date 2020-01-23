@@ -10,7 +10,7 @@ tokio-threadpool = "0.1.15"
 futures = "0.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0" 
+serde_json = "1.0"
 crossbeam = "0.7"
 #rayon = "1.1"
 #petgraph = "0.4.13"
@@ -22,3 +22,4 @@ failure_derive = "0.1.5"
 lazy_static = "1.4.0"
 chrono = { version = "0.4.9", features = ["serde"] }
 guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git" }
+indoc = "0.3"

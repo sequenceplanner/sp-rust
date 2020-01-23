@@ -157,7 +157,6 @@ mod ros {
                         let topic_cb = topic.clone();
                         let msgtype = t.msg().clone();
                         let cb = move |msg: r2r::Result<serde_json::Value>| {
-                            println!("json: {:?}", msg);
                             let json = msg.unwrap();
                             let mut state = json_to_state(&json, &msgtype);
                             state.prefix_paths(&topic_cb);

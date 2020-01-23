@@ -88,6 +88,19 @@ impl Noder for SPItem {
             SPItem::Spec(x) => x.update_path_children(path, changes),
         }
     }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        match self {
+            SPItem::Model(x) => x.rewrite_expressions(mapping),
+            SPItem::Resource(x) => x.rewrite_expressions(mapping),
+            SPItem::Topic(x) => x.rewrite_expressions(mapping),
+            SPItem::Variable(x) => x.rewrite_expressions(mapping),
+            SPItem::Operation(x) => x.rewrite_expressions(mapping),
+            SPItem::Ability(x) => x.rewrite_expressions(mapping),
+            SPItem::Transition(x) => x.rewrite_expressions(mapping),
+            SPItem::IfThen(x) => x.rewrite_expressions(mapping),
+            SPItem::Spec(x) => x.rewrite_expressions(mapping),
+        }
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         match self {
             SPItem::Model(x) => x.as_ref(),
@@ -226,6 +239,9 @@ impl Noder for Model {
     fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.items.as_mut_slice(), path, changes);
     }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.items.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Model(self)
     }
@@ -240,7 +256,7 @@ impl Model {
         let mut m = Model::new(name, items);
         let mut changes = HashMap::new();
         m.update_path(&SPPath::new(), &mut changes);
-        println!("MODEL CHANGES!!!: {:?}", changes);
+        m.rewrite_expressions(&changes); // propagate path changes
         m
     }
 
@@ -251,8 +267,8 @@ impl Model {
     pub fn add_item(&mut self, mut item: SPItem) -> SPPath {
         let mut changes = HashMap::new();
         let path = item.update_path(self.node.path(), &mut changes);
-        println!("ATT ITEM CHANGES!!!: {:?}", changes);
         self.items.push(item);
+        self.rewrite_expressions(&changes); // propagate path changes
         path
     }
 }
@@ -296,6 +312,12 @@ impl Noder for Resource {
         update_path_in_list(self.parameters.as_mut_slice(), &path, changes);
         update_path_in_list(self.sub_items.as_mut_slice(), &path, changes);
         update_path_in_list(self.messages.as_mut_slice(), &path, changes);
+    }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.abilities.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.parameters.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.sub_items.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.messages.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Resource(self)
@@ -495,6 +517,9 @@ impl Noder for Topic {
             }
         }
     }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        // TODO: variables with expressions in the messages.
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Topic(self)
     }
@@ -579,7 +604,13 @@ impl Noder for Variable {
     ) -> Option<SPItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {}
+    fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        match &mut self.type_ {
+            VariableType::Predicate(p) => p.replace_variable_path(mapping),
+            _ => (),
+        };
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Variable(self)
     }
@@ -680,7 +711,12 @@ impl Noder for Transition {
     ) -> Option<SPItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+    fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
+    }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.guard.replace_variable_path(mapping);
+        self.actions.iter_mut().for_each(|i| i.replace_variable_path(mapping));
+        self.effects.iter_mut().for_each(|i| i.replace_variable_path(mapping));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Transition(self)
@@ -776,6 +812,11 @@ impl Noder for Ability {
         update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         update_path_in_list(self.predicates.as_mut_slice(), path, changes);
     }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        // TODO
+        self.transitions.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.predicates.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Ability(self)
     }
@@ -845,6 +886,12 @@ impl Noder for Operation {
         self.goal.as_mut().map(|mut x| x.update_path(path, changes));
         self.invariant.as_mut().map(|mut x| x.update_path(path, changes));
     }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.start.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.finish.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        if let Some(goal) = &mut self.goal { goal.rewrite_expressions(mapping) };
+        if let Some(invariant) = &mut self.goal { invariant.rewrite_expressions(mapping) };
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
     }
@@ -909,6 +956,10 @@ impl Noder for IfThen {
         None
     }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.if_.replace_variable_path(mapping);
+        self.then_.replace_variable_path(mapping);
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::IfThen(self)
     }
@@ -954,6 +1005,9 @@ impl Noder for Spec {
         None
     }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.always.iter_mut().for_each(|i| i.replace_variable_path(mapping));
+    }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Spec(self)
     }

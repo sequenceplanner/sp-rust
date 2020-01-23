@@ -162,9 +162,6 @@ impl Runner {
                 Runner::upd_state_predicates(&mut self.model.state_predicates, &mut self.state);
                 return true;
             }
-            // update touched paths.
-            //s.keys().for_each(|p| {self.untouched_state_paths.remove(&p);});
-
         }
         false
     }
@@ -185,15 +182,16 @@ impl Runner {
         if !self.untouched_state_paths.is_empty() {
             let rn = self.untouched_state_paths.iter().map(|s|s.to_string()).collect::<Vec<_>>().join(", ");
             println!("WAITING FOR RESOURCES: {}", rn);
-            return RunnerPlans::default();
+            // return RunnerPlans::default();
         }
 
 
         let mut fired = if !self.ctrl.pause {
             // for now, fake the queue...
             let mut temp_q = Runner::enabled_ctrl(&self.state, &self.model.op_transitions);
+            println!("enabled operations: {:?}", temp_q);
             // self.tick_transitions(&mut state, &mut plans.op_plan, &self.model.op_transitions)
-            Runner::tick_transitions(&mut self.state, temp_q, &self.model.op_transitions,  &self.model.state_predicates)
+            Runner::tick_transitions(&mut self.state, temp_q, &self.model.op_transitions, &self.model.state_predicates)
         } else {
             // if we are paused, we can take transitions only if they are in the override list
             let mut temp: Vec<&SPPath> = self.ctrl.override_operation_transitions.iter().collect();

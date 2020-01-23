@@ -32,7 +32,7 @@ impl SPNode {
         &mut self.path
     }
 
-    // returns the node's new path and optionally its old path, if it was not empty
+    // returns the node's new path and optionally its old path, if it was not empty before
     pub fn update_path(&mut self, path: &SPPath) -> (SPPath, Option<SPPath>) {
         let mut p = path.clone();
         let old = if p.path.is_empty() { None } else { Some(self.path().clone()) };
@@ -72,6 +72,7 @@ pub trait Noder {
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>>;
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>);
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>);
     fn as_ref(&self) -> SPItemRef<'_>;
     fn path(&self) -> &SPPath {
         self.node().path()
@@ -193,7 +194,8 @@ mod node_tesing {
             ],
         );
 
-        m.update_path(&SPPath::new());
+        let mut mapping = HashMap::new();
+        m.update_path(&SPPath::new(), &mut mapping);
 
         let g_ab = SPPath::from_slice(&["m", "a", "b"]);
         let g_acd = SPPath::from_slice(&["m", "a", "c", "d"]);
@@ -233,7 +235,8 @@ mod node_tesing {
             ],
         );
 
-        m.update_path(&SPPath::new());
+        let mut mapping = HashMap::new();
+        m.update_path(&SPPath::new(), &mut mapping);
 
         let g_ab = SPPath::from_slice(&["m", "a", "b"]);
         let g_acd = SPPath::from_slice(&["m", "a", "c", "d"]);
@@ -273,7 +276,8 @@ mod node_tesing {
             ],
         );
 
-        m.update_path(&SPPath::new());
+        let mut mapping = HashMap::new();
+        m.update_path(&SPPath::new(), &mut mapping);
 
         let g_acd = SPPath::from_slice(&["m", "a", "c", "d"]);
         let g_k = SPPath::from_slice(&["m", "k", "d"]);

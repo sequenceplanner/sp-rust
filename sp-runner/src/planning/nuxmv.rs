@@ -349,7 +349,6 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
             let path_val: Vec<_> = l.split("=").map(|s| s.trim()).collect();
             let path = SPPath::from(path_val[0].split("#").map(|s|s.to_owned()).collect());
             let sppath = path.clone();
-
             let val = path_val.get(1).expect("no value!");
 
             // check for controllable actions
@@ -386,7 +385,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
                 if vars.contains_key(&sppath) {
                     let v = vars.get(&sppath).unwrap();
                     if v.variable_type() == VariableType::Measured {
-                        last.state.force_from_path(&sppath, spval);
+                        last.state.add_variable(sppath, spval);
                     }
                 }
             }
@@ -685,4 +684,104 @@ pub fn generate_offline_nuxvm(model: &RunnerModel, initial: &Predicate) {
     let filename = &format!("/tmp/model_out {}.bmc", datetime);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
+}
+
+
+#[test]
+fn test_post_process() {
+    use indoc::indoc;
+    let result = indoc!("
+    <!-- ################### Trace number: 1 ################### -->
+Trace Description: BMC Counterexample
+Trace Type: Counterexample
+  -> State: 1.1 <-
+    one_robot_model#r1#State#active = FALSE
+    one_robot_model#r1#Control#activate = FALSE
+    one_robot_model#r1#Control#ref_pos = unknown
+    one_robot_model#r1#State#act_pos = unknown
+    one_robot_model#r1#deactivate#enabled = FALSE
+    one_robot_model#r1#deactivate#executing = FALSE
+    one_robot_model#r1#deactivate#finished = TRUE
+    one_robot_model#r1#activate#executing = FALSE
+    one_robot_model#r1#activate#finished = FALSE
+    one_robot_model#r1#activate#enabled = TRUE
+    one_robot_model#r1#to_away#enabled = FALSE
+    one_robot_model#r1#to_away#finished = FALSE
+    one_robot_model#r1#to_away#executing = FALSE
+    one_robot_model#r1#to_table#executing = FALSE
+    one_robot_model#r1#to_table#enabled = FALSE
+    one_robot_model#r1#to_table#finished = FALSE
+  -> Input: 1.2 <-
+    one_robot_model#r1#to_table#start = FALSE
+    one_robot_model#r1#to_away#start = FALSE
+    one_robot_model#r1#activate#start = TRUE
+    one_robot_model#r1#deactivate#start = FALSE
+    one_robot_model#r1#to_table#finish = FALSE
+    one_robot_model#r1#to_away#finish = FALSE
+    one_robot_model#r1#activate#finish = FALSE
+    one_robot_model#r1#deactivate#finish = FALSE
+  -> State: 1.2 <-
+    one_robot_model#r1#State#active = FALSE
+    one_robot_model#r1#Control#activate = TRUE
+    one_robot_model#r1#Control#ref_pos = unknown
+    one_robot_model#r1#State#act_pos = unknown
+    one_robot_model#r1#deactivate#enabled = FALSE
+    one_robot_model#r1#deactivate#executing = FALSE
+    one_robot_model#r1#deactivate#finished = FALSE
+    one_robot_model#r1#activate#executing = TRUE
+    one_robot_model#r1#activate#finished = FALSE
+    one_robot_model#r1#activate#enabled = FALSE
+    one_robot_model#r1#to_away#enabled = FALSE
+    one_robot_model#r1#to_away#finished = FALSE
+    one_robot_model#r1#to_away#executing = FALSE
+    one_robot_model#r1#to_table#executing = FALSE
+    one_robot_model#r1#to_table#enabled = FALSE
+    one_robot_model#r1#to_table#finished = FALSE
+  -> Input: 1.3 <-
+    one_robot_model#r1#to_table#start = FALSE
+    one_robot_model#r1#to_away#start = FALSE
+    one_robot_model#r1#activate#start = FALSE
+    one_robot_model#r1#deactivate#start = FALSE
+    one_robot_model#r1#to_table#finish = FALSE
+    one_robot_model#r1#to_away#finish = FALSE
+    one_robot_model#r1#activate#finish = TRUE
+    one_robot_model#r1#deactivate#finish = FALSE
+  -> State: 1.3 <-
+    one_robot_model#r1#State#active = TRUE
+    one_robot_model#r1#Control#activate = TRUE
+    one_robot_model#r1#Control#ref_pos = unknown
+    one_robot_model#r1#State#act_pos = unknown
+    one_robot_model#r1#deactivate#enabled = TRUE
+    one_robot_model#r1#deactivate#executing = FALSE
+    one_robot_model#r1#deactivate#finished = FALSE
+    one_robot_model#r1#activate#executing = FALSE
+    one_robot_model#r1#activate#finished = TRUE
+    one_robot_model#r1#activate#enabled = FALSE
+    one_robot_model#r1#to_away#enabled = TRUE
+    one_robot_model#r1#to_away#finished = FALSE
+    one_robot_model#r1#to_away#executing = FALSE
+    one_robot_model#r1#to_table#executing = FALSE
+    one_robot_model#r1#to_table#enabled = TRUE
+    one_robot_model#r1#to_table#finished = FALSE
+nuXmv >
+");
+
+    let (model, state) = crate::testing::one_dummy_robot();
+        let items = model.model.items();
+    let resources: Vec<&Resource> = items
+        .iter()
+        .flat_map(|i| match i {
+            SPItem::Resource(r) => Some(r),
+            _ => None,
+        })
+        .collect();
+    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+
+    let trace = postprocess_nuxmv_problem(&result.to_string(), &model, &vars);
+
+    println!("{:#?}", trace);
+
+    assert!(false);
+
+    // todo: write the tests...
 }
