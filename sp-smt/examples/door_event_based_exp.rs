@@ -33,11 +33,11 @@ fn main() {
 
     // initial state:
     slv_assert_z3!(&ctx, &slv, 
-        eq_z3!(&ctx, state, closed)
-        // and_z3!(&ctx, 
-        //     eq_z3!(&ctx, state, opened)
-            // eq_z3!(&ctx, event, open)
-        // )
+        // eq_z3!(&ctx, state, closed)
+        and_z3!(&ctx, 
+            eq_z3!(&ctx, state, opened),
+            eq_z3!(&ctx, event, open)
+        )
     );
 
     // Even here we need transitioning states, since if we put event == "open"
@@ -61,7 +61,10 @@ fn main() {
     let trans = vec!(t1, t2, t3);
 
     for t in trans {
-         slv_assert_z3!(&ctx, &slv, t);
+        
+        // let slv = slv_z3!(&ctx);
+
+        slv_assert_z3!(&ctx, &slv, t);
         let res1 = slv_check_z3!(&ctx, &slv);
 
         if res1 == 1 {
@@ -77,6 +80,11 @@ fn main() {
 
         let model = slv_get_model_z3!(&ctx, &slv);
         println!("{}", model_to_string_z3!(&ctx, model));
+
+        // unsafe{
+        //     Z3_solver_pop(ctx.r, slv.r, 1);
+        // };
+
     }
 
    

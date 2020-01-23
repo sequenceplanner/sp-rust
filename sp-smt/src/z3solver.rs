@@ -47,7 +47,30 @@ pub struct SlvGetProofZ3<'ctx, 'slv> {
     pub r: Z3_ast
 }
 
-pub struct SlvGetAllModelsZ3<'ctx, 'slv> {
+pub struct SlvGetNModelsDontCareZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub n: u32,
+    pub r: Vec<Z3_model>,
+    pub s: Vec<String>
+}
+
+pub struct SlvGetNModelsExplicitZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub n: u32,
+    pub r: Vec<Z3_model>,
+    pub s: Vec<String>
+}
+
+pub struct SlvGetAllModelsDontCareZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: Vec<Z3_model>,
+    pub s: Vec<String>
+}
+
+pub struct SlvGetAllModelsExplicitZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
     pub r: Vec<Z3_model>,
@@ -221,16 +244,91 @@ impl<'ctx, 'slv> SlvToStringZ3<'ctx, 'slv> {
     }
 }
 
-impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
+impl<'ctx, 'slv> SlvGetAllModelsDontCareZ3<'ctx, 'slv> {
     /// Retrieve all models for previos assertions (actually, specify the nr of solutions you want). 
     /// This method works iteratively, adding constraints one by one from feasible solutions.
+    /// TODO: (boolean models for now, maybe add an int method later)
     /// 
     /// NOTE: See macro! `slv_get_all_models_z3!`
-    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, nr_solutions: i32) -> SlvGetAllModelsZ3<'ctx, 'slv> {
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> SlvGetAllModelsDontCareZ3<'ctx, 'slv> {
         let z3 = unsafe {
             let mut models: Vec<Z3_model> = Vec::new();
             let mut models_str: Vec<String> = Vec::new();
-            let mut nr_st: i32 = 0;
+            while SlvCheckZ3::new(&ctx, &slv) == 1 {
+                let model = SlvGetModelZ3::new(&ctx, &slv);
+                models.push(model);
+                models_str.push(ModelToStringZ3::new(&ctx, model));
+                let mut to_assert = Vec::new();
+                let num = ModelGetNumConstsZ3::new(&ctx, model);
+                for i in 0..num {
+                    let decl = ModelGetConstDeclZ3::new(&ctx, model, i);
+                    let var = GetDeclNameZ3::new(&ctx, model, decl);
+                    let var_str_init = GetSymbolStringZ3::new(&ctx, var);
+                    let var_str = &CStr::from_ptr(var_str_init).to_str().unwrap().to_owned();
+                    let val = ModelGetConstInterpZ3::new(&ctx, model, decl);
+                    let val_str = AstToStringZ3::new(&ctx, val);
+                    if val_str == "true" {
+                        to_assert.push(bool_var_z3!(&ctx, var_str));
+                    } else {
+                        to_assert.push(not_z3!(&ctx, bool_var_z3!(&ctx, var_str)));
+                    }
+                }
+                slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, and_z3!(&ctx, to_assert)));
+            }
+            (models, models_str)
+        };
+        SlvGetAllModelsDontCareZ3 {ctx, r: z3.0, s: z3.1, slv}        
+    }
+}
+
+impl<'ctx, 'slv> SlvGetAllModelsExplicitZ3<'ctx, 'slv> {
+    /// Retrieve all models for previos assertions (actually, specify the nr of solutions you want). 
+    /// This method works iteratively, adding constraints one by one from feasible solutions.
+    /// TODO: (boolean models for now, maybe add an int method later)
+    /// 
+    /// NOTE: See macro! `slv_get_all_models_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> SlvGetAllModelsExplicitZ3<'ctx, 'slv> {
+        let z3 = unsafe {
+            let mut models: Vec<Z3_model> = Vec::new();
+            let mut models_str: Vec<String> = Vec::new();
+            while SlvCheckZ3::new(&ctx, &slv) == 1 {
+                let model = SlvGetModelZ3::new(&ctx, &slv);
+                models.push(model);
+                models_str.push(ModelToStringZ3::new(&ctx, model));
+                let mut to_assert = Vec::new();
+                let num = ModelGetNumConstsZ3::new(&ctx, model);
+                for i in 0..num {
+                    let decl = ModelGetConstDeclZ3::new(&ctx, model, i);
+                    let var = GetDeclNameZ3::new(&ctx, model, decl);
+                    let var_str_init = GetSymbolStringZ3::new(&ctx, var);
+                    let var_str = &CStr::from_ptr(var_str_init).to_str().unwrap().to_owned();
+                    let val = ModelGetConstInterpZ3::new(&ctx, model, decl);
+                    let val_str = AstToStringZ3::new(&ctx, val);
+                    if val_str == "true" {
+                        to_assert.push(bool_var_z3!(&ctx, var_str));
+                    } else {
+                        to_assert.push(not_z3!(&ctx, bool_var_z3!(&ctx, var_str)));
+                    }
+                }
+                slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, and_z3!(&ctx, to_assert)));
+            }
+            (models, models_str)
+        };
+        SlvGetAllModelsExplicitZ3 {ctx, r: z3.0, s: z3.1, slv}        
+    }
+}
+
+impl<'ctx, 'slv> SlvGetNModelsDontCareZ3<'ctx, 'slv> {
+    /// Retrieve all models for previos assertions (actually, specify the nr of solutions you want). 
+    /// This method works iteratively, adding constraints one by one from feasible solutions.
+    /// TODO: (boolean models for now, maybe add an int method later)
+    /// 
+    /// NOTE: See macro! `slv_get_all_models_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, nr_solutions: u32) -> SlvGetNModelsDontCareZ3<'ctx, 'slv> {
+        let z3 = unsafe {
+            let mut models: Vec<Z3_model> = Vec::new();
+            let mut models_str: Vec<String> = Vec::new();
+            let mut nr_st: u32 = 0;
             while SlvCheckZ3::new(&ctx, &slv) == 1 && nr_st < nr_solutions {
                 nr_st = nr_st + 1;
                 let model = SlvGetModelZ3::new(&ctx, &slv);
@@ -256,7 +354,7 @@ impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
             }
             (models, models_str)
         };
-        SlvGetAllModelsZ3 {ctx, r: z3.0, s: z3.1, slv}        
+        SlvGetNModelsDontCareZ3 {ctx, n: nr_solutions, r: z3.0, s: z3.1, slv}        
     }
 }
 
@@ -563,6 +661,56 @@ fn get_proof_test() {
                                    (= (not (<= 2 x)) (not (>= x 2))))
                      (not (>= x 2)))
                  false)", slv_proof_to_string_z3!(&ctx, proof));
+
+}
+
+#[test]
+fn get_all_models_dont_care_test() {
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    let sort = BoolSortZ3::new(&ctx);
+    let x = BoolVarZ3::new(&ctx, &sort, "x");
+    let y = BoolVarZ3::new(&ctx, &sort, "y");
+    let z = BoolVarZ3::new(&ctx, &sort, "z");
+
+    SlvAssertZ3::new(&ctx, &slv, ORZ3::new(&ctx, vec!(x, y, z)));
+
+    // let models = SlvCheckZ3::new(&ctx, &slv);
+    let models = SlvGetAllModelsDontCareZ3::new(&ctx, &slv).s;
+
+    for model in models {
+        println!("{}", model);
+    }
+
+    // let models = SlvCheckZ3::new(&ctx, &slv);
+    // println!("{}", slv_proof_to_string_z3!(&ctx, models));
+
+}
+
+#[test]
+fn get_n_models_test() {
+    let cfg = ConfigZ3::new();
+    let ctx = ContextZ3::new(&cfg);
+    let slv = SolverZ3::new(&ctx);
+
+    let sort = BoolSortZ3::new(&ctx);
+    let x = BoolVarZ3::new(&ctx, &sort, "x");
+    let y = BoolVarZ3::new(&ctx, &sort, "y");
+    let z = BoolVarZ3::new(&ctx, &sort, "z");
+
+    SlvAssertZ3::new(&ctx, &slv, ORZ3::new(&ctx, vec!(x, y, z)));
+
+    // let models = SlvCheckZ3::new(&ctx, &slv);
+    let models = SlvGetNModelsDontCareZ3::new(&ctx, &slv, 2).s;
+
+    for model in models {
+        println!("{}", model);
+    }
+
+    // let models = SlvCheckZ3::new(&ctx, &slv);
+    // println!("{}", slv_proof_to_string_z3!(&ctx, models));
 
 }
 

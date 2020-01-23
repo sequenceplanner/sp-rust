@@ -51,7 +51,7 @@ fn main(){
         opt_assert_z3!(&ctx, &opt, 
             le_z3!(&ctx, 
                 int_var_z3!(&ctx, food), 
-                int_z3!(&ctx, 10)
+                max_servings
             )
         )        
     };
@@ -64,19 +64,19 @@ fn main(){
     for food_init in &foods {
         let food: &str = &format!("{}_servings", food_init).to_owned()[..];
         let food_index = foods.iter().position(|&r| r.to_string() == food_init.to_string()).unwrap();
-        total_nutrient.push(
+        &total_nutrient.push(
             mul_z3!(&ctx,
                 int_var_z3!(&ctx, food),
                 int_z3!(&ctx, nutrient[food_index])
             )
         );
-        total_calories.push(
+        &total_calories.push(
             mul_z3!(&ctx,
                 int_var_z3!(&ctx, food),
                 int_z3!(&ctx, calories[food_index])
             )
         );
-        total_cost.push(
+        &total_cost.push(
             mul_z3!(&ctx,
                 int_var_z3!(&ctx, food),
                 int_z3!(&ctx, cost[food_index])
@@ -84,6 +84,15 @@ fn main(){
         );
     };
     
+    let daily_cost = int_var_z3!(&ctx, "cost");
+    opt_assert_z3!(&ctx, &opt, ge_z3!(&ctx, daily_cost, add_z3!(&ctx, total_cost)));
+
+    let daily_nutrient = int_var_z3!(&ctx, "nutrient");
+    opt_assert_z3!(&ctx, &opt, ge_z3!(&ctx, daily_nutrient, add_z3!(&ctx, total_nutrient.clone())));
+
+    let daily_calories = int_var_z3!(&ctx, "calories");
+    opt_assert_z3!(&ctx, &opt, ge_z3!(&ctx, daily_calories, add_z3!(&ctx, total_calories.clone())));
+
     // the sum of nutrients from all servings of different foods must be at least the minimum required
     opt_assert_z3!(&ctx, &opt,
         ge_z3!(&ctx, 
@@ -103,7 +112,7 @@ fn main(){
     // the sum of nutrients from all servings of different foods must not exceed the maximum allowed
     opt_assert_z3!(&ctx, &opt,
         le_z3!(&ctx, 
-            add_z3!(&ctx, total_nutrient.clone()),
+            add_z3!(&ctx, total_nutrient),
             max_nutrient
         )
     );
@@ -111,14 +120,13 @@ fn main(){
     // same story for calories
     opt_assert_z3!(&ctx, &opt,
         le_z3!(&ctx, 
-            add_z3!(&ctx, total_calories.clone()),
+            add_z3!(&ctx, total_calories),
             max_calories
         )
     );
 
-    // the objective is to minimize the cost of food, meeting the req's from before
-    let z = add_z3!(&ctx, total_cost.clone());
-    opt_minimize_z3!(&ctx, &opt, z);
+    // the objective is to minimize the cost of food per day, meeting the req's from before
+    opt_minimize_z3!(&ctx, &opt, daily_cost);
 
     // check consistency and produce oprimal value:
     let res1 = opt_check_z3!(&ctx, &opt, );
