@@ -282,7 +282,7 @@ impl EvaluatePredicate for Action {
         };
         match sp
         {
-            Some(x) => x.has_next(),
+            Some(x) => !x.has_next(), // MD: I assume we meant to fail if we *already* had a next value for this action
             None => false, // We do not allow actions to add new state variables. But maybe this should change?
         }
     }
