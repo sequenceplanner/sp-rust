@@ -371,7 +371,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         model: model.clone(), // TODO: borrow?
     };
 
-    // crate::planning::generate_offline_nuxvm(&rm, &new_initial);
+    crate::planning::generate_offline_nuxvm(&rm, &new_initial);
 
     return rm;
 }

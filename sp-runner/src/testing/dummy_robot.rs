@@ -236,6 +236,251 @@ fn build_resource(r: &MResource) -> Resource {
     return r;
 }
 
+
+
+//
+//    # #![allow(unused_must_use)]
+//    macro_rules! write_html {
+//        ($w:expr, ) => (());
+//
+//        ($w:expr, $e:tt) => (write!($w, "{}", $e));
+//
+//        ($w:expr, $tag:ident [ $($inner:tt)* ] $($rest:tt)*) => {{
+//            write!($w, "<{}>", stringify!($tag));
+//            write_html!($w, $($inner)*);
+//            write!($w, "</{}>", stringify!($tag));
+//            write_html!($w, $($rest)*);
+//        }};
+//    }
+//
+//    fn main() {
+//    #   // FIXME(#21826)
+//        use std::fmt::Write;
+//        let mut out = String::new();
+//
+//        write_html!(&mut out,
+//            html[
+//                head[title["Macros guide"]]
+//                body[h1["Macros are the best!"]]
+//            ]);
+//
+//        assert_eq!(out,
+//            "<html><head><title>Macros guide</title></head>\
+//             <body><h1>Macros are the best!</h1></body></html>");
+//    }
+
+macro_rules! rpn {
+    (@op [$b:expr, $a:expr $(,$stack:expr)*] $op:tt $($rest:tt)*) => {
+        rpn!([$a $op $b $(,$stack)*] $($rest)*)
+    };
+
+    ($stack:tt + $($rest:tt)*) => {
+        rpn!(@op $stack + $($rest)*)
+    };
+
+    ([$($stack:expr),*] $num:tt $($rest:tt)*) => {
+        rpn!([$num $(,$stack)*] $($rest)*)
+    };
+
+    ([$result:expr]) => {
+        $result
+    };
+}
+
+macro_rules! command {
+    (topic: $t:tt , $($rest:tt)*) => {{
+        let mut cmd = CommandTopic {
+            topic: String::from($t),
+            ros_type: String::new(),
+            vars: HashMap::new(),
+            initial_values: HashMap::new(),
+        };
+        command!(private cmd $($rest)*)
+    }};
+
+    // no domain defaults to boolean variable
+    (private $cmd:ident msg_type: $msg_type:tt, $($rest:tt)*) => {{
+        $cmd.ros_type = String::from($msg_type);
+        command!(private $cmd $($rest)*)
+    }};
+
+    // no domain defaults to boolean variable
+    (private $cmd:ident $var_name:tt : bool, $($rest:tt)*) => {{
+        $cmd.vars.insert(stringify!($var_name).to_string(),
+                         Domain { domain: None } );
+        command!(private $cmd $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $cmd:ident $first:tt : bool) => {{
+        command!(private $cmd $first : bool ,)
+    }};
+
+    // variable with domain + trailing comma
+    (private $cmd:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+        {
+            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            $cmd.vars.insert(stringify!($var_name).to_string(),
+                             Domain { domain: Some(domain) } );
+        }
+        command!(private $cmd $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $cmd:ident $first:tt : $second:tt) => {{
+        command!(private $cmd $first : $second ,)
+    }};
+
+    (private $cmd:expr) => {{
+        $cmd
+    }};
+}
+
+macro_rules! measured {
+    (topic: $t:tt , $($rest:tt)*) => {{
+        let mut measured = MeasuredTopic {
+            topic: String::from($t),
+            ros_type: String::new(),
+            vars: HashMap::new(),
+        };
+        measured!(private measured $($rest)*)
+    }};
+
+    // no domain defaults to boolean variable
+    (private $measured:ident msg_type: $msg_type:tt, $($rest:tt)*) => {{
+        $measured.ros_type = String::from($msg_type);
+        measured!(private $measured $($rest)*)
+    }};
+
+    // no domain defaults to boolean variable
+    (private $measured:ident $var_name:tt : bool, $($rest:tt)*) => {{
+        $measured.vars.insert(stringify!($var_name).to_string(),
+                              Domain { domain: None } );
+        measured!(private $measured $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $measured:ident $first:tt : bool) => {{
+        measured!(private $measured $first : bool ,)
+    }};
+
+    // variable with domain + trailing comma
+    (private $measured:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+        {
+            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            $measured.vars.insert(stringify!($var_name).to_string(),
+                                  Domain { domain: Some(domain) } );
+        }
+        measured!(private $measured $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $measured:ident $first:tt : $second:tt) => {{
+        measured!(private $measured $first : $second ,)
+    }};
+
+    (private $measured:expr) => {{
+        $measured
+    }};
+}
+
+macro_rules! pred {
+    // bool false
+    (! $p:tt $($rest:tt)*) => {{
+        Predicate::EQ(
+            PredicateValue::SPPath($p.clone(), None),
+            PredicateValue::SPValue(false.to_spvalue()),
+        )
+    }};
+
+    // bool true
+    ($p:tt $($rest:tt)*) => {{
+        Predicate::EQ(
+            PredicateValue::SPPath($p.clone(), None),
+            PredicateValue::SPValue(true.to_spvalue()),
+        )
+    }};
+}
+
+#[test]
+fn pred_test() {
+    let ref_pos = SPPath::from_string("ref_pos");
+    let c = pred!(!ref_pos);
+
+    println!("{:?}", c);
+
+    assert!(false);
+}
+
+#[test]
+fn rpn_test() {
+    let command_vars = command!{
+        topic: "/hej",
+        msg_type: "std_messages",
+
+        act_pos : [1,2,3,4,5],
+        active : bool,
+        ref_pos : ["hej", "hoppe"],
+    };
+
+    println!("result: {:?}", command_vars);
+
+
+    let measured_vars = measured!{
+        topic: "hej2",
+        msg_type: "std_messages2",
+
+        act_pos : [1,2,3,4,5,6],
+        active : bool,
+        ref_pos : ["hej", "hoppe", "doppe"],
+    };
+
+    println!("result: {:?}", measured_vars);
+
+
+    assert!(false);
+}
+
+macro_rules! resource {
+    // The pattern for a single `eval`
+    (cmd_var $name:ident : $c:expr) => {{
+        {
+            let $name: usize = $c; // Force types to be integers
+            println!("cmd_var: {} = {}", stringify!{$c}, $name);
+        }
+    }};
+
+    // Decompose multiple `eval`s recursively
+    (cmd_var $name:ident : $c:expr, $(cmd_var $name2:ident : $c2:expr),+) => {{
+        resource! { cmd_var $name : $c }
+        resource! { $(cmd_var $name2 : $c2),+ }
+    }};
+
+    (cmd_topic $t:expr) => {{
+        println!("ros topic is {}", $t);
+    }}
+}
+
+macro_rules! resource2 {
+    (cmd_topic $t:expr) => {{
+        println!("ros topic is {}", $t);
+    }}
+}
+
+
+#[test]
+fn macro_test() {
+    resource! {
+        cmd_var ref_pos : 1 + 2,
+        cmd_var act : 3 + 4
+    }
+
+    resource2!{cmd_topic "/ros/out_topic"}
+
+
+    assert!(false);
+}
+
 pub fn make_dummy_robot(name: &str) -> Resource {
     let mut new_resource = Vec::new();
     let mut cmd_vars = HashMap::new();
