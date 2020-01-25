@@ -159,7 +159,7 @@ fn main(){
     slv_assert_z3!(&ctx, &slv, distinct_z3!(&ctx, cell32));
     slv_assert_z3!(&ctx, &slv, distinct_z3!(&ctx, cell33));
 
-    // println!("{}", slv_to_string_z3!(&ctx, &slv));
+    println!("{}", slv_to_string_z3!(&ctx, &slv));
 
     let now = Instant::now();
 
@@ -177,4 +177,10 @@ fn main(){
 
     let model = slv_get_model_z3!(&ctx, &slv);
     println!("{}", model_to_string_z3!(&ctx, model));
+
+    // let models = SlvGetAllModelsDontCareZ3::new(&ctx, &slv).s;
+
+    // for model in models {
+    //     println!("{}", model);
+    // }
 }
