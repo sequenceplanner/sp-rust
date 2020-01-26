@@ -332,7 +332,7 @@ macro_rules! command {
     }};
 
     (private $cmd:expr) => {{
-        $cmd
+        ModelItem::CommandTopic($cmd)
     }};
 }
 
@@ -380,37 +380,102 @@ macro_rules! measured {
     }};
 
     (private $measured:expr) => {{
-        $measured
+        ModelItem::MeasuredTopic($measured)
     }};
 }
 
-macro_rules! pred {
-    // bool false
-    (! $p:tt $($rest:tt)*) => {{
-        Predicate::EQ(
-            PredicateValue::SPPath($p.clone(), None),
-            PredicateValue::SPValue(false.to_spvalue()),
-        )
+
+macro_rules! ability {
+    (name: $n:tt , $($rest:tt)*) => {{
+        let mut ability = MAbility {
+            name: String::from(stringify!($n)),
+            predicates: HashMap::new(),
+            transitions: HashMap::new(),
+        };
+        ability!(private ability $($rest)*)
     }};
 
-    // bool true
-    ($p:tt $($rest:tt)*) => {{
-        Predicate::EQ(
-            PredicateValue::SPPath($p.clone(), None),
-            PredicateValue::SPValue(true.to_spvalue()),
-        )
+    // list of predicates
+    (private $ability:ident $name:tt : $p:expr, $($rest:tt)*) => {{
+        $ability.predicates.insert(stringify!($name).to_string(),
+                                   $p.clone());
+        ability!(private $ability $($rest)*)
+    }};
+
+    // no trailing comma...
+    (private $ability:ident $name:tt : $p:expr) => {{
+        ability!(private $ability $name : $p, )
+    }};
+
+
+    // list of transitions
+    (private $ability:ident * $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
+        ability!(private $ability true $name : $g => [$($a,)*] / [$($a,)*], $($rest)*)
+    }};
+
+    (private $ability:ident $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
+        ability!(private $ability false $name : $g => [$($a,)*] / [$($a,)*], $($rest)*)
+    }};
+
+    // without trailing commas
+    (private $ability:ident * $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*]) => {{
+        ability!(private $ability true $name : $g => [$($a,)*] / [$($a,)*],)
+    }};
+
+    (private $ability:ident $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*]) => {{
+        ability!(private $ability false $name : $g => [$($a,)*] / [$($a,)*],)
+    }};
+
+
+    (private $ability:ident $controlled:tt $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
+        println!("adding trans: {}", stringify!($name));
+
+        let actions = vec![ $($a.clone() ,)* ];
+        let effects = vec![ $($e.clone() ,)* ];
+
+        let t = MTransition {
+            controlled: $controlled,
+            guard: $g.clone(),
+            actions: actions,
+            effects: effects,
+        };
+        $ability.transitions.insert(stringify!($name).to_string(), t);
+        ability!(private $ability $($rest)*)
+    }};
+
+    // all done
+    (private $ability:expr) => {{
+        ModelItem::MAbility($ability)
     }};
 }
 
-#[test]
-fn pred_test() {
-    let ref_pos = SPPath::from_string("ref_pos");
-    let c = pred!(!ref_pos);
 
-    println!("{:?}", c);
+macro_rules! resource {
+    (name: $n:tt , $($rest:tt)*) => {{
+        let mut resource = MResource {
+            name: String::from(stringify!($n)),
+            items: Vec::new(),
+        };
+        resource!(private resource $($rest)*)
+    }};
 
-    assert!(false);
+    // everything :)
+    (private $resource:ident $item:expr, $($rest:tt)*) => {{
+        $resource.items.push($item.clone());
+        resource!(private $resource $($rest)*)
+    }};
+
+    // no trailing comma
+    (private $resource:ident $item:expr) => {{
+        resource!(private $resource $item,)
+    }};
+
+    // all done
+    (private $resource:expr) => {{
+        build_resource(&$resource)
+    }};
 }
+
 
 #[test]
 fn rpn_test() {
@@ -437,11 +502,79 @@ fn rpn_test() {
 
     println!("result: {:?}", measured_vars);
 
+    let rp_c = SPPath::from_string("ref_pos");
+    let ap_m = SPPath::from_string("act_pos");
+    let activate_c = SPPath::from_string("activate");
+    let active_m = SPPath::from_string("active");
+    let enabled = SPPath::from_string("enabled");
+    let executing = SPPath::from_string("executing");
+    let finished = SPPath::from_string("finished");
+
+    let ability = ability!{
+        name: to_away,
+
+        enabled : pr! {{p!(active_m)} && {p!(rp_c != "at")} && {p!(ap_m != "at")}},
+        executing : pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m != "at")}},
+        finished : pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m == "at")}},
+
+        *start : p!(enabled) => [ a!(rp_c = "at"), a!(ap_m = "at") ] / [a!(ap_m = "unknown")],
+        finish : p!(executing) => [a!(ap_m = "at") ] / [a!(ap_m = "at")]
+    };
+
+    println!("ability: {:#?}", ability);
 
     assert!(false);
 }
 
-macro_rules! resource {
+
+#[test]
+fn complete_resource_test() {
+    let rp_c = SPPath::from_string("ref_pos");
+    let ap_m = SPPath::from_string("act_pos");
+    let activate_c = SPPath::from_string("activate");
+    let active_m = SPPath::from_string("active");
+    let enabled = SPPath::from_string("enabled");
+    let executing = SPPath::from_string("executing");
+    let finished = SPPath::from_string("finished");
+
+
+    let resource = resource!{
+        name: dummy_robot,
+        command!{
+            topic: "/hej",
+            msg_type: "std_messages",
+
+            act_pos : [1,2,3,4,5],
+            active : bool,
+            ref_pos : ["hej", "hoppe"],
+        },
+        measured!{
+            topic: "hej2",
+            msg_type: "std_messages2",
+
+            act_pos : [1,2,3,4,5,6],
+            active : bool,
+            ref_pos : ["hej", "hoppe", "doppe"],
+        },
+
+        ability!{
+            name: to_away,
+
+            enabled : pr! {{p!(active_m)} && {p!(rp_c != "at")} && {p!(ap_m != "at")}},
+            executing : pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m != "at")}},
+            finished : pr! {{p!(active_m)} && {p!(rp_c == "at")} && {p!(ap_m == "at")}},
+
+            *start : p!(enabled) => [ a!(rp_c = "at"), a!(ap_m = "at") ] / [a!(ap_m = "unknown")],
+            finish : p!(executing) => [a!(ap_m = "at") ] / [a!(ap_m = "at")]
+        }
+    };
+
+    println!("resource: {:#?}", resource);
+
+    assert!(false);
+}
+
+macro_rules! resource3 {
     // The pattern for a single `eval`
     (cmd_var $name:ident : $c:expr) => {{
         {
@@ -452,8 +585,8 @@ macro_rules! resource {
 
     // Decompose multiple `eval`s recursively
     (cmd_var $name:ident : $c:expr, $(cmd_var $name2:ident : $c2:expr),+) => {{
-        resource! { cmd_var $name : $c }
-        resource! { $(cmd_var $name2 : $c2),+ }
+        resource3! { cmd_var $name : $c }
+        resource3! { $(cmd_var $name2 : $c2),+ }
     }};
 
     (cmd_topic $t:expr) => {{
@@ -470,7 +603,7 @@ macro_rules! resource2 {
 
 #[test]
 fn macro_test() {
-    resource! {
+    resource3! {
         cmd_var ref_pos : 1 + 2,
         cmd_var act : 3 + 4
     }
