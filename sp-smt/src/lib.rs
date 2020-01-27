@@ -10,8 +10,9 @@ pub mod z3context;
 pub use crate::z3context::{ContextZ3}; //, CTX};
 
 pub mod z3solver;
-pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvAssertAndTrackZ3, SlvCheckZ3, SlvGetModelZ3, SlvGetAllModelsDontCareZ3,
-    SlvGetAllModelsExplicitZ3, SlvGetNModelsDontCareZ3, SlvGetNModelsExplicitZ3, SlvGetParamDescrZ3, SlvGetProofZ3, 
+pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvAssertAndTrackZ3, SlvCheckZ3, SlvGetModelZ3, SlvGetAllModelsZ3,
+    // SlvGetAllModelsExplicitZ3, 
+    SlvGetNModelsZ3, SlvGetParamDescrZ3, SlvGetProofZ3, 
     SlvGetUnsatCoreZ3, SlvToStringZ3, SlvUnsatCoreToStringZ3, SlvProofToStringZ3};
 
 pub mod z3optimizer;

@@ -110,7 +110,7 @@ impl <'ctx> MODZ3<'ctx> {
 }
 
 impl <'ctx> REMZ3<'ctx> {
-    /// Create an AST node representing `arg1 mod arg2`.
+    /// Create an AST node representing `arg1 rem arg2`.
     ///
     /// NOTE: The arguments must have int type.
     /// 
