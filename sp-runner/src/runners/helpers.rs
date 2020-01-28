@@ -269,33 +269,33 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
     (gm, new_initial)
     }
 
-#[test]
-fn test_guard_extraction() {
-    use crate::testing::*;
+// #[test]
+// fn test_guard_extraction() {
+//     use crate::testing::*;
 
-    // Make model
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+//     // Make model
+//     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
-    // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+//     // Make resoureces
+//     m.add_item(SPItem::Resource(make_dummy_robot("r1")));
+//     m.add_item(SPItem::Resource(make_dummy_robot("r2")));
 
-    // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+//     // Make some global stuff
+//     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+//     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
 
-    // Specifications
-    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
-    let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+//     // Specifications
+//     let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
+//     let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
+//     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
-    let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
+//     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
-    assert_eq!(new_guards.len(), 4);
-    assert_ne!(new_initial, Predicate::TRUE);
+//     assert_eq!(new_guards.len(), 4);
+//     assert_ne!(new_initial, Predicate::TRUE);
 
-    assert!(false);
-}
+//     assert!(false);
+// }
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {
 
@@ -422,26 +422,26 @@ pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Pre
 
     let op_start = Transition::new(
         "start",
-        Predicate::AND(vec![p!(op_state == "i"), pre.clone()]),
-        vec![a!(op_state = "e")],
+        Predicate::AND(vec![p!(p:op_state == "i"), pre.clone()]),
+        vec![a!(p:op_state = "e")],
         vec![],
         true,
     );
     let mut f_actions =
         if resets {
-            vec![a!(op_state = "i")]
+            vec![a!(p:op_state = "i")]
         } else {
-            vec![a!(op_state = "f")]
+            vec![a!(p:op_state = "f")]
         };
     f_actions.extend(post_actions);
     let op_finish = Transition::new(
         "finish",
-        Predicate::AND(vec![p!(op_state == "e"), post.clone()]),
+        Predicate::AND(vec![p!(p:op_state == "e"), post.clone()]),
         f_actions,
         vec![],
         false,
     );
-    let op_goal = IfThen::new("goal", p!(op_state == "e"), post.clone());
+    let op_goal = IfThen::new("goal", p!(p:op_state == "e"), post.clone());
 
     let op = Operation::new(
         name,
