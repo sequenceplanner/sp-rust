@@ -359,20 +359,20 @@ macro_rules! ability {
 
     // list of transitions
     (private $ability:ident * $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
-        ability!(private $ability true $name : $g => [$($a,)*] / [$($a,)*], $($rest)*)
+        ability!(private $ability true $name : $g => [$($a,)*] / [$($e,)*], $($rest)*)
     }};
 
     (private $ability:ident $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
-        ability!(private $ability false $name : $g => [$($a,)*] / [$($a,)*], $($rest)*)
+        ability!(private $ability false $name : $g => [$($a,)*] / [$($e,)*], $($rest)*)
     }};
 
     // without trailing commas
     (private $ability:ident * $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*]) => {{
-        ability!(private $ability true $name : $g => [$($a,)*] / [$($a,)*],)
+        ability!(private $ability true $name : $g => [$($a,)*] / [$($e,)*],)
     }};
 
     (private $ability:ident $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*]) => {{
-        ability!(private $ability false $name : $g => [$($a,)*] / [$($a,)*],)
+        ability!(private $ability false $name : $g => [$($a,)*] / [$($e,)*],)
     }};
 
 
