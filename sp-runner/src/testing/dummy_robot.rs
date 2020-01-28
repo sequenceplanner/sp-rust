@@ -55,7 +55,7 @@ pub fn make_dummy_robot(name: &str) -> Resource {
         },
 
         ability!{
-            name: activate,
+            name: deactivate,
 
             enabled: p!([activate] && [active]),
             executing: p!([!activate] && [active]),
