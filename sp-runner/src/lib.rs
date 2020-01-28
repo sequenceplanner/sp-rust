@@ -1,3 +1,6 @@
+#[macro_use]
+mod modeling;
+
 mod streamsupport;
 pub use streamsupport::messagebuffer::*;
 

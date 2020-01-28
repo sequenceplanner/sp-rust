@@ -267,7 +267,7 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
     let gm = new_guards.iter().map(|(path,guard)| (path.clone(),
                                                    ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
     (gm, new_initial)
-    }
+}
 
 #[test]
 fn test_guard_extraction() {
@@ -285,8 +285,7 @@ fn test_guard_extraction() {
     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
 
     // Specifications
-    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
-    let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
+    let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
@@ -371,7 +370,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         model: model.clone(), // TODO: borrow?
     };
 
-    // crate::planning::generate_offline_nuxvm(&rm, &new_initial);
+    crate::planning::generate_offline_nuxvm(&rm, &new_initial);
 
     return rm;
 }
@@ -407,49 +406,4 @@ pub fn make_initial_state(model: &Model) -> SPState {
     s.extend(SPState::new_from_values(&state[..]));
 
     return s;
-}
-
-
-pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate, post_actions: Vec<Action>) -> SPPath {
-    let op_state = Variable::new(
-        name,
-        VariableType::Estimated,
-        SPValueType::String,
-        "i".to_spvalue(),
-        vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
-    );
-    let op_state = m.add_item(SPItem::Variable(op_state));
-
-    let op_start = Transition::new(
-        "start",
-        Predicate::AND(vec![p!(op_state == "i"), pre.clone()]),
-        vec![a!(op_state = "e")],
-        vec![],
-        true,
-    );
-    let mut f_actions =
-        if resets {
-            vec![a!(op_state = "i")]
-        } else {
-            vec![a!(op_state = "f")]
-        };
-    f_actions.extend(post_actions);
-    let op_finish = Transition::new(
-        "finish",
-        Predicate::AND(vec![p!(op_state == "e"), post.clone()]),
-        f_actions,
-        vec![],
-        false,
-    );
-    let op_goal = IfThen::new("goal", p!(op_state == "e"), post.clone());
-
-    let op = Operation::new(
-        name,
-        vec![op_start],
-        vec![op_finish],
-        Some(op_goal),
-        None,
-    );
-
-    m.add_item(SPItem::Operation(op))
 }

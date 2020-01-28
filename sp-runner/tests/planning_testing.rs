@@ -37,7 +37,7 @@ fn plan_success_2_steps() {
         .model
         .find_item("active", &[])
         .expect("check spelling").path();
-    let goal = p!(activated);
+    let goal = p!(p:activated);
 
     // requires at least step = 2 to find a plan
     let result = compute_plan(&vec![goal], &state, &model, 2);

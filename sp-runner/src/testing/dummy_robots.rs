@@ -1,7 +1,7 @@
-use crate::runners::*;
 use sp_domain::*;
+use crate::modeling::*;
+use crate::runners::*;
 use sp_runner_api::*;
-
 use crate::testing::*;
 
 pub fn one_dummy_robot() -> (RunnerModel, SPState) {
@@ -23,31 +23,26 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     m.add_item(SPItem::Resource(make_dummy_robot("r2")));
 
     // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
     // Specifications
-    let table_zone = pr!{ {p!(r1_p_a == "at")} && {p!(r2_p_a == "at")} };
-    let table_zone = Predicate::NOT(Box::new(table_zone)); // NOT macro broken
+    let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
-    // For now, we manually add the guards resulting from synthesis...
-    let r1_to_start = m.find_item("start", &["to_table", "r1"]).expect("check spelling").path();
-    let r2_to_start = m.find_item("start", &["to_table", "r2"]).expect("check spelling").path();
-
     // Operations
-    let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(r1_p_a != "at"), p!(r1_p_a == "at"), vec![]);
+    let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![]);
 
     let r2_to_at = add_op(&mut m, "r2_to_at", false,
                           // pr!{{p!(r2_p_a != "at")} && {p!(r1_p_a == "at")}}, // can start when r1 is at "at". what will happen?
-                          p!(r2_p_a != "at"),
-                          p!(r2_p_a == "at"), vec![]);
+                          p!(p:r2_p_a != "at"),
+                          p!(p:r2_p_a == "at"), vec![]);
 
     // reset previous ops so we can start over
     let both_to_away = add_op(&mut m, "both_to_away", true,
-                              pr!{{p!(r1_to_at == "f")} && {p!(r2_to_at == "f")}},
-                              pr!{{p!(r1_p_a == "away")} && {p!(r2_p_a == "away")}},
-                              vec![a!(r1_to_at = "i"), a!(r2_to_at = "i")]);
+                              p!([p:r1_to_at == "f"] && [p:r2_to_at == "f"]),
+                              p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
+                              vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")]);
 
     // Make it runnable
     let s = make_initial_state(&m);
