@@ -153,7 +153,7 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
     // add a control variable for each transition
     let all_trans = model.ab_transitions.ctrl.iter().chain(model.ab_transitions.un_ctrl.iter());
     for t in all_trans {
-        let path = NuXMVPath(t.node().path());
+        let path = NuXMVPath(t.path());
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
     lines.push_str("\n\n");
@@ -164,7 +164,7 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
     lines.push_str("-- STATE PREDICATES\n");
 
     for sp in &model.state_predicates {
-        let path = NuXMVPath(sp.node().path());
+        let path = NuXMVPath(sp.path());
         match sp.variable_type() {
             VariableType::Predicate(p) => {
                 let p = NuXMVPredicate(&p);
@@ -233,7 +233,7 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
         let updates_s = updates.join(" & ");
 
         // tracking variable
-        let ivar = NuXMVPath((t.node().path()));
+        let ivar = NuXMVPath((t.path()));
 
         trans.push(format!("{i} & {g} & {u}", i=ivar, g=g, u=updates_s));
     }
@@ -354,7 +354,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
             // check for controllable actions
             let mut all_trans = model.ab_transitions.ctrl.iter().chain(
                 model.ab_transitions.un_ctrl.iter());
-            if all_trans.find(|t| (t.node().path()) == &path).is_some() {
+            if all_trans.find(|t| (t.path()) == &path).is_some() {
             // if model.ab_transitions.ctrl.iter().find(|t| (t.node()) == &path).is_some() {
                 if val == &"TRUE" {
                     assert!(last.transition == SPPath::default());
@@ -365,7 +365,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
             } else {
                 // get SP type from path
                 let spt = if model.state_predicates.iter().
-                    find(|p| (p.node().path()) == &path).is_some() {
+                    find(|p| (p.path()) == &path).is_some() {
                         SPValueType::Bool
                     } else {
                         // TODO: hacks abound
@@ -501,7 +501,7 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
     // add a control variable for each transition
     let all_trans = model.ab_transitions.ctrl.iter().chain(model.ab_transitions.un_ctrl.iter());
     for t in all_trans {
-        let path = NuXMVPath((t.node().path()));
+        let path = NuXMVPath((t.path()));
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
     lines.push_str("\n\n");
@@ -512,7 +512,7 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
     lines.push_str("-- GLOBAL SPECIFICATIONS\n");
     let mut global = Vec::new();
     for s in &specs {
-        let path = s.node().path();
+        let path = s.path();
 
         for (i,p) in s.always().iter().enumerate() {
             let mut pp = path.clone();
@@ -533,7 +533,7 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
     lines.push_str("-- STATE PREDICATES\n");
 
     for sp in &model.state_predicates {
-        let path = NuXMVPath(sp.node().path());
+        let path = NuXMVPath(sp.path());
         match sp.variable_type() {
             VariableType::Predicate(p) => {
                 let p = NuXMVPredicate(&p);
@@ -630,7 +630,7 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
         let updates_s = updates.join(" & ");
 
         // tracking variable
-        let ivar = NuXMVPath((t.node().path()));
+        let ivar = NuXMVPath((t.path()));
 
         trans.push(format!("{i} & {g} & {u}", i=ivar, g=g, u=updates_s));
     }

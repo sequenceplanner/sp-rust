@@ -246,7 +246,7 @@ impl SPState {
     }
 
     pub fn sp_value(&self, state_path: &StatePath) -> Option<&SPValue> {
-        self.state_value(state_path).map(|x| x.current_value())
+        self.state_value(state_path).map(|x| x.value())
     }
 
     /// Get a StateValue from the state based on a path. Only use this when you need do not
@@ -266,7 +266,7 @@ impl SPState {
     /// Get a SPValue from the state based on a path. Only use this when you need do not
     /// need to get the same variable multiple times. Else use sp_value
     pub fn sp_value_from_path(&self, path: &SPPath) -> Option<&SPValue> {
-        self.state_value_from_path(path).map(|x| x.current_value())
+        self.state_value_from_path(path).map(|x| x.value())
     }
 
     /// Get a SPValue based on its index when you need to access the same variable multiple
@@ -274,7 +274,7 @@ impl SPState {
     /// If you do not know if the state can change, check the state id.
     /// This fn will panic if i is larger than no of values
     pub fn sp_value_from_index(&self, i: usize) -> &SPValue {
-        self.state_value_from_index(i).current_value()
+        self.state_value_from_index(i).value()
     }
 
     /// Get a projection of the state
@@ -321,7 +321,7 @@ impl SPState {
             .all(|(key, i)| {
                 state
                     .sp_value_from_path(key)
-                    .map(|x| x == self.values[*i].current_value())
+                    .map(|x| x == self.values[*i].value())
                     .unwrap_or(false)
             })
     }
@@ -333,7 +333,7 @@ impl SPState {
             .all(|(key, i)| {
                 self
                     .sp_value_from_path(key)
-                    .map(|x| x == new_values.values[*i].current_value())
+                    .map(|x| x == new_values.values[*i].value())
                     .unwrap_or(false)
             })
     }
@@ -396,6 +396,21 @@ impl SPState {
             Err(SPError::No(format! {"Can not find the path: {:?}", path}))
         }
     }
+    pub fn revert_next(&mut self, state_path: &StatePath) -> SPResult<()> {
+        if !self.check_state_path(state_path) {
+            Err(SPError::No("The state path is wrong".to_string()))
+        } else {
+            self.values[state_path.index].revert_next();
+            Ok(())
+        }
+    }
+    pub fn revert_next_from_path(&mut self, path: &SPPath) -> SPResult<()> {
+        if let Some(sp) = self.state_path(&path) {
+            self.revert_next(&sp)
+        } else {
+            Err(SPError::No(format! {"Can not find the path: {:?}", path}))
+        }
+    }
 
 
     pub fn next_map(&mut self, map: Vec<(StatePath, SPValue)>) -> bool {
@@ -432,7 +447,8 @@ impl SPState {
 impl fmt::Display for SPState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Sort keys by name.
-        let proj = self.projection();
+        let mut proj = self.projection();
+        proj.sort();
         let mut buf = Vec::new();
         for (p, val) in proj.state {
             buf.push(format!("{}: {:?}", p, val));

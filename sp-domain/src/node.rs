@@ -17,7 +17,7 @@ impl SPNode {
     pub fn new(name: &str) -> SPNode {
         SPNode {
             name: name.to_string(),
-            path: SPPath::new(),
+            path: SPPath::from_slice(&[name]),
         }
     }
 
@@ -38,6 +38,11 @@ impl SPNode {
         let old = if p.path.is_empty() { None } else { Some(self.path().clone()) };
         self.path = p.add_child(&self.name);
         (self.path().clone(), old)
+    }
+
+    pub fn update_name(&mut self, name: &str) {
+        self.name = name.to_string();
+        self.update_path(&self.path.parent());
     }
 
     pub fn is_eq(&self, path: &SPPath) -> bool {

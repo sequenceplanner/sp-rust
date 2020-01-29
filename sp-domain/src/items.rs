@@ -357,6 +357,7 @@ impl Resource {
     pub fn messages(&self) -> &[Topic] {
         self.messages.as_slice()
     }
+
     pub fn add_message(&mut self, mut message: Topic) -> SPPath {
         let mut changes = HashMap::new();
         let path = message.update_path(self.node.path(), &mut changes);
@@ -378,7 +379,7 @@ impl Resource {
         fn r(m: &MessageField, acum: &mut SPState) {
             match m {
                 MessageField::Msg(msg) => {
-                    for (n, f) in &msg.fields {
+                    for (_, f) in &msg.fields {
                         r(f, acum);
                     }
                 }
@@ -730,7 +731,7 @@ impl Transition {
         actions: Vec<Action>,
         effects: Vec<Action>,
         controlled: bool,
-    ) -> Transition {
+    ) -> Self {
         let node = SPNode::new(name);
         Transition {
             node,
@@ -739,6 +740,12 @@ impl Transition {
             effects,
             controlled,
         }
+    }
+
+    pub fn new_empty(name: &str) -> Self {
+        let mut x = Transition::default();
+        x.node_mut().update_name(name);
+        x
     }
 
     // hack
@@ -928,14 +935,14 @@ impl Operation {
     }
 }
 
-/// An IfThen is used by operaitons to define goals or invariants. When the if_
-/// predicate is true, then the then_ predicate is either a goal or an invariant
+/// An IfThen is used by operaitons to define goals or invariants. When the _if
+/// predicate is true, then the _then predicate is either a goal or an invariant
 /// that the planner will use for planning. TODO: Maybe we should have a better name?
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct IfThen {
     node: SPNode,
-    pub if_: Predicate,
-    pub then_: Predicate,
+    pub _if: Predicate,
+    pub _then: Predicate,
 }
 
 impl Noder for IfThen {
@@ -957,8 +964,8 @@ impl Noder for IfThen {
     }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.if_.replace_variable_path(mapping);
-        self.then_.replace_variable_path(mapping);
+        self._if.replace_variable_path(mapping);
+        self._then.replace_variable_path(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::IfThen(self)
@@ -966,15 +973,15 @@ impl Noder for IfThen {
 }
 
 impl IfThen {
-    pub fn new(name: &str, if_: Predicate, then_: Predicate) -> IfThen {
+    pub fn new(name: &str, _if: Predicate, _then: Predicate) -> IfThen {
         let node = SPNode::new(name);
-        IfThen { node, if_, then_ }
+        IfThen { node, _if, _then }
     }
-    pub fn if_(&self) -> &Predicate {
-        &self.if_
+    pub fn _if(&self) -> &Predicate {
+        &self._if
     }
-    pub fn then_(&self) -> &Predicate {
-        &self.then_
+    pub fn _then(&self) -> &Predicate {
+        &self._then
     }
 }
 
@@ -984,7 +991,8 @@ impl IfThen {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Spec {
     node: SPNode,
-    always: Vec<Predicate>,
+    pub spec_transition: Transition,
+    pub syncronized_with: Vec<SPPath>,
 }
 
 impl Noder for Spec {
@@ -1002,11 +1010,18 @@ impl Noder for Spec {
         _name: &str,
         _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        None
+        self.spec_transition.find_item(_name, _path_sections)
     }
-    fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
+    fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
+        self.spec_transition.update_path(_path, _changes);
+    }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.always.iter_mut().for_each(|i| i.replace_variable_path(mapping));
+        self.spec_transition.rewrite_expressions(mapping);
+        self.syncronized_with.iter_mut().for_each(|p| {
+            if let Some(np) = mapping.get(p) {
+                *p = np.clone();
+            }
+        })
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Spec(self)
@@ -1014,12 +1029,9 @@ impl Noder for Spec {
 }
 
 impl Spec {
-    pub fn new(name: &str, always: Vec<Predicate>) -> Spec {
+    pub fn new(name: &str, spec_transition: Transition, syncronized_with: Vec<SPPath>) -> Spec {
         let node = SPNode::new(name);
-        Spec { node, always }
-    }
-    pub fn always(&self) -> &[Predicate] {
-        self.always.as_slice()
+        Spec { node, spec_transition, syncronized_with }
     }
 }
 

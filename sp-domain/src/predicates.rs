@@ -54,9 +54,7 @@ impl<'a> PredicateValue {
             PredicateValue::SPValue(x) => Some(x),
             PredicateValue::SPPath(path, sp) => {
                 if sp.is_none() {
-                    if let Some(the_path) = state.state_path(&path) {
-                        return state.sp_value(&the_path);
-                    }
+                    return state.sp_value_from_path(&path);
                 } else {
                     if let Some(the_path) = sp {
                         return state.sp_value(&the_path);
@@ -177,6 +175,17 @@ impl Action {
         match &mut self.value {
             Compute::PredicateValue(pv) => { pv.replace_variable_path(mapping); }
             Compute::Predicate(p) => { p.replace_variable_path(mapping); }
+        }
+    }
+
+    pub fn revert_action(&self, state: &mut SPState) -> SPResult<()> {
+        match &self.state_path {
+            Some(sp) => {
+                state.revert_next(&sp)
+            },
+            None => {
+                state.revert_next_from_path(&self.var)
+            }
         }
     }
 }
@@ -527,7 +536,7 @@ mod sp_value_test {
         );
         let mut a3 = Action::new(xy.clone(), Compute::Predicate(p));
 
-        a3.next(&mut s);
+        a3.next(&mut s).unwrap();
         // let next = StateValue::Next(states::Next {
         //     current_value: false.to_spvalue(),
         //     next_value: true.to_spvalue(),
@@ -535,14 +544,14 @@ mod sp_value_test {
         println!{"next pred: {:?}", a3};
         //assert_eq!(s.state_value_from_path(&xy), Some(&next));
 
-        a.next(&mut s);
+        a.next(&mut s).unwrap();
         // let next = StateValue::Next(states::Next {
         //     current_value: true.to_spvalue(),
         //     next_value: false.to_spvalue(),
         // });
         //assert_eq!(s.state_value_from_path(&ac), Some(&next));
 
-        a2.next(&mut s);
+        a2.next(&mut s).unwrap();
         // let next = StateValue::Next(states::Next {
         //     current_value: 2.to_spvalue(),
         //     next_value: true.to_spvalue(),
@@ -551,7 +560,7 @@ mod sp_value_test {
 
         s.take_transition();
 
-        a3.next(&mut s);
+        a3.next(&mut s).unwrap();
         // let next = StateValue::Next(states::Next {
         //     current_value: true.to_spvalue(),
         //     next_value: false.to_spvalue(),
