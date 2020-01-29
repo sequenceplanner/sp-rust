@@ -74,7 +74,7 @@ fn model_with_online_spec() -> (RunnerModel, SPState) {
     (rm, s)
 }
 
-fn model_without_online_spec() -> (RunnerModel, SPState) {
+fn model_with_offline_spec() -> (RunnerModel, SPState) {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
@@ -85,7 +85,25 @@ fn model_without_online_spec() -> (RunnerModel, SPState) {
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
+    // Specifications
+    let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", false, vec![table_zone])));
+
+    let s = make_initial_state(&m);
+    let rm = make_runner_model(&m);
+    (rm, s)
+}
+
+fn model_without_online_spec() -> (RunnerModel, SPState) {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+
+    // !
     // No specifications
+    // !
 
     let s = make_initial_state(&m);
     let rm = make_runner_model(&m);
@@ -93,8 +111,21 @@ fn model_without_online_spec() -> (RunnerModel, SPState) {
 }
 
 #[test]
-fn planner_fail_due_to_conflicting_specs_and_goal() {
+fn planner_fail_due_to_conflicting_online_spec_and_goal() {
     let (model, state) = model_with_online_spec();
+
+    let r1_p_a = model.model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2_p_a = model.model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+
+    let goal = p!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]);
+
+    let result = compute_plan(&vec![goal], &state, &model, 20);
+    assert!(!result.plan_found);
+}
+
+#[test]
+fn planner_fail_due_to_conflicting_offline_spec_and_goal() {
+    let (model, state) = model_with_offline_spec();
 
     let r1_p_a = model.model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
     let r2_p_a = model.model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
