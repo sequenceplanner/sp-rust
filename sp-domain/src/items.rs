@@ -985,6 +985,7 @@ impl IfThen {
 pub struct Spec {
     node: SPNode,
     always: Vec<Predicate>,
+    pub is_online: bool,      // hack for now to separate both offline and online specs
 }
 
 impl Noder for Spec {
@@ -1014,9 +1015,9 @@ impl Noder for Spec {
 }
 
 impl Spec {
-    pub fn new(name: &str, always: Vec<Predicate>) -> Spec {
+    pub fn new(name: &str, is_online: bool, always: Vec<Predicate>) -> Spec {
         let node = SPNode::new(name);
-        Spec { node, always }
+        Spec { node, always, is_online }
     }
     pub fn always(&self) -> &[Predicate] {
         self.always.as_slice()

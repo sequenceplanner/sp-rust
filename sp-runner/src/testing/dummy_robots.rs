@@ -28,7 +28,7 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
 
     // Specifications
     let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", false, vec![table_zone])));
 
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![]);

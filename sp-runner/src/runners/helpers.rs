@@ -147,9 +147,18 @@ fn sp_action_to_ex(a: &Action,
 }
 
 
-pub fn extract_guards(model: &Model, init: &Predicate) ->
-    (HashMap<String, Predicate>, Predicate) {
+pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
     let items = model.items();
+
+    let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
+        SPItem::Spec(s) if !s.is_online => Some(s),
+        _ => None,
+    }).cloned().collect();
+
+    // no specs? we're done.
+    if specs.is_empty() {
+        return (HashMap::new(), init.clone())
+    }
 
     // find "ab" transitions from resources
     let resources: Vec<&Resource> = items
@@ -212,17 +221,12 @@ pub fn extract_guards(model: &Model, init: &Predicate) ->
         }
     }
 
-
     // pull out all specs.
-    let forbidden =  Ex::AND(model.items().iter().flat_map(|i| match i {
-        SPItem::Spec(s) => {
-            // todo... now we just care about the first expression in each spec
-            let s = s.always().first().unwrap().clone();
-            let ex = Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)));
-            // forbidden = not always
-            Some(ex)
-        },
-        _ => None,
+    let forbidden =  Ex::AND(specs.iter().map(|s| {
+        // todo... for now we just care about the first expression in each spec
+        let s = s.always().first().unwrap().clone();
+        // forbidden = not always
+        Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)))
     }).collect());
 
     // let s = spec.always().first().unwrap().clone(); // lazy
@@ -286,7 +290,7 @@ fn test_guard_extraction() {
 
     // Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", false, vec![table_zone])));
 
     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
