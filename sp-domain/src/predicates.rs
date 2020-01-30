@@ -102,6 +102,57 @@ impl<'a> PredicateValue {
     }
 }
 
+impl fmt::Display for Predicate {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s: String = match &self {
+            Predicate::AND(x) => {
+                let children: Vec<_> = x
+                    .iter()
+                    .map(|p| format!("{}", p))
+                    .collect();
+                format!("( {} )", children.join("&&"))
+            }
+            Predicate::OR(x) => {
+                let children: Vec<_> = x
+                    .iter()
+                    .map(|p| format!("{}", p))
+                    .collect();
+                format!("( {} )", children.join("||"))
+            }
+            Predicate::XOR(_) => "TODO".into(), // remove from pred?
+            Predicate::NOT(p) => format!("!({})", p),
+            Predicate::TRUE => "TRUE".into(),
+            Predicate::FALSE => "FALSE".into(),
+            Predicate::EQ(x, y) => {
+                let xx = match x {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+                let yy = match y {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+
+                format!("{} = {}", xx, yy)
+            }
+            Predicate::NEQ(x, y) => {
+                let xx = match x {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+                let yy = match y {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+
+                format!("{} != {}", xx, yy)
+            }
+        };
+
+        write!(fmtr, "{}", &s)
+    }
+}
+
 
 impl Default for PredicateValue {
     fn default() -> Self {
