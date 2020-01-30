@@ -116,13 +116,6 @@ fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: 
         .collect();
     let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
 
-    // TODO: maybe later just put these as "invar" expressions which sanitizes the model instead of guard extraction.
-    // Collect all offline specs.
-    let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
-        SPItem::Spec(s) => Some(s),
-        _ => None,
-    }).cloned().collect();
-
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
@@ -296,6 +289,28 @@ fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: 
     // lines.push_str(&format!("LTLSPEC ! ( {} & {} );", g, goals));
     // without safety specs
     lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
+
+
+    // TODO: doing this would be an alternative to guard extraction...
+    // Collect all offline specs.
+    let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
+        SPItem::Spec(s) => Some(s),
+        _ => None,
+    }).cloned().collect();
+
+    // now put in the specs as invariants to refine the model.
+    lines.push_str("-- GLOBAL SPECIFICATIONS\n");
+    let mut global = Vec::new();
+    for s in &specs {
+        for p in s.always().iter() {
+            let p = NuXMVPredicate(&p);
+            global.push(format!("{}", p));
+        }
+    }
+    let invars = if global.is_empty() {"".to_string()} else { format!("INVAR {};", global.join("&\n"))};
+
+    lines.push_str(&invars);
+    lines.push_str("\n\n");
 
     return lines;
 }
@@ -499,6 +514,13 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
         .collect();
     let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
 
+    // TODO: maybe later just put these as "invar" expressions which sanitizes the model instead of guard extraction.
+    // Collect all offline specs.
+    let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
+        SPItem::Spec(s) => Some(s),
+        _ => None,
+    }).cloned().collect();
+
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
     lines.push_str("VAR\n");
@@ -648,25 +670,19 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
 
     lines.push_str("\n\n");
 
-    // finally, print out the ltl spec on the form
-    // LTLSPEC ! ( G s1 & G s2 & F g1 & F g2);
-    // let global_str: Vec<String> = global.iter().map(|p| format!("G ( {} )", p)).collect();
-    // let g = if global_str.is_empty() {
-    //     "TRUE".to_string()
-    // } else {
-    //     global_str.join("&")
-    // };
+    // now put in the specs as invariants to refine the model.
+    lines.push_str("-- GLOBAL SPECIFICATIONS\n");
+    let mut global = Vec::new();
+    for s in &specs {
+        for p in s.always().iter() {
+            let p = NuXMVPredicate(&p);
+            global.push(format!("{}", p));
+        }
+    }
+    let invars = format!("INVAR {};", global.join("&\n"));
 
-    // let goal_str: Vec<String> = goals.iter().map(|p| format!("F ( {} )", &NuXMVPredicate(p))).collect();
-    // let goals = if goal_str.is_empty() {
-    //     "TRUE".to_string()
-    // } else {
-    //     goal_str.join("&")
-    // };
-
-    // //lines.push_str(&format!("LTLSPEC ! ( {} & {} );", g, goals));
-    // // without safety specs
-    // lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
+    lines.push_str(&invars);
+    lines.push_str("\n\n");
 
     return lines;
 }

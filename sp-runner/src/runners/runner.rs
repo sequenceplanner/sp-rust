@@ -201,7 +201,7 @@ impl Runner {
         let goals = self.next_op_functions();
         // validate plan with new goals here and if needed, clear the plan
         if !goals.is_empty() {
-            println!("we have goals! {:?}", goals);
+            println!("we have goals! {:?}", goals.iter().map(|g|g.node().path().to_string()).collect::<Vec<_>>().join(","));
         }
 
         let goal_invs: Vec<_> = goals.iter().map(|x| (x.goal().clone(), x.invariant().clone())).collect();
