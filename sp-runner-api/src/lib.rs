@@ -9,7 +9,6 @@ pub struct RunnerModel {
     pub plans: RunnerPlans,
     pub state_predicates: Vec<Variable>,
     pub goals: Vec<IfThen>,
-    pub invariants: Vec<IfThen>,
     pub model: Model,
 }
 

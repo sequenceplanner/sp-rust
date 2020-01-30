@@ -846,7 +846,6 @@ pub struct Operation {
     // uncontrolled: Vec<Transition>,
     // predicates: Vec<Variable>,
     pub goal: Option<IfThen>,
-    invariant: Option<IfThen>,
 }
 
 impl Noder for Operation {
@@ -860,7 +859,6 @@ impl Noder for Operation {
         get_from_list(self.start.as_slice(), next, path)
             .or_else(|| get_from_list(self.finish.as_slice(), next, path))
             .or_else(|| self.goal.as_ref().and_then(|x| x.get(path)))
-            .or_else(|| self.invariant.as_ref().and_then(|ref x| x.get(path)))
     }
     fn find_item_among_children<'a>(
         &'a self,
@@ -874,23 +872,16 @@ impl Noder for Operation {
                     .as_ref()
                     .and_then(|x| x.find_item(name, path_sections))
             })
-            .or_else(|| {
-                self.invariant
-                    .as_ref()
-                    .and_then(|ref x| x.find_item(name, path_sections))
-            })
     }
     fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.start.as_mut_slice(), path, changes);
         update_path_in_list(self.finish.as_mut_slice(), path, changes);
         self.goal.as_mut().map(|mut x| x.update_path(path, changes));
-        self.invariant.as_mut().map(|mut x| x.update_path(path, changes));
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.start.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
         self.finish.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
         if let Some(goal) = &mut self.goal { goal.rewrite_expressions(mapping) };
-        if let Some(invariant) = &mut self.goal { invariant.rewrite_expressions(mapping) };
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
@@ -903,7 +894,6 @@ impl Operation {
         start: Vec<Transition>,
         finish: Vec<Transition>,
         goal: Option<IfThen>,
-        invariant: Option<IfThen>,
     ) -> Operation {
         let node = SPNode::new(name);
         Operation {
@@ -911,7 +901,6 @@ impl Operation {
             start,
             finish,
             goal,
-            invariant,
         }
     }
 
@@ -931,11 +920,16 @@ impl Operation {
 /// An IfThen is used by operaitons to define goals or invariants. When the if_
 /// predicate is true, then the then_ predicate is either a goal or an invariant
 /// that the planner will use for planning. TODO: Maybe we should have a better name?
+/// MD 2020-01-30: I have changed this to include both a goal and an optional invariant.
+/// The reasoning is that I think active invariants will always be connected to some
+/// running operation and from a planning perspective they must be connected in order to be
+/// "deactivated" once the goal of that operation is reached.
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct IfThen {
     node: SPNode,
-    pub if_: Predicate,
-    pub then_: Predicate,
+    pub condition: Predicate,
+    pub goal: Predicate,
+    pub invariant: Option<Predicate>,
 }
 
 impl Noder for IfThen {
@@ -957,8 +951,11 @@ impl Noder for IfThen {
     }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.if_.replace_variable_path(mapping);
-        self.then_.replace_variable_path(mapping);
+        self.condition.replace_variable_path(mapping);
+        self.goal.replace_variable_path(mapping);
+        if let Some(invariant) = &mut self.invariant {
+            invariant.replace_variable_path(mapping);
+        }
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::IfThen(self)
@@ -966,15 +963,19 @@ impl Noder for IfThen {
 }
 
 impl IfThen {
-    pub fn new(name: &str, if_: Predicate, then_: Predicate) -> IfThen {
+    pub fn new(name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>) -> IfThen {
         let node = SPNode::new(name);
-        IfThen { node, if_, then_ }
+        IfThen { node, condition, goal, invariant }
     }
-    pub fn if_(&self) -> &Predicate {
-        &self.if_
+    pub fn condition(&self) -> &Predicate {
+        &self.condition
     }
-    pub fn then_(&self) -> &Predicate {
-        &self.then_
+    pub fn goal(&self) -> &Predicate {
+        &self.goal
+    }
+
+    pub fn invariant(&self) -> &Option<Predicate> {
+        &self.invariant
     }
 }
 
@@ -985,7 +986,6 @@ impl IfThen {
 pub struct Spec {
     node: SPNode,
     always: Vec<Predicate>,
-    pub is_online: bool,      // hack for now to separate both offline and online specs
 }
 
 impl Noder for Spec {
@@ -1015,9 +1015,9 @@ impl Noder for Spec {
 }
 
 impl Spec {
-    pub fn new(name: &str, is_online: bool, always: Vec<Predicate>) -> Spec {
+    pub fn new(name: &str, always: Vec<Predicate>) -> Spec {
         let node = SPNode::new(name);
-        Spec { node, always, is_online }
+        Spec { node, always }
     }
     pub fn always(&self) -> &[Predicate] {
         self.always.as_slice()

@@ -150,8 +150,9 @@ fn sp_action_to_ex(a: &Action,
 pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
     let items = model.items();
 
+    // collect all OFFLINE specs.
     let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
-        SPItem::Spec(s) if !s.is_online => Some(s),
+        SPItem::Spec(s) => Some(s),
         _ => None,
     }).cloned().collect();
 
@@ -288,9 +289,9 @@ fn test_guard_extraction() {
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
 
-    // Specifications
+    // (offline) Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", false, vec![table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
@@ -370,7 +371,6 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         plans: RunnerPlans::default(),
         state_predicates: preds,
         goals: global_goals,
-        invariants: Vec::new(),
         model: model.clone(), // TODO: borrow?
     };
 

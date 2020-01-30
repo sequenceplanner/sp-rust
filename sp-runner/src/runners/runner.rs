@@ -198,14 +198,14 @@ impl Runner {
             Runner::tick_transitions(&mut self.state, temp, &self.model.op_transitions, &self.model.state_predicates)
         };
 
-        let (goals, _invs) = self.next_op_functions();
+        let goals = self.next_op_functions();
         // validate plan with new goals here and if needed, clear the plan
         if !goals.is_empty() {
             println!("we have goals! {:?}", goals);
         }
 
-        let goals: Vec<_> = goals.iter().map(|x|x.then_().clone()).collect();
-        let result = crate::planning::compute_plan(&goals, &self.state, &self.model, 20);
+        let goal_invs: Vec<_> = goals.iter().map(|x| (x.goal().clone(), x.invariant().clone())).collect();
+        let result = crate::planning::compute_plan(&goal_invs, &self.state, &self.model, 20);
         println!("we have a plan? {} -- got it in {}ms",
                  result.plan_found, result.time_to_solve.as_millis());
 
@@ -359,22 +359,16 @@ impl Runner {
 
     }
 
-    fn next_op_functions(&mut self) -> (Vec<IfThen>, Vec<IfThen>) {
+    fn next_op_functions(&mut self) -> Vec<IfThen> {
 
         let mut goals: Vec<IfThen> = vec!();
-        let mut inv: Vec<IfThen> = vec!();
         for x in self.model.goals.iter() {
-            if x.if_.eval(&self.state) {
+            if x.condition.eval(&self.state) {
                 goals.push(x.clone());
             }
         }
-        for x in self.model.invariants.iter() {
-            if x.if_.eval(&self.state) {
-                inv.push(x.clone());
-            }
-        }
 
-        (goals, inv)
+        goals
     }
 
 

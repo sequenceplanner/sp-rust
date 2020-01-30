@@ -105,7 +105,7 @@ fn action_to_string(a: &Action) -> Option<String> {
     }
 }
 
-fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerModel) -> String {
+fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: &SPState, model: &RunnerModel) -> String {
     let items = model.model.items();
     let resources: Vec<&Resource> = items
         .iter()
@@ -116,8 +116,10 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
         .collect();
     let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
 
+    // TODO: maybe later just put these as "invar" expressions which sanitizes the model instead of guard extraction.
+    // Collect all offline specs.
     let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
-        SPItem::Spec(s) if s.is_online => Some(s),
+        SPItem::Spec(s) => Some(s),
         _ => None,
     }).cloned().collect();
 
@@ -160,25 +162,25 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
     // add DEFINES for specs and state predicates
     lines.push_str("DEFINE\n\n");
 
-    lines.push_str("-- GLOBAL SPECIFICATIONS\n");
-    let mut global = Vec::new();
-    for s in &specs {
-        let path = s.node().path();
+    // lines.push_str("-- GLOBAL SPECIFICATIONS\n");
+    // let mut global = Vec::new();
+    // for s in &specs {
+    //     let path = s.node().path();
 
-        for (i,p) in s.always().iter().enumerate() {
-            let mut pp = path.clone();
-            pp = pp.add_child(&format!("{}", i));
-            let path = NuXMVPath(&pp);
-            let p = NuXMVPredicate(&p);
-            lines.push_str(&format!(
-                    "{i}{v} := {p};\n",
-                    i = indent(2),
-                    v = path,
-                    p = p,
-            ));
-            global.push(p);
-        }
-    }
+    //     for (i,p) in s.always().iter().enumerate() {
+    //         let mut pp = path.clone();
+    //         pp = pp.add_child(&format!("{}", i));
+    //         let path = NuXMVPath(&pp);
+    //         let p = NuXMVPredicate(&p);
+    //         lines.push_str(&format!(
+    //                 "{i}{v} := {p};\n",
+    //                 i = indent(2),
+    //                 v = path,
+    //                 p = p,
+    //         ));
+    //         global.push(p);
+    //     }
+    // }
 
     lines.push_str("\n\n");
 
@@ -266,23 +268,34 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
 
     // finally, print out the ltl spec on the form
     // LTLSPEC ! ( G s1 & G s2 & F g1 & F g2);
-    let global_str: Vec<String> = global.iter().map(|p| format!("G ( {} )", p)).collect();
-    let g = if global_str.is_empty() {
-        "TRUE".to_string()
-    } else {
-        global_str.join("&")
-    };
+    // let global_str: Vec<String> = global.iter().map(|p| format!("G ( {} )", p)).collect();
+    // let g = if global_str.is_empty() {
+    //     "TRUE".to_string()
+    // } else {
+    //     global_str.join("&")
+    // };
 
-    let goal_str: Vec<String> = goals.iter().map(|p| format!("F ( {} )", &NuXMVPredicate(p))).collect();
-    let goals = if goal_str.is_empty() {
+    let goal_str: Vec<String> = goal_invs.iter().map(|(goal,inv)| {
+        if let Some(inv) = inv {
+            // if we have an invariant for our goal,
+            // express it as  inv U (inv & goal)
+            // e.g. we make sure that the invariant also
+            // holds in the post state
+            format!("({inv} U ({inv} & {goal}))", goal = &NuXMVPredicate(goal), inv = &NuXMVPredicate(inv))
+        } else {
+            // no invariant, simple "exists" goal.
+            format!("F ( {} )", &NuXMVPredicate(goal))
+        }
+    }).collect();
+    let goals = if goal_str.is_empty() { // TODO: check this before doing everything else....
         "TRUE".to_string()
     } else {
         goal_str.join("&")
     };
 
-    lines.push_str(&format!("LTLSPEC ! ( {} & {} );", g, goals));
+    // lines.push_str(&format!("LTLSPEC ! ( {} & {} );", g, goals));
     // without safety specs
-    // lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
+    lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
 
     return lines;
 }
@@ -417,7 +430,7 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
 }
 
 pub fn compute_plan(
-    goals: &Vec<Predicate>,
+    goal_invs: &Vec<(Predicate, Option<Predicate>)>,
     state: &SPState,
     model: &RunnerModel,
     max_steps: u32,
@@ -434,7 +447,7 @@ pub fn compute_plan(
         .collect();
     let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
 
-    let lines = create_nuxmv_problem(&goals, &state, &model);
+    let lines = create_nuxmv_problem(&goal_invs, &state, &model);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder

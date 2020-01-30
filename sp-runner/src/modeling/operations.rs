@@ -1,6 +1,6 @@
 use sp_domain::*;
 
-pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate, post_actions: Vec<Action>) -> SPPath {
+pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate, post_actions: Vec<Action>, invariant: Option<Predicate>) -> SPPath {
     let op_state = Variable::new(
         name,
         VariableType::Estimated,
@@ -31,14 +31,13 @@ pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Pre
         vec![],
         false,
     );
-    let op_goal = IfThen::new("goal", p!(p:op_state == "e"), post.clone());
+    let op_goal = IfThen::new("goal", p!(p:op_state == "e"), post.clone(), invariant);
 
     let op = Operation::new(
         name,
         vec![op_start],
         vec![op_finish],
         Some(op_goal),
-        None,
     );
 
     m.add_item(SPItem::Operation(op))

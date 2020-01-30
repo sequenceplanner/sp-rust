@@ -25,24 +25,28 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1_p_r = m.find_item("ref_pos", &["r1"]).expect("check spelling3").path();
+    let r2_p_r = m.find_item("ref_pos", &["r2"]).expect("check spelling4").path();
 
     // Specifications
-    let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", false, vec![table_zone])));
+    // TODO: we need to implement backwards uncontrollable reachability to auto fix our specs
+    let table_zone = p!([!([p:r1_p_a == "at"] && [p:r2_p_a == "at"])] && [!([p:r1_p_r == "at"] && [p:r2_p_r == "at"])]);
+
+    // m.add_item(SPItem::Spec(Spec::new("table_zone", true, vec![table_zone])));
 
     // Operations
-    let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![]);
+    let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![], Some(table_zone.clone()));
 
     let r2_to_at = add_op(&mut m, "r2_to_at", false,
                           // pr!{{p!(r2_p_a != "at")} && {p!(r1_p_a == "at")}}, // can start when r1 is at "at". what will happen?
                           p!(p:r2_p_a != "at"),
-                          p!(p:r2_p_a == "at"), vec![]);
+                          p!(p:r2_p_a == "at"), vec![], Some(table_zone.clone()));
 
     // reset previous ops so we can start over
     let both_to_away = add_op(&mut m, "both_to_away", true,
                               p!([p:r1_to_at == "f"] && [p:r2_to_at == "f"]),
                               p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
-                              vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")]);
+                              vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
     // Make it runnable
     let s = make_initial_state(&m);
