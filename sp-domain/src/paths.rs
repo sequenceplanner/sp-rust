@@ -15,27 +15,28 @@ impl std::fmt::Display for SPPath {
     }
 }
 
-
 impl SPPath {
     pub fn new() -> SPPath {
-        SPPath{path: vec!()}
+        SPPath { path: vec![] }
     }
     pub fn from(path: Vec<String>) -> SPPath {
-        SPPath{path}
+        SPPath { path }
     }
     pub fn from_slice<T: AsRef<str>>(path: &[T]) -> SPPath {
         let xs: Vec<String> = path.iter().map(|s| s.as_ref().to_string()).collect();
-        SPPath{ path: xs}
+        SPPath { path: xs }
     }
     pub fn from_string(s: &str) -> SPPath {
         let res: Vec<&str> = s.split("/").collect();
         SPPath::from_slice(&res)
     }
     pub fn add_child(mut self, sub: &str) -> Self {
-        self.path.push(sub.to_string()); self
+        self.path.push(sub.to_string());
+        self
     }
     pub fn add_parent(mut self, root: &str) -> Self {
-        self.path.insert(0, root.to_string()); self
+        self.path.insert(0, root.to_string());
+        self
     }
     pub fn add_child_path(&mut self, sub: &SPPath) {
         self.path.append(&mut sub.path.clone())
@@ -48,29 +49,28 @@ impl SPPath {
     // maybe should return result instead of panicing. use with caution.
     pub fn drop_parent(&mut self, parent: &SPPath) {
         let zipped = self.path.iter().zip(parent.path.iter());
-        let match_len = zipped.filter(|(a,b)| a == b).count();
+        let match_len = zipped.filter(|(a, b)| a == b).count();
         if match_len == parent.path.len() {
             // all parent paths matched, remove
             self.path.drain(0..match_len);
         } else {
-            panic!("cannot drop parent as it does not exist: {} - {}", self, parent);
+            panic!(
+                "cannot drop parent as it does not exist: {} - {}",
+                self, parent
+            );
         }
     }
 
     pub fn is_child_of(&self, other: &SPPath) -> bool {
         (self.path.len() > other.path.len())
-            && other
-                .path
-                .iter()
-                .zip(self.path.iter())
-                .all(|(a, b)| a == b)
+            && other.path.iter().zip(self.path.iter()).all(|(a, b)| a == b)
     }
 
     pub fn parent(&self) -> SPPath {
         if self.path.len() <= 1 {
             SPPath::new()
         } else {
-            SPPath::from_slice(&self.path[..self.path.len()-2])
+            SPPath::from_slice(&self.path[..self.path.len() - 2])
         }
     }
 
@@ -83,10 +83,7 @@ impl SPPath {
             None
         }
     }
-
-
 }
-
 
 #[cfg(test)]
 mod tests_paths {
@@ -104,7 +101,6 @@ mod tests_paths {
         assert_ne!(SPPath::from_string("b/a"), ab);
         assert_ne!(SPPath::from_slice(&["b", "a"]), ab);
         assert_ne!(SPPath::from_slice(&["a", "b", "c"]), ab);
-
     }
 
     #[test]
@@ -133,9 +129,6 @@ mod tests_paths {
         ab.drop_parent(&parent);
     }
 
-
     #[test]
-    fn get_next_name() {
-
-    }
+    fn get_next_name() {}
 }

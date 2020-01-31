@@ -1,7 +1,7 @@
 use super::*;
+use serde::{Deserialize, Serialize};
 /// In this file both predicates and actions are defined
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Predicate {
@@ -31,7 +31,6 @@ pub enum PredicateValue {
     SPPath(SPPath, Option<StatePath>),
 }
 
-
 /// Used in actions to compute a new SPValue.
 /// When using delay and fetching a value from another variable, the current value of that
 /// variable will be taken and assigned to the action variable after the delay, and not the
@@ -40,12 +39,12 @@ pub enum PredicateValue {
 pub enum Compute {
     PredicateValue(PredicateValue),
     Predicate(Predicate), // used for boolean actions
-    // If we need more advanced functions we can add them here
-    //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
-    //TakeBefore(SPValue, Vec<SPValue>),
-    // Add(Box<Compute>, Box<Compute>),
-    // Sub(Box<Compute>, Box<Compute>),
-    // Join(Box<Compute>, Box<Compute>),
+                          // If we need more advanced functions we can add them here
+                          //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
+                          //TakeBefore(SPValue, Vec<SPValue>),
+                          // Add(Box<Compute>, Box<Compute>),
+                          // Sub(Box<Compute>, Box<Compute>),
+                          // Join(Box<Compute>, Box<Compute>),
 }
 
 impl<'a> PredicateValue {
@@ -70,11 +69,13 @@ impl<'a> PredicateValue {
             PredicateValue::SPPath(path, sp) => {
                 if sp.is_none() {
                     *sp = state.state_path(path)
-                } else if sp.clone().map(|x| x.state_id != state.id()).unwrap_or(false) {
+                } else if sp
+                    .clone()
+                    .map(|x| x.state_id != state.id())
+                    .unwrap_or(false)
+                {
                     *sp = state.state_path(path);
                 }
-
-
             }
             _ => {}
         }
@@ -87,10 +88,9 @@ impl<'a> PredicateValue {
         PredicateValue::SPPath(p, None)
     }
 
-
     pub fn replace_variable_path(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         match self {
-            PredicateValue::SPValue(_) => {} ,
+            PredicateValue::SPValue(_) => {}
             PredicateValue::SPPath(op, _) => {
                 if let Some(np) = mapping.get(op) {
                     *op = np.clone();
@@ -99,7 +99,6 @@ impl<'a> PredicateValue {
         }
     }
 }
-
 
 impl Default for PredicateValue {
     fn default() -> Self {
@@ -110,40 +109,47 @@ impl Default for PredicateValue {
 impl Predicate {
     pub fn upd_state_path(&mut self, state: &SPState) {
         match self {
-                Predicate::AND(x) => { x.iter_mut().for_each(|p| p.upd_state_path(state)) },
-                Predicate::OR(x) => { x.iter_mut().for_each(|p| p.upd_state_path(state)) },
-                Predicate::XOR(x) => { x.iter_mut().for_each(|p| p.upd_state_path(state)) },
-                Predicate::NOT(x) => { x.upd_state_path(state) },
-                Predicate::TRUE => {},
-                Predicate::FALSE => {},
-                Predicate::EQ(x, y) => {
-                    x.upd_state_path(state);
-                    y.upd_state_path(state);
-                },
-                Predicate::NEQ(x, y) => {
-                    x.upd_state_path(state);
-                    y.upd_state_path(state);
-                },
+            Predicate::AND(x) => x.iter_mut().for_each(|p| p.upd_state_path(state)),
+            Predicate::OR(x) => x.iter_mut().for_each(|p| p.upd_state_path(state)),
+            Predicate::XOR(x) => x.iter_mut().for_each(|p| p.upd_state_path(state)),
+            Predicate::NOT(x) => x.upd_state_path(state),
+            Predicate::TRUE => {}
+            Predicate::FALSE => {}
+            Predicate::EQ(x, y) => {
+                x.upd_state_path(state);
+                y.upd_state_path(state);
             }
+            Predicate::NEQ(x, y) => {
+                x.upd_state_path(state);
+                y.upd_state_path(state);
+            }
+        }
     }
-
 
     pub fn replace_variable_path(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         match self {
-            Predicate::AND(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
-            Predicate::OR(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
-            Predicate::XOR(v) => { v.iter_mut().for_each(|e| e.replace_variable_path(mapping)); },
-            Predicate::NOT(b) => { b.replace_variable_path(mapping);},
-            Predicate::TRUE => {},
-            Predicate::FALSE => {},
+            Predicate::AND(v) => {
+                v.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+            }
+            Predicate::OR(v) => {
+                v.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+            }
+            Predicate::XOR(v) => {
+                v.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+            }
+            Predicate::NOT(b) => {
+                b.replace_variable_path(mapping);
+            }
+            Predicate::TRUE => {}
+            Predicate::FALSE => {}
             Predicate::EQ(pv1, pv2) => {
                 pv1.replace_variable_path(mapping);
                 pv2.replace_variable_path(mapping);
-            },
+            }
             Predicate::NEQ(pv1, pv2) => {
                 pv1.replace_variable_path(mapping);
                 pv2.replace_variable_path(mapping);
-            },
+            }
         }
     }
 }
@@ -159,33 +165,30 @@ impl Action {
 
     pub fn upd_state_path(&mut self, state: &SPState) {
         match &self.state_path {
-            Some(sp) if sp.state_id != state.id() =>
-                self.state_path = state.state_path(&self.var),
-            None =>
-                self.state_path = state.state_path(&self.var),
+            Some(sp) if sp.state_id != state.id() => self.state_path = state.state_path(&self.var),
+            None => self.state_path = state.state_path(&self.var),
             _ => {}
         }
     }
-
 
     pub fn replace_variable_path(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         if let Some(np) = mapping.get(&self.var) {
             self.var = np.clone();
         }
         match &mut self.value {
-            Compute::PredicateValue(pv) => { pv.replace_variable_path(mapping); }
-            Compute::Predicate(p) => { p.replace_variable_path(mapping); }
+            Compute::PredicateValue(pv) => {
+                pv.replace_variable_path(mapping);
+            }
+            Compute::Predicate(p) => {
+                p.replace_variable_path(mapping);
+            }
         }
     }
 
     pub fn revert_action(&self, state: &mut SPState) -> SPResult<()> {
         match &self.state_path {
-            Some(sp) => {
-                state.revert_next(&sp)
-            },
-            None => {
-                state.revert_next_from_path(&self.var)
-            }
+            Some(sp) => state.revert_next(&sp),
+            None => state.revert_next_from_path(&self.var),
         }
     }
 }
@@ -201,7 +204,6 @@ impl Default for Compute {
         Compute::PredicateValue(PredicateValue::default())
     }
 }
-
 
 /// Eval is used to evaluate a predicate (or an operation ).
 pub trait EvaluatePredicate {
@@ -245,22 +247,17 @@ impl EvaluatePredicate for Predicate {
 impl NextAction for Action {
     fn next(&self, state: &mut SPState) -> SPResult<()> {
         let c = match &self.value {
-            Compute::PredicateValue(pv) => {
-                match pv
-                    .sp_value(state)
-                    .map(|x| x.clone())
-                {
-                    Some(x) => x,
-                    None => {
-                        eprintln!(
-                            "The action PredicateValue, next did not find a value for variable: {:?}",
-                             pv
-                        );
-                        return Err(SPError::No(format!(
-                            "The action PredicateValue, next did not find a value for variable: {:?}",
-                             pv
-                        )));
-                    }
+            Compute::PredicateValue(pv) => match pv.sp_value(state).map(|x| x.clone()) {
+                Some(x) => x,
+                None => {
+                    eprintln!(
+                        "The action PredicateValue, next did not find a value for variable: {:?}",
+                        pv
+                    );
+                    return Err(SPError::No(format!(
+                        "The action PredicateValue, next did not find a value for variable: {:?}",
+                        pv
+                    )));
                 }
             },
             Compute::Predicate(p) => {
@@ -270,33 +267,23 @@ impl NextAction for Action {
         };
 
         match &self.state_path {
-            Some(sp) => {
-                state.next(&sp, c)
-            },
-            None => {
-                state.next_from_path(&self.var, c)
-            }
+            Some(sp) => state.next(&sp, c),
+            None => state.next_from_path(&self.var, c),
         }
     }
-
 }
 
 impl EvaluatePredicate for Action {
     fn eval(&self, state: &SPState) -> bool {
         let sp = match &self.state_path {
-            Some(x) => {
-                state.state_value(x)
-            },
-            None => state.state_value_from_path(&self.var)
+            Some(x) => state.state_value(x),
+            None => state.state_value_from_path(&self.var),
         };
-        match sp
-        {
+        match sp {
             Some(x) => !x.has_next(), // MD: I assume we meant to fail if we *already* had a next value for this action
             None => false, // We do not allow actions to add new state variables. But maybe this should change?
         }
     }
-
-
 }
 
 // TODO: Just an experimental impl to learn. Hard to make it general
@@ -541,7 +528,7 @@ mod sp_value_test {
         //     current_value: false.to_spvalue(),
         //     next_value: true.to_spvalue(),
         // });
-        println!{"next pred: {:?}", a3};
+        println! {"next pred: {:?}", a3};
         //assert_eq!(s.state_value_from_path(&xy), Some(&next));
 
         a.next(&mut s).unwrap();
@@ -643,7 +630,6 @@ mod sp_value_test {
         assert!(!a.eval(&s));
     }
 
-
     #[test]
     fn test_make_guard() {
         let ab = SPPath::from_slice(&["a", "b"]);
@@ -652,13 +638,13 @@ mod sp_value_test {
         let mut a = Action {
             var: ab.clone(),
             value: Compute::PredicateValue(PredicateValue::SPValue(SPValue::Bool(true))),
-            state_path: None
+            state_path: None,
         };
 
         let mut a2 = Action {
             var: ab.clone(),
             value: Compute::PredicateValue(PredicateValue::SPValue(SPValue::Bool(false))),
-            state_path: None
+            state_path: None,
         };
 
         a.next(&mut s);
@@ -677,13 +663,13 @@ mod sp_value_test {
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
 
-        let p = p!{ab == 2};
-        let p2 = p!{{["a", "b"]} == 2};
-        let x = pr!{p2 && p && p && p};
-        let y = pr!{{p!{{["a", "c"]} == 10}} && {p!{{["a", "b"]} == 20}}};
-        let z = pr!{ {p!{{["a", "c"]}}} && {p!{ab == 2}}};
-        let k = pr!{{pr!{x || y}} && {p!{ab != 5}}};
-        let mut long = pr!{z || k};
+        let p = p! {ab == 2};
+        let p2 = p! {{["a", "b"]} == 2};
+        let x = pr! {p2 && p && p && p};
+        let y = pr! {{p!{{["a", "c"]} == 10}} && {p!{{["a", "b"]} == 20}}};
+        let z = pr! { {p!{{["a", "c"]}}} && {p!{ab == 2}}};
+        let k = pr! {{pr!{x || y}} && {p!{ab != 5}}};
+        let mut long = pr! {z || k};
         println!("before");
         println!("{:?}", &long.clone());
 
@@ -693,6 +679,5 @@ mod sp_value_test {
         println!("{:?}", &long);
 
         assert!(false);
-
     }
 }

@@ -114,7 +114,7 @@ impl StateValue {
     pub fn value(&self) -> &SPValue {
         match self.next {
             Some(ref x) => x,
-            None => &self.current
+            None => &self.current,
         }
     }
     pub fn current_value(&self) -> &SPValue {
@@ -128,9 +128,9 @@ impl StateValue {
         &self.prev
     }
     pub fn extract(self) -> SPValue {
-        match  self.next {
+        match self.next {
             Some(x) => x,
-            None => self.current
+            None => self.current,
         }
     }
 }
@@ -144,8 +144,6 @@ pub struct StatePath {
     pub index: usize,
     pub state_id: Uuid,
 }
-
-
 
 impl SPState {
     /// Creates a new empty state.
@@ -201,7 +199,6 @@ impl SPState {
             self.add_state_variable(path, value);
         });
     }
-
 
     /// Add a new state variable to the state. If the path already is included, the value is updated.
     /// Maybe we should change this and not update the state? This will also change the id of the state
@@ -327,17 +324,12 @@ impl SPState {
     }
 
     pub fn are_new_values_the_same(&self, new_values: &SPState) -> bool {
-        new_values
-            .index
-            .iter()
-            .all(|(key, i)| {
-                self
-                    .sp_value_from_path(key)
-                    .map(|x| x == new_values.values[*i].value())
-                    .unwrap_or(false)
-            })
+        new_values.index.iter().all(|(key, i)| {
+            self.sp_value_from_path(key)
+                .map(|x| x == new_values.values[*i].value())
+                .unwrap_or(false)
+        })
     }
-
 
     pub fn prefix_paths(&mut self, parent: &SPPath) {
         let mut xs = HashMap::new();
@@ -350,7 +342,8 @@ impl SPState {
         self.id = Uuid::new_v4(); // Changing id since the paths changes
     }
 
-    pub fn unprefix_paths(&mut self, parent: &SPPath) { // return a new state without parent for all variables
+    pub fn unprefix_paths(&mut self, parent: &SPPath) {
+        // return a new state without parent for all variables
         let mut new_index = HashMap::new();
         for (path, i) in &self.index {
             let mut new_key = path.clone();
@@ -368,8 +361,10 @@ impl SPState {
     pub fn next(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
             Err(SPError::No("The state path is wrong".to_string()))
-        } else if !self.values[state_path.index].next(value){
-            Err(SPError::No("The state already have a next value".to_string()))
+        } else if !self.values[state_path.index].next(value) {
+            Err(SPError::No(
+                "The state already have a next value".to_string(),
+            ))
         } else {
             Ok(())
         }
@@ -412,13 +407,12 @@ impl SPState {
         }
     }
 
-
     pub fn next_map(&mut self, map: Vec<(StatePath, SPValue)>) -> bool {
-        let ok = map.iter().all(|(p, _)| {
-            self.next_is_allowed(p)
-        });
+        let ok = map.iter().all(|(p, _)| self.next_is_allowed(p));
         ok && {
-            map.into_iter().for_each(|(p, v)| {self.values[p.index].next(v);});
+            map.into_iter().for_each(|(p, v)| {
+                self.values[p.index].next(v);
+            });
             true
         }
     }
@@ -434,7 +428,12 @@ impl SPState {
         let mut values = self.values;
         index
             .into_iter()
-            .map(|(key, i)| (key, std::mem::replace(&mut values[i], StateValue::new(SPValue::Unknown))))
+            .map(|(key, i)| {
+                (
+                    key,
+                    std::mem::replace(&mut values[i], StateValue::new(SPValue::Unknown)),
+                )
+            })
             .collect()
     }
 
@@ -457,8 +456,6 @@ impl fmt::Display for SPState {
     }
 }
 
-
-
 /// helping making states with a macro
 #[macro_export]
 macro_rules! state {
@@ -480,8 +477,6 @@ macro_rules! state {
     }}
 }
 
-
-
 /// ********** TESTS ***************
 
 #[cfg(test)]
@@ -498,7 +493,6 @@ mod sp_value_test {
         println!("s2 proj {:?}", s2.projection());
 
         assert_eq!(s, s2);
-
     }
 
     #[test]
@@ -531,10 +525,6 @@ mod sp_value_test {
 
         let x = s.next(&state_path, 5.to_spvalue());
         assert!(x.is_err());
-
-
-
-
 
         println!("{:?}", x);
         println!("{:?}", s);
@@ -581,8 +571,14 @@ mod sp_value_test {
         let s = state!(abc => false, abx => false, ax => true);
 
         // sub_state_projection
-        assert_eq!(s.sub_state_projection(&ab).clone_state(), state!(abc => false, abx => false));
-        assert_eq!(s.sub_state_projection(&abc).clone_state(), state!(abc => false));
+        assert_eq!(
+            s.sub_state_projection(&ab).clone_state(),
+            state!(abc => false, abx => false)
+        );
+        assert_eq!(
+            s.sub_state_projection(&abc).clone_state(),
+            state!(abc => false)
+        );
         assert_eq!(s.sub_state_projection(&b).clone_state(), state!());
         assert_eq!(s.sub_state_projection(&a).clone_state(), s.clone());
 
