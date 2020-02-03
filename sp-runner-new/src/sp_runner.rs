@@ -1,5 +1,8 @@
+#![allow(dead_code)]
+
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
+use sp_runner_api::*;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
@@ -26,19 +29,19 @@ pub struct SPRunner {
     ability_plan: SPPlan,
     operation_plan: SPPlan,
     last_fired_transitions: Vec<SPPath>,
-    old_model: Model,
+    old_model: RunnerModel,
     in_sync: bool,
 }
 
 impl SPRunner {
-    pub fn _new(
+    pub fn new(
         name: &str,
         transitions: Vec<Transition>,
         variables: Vec<Variable>,
         goals: Vec<IfThen>,
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
-        old_model: Model,
+        old_model: RunnerModel,
     ) -> Self {
         let mut vars = vec!();
         let mut preds = vec!();
@@ -113,13 +116,17 @@ impl SPRunner {
         goals
     }
 
+    pub fn insert_a_new_state(&mut self, new_variables: SPState) {
+        self.ticker.state.extend(new_variables);
+        self.reload_state_paths();
+    }
+
     fn take_a_tick(&mut self, state: SPState) {
         if self.in_sync {
             let g = self.goal();
-            //let result = crate::planning::compute_plan(&g, &self.ticker.state, &self.old_model, 20);
-            //println!("we have a plan? {} -- got it in {}ms",
-            //result.plan_found, result.time_to_solve.as_millis());
-            
+            let result = crate::planning::compute_plan(&g, &self.ticker.state, &self.old_model, 20);
+            println!("we have a plan? {} -- got it in {}ms", result.plan_found, result.time_to_solve.as_millis());
+            self.include_planning_result(result);
         }
         let res = self.ticker.tick_transitions(state);
         self.last_fired_transitions = res.1;
@@ -151,5 +158,88 @@ impl SPRunner {
         }
     }
 
+    fn include_planning_result(&mut self, res: crate::planning::PlanningResult) {
+        // do some
+    }
+
 
 }
+
+
+#[cfg(test)]
+mod test_new_runner {
+    use super::*;
+    use crate::planning::*;
+
+    #[test]
+    fn testing_me() {
+        let (m, initial_state) = crate::testing::two_dummy_robots();
+        let m: RunnerModel = m;
+        //println!("{:?}", m);
+        let mut trans = vec!();
+        m.op_transitions.ctrl.iter().for_each(|t| {
+            trans.push(t.clone());
+        });
+        m.op_transitions.un_ctrl.iter().for_each(|t| {
+            trans.push(t.clone());
+        });
+        m.ab_transitions.ctrl.iter().for_each(|t| {
+            trans.push(t.clone());
+        });
+        m.ab_transitions.un_ctrl.iter().for_each(|t| {
+            trans.push(t.clone());
+        });
+        let mut runner = SPRunner::new(
+            "test",
+            trans,
+            m.state_predicates.clone(),
+            m.goals.clone(),
+            vec!(),
+            vec!(),
+            m
+        );
+
+        let the_upd_state = state!(
+            ["dummy_robot_model", "r1", "State", "act_pos"] => "away",
+            ["dummy_robot_model", "r1", "Control", "ref_pos"] => "away",
+            ["dummy_robot_model", "r2", "State", "act_pos"] => "away",
+            ["dummy_robot_model", "r2", "Control", "ref_pos"] => "away"
+        );
+
+        println!{""};
+        println!("Initial goal:{:?}", runner.goal());
+        println!{""};
+        runner.insert_a_new_state(initial_state);
+        //println!("NU KÖR VI: {}", runner.state());
+        runner.input(SPRunnerInput::StateChange(the_upd_state));
+        println!{""};
+        println!("{}", runner.state());
+        println!{""};
+        println!("goal:{:?}", runner.goal());
+        println!{""};
+        runner.input(SPRunnerInput::Tick);
+        println!{""};
+        println!("The state: {}", runner.state());
+        println!("goal:{:?}", runner.goal());
+        println!{""};
+        runner.input(SPRunnerInput::Tick);
+    }
+}
+
+// name: &str,
+//         transitions: Vec<Transition>,
+//         variables: Vec<Variable>,
+//         goals: Vec<IfThen>,
+//         global_transition_specs: Vec<TransitionSpec>,
+//         forbidden: Vec<IfThen>,
+//         old_model: RunnerModel,
+
+// pub struct RunnerModel {
+//     pub op_transitions: RunnerTransitions,
+//     pub ab_transitions: RunnerTransitions,
+//     pub plans: RunnerPlans,
+//     pub state_predicates: Vec<Variable>,
+//     pub goals: Vec<IfThen>,
+//     pub invariants: Vec<IfThen>,
+//     pub model: Model,
+// }

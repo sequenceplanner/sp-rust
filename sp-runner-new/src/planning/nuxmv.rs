@@ -188,7 +188,11 @@ fn create_nuxmv_problem(goals: &Vec<Predicate>, state: &SPState, model: &RunnerM
     lines.push_str("-- CURRENT STATE --\n");
 
     for (path, _variable) in &vars {
-        let value = state.sp_value_from_path(path).expect("all variables need a valuation!");
+        let value_opt = state.sp_value_from_path(path);
+        if value_opt.is_none() {
+            println!("No path for {:?} in variable: {:?}", path, _variable);
+        }
+        let value = value_opt.expect("all variables need a valuation!");
         let path = NuXMVPath(path);
         let value = NuXMVValue(value);
         lines.push_str(&format!(

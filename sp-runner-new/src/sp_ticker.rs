@@ -185,7 +185,7 @@ impl SPTicker {
 }
 
 #[cfg(test)]
-mod test_new_runner {
+mod test_new_ticker {
     use super::*;
 
     #[test]
