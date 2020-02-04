@@ -427,7 +427,7 @@ pub fn make_dummy_robot(name: &str) -> Resource {
 
 
     println!("NEW RESOURCE:");
-    println!("{:#?}", new_resource);
+    //println!("{:#?}", new_resource);
 
     // build resource by going through all transitions and predicates
     // and looking for names "upwards" in the hierarchy defined by the

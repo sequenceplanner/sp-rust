@@ -814,6 +814,8 @@ impl NextAction for Transition {
     }
 }
 
+
+
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Ability {
     node: SPNode,
