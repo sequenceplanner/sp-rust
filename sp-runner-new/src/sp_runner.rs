@@ -17,7 +17,7 @@ pub struct SPRunner {
     global_transition_specs: Vec<TransitionSpec>,
     ability_plan: SPPlan,
     operation_plan: SPPlan,
-    last_fired_transitions: Vec<SPPath>,
+    pub last_fired_transitions: Vec<SPPath>,
     old_model: RunnerModel,
     in_sync: bool,
 }
@@ -319,12 +319,15 @@ mod test_new_runner {
         println!("State: {}", runner.state());
         println!{""};
         runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::TickAsync);
         println!("fired:");
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!{""};
         println!("State: {}", runner.state());
         println!{""};
-        runner.input(SPRunnerInput::Tick);
+        runner.input(SPRunnerInput::TickAsync);
     }
 
     fn make_dummy_robot_runner() -> SPRunner {
