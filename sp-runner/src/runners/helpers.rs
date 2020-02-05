@@ -128,7 +128,8 @@ fn ex_to_sp_pred(e: &Ex,
                 Value::Var(other) => {
                     let other = var_map.values().find(|(idx, _)| idx == other).unwrap().1.clone();
                     PredicateValue::SPPath(other.path().clone(), None)
-                }
+                },
+                Value::Free => panic!("not supported")
             };
             Predicate::EQ(PredicateValue::SPPath(var.path().clone(), None), val)
         },
@@ -169,6 +170,41 @@ fn sp_action_to_ex(a: &Action,
     }
 }
 
+fn sp_action_to_ac(a: &Action,
+                   var_map: &HashMap<SPPath, (usize, Variable)>,
+                   pred_map: &HashMap<SPPath, Predicate>) -> Ac {
+    let (index, var) = var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
+    let val = match &a.value {
+        Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
+            // assign p to var
+            let x = var_map.get(p);
+            if x.is_some() {
+                let (other, var) = var_map.get(p).unwrap();
+                Value::Var(*other)
+            } else {
+                println!("ASSUMING FREE VARIABLE");
+                Value::Free
+            }
+        },
+        Compute::PredicateValue(PredicateValue::SPValue(value)) => {
+            // assign value to var
+            match value {
+                SPValue::Bool(b) => Value::Bool(*b),
+                v => {
+                    // find index in domain.
+                    let dom = var.domain();
+                    Value::InDomain(dom.iter().position(|e| e == v).unwrap())
+                }
+            }
+        },
+        x => panic!("TODO: {:?}", x)
+    };
+    Ac {
+        var: *index,
+        val: val,
+    }
+}
+
 
 pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
     let items = model.items();
@@ -203,7 +239,15 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
         }
     }).collect();
 
-    let vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
+    let mut vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
+
+    let sub_items: Vec<_> = resources.iter().flat_map(|r| r.sub_items()).collect();
+    let sub_item_variables: Vec<_> = sub_items.iter().flat_map(|i| match i {
+        SPItem::Variable(v) => Some(v.clone()),
+        _ => None,
+    }).collect();
+    vars.extend(sub_item_variables);
+
 
     let mut c = Context::default(); // guard extraction context
     let mut var_map = HashMap::new();
@@ -320,7 +364,14 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
         }
     }).collect();
 
-    let vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
+    let mut vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
+
+    let sub_items: Vec<_> = resources.iter().flat_map(|r| r.sub_items()).collect();
+    let sub_item_variables: Vec<_> = sub_items.iter().flat_map(|i| match i {
+        SPItem::Variable(v) => Some(v.clone()),
+        _ => None,
+    }).collect();
+    vars.extend(sub_item_variables);
 
     let mut c = Context::default(); // guard extraction context
     let mut var_map = HashMap::new();
@@ -346,21 +397,36 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
             let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
             println!("guard: {:?}", guard);
 
-            let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-            // println!("action: {:?}", actions);
-
-            let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-            //println!("effects: {:?}", effects);
-
-            let mut a = Vec::new();
-            a.extend(actions.iter().cloned());
-            a.extend(effects.iter().cloned());
-            let a = Ex::AND(a);
-            println!("all a/effects: {:?}", a);
-
             if t.controlled() {
-                bc.c_trans(&t.path().to_string(), guard, a);
+
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // println!("action: {:?}", actions);
+
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                //println!("effects: {:?}", effects);
+
+                let mut a = Vec::new();
+                a.extend(actions.iter().cloned());
+                a.extend(effects.iter().cloned());
+                println!("all actions and effects: {:?}", a);
+
+                bc.c_trans2(&t.path().to_string(), guard, &a);
             } else {
+
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                // println!("action: {:?}", actions);
+
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                //println!("effects: {:?}", effects);
+
+                let mut a = Vec::new();
+                a.extend(actions.iter().cloned());
+                a.extend(effects.iter().cloned());
+                let a = Ex::AND(a);
+                println!("all a/effects: {:?}", a);
+
+
+
                 bc.uc_trans(&t.path().to_string(), guard, a);
             }
         }
