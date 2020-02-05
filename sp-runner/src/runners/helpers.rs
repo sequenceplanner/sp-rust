@@ -270,18 +270,36 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
 
             if t.controlled() {
 
-                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // // println!("action: {:?}", actions);
+
+                // let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // //println!("effects: {:?}", effects);
+
+                // let mut a = Vec::new();
+                // a.extend(actions.iter().cloned());
+                // a.extend(effects.iter().cloned());
+                // println!("all actions and effects: {:?}", a);
+
+                // bc.c_trans2(&t.path().to_string(), guard, &a);
+
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
                 // println!("action: {:?}", actions);
 
-                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
                 //println!("effects: {:?}", effects);
 
                 let mut a = Vec::new();
                 a.extend(actions.iter().cloned());
                 a.extend(effects.iter().cloned());
-                println!("all actions and effects: {:?}", a);
+                let a = Ex::AND(a);
+                println!("all a/effects: {:?}", a);
 
-                bc.c_trans2(&t.path().to_string(), guard, &a);
+
+
+                bc.c_trans(&t.path().to_string(), guard, a);
+
+
             } else {
 
                 let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
