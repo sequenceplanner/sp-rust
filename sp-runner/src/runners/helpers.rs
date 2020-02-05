@@ -249,14 +249,14 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
     let mut var_map = HashMap::new();
 
     for v in &vars {
-        println!("{} {:?} {}", v.path(), v.value_type(), v.domain().len());
-
         let index = if v.value_type() == SPValueType::Bool {
             c.add_bool(&v.path().to_string())
         } else {
             c.add_enum(&v.path().to_string(), v.domain().len())
         };
         var_map.insert(v.path().clone(), (index, v.clone()));
+
+        println!("{}: {} {:?} {}", index, v.path(), v.value_type(), v.domain().len());
     }
 
     // that was all vars, now add the transitions...
@@ -265,58 +265,76 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
         let mut bc = BDDContext::from(&c, &b);
 
         for t in &trans {
+            println!("Transition {}", t.path());
+            println!("=============");
+
             let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
             println!("guard: {:?}", guard);
 
             if t.controlled() {
 
-                // let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // println!("action: {:?}", actions);
+
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                //println!("effects: {:?}", effects);
+
+                let mut a = Vec::new();
+                a.extend(actions.iter().cloned());
+                a.extend(effects.iter().cloned());
+                println!("all actions and effects: {:?}", a);
+
+                bc.c_trans(&t.path().to_string(), guard, &a);
+
+                // let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
                 // // println!("action: {:?}", actions);
 
-                // let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
                 // //println!("effects: {:?}", effects);
 
                 // let mut a = Vec::new();
                 // a.extend(actions.iter().cloned());
                 // a.extend(effects.iter().cloned());
-                // println!("all actions and effects: {:?}", a);
-
-                // bc.c_trans2(&t.path().to_string(), guard, &a);
-
-                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-                // println!("action: {:?}", actions);
-
-                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-                //println!("effects: {:?}", effects);
-
-                let mut a = Vec::new();
-                a.extend(actions.iter().cloned());
-                a.extend(effects.iter().cloned());
-                let a = Ex::AND(a);
-                println!("all a/effects: {:?}", a);
+                // let a = Ex::AND(a);
+                // println!("all a/effects: {:?}", a);
 
 
 
-                bc.c_trans(&t.path().to_string(), guard, a);
+                // bc.c_trans(&t.path().to_string(), guard, a);
 
 
             } else {
 
-                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                // let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                // // println!("action: {:?}", actions);
+
+                // let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                // //println!("effects: {:?}", effects);
+
+                // let mut a = Vec::new();
+                // a.extend(actions.iter().cloned());
+                // a.extend(effects.iter().cloned());
+                // let a = Ex::AND(a);
+                // println!("all a/effects: {:?}", a);
+
+
+
+                // bc.uc_trans(&t.path().to_string(), guard, a);
+
+
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
                 // println!("action: {:?}", actions);
 
-                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
                 //println!("effects: {:?}", effects);
 
                 let mut a = Vec::new();
                 a.extend(actions.iter().cloned());
                 a.extend(effects.iter().cloned());
-                let a = Ex::AND(a);
-                println!("all a/effects: {:?}", a);
+                println!("all actions and effects: {:?}", a);
 
+                bc.uc_trans(&t.path().to_string(), guard, &a);
 
-
-                bc.uc_trans(&t.path().to_string(), guard, a);
             }
         }
 
@@ -328,23 +346,8 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
             Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)))
         }).collect());
 
-        // let s = spec.always().first().unwrap().clone(); // lazy
-        // let sex = sp_pred_to_ex(&s, &var_map, &pred_map);
-        // println!("forbidden {:?}", sex);
-
         let forbidden = bc.from_expr(&forbidden);
-        // println!("{:#?}", bc);
-
-
-        let init = sp_pred_to_ex(&init, &var_map, &pred_map);
-        println!("init {:?}", init);
-
-        let init = bc.from_expr(&init);
-
-
         let initial = bc.from_expr(&Ex::TRUE); // all states
-        println!("bdd one {:?}", initial);
-
         let (_reachable, bad, controllable) = bc.controllable(&initial, &forbidden);
 
         let new_guards = bc.compute_guards(&controllable, &bad);
@@ -428,7 +431,6 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
             println!("guard: {:?}", guard);
 
             if t.controlled() {
-
                 let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
                 // println!("action: {:?}", actions);
 
@@ -440,24 +442,21 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
                 a.extend(effects.iter().cloned());
                 println!("all actions and effects: {:?}", a);
 
-                bc.c_trans2(&t.path().to_string(), guard, &a);
+                bc.c_trans(&t.path().to_string(), guard, &a);
             } else {
 
-                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
                 // println!("action: {:?}", actions);
 
-                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
                 //println!("effects: {:?}", effects);
 
                 let mut a = Vec::new();
                 a.extend(actions.iter().cloned());
                 a.extend(effects.iter().cloned());
-                let a = Ex::AND(a);
                 println!("all a/effects: {:?}", a);
 
-
-
-                bc.uc_trans(&t.path().to_string(), guard, a);
+                bc.uc_trans(&t.path().to_string(), guard, &a);
             }
         }
 
@@ -493,7 +492,8 @@ fn test_guard_extraction() {
 
     // (offline) Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    //m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![Predicate::TRUE])));
 
     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
