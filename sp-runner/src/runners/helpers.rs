@@ -50,6 +50,26 @@ fn sp_pred_to_ex(p: &Predicate,
                 panic!("VAR {:?}, VALUE {:?}", var, value)
             }
         },
+        Predicate::EQ(PredicateValue::SPPath(var, _),
+                      PredicateValue::SPPath(other, _)) => {
+            if var_map.contains_key(var) && var_map.contains_key(other) {
+                let (index, var) = var_map.get(var).unwrap();
+                let (index2, other) = var_map.get(other).unwrap();
+                Ex::EQ(*index, Value::Var(*index2))
+            } else {
+                panic!("VAR {:?}, OTHER {:?}", var, other)
+            }
+        },
+        Predicate::NEQ(PredicateValue::SPPath(var, _),
+                       PredicateValue::SPPath(other, _)) => {
+            if var_map.contains_key(var) && var_map.contains_key(other) {
+                let (index, var) = var_map.get(var).unwrap();
+                let (index2, other) = var_map.get(other).unwrap();
+                Ex::NOT(Box::new(Ex::EQ(*index, Value::Var(*index2))))
+            } else {
+                panic!("VAR {:?}, OTHER {:?}", var, other)
+            }
+        },
         Predicate::NEQ(PredicateValue::SPPath(var, _),
                       PredicateValue::SPValue(value)) => {
             if pred_map.contains_key(var) {
@@ -123,11 +143,14 @@ fn ex_to_sp_pred(e: &Ex,
 fn sp_action_to_ex(a: &Action,
                    var_map: &HashMap<SPPath, (usize, Variable)>,
                    pred_map: &HashMap<SPPath, Predicate>) -> Ex {
-    let (index, var) = var_map.get(&a.var).unwrap();
+    let (index, var) = var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
     match &a.value {
         Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
             // assign p to var
-            panic!("todo")
+            let x = var_map.get(p);
+            assert!(x.is_some());
+            let (other, var) = var_map.get(p).unwrap();
+            Ex::EQ(*index, Value::Var(*other))
         },
         Compute::PredicateValue(PredicateValue::SPValue(value)) => {
             // assign value to var
@@ -182,7 +205,7 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
 
     let vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
 
-    let mut c = Context::new(); // guard extraction context
+    let mut c = Context::default(); // guard extraction context
     let mut var_map = HashMap::new();
 
     for v in &vars {
@@ -197,7 +220,9 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
     }
 
     // that was all vars, now add the transitions...
-    let mut bc = BDDContext::from(&c);
+    let b = buddy_rs::take_manager(10000, 10000);
+    let (gm, new_initial) = {
+    let mut bc = BDDContext::from(&c, &b);
 
     for t in &trans {
         let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
@@ -247,15 +272,9 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
     let initial = bc.from_expr(&Ex::TRUE); // all states
     println!("bdd one {:?}", initial);
 
-    let (reachable, bad, controllable) = bc.controllable(initial, forbidden);
+    let (reachable, bad, controllable) = bc.controllable(&initial, &forbidden);
 
-    let state_count = satcount(&mut bc.b, controllable, bc.num_vars);
-    println!("Nbr of states in supervisor: {}\n", state_count);
-    let reachable_state_count = satcount(&mut bc.b, reachable, bc.num_vars);
-    println!("Nbr of reachable states: {}\n", reachable_state_count);
-
-
-    let new_guards = bc.compute_guards(controllable, bad);
+    let new_guards = bc.compute_guards(&controllable, &bad);
 
     for (trans, guard) in &new_guards {
         let s = c.pretty_print(&guard);
@@ -265,17 +284,21 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
         println!("sppred guard {}: {:?}", trans, sppred);
     }
 
-    let new_initial = bc.to_expr(controllable);
+    let new_initial = bc.to_expr(&controllable);
     let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
 
 
     let gm = new_guards.iter().map(|(path,guard)| (path.clone(),
                                                    ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
+        (gm, new_initial)
+    };
+
+    buddy_rs::return_manager(b);
     (gm, new_initial)
 }
 
 // refines an invariant according to the model
-pub fn refine_invariant(model: &Model, init: &Predicate, invariant: &Predicate) -> Predicate {
+pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     let items = model.items();
 
     // find "ab" transitions from resources
@@ -299,7 +322,7 @@ pub fn refine_invariant(model: &Model, init: &Predicate, invariant: &Predicate) 
 
     let vars: Vec<_> = resources.iter().flat_map(|r| r.get_variables()).collect();
 
-    let mut c = Context::new(); // guard extraction context
+    let mut c = Context::default(); // guard extraction context
     let mut var_map = HashMap::new();
 
     for v in &vars {
@@ -314,52 +337,46 @@ pub fn refine_invariant(model: &Model, init: &Predicate, invariant: &Predicate) 
     }
 
     // that was all vars, now add the transitions...
-    let mut bc = BDDContext::from(&c);
+    let b = buddy_rs::take_manager(10000, 10000);
+    let new_invariant = {
 
-    for t in &trans {
-        let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
-        println!("guard: {:?}", guard);
+        let mut bc = BDDContext::from(&c, &b);
 
-        let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-        // println!("action: {:?}", actions);
+        for t in &trans {
+            let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
+            println!("guard: {:?}", guard);
 
-        let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-        //println!("effects: {:?}", effects);
+            let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+            // println!("action: {:?}", actions);
 
-        let mut a = Vec::new();
-        a.extend(actions.iter().cloned());
-        a.extend(effects.iter().cloned());
-        let a = Ex::AND(a);
-        println!("all a/effects: {:?}", a);
+            let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+            //println!("effects: {:?}", effects);
 
-        if t.controlled() {
-            bc.c_trans(&t.path().to_string(), guard, a);
-        } else {
-            bc.uc_trans(&t.path().to_string(), guard, a);
+            let mut a = Vec::new();
+            a.extend(actions.iter().cloned());
+            a.extend(effects.iter().cloned());
+            let a = Ex::AND(a);
+            println!("all a/effects: {:?}", a);
+
+            if t.controlled() {
+                bc.c_trans(&t.path().to_string(), guard, a);
+            } else {
+                bc.uc_trans(&t.path().to_string(), guard, a);
+            }
         }
-    }
 
-    // forbidden = all states NOT conforming to the invariant
-    let forbidden = Ex::NOT(Box::new(sp_pred_to_ex(&invariant, &var_map, &pred_map)));
+        // forbidden = all states NOT conforming to the invariant
+        let forbidden = Ex::NOT(Box::new(sp_pred_to_ex(&invariant, &var_map, &pred_map)));
 
-    let forbidden = bc.from_expr(&forbidden);
-    // println!("{:#?}", bc);
+        let forbidden = bc.from_expr(&forbidden);
+        let new_invariant = bc.extend_forbidden(&forbidden);
+        let new_invariant = bc.b.not(&new_invariant);
+        bc.to_expr(&new_invariant)
+    };
 
-
-    let init = sp_pred_to_ex(&init, &var_map, &pred_map);
-    println!("init {:?}", init);
-
-    let init = bc.from_expr(&init);
-
-    let initial = bc.from_expr(&Ex::TRUE); // all states
-    println!("bdd one {:?}", initial);
-
-    let (reachable, bad, controllable) = bc.controllable(initial, forbidden);
-
-    // bad contains all new forbidden states. return its negation
-    let n_bad = bc.b.not(bad);
-
-    let new_invariant = bc.to_expr(n_bad);
+    println!("RETURNING");
+    buddy_rs::return_manager(b);
+    println!("RETURNED");
     ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
 }
 
@@ -408,8 +425,8 @@ fn test_invariant_refinement() {
     // (offline) Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
 
-    let new_table_zone = refine_invariant(&m, &Predicate::TRUE, &table_zone);
-    println!("new spec: {}", new_table_zone);
+    let new_table_zone = refine_invariant(&m, &table_zone);
+    // println!("new spec: {}", new_table_zone);
 
     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![new_table_zone])));
 

@@ -22,6 +22,11 @@ pub struct MeasuredTopic {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct EstimatedVars {
+    pub vars: HashMap<String, Domain>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct MTransition {
     pub controlled: bool,
     pub guard: Predicate,
@@ -46,9 +51,9 @@ pub struct MResource {
 pub enum ModelItem {
     CommandTopic(CommandTopic),
     MeasuredTopic(MeasuredTopic),
+    EstimatedVars(EstimatedVars),
     MAbility(MAbility),
 }
-
 
 fn fix_predicate_val(pv: &mut PredicateValue, allowed_remaps: &[(SPPath, SPPath)]) {
     match pv {
@@ -90,6 +95,7 @@ pub fn build_resource(r: &MResource) -> Resource {
     let mut abilities: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MAbility(a) => Some(a.clone()), _ => None }).collect();
     let out_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::CommandTopic(ct) => Some(ct.clone()), _ => None }).collect();
     let in_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MeasuredTopic(mt) => Some(mt.clone()), _ => None }).collect();
+    let estimated_vars: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::EstimatedVars(dv) => Some(dv.clone()), _ => None }).collect();
 
     let mut valid_remaps = Vec::new();
 
@@ -111,6 +117,13 @@ pub fn build_resource(r: &MResource) -> Resource {
         }
     }
 
+    for t in &estimated_vars {
+        for name in t.vars.keys() {
+            let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
+            let op = SPPath::from_string(name);
+            valid_remaps.push((op,path));
+        }
+    }
 
     for a in &abilities {
         println!("ability: {}", a.name);
@@ -218,6 +231,29 @@ pub fn build_resource(r: &MResource) -> Resource {
 
         let topic = Topic::new(&t.topic, MessageField::Msg(msg));
         r.add_message(topic);
+    }
+
+    for t in &estimated_vars {
+        t.vars.iter().for_each(|(name, d)| {
+            let is_bool = d.domain.is_none();
+            let var = if is_bool {
+                Variable::new(name,
+                              VariableType::Estimated,
+                              SPValueType::Bool,
+                              SPValue::Bool(false), // replace with initial_values
+                              vec![])
+            } else {
+                let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
+                let sp_val_type = dom[0].has_type();
+                let initial = dom[0].clone(); // replace with initial_values
+                Variable::new(name,
+                              VariableType::Estimated,
+                              sp_val_type,
+                              initial,
+                              dom)
+            };
+            r.add_sub_item(SPItem::Variable(var));
+        });
     }
 
     // fix ability paths
@@ -330,6 +366,48 @@ macro_rules! measured {
 
     (private $measured:expr) => {{
         ModelItem::MeasuredTopic($measured)
+    }};
+}
+
+#[macro_export]
+macro_rules! estimated {
+    // no domain defaults to boolean variable
+    (private $estimated:ident $var_name:tt : bool, $($rest:tt)*) => {{
+        $estimated.vars.insert(stringify!($var_name).to_string(),
+                              Domain { domain: None } );
+        estimated!(private $estimated $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $estimated:ident $first:tt : bool) => {{
+        estimated!(private $estimated $first : bool ,)
+    }};
+
+    // variable with domain + trailing comma
+    (private $estimated:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+        {
+            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            $estimated.vars.insert(stringify!($var_name).to_string(),
+                                  Domain { domain: Some(domain) } );
+        }
+        estimated!(private $estimated $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $estimated:ident $first:tt : $second:tt) => {{
+        estimated!(private $estimated $first : $second ,)
+    }};
+
+    (private $estimated:expr) => {{
+        ModelItem::EstimatedVars($estimated)
+    }};
+
+    // didnt match any private. start fresh
+    ($($rest:tt)*) => {{
+        let mut estimated = EstimatedVars {
+            vars: HashMap::new(),
+        };
+        estimated!(private estimated $($rest)*)
     }};
 }
 

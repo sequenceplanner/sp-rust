@@ -15,7 +15,8 @@ pub fn one_dummy_robot() -> (RunnerModel, SPState) {
 }
 
 pub fn two_dummy_robots() -> (RunnerModel, SPState) {
-    two_dummy_robots_global_but_no_guard_extraction()
+    // two_dummy_robots_global_but_no_guard_extraction()
+    two_dummy_robots_guard_extraction()
 }
 
 pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
@@ -32,7 +33,7 @@ pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
 
     // Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    let table_zone = refine_invariant(&m, &Predicate::TRUE, &table_zone);
+    let table_zone = refine_invariant(&m, &table_zone);
 
     // m.add_item(SPItem::Spec(Spec::new("table_zone", true, vec![table_zone])));
 
@@ -108,7 +109,7 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPStat
 
     // Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    let table_zone = refine_invariant(&m, &Predicate::TRUE, &table_zone);
+    let table_zone = refine_invariant(&m, &table_zone);
     m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
 
     // Operations
@@ -136,8 +137,8 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPStat
 fn test_two_dummy_robots() {
     let (rm, s) = two_dummy_robots();
 
-    println!("{:#?}", rm);
+//    println!("{:#?}", rm);
     println!("=================================");
-    println!("{:#?}", s);
+//    println!("{:#?}", s);
     assert!(false);
 }

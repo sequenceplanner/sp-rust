@@ -708,6 +708,10 @@ pub fn generate_offline_nuxvm(model: &RunnerModel, initial: &Predicate) {
     let filename = &format!("/tmp/model_out {}.bmc", datetime);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
+
+    let filename = &format!("/tmp/last_model_out.bmc");
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
 }
 
 

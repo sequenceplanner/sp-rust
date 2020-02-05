@@ -402,6 +402,27 @@ macro_rules! p {
         )
     }};
 
+    // introduce <-> for equality between variables....
+    ($path:tt <-> $other:tt) => {{
+        // println!("matched {} == {}", stringify!($path), stringify!($value));
+        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+        let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
+        Predicate::EQ(
+            PredicateValue::SPPath(p, None),
+            PredicateValue::SPPath(other, None),
+        )
+    }};
+    // introduce <!> for inequality between variables....
+    ($path:tt <!> $other:tt) => {{
+        // println!("matched {} == {}", stringify!($path), stringify!($value));
+        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+        let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
+        Predicate::NEQ(
+            PredicateValue::SPPath(p, None),
+            PredicateValue::SPPath(other, None),
+        )
+    }};
+
     ($path:tt != $value:tt) => {{
         // println!("matched !=");
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
@@ -441,14 +462,14 @@ macro_rules! p {
 
 #[macro_export]
 macro_rules! a {
-    (p:$path:ident = $val:expr) => {
+    (p:$path:ident = $val:expr) => {{
         Action::new(
             $path.clone(),
             Compute::PredicateValue(
                 PredicateValue::SPValue($val.to_spvalue()),
             ),
         )
-    };
+    }};
     ($path:tt = $val:expr) => {{
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
         Action::new(
@@ -466,30 +487,30 @@ macro_rules! a {
                 PredicateValue::SPPath(other, None)),
         )
     }};
-    ($path:tt <- $other:tt) => {
+    ($path:tt <- $other:tt) => {{
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
         let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
         Action::new(
-            $p.clone(),
+            p,
             Compute::PredicateValue(
                 PredicateValue::SPPath(other, None)),
         )
-    };
-    (p:$path:ident <- p:$other:expr) => {
+    }};
+    (p:$path:ident <- p:$other:expr) => {{
         Action::new(
             $path.clone(),
             Compute::PredicateValue(
                 PredicateValue::SPPath($other.clone(), None)),
         )
-    };
-    ($path:tt <- p:$other:expr) => {
+    }};
+    ($path:tt <- p:$other:expr) => {{
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
         Action::new(
-            $p.clone(),
+            p,
             Compute::PredicateValue(
                 PredicateValue::SPPath($other.clone(), None)),
         )
-    };
+    }};
     ($path:tt ? $val:expr) => {{
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
         Action::new(
@@ -497,12 +518,12 @@ macro_rules! a {
             Compute::Predicate($val.clone()),
         )
     }};
-    (p:$path:ident ? $val:expr) => {
+    (p:$path:ident ? $val:expr) => {{
         Action::new(
             $path.clone(),
             Compute::Predicate($val.clone()),
         )
-    };
+    }};
     ($path:tt ? $val:expr) => {{
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
         Action::new(
@@ -510,14 +531,14 @@ macro_rules! a {
             Compute::Predicate($val.clone()),
         )
     }};
-    (!p:$path:ident) => {
+    (!p:$path:ident) => {{
         Action::new(
             $path.clone(),
             Compute::PredicateValue(
                 PredicateValue::SPValue(false.to_spvalue()),
             ),
         )
-    };
+    }};
     (!$path:tt) => {{
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
         Action::new(
@@ -545,7 +566,6 @@ macro_rules! a {
         )
     }};
 }
-
 
 /// ********** TESTS ***************
 

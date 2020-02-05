@@ -20,27 +20,19 @@ pub fn make_dummy_robot(name: &str) -> Resource {
             act_pos : ["unknown", "at", "away"],
             active : bool,
         },
-
-        ability!{
-            name: to_at,
-
-            enabled : p!([active] && [ref_pos != "at"] && [act_pos != "at"]),
-            executing : p!([active] && [ref_pos == "at"] && [act_pos != "at"]),
-            finished : p!([active] && [ref_pos == "at"] && [act_pos == "at"]),
-
-            *start : p!(enabled) => [ a!(ref_pos = "at") ] / [a!(act_pos = "unknown")],
-            finish : p!(executing) => [] / [a!(act_pos = "at")]
+        estimated!{
+            prev_pos: ["unknown", "at", "away"],
         },
 
         ability!{
-            name: to_away,
+            name: move_to,
 
-            enabled : p!([active] && [ref_pos != "away"] && [act_pos != "away"]),
-            executing : p!([active] && [ref_pos == "away"] && [act_pos != "away"]),
-            finished : p!([active] && [ref_pos == "away"] && [act_pos == "away"]),
+            enabled : p!([active] && [ref_pos <-> act_pos]),
+            executing : p!([active] && [ref_pos <!> act_pos]),
+            finished : p!([active] && [ref_pos <-> act_pos]),
 
-            *start : p!(enabled) => [ a!(ref_pos = "away") ] / [a!(act_pos = "unknown")],
-            finish : p!(executing) => [] / [a!(act_pos = "away")]
+            *start : p!(enabled) => [ a!(ref_pos <- planned) ] / [a!(act_pos = "unknown")],
+            finish : p!(executing) => [ a!(prev_pos <- ref_pos) ] / [a!(act_pos <- ref_pos)]
         },
 
         ability!{
