@@ -5,7 +5,7 @@ use sp_runner_api::*;
 use crate::testing::*;
 
 pub fn one_dummy_robot() -> (RunnerModel, SPState) {
-    let r1 = make_dummy_robot("r1");
+    let r1 = make_dummy_robot("r1", &["at", "away"]);
     let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
 
     let s = make_initial_state(&m);
@@ -24,8 +24,8 @@ pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
@@ -63,16 +63,27 @@ pub fn two_dummy_robots_guard_extraction() -> (RunnerModel, SPState) {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
+    let r1_r_p = m.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2_r_p = m.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
+
+
     // Specifications
     let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    // let unknown_spec = p!(!([p:r1_p_a == "at"] && [p:r2_r_p == "unknown"]));
+    // let unknown_spec2 = p!(!([p:r1_r_p == "unknown"] && [p:r2_p_a == "at"]));
+
+    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
+    // m.add_item(SPItem::Spec(Spec::new("unknown1", unknown_spec)));
+    // m.add_item(SPItem::Spec(Spec::new("unknown2", unknown_spec2)));
+
+
 
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![], None);
@@ -100,8 +111,8 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPStat
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
@@ -110,7 +121,7 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPStat
     // Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     let table_zone = refine_invariant(&m, &table_zone);
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![], None);

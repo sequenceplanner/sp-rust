@@ -339,12 +339,11 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
         }
 
         // pull out all specs.
-        let forbidden =  Ex::AND(specs.iter().map(|s| {
-            // todo... for now we just care about the first expression in each spec
-            let s = s.always().first().unwrap().clone();
+        let forbidden =  Ex::OR(specs.iter().map(|s| {
             // forbidden = not always
-            Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)))
+            Ex::NOT(Box::new(sp_pred_to_ex(s.invariant(), &var_map, &pred_map)))
         }).collect());
+        println!("FORBIDDEN: {:?}", forbidden);
 
         let forbidden = bc.from_expr(&forbidden);
         let initial = bc.from_expr(&Ex::TRUE); // all states
@@ -483,8 +482,8 @@ fn test_guard_extraction() {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
@@ -492,12 +491,11 @@ fn test_guard_extraction() {
 
     // (offline) Specifications
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    //m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![Predicate::TRUE])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
-    // assert_eq!(new_guards.len(), 4);
+    assert_eq!(new_guards.len(), 4);
     assert_ne!(new_initial, Predicate::TRUE);
 
     assert!(false);
@@ -511,8 +509,8 @@ fn test_invariant_refinement() {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
@@ -524,7 +522,7 @@ fn test_invariant_refinement() {
     let new_table_zone = refine_invariant(&m, &table_zone);
     // println!("new spec: {}", new_table_zone);
 
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![new_table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", new_table_zone)));
 
     let rm = make_runner_model_no_ge(&m);
 

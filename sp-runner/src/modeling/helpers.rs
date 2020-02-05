@@ -42,6 +42,12 @@ pub struct MAbility {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct MInvariant {
+    pub name: String,
+    pub prop: Predicate
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct MResource {
     pub name: String,
     pub items: Vec<ModelItem>
@@ -53,6 +59,7 @@ pub enum ModelItem {
     MeasuredTopic(MeasuredTopic),
     EstimatedVars(EstimatedVars),
     MAbility(MAbility),
+    MInvariant(MInvariant),
 }
 
 fn fix_predicate_val(pv: &mut PredicateValue, allowed_remaps: &[(SPPath, SPPath)]) {
@@ -97,6 +104,7 @@ pub fn build_resource(r: &MResource) -> Resource {
     let out_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::CommandTopic(ct) => Some(ct.clone()), _ => None }).collect();
     let in_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MeasuredTopic(mt) => Some(mt.clone()), _ => None }).collect();
     let estimated_vars: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::EstimatedVars(dv) => Some(dv.clone()), _ => None }).collect();
+    let mut invariants: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MInvariant(i) => Some(i.clone()), _ => None }).collect();
 
     let mut valid_remaps = Vec::new();
 
@@ -132,7 +140,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         for (name, _pred) in &a.predicates {
             let path = SPPath::from_slice(&[r.name.clone(), a.name.clone(), name.clone()]);
             // println!("predicate: {}", path);
-            let op = SPPath::from_string(name);
+            let op = SPPath::from_slice(&[a.name.clone(), name.clone()]);
             valid_remaps.push((op, path));
         }
     }
@@ -171,6 +179,12 @@ pub fn build_resource(r: &MResource) -> Resource {
             trans.effects.iter_mut().for_each(|e| fix_action(e, &valid_remaps));
             println!("new effects: {:?}", trans.effects);
         }
+    }
+
+    for i in &mut invariants {
+        println!("INVARIANT BEFORE: {}", i.prop);
+        fix_predicate(&mut i.prop, &valid_remaps);
+        println!("INVARIANT AFTER: {}", i.prop);
     }
 
     // using all our fixed stuff, build a new resource
@@ -260,6 +274,21 @@ pub fn build_resource(r: &MResource) -> Resource {
     // fix ability paths
     for a in &abilities {
         let p = a.predicates.iter().map(|(n,p)| Variable::new_predicate(n, p.clone())).collect();
+
+        // below is how I would like to do it => just keep the "Any"
+        // vals. works great for planning and we can still spit out
+        // invariants to the planning problem that works in the same
+        // way as the guards. however its harder to understand what's
+        // going on.
+
+        // let t = a.transitions.iter().map(|(n, t)|
+        //                                  Transition::new(n, t.guard.clone(),
+        //                                                  t.actions.clone(), t.effects.clone(),
+        //                                                  t.controlled)).collect();
+
+        // below is how I have to do it for guard extraction to work,
+        // flattening the "Any"s into new transitions.
+
         let t = a.transitions.iter().flat_map(|(n, t)| {
             let anys: Vec<_> = t.actions.iter().flat_map(|a| match a.value {
                 Compute::Any => Some(a.clone()),
@@ -302,6 +331,34 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_ability(a);
     }
 
+    // add invariants to model
+    let mut to_add = Vec::new();
+    to_add.push(SPItem::Resource(r.clone()));
+
+    for i in &invariants {
+        to_add.push(SPItem::Spec(Spec::new(&i.name, i.prop.clone())));
+    }
+
+    // lastly, we should preprocess the individual resource.
+    let temp_model = Model::new_no_root("temp", to_add);
+    // TODO: initial state
+    let (new_guards, new_initial) = crate::runners::extract_guards(&temp_model, &Predicate::TRUE);
+
+    let rm = crate::runners::make_runner_model(&temp_model);
+
+    crate::planning::generate_offline_nuxvm(&rm, &new_initial);
+
+    for a in &mut r.abilities {
+        for t in &mut a.transitions {
+            match new_guards.get(&t.path().to_string()) {
+                Some(g) => {
+                    *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
+                },
+                None => {},
+            }
+        }
+    }
+
     return r;
 }
 
@@ -336,9 +393,9 @@ macro_rules! command {
     }};
 
     // variable with domain + trailing comma
-    (private $cmd:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+    (private $cmd:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
-            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $cmd.vars.insert(stringify!($var_name).to_string(),
                              Domain { domain: Some(domain) } );
         }
@@ -385,9 +442,9 @@ macro_rules! measured {
     }};
 
     // variable with domain + trailing comma
-    (private $measured:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+    (private $measured:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
-            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $measured.vars.insert(stringify!($var_name).to_string(),
                                   Domain { domain: Some(domain) } );
         }
@@ -419,9 +476,9 @@ macro_rules! estimated {
     }};
 
     // variable with domain + trailing comma
-    (private $estimated:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+    (private $estimated:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
-            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $estimated.vars.insert(stringify!($var_name).to_string(),
                                   Domain { domain: Some(domain) } );
         }
@@ -443,6 +500,28 @@ macro_rules! estimated {
             vars: HashMap::new(),
         };
         estimated!(private estimated $($rest)*)
+    }};
+}
+
+#[macro_export]
+macro_rules! always {
+    (name: $n:tt , prop: $pred:expr) => {{
+        let spec = MInvariant {
+            name: String::from(stringify!($n)),
+            prop: $pred.clone(),
+        };
+        ModelItem::MInvariant(spec)
+    }};
+}
+
+#[macro_export]
+macro_rules! never {
+    (name: $n:tt , prop: $pred:expr) => {{
+        let spec = MInvariant {
+            name: String::from(stringify!($n)),
+            prop: Predicate::NOT(Box::new($pred.clone())),
+        };
+        ModelItem::MInvariant(spec)
     }};
 }
 

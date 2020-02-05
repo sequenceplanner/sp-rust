@@ -21,8 +21,8 @@ failure = "0.1.5"
 failure_derive = "0.1.5"
 lazy_static = "1.4.0"
 chrono = { version = "0.4.9", features = ["serde"] }
-#buddy-rs = { git = "https://github.com/m-dahl/buddy-rs.git" }
-buddy-rs = { path = "../../rust/buddy-sys/buddy-rs" }
-#guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git" }
-guard_extraction = { path = "../../rust/guard_extraction" }
+buddy-rs = { git = "https://github.com/m-dahl/buddy-rs.git" }
+#buddy-rs = { path = "../../rust/buddy-sys/buddy-rs" }
+guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git" }
+#guard_extraction = { path = "../../rust/guard_extraction" }
 indoc = "0.3"

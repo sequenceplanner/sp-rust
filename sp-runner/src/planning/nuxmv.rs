@@ -114,7 +114,14 @@ fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: 
             _ => None,
         })
         .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+    let mut vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+
+    let sub_items: Vec<_> = resources.iter().flat_map(|r| r.sub_items()).collect();
+    let sub_item_variables: HashMap<_,_> = sub_items.iter().flat_map(|i| match i {
+        SPItem::Variable(v) => Some((v.path().clone(), v.clone())),
+        _ => None,
+    }).collect();
+    vars.extend(sub_item_variables);
 
     let mut lines = String::from("MODULE main");
     lines.push_str("\n");
@@ -204,15 +211,17 @@ fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: 
     lines.push_str("-- CURRENT STATE --\n");
 
     for (path, _variable) in &vars {
-        let value = state.sp_value_from_path(path).expect("all variables need a valuation!");
-        let path = NuXMVPath(path);
-        let value = NuXMVValue(value);
-        lines.push_str(&format!(
-            "{i}init({v}) := {spv};\n",
-            i = indent(2),
-            v = path,
-            spv = value
-        ));
+        //let value = state.sp_value_from_path(path).expect("all variables need a valuation!");
+        if let Some(value) = state.sp_value_from_path(path) {
+            let path = NuXMVPath(path);
+            let value = NuXMVValue(value);
+            lines.push_str(&format!(
+                "{i}init({v}) := {spv};\n",
+                i = indent(2),
+                v = path,
+                spv = value
+            ));
+        }
     }
 
     lines.push_str("\n\n");
@@ -306,10 +315,7 @@ fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: 
     lines.push_str("-- GLOBAL SPECIFICATIONS\n");
     let mut global = Vec::new();
     for s in &specs {
-        for p in s.always().iter() {
-            let p = NuXMVPredicate(&p);
-            global.push(format!("{}", p));
-        }
+        global.push(format!("{}", NuXMVPredicate(s.invariant())));
     }
     let invars = if global.is_empty() {"".to_string()} else { format!("INVAR {};", global.join("&\n"))};
 
@@ -464,7 +470,14 @@ pub fn compute_plan(
             _ => None,
         })
         .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+    let mut vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+
+    let sub_items: Vec<_> = resources.iter().flat_map(|r| r.sub_items()).collect();
+    let sub_item_variables: HashMap<_,_> = sub_items.iter().flat_map(|i| match i {
+        SPItem::Variable(v) => Some((v.path().clone(), v.clone())),
+        _ => None,
+    }).collect();
+    vars.extend(sub_item_variables);
 
     let lines = create_nuxmv_problem(&goal_invs, &state, &model);
 
@@ -689,12 +702,11 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
     lines.push_str("-- GLOBAL SPECIFICATIONS\n");
     let mut global = Vec::new();
     for s in &specs {
-        for p in s.always().iter() {
-            let p = NuXMVPredicate(&p);
-            global.push(format!("{}", p));
-        }
+        global.push(format!("{}", NuXMVPredicate(s.invariant())));
     }
-    let invars = format!("INVAR {};", global.join("&\n"));
+    let invars = if global.is_empty() {"TRUE".to_string()} else{
+        global.join("&\n")};
+    let invars = format!("INVAR {};", invars);
 
     lines.push_str(&invars);
     lines.push_str("\n\n");

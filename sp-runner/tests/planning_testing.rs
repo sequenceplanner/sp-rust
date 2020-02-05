@@ -59,8 +59,8 @@ fn model_with_global_spec() -> (RunnerModel, SPState) {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
@@ -68,7 +68,7 @@ fn model_with_global_spec() -> (RunnerModel, SPState) {
 
     // (global offline) Specifications
     let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", vec![table_zone])));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
     let s = make_initial_state(&m);
     let rm = make_runner_model(&m);
@@ -80,8 +80,8 @@ fn model_without_spec() -> (RunnerModel, SPState) {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1")));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2")));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // !
     // No specifications

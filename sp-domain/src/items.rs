@@ -260,6 +260,13 @@ impl Model {
         m
     }
 
+    pub fn new_no_root(name: &str, items: Vec<SPItem>) -> Model {
+        // hack to not update the item names for the model...
+        let mut m = Model::new(name, items);
+        m
+    }
+
+
     pub fn items(&self) -> &[SPItem] {
         self.items.as_slice()
     }
@@ -276,7 +283,7 @@ impl Model {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Resource {
     node: SPNode,
-    abilities: Vec<Ability>,
+    pub abilities: Vec<Ability>,
     parameters: Vec<Variable>,
     messages: Vec<Topic>, // Also include estimated here on an estimated topic
     sub_items: Vec<SPItem>,
@@ -801,7 +808,7 @@ impl NextAction for Transition {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Ability {
     node: SPNode,
-    transitions: Vec<Transition>,
+    pub transitions: Vec<Transition>,
     predicates: Vec<Variable>,
 }
 
@@ -851,6 +858,7 @@ impl Ability {
     pub fn predicates(&self) -> &[Variable] {
         self.predicates.as_slice()
     }
+
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -1001,7 +1009,7 @@ impl IfThen {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Spec {
     node: SPNode,
-    always: Vec<Predicate>,
+    invariant: Predicate,
 }
 
 impl Noder for Spec {
@@ -1023,7 +1031,7 @@ impl Noder for Spec {
     }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.always.iter_mut().for_each(|i| i.replace_variable_path(mapping));
+        self.invariant.replace_variable_path(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Spec(self)
@@ -1031,12 +1039,12 @@ impl Noder for Spec {
 }
 
 impl Spec {
-    pub fn new(name: &str, always: Vec<Predicate>) -> Spec {
+    pub fn new(name: &str, invariant: Predicate) -> Spec {
         let node = SPNode::new(name);
-        Spec { node, always }
+        Spec { node, invariant }
     }
-    pub fn always(&self) -> &[Predicate] {
-        self.always.as_slice()
+    pub fn invariant(&self) -> &Predicate {
+        &self.invariant
     }
 }
 
