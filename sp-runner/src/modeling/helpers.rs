@@ -88,6 +88,7 @@ fn fix_action(a: &mut Action, allowed_remaps: &[(SPPath,SPPath)]) {
     match &mut a.value {
         Compute::PredicateValue(pv) => { fix_predicate_val(pv, allowed_remaps); }
         Compute::Predicate(p) => { fix_predicate(p, allowed_remaps); }
+        Compute::Any => {}
     }
 }
 
@@ -259,10 +260,44 @@ pub fn build_resource(r: &MResource) -> Resource {
     // fix ability paths
     for a in &abilities {
         let p = a.predicates.iter().map(|(n,p)| Variable::new_predicate(n, p.clone())).collect();
-        let t = a.transitions.iter().map(|(n, t)|
-                                         Transition::new(n, t.guard.clone(),
-                                                         t.actions.clone(), t.effects.clone(),
-                                                         t.controlled)).collect();
+        let t = a.transitions.iter().flat_map(|(n, t)| {
+            let anys: Vec<_> = t.actions.iter().flat_map(|a| match a.value {
+                Compute::Any => Some(a.clone()),
+                _ => None
+            }).collect();
+
+            let not_anys: Vec<Action> = t.actions.iter().flat_map(|a| match a.value {
+                Compute::Any => None,
+                _ => Some(a.clone())
+            }).collect();
+
+            if anys.len() == 1 {
+                // hack to expand into multiple trans
+                let any_var = r.get(&anys[0].var).unwrap();
+                let mut new_actions: Vec<_> = any_var.as_variable()
+                    .unwrap()
+                    .domain()
+                    .iter()
+                    .map(|d|
+                         (Action::new(anys[0].var.clone(),
+                                     Compute::PredicateValue(
+                                         PredicateValue::SPValue(d.clone()))), d.to_string())).collect();
+
+                new_actions.iter().map(|(a,v)| {
+                    let name = format!("{}_with_{}", n, v);
+                    let mut a = vec![a.clone()];
+                    a.extend(not_anys.iter().cloned());
+                    Transition::new(&name, t.guard.clone(),
+                                    a, t.effects.clone(),
+                                    t.controlled)
+                }).collect()
+
+            } else {
+                vec![Transition::new(n, t.guard.clone(),
+                                t.actions.clone(), t.effects.clone(),
+                                t.controlled)]
+            }
+        }).collect();
         let a = Ability::new(&a.name, t, p);
         r.add_ability(a);
     }

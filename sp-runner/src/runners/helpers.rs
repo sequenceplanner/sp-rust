@@ -148,9 +148,7 @@ fn sp_action_to_ex(a: &Action,
     match &a.value {
         Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
             // assign p to var
-            let x = var_map.get(p);
-            assert!(x.is_some());
-            let (other, var) = var_map.get(p).unwrap();
+            let (other, var) = var_map.get(p).expect("variable not found");
             Ex::EQ(*index, Value::Var(*other))
         },
         Compute::PredicateValue(PredicateValue::SPValue(value)) => {
@@ -166,6 +164,9 @@ fn sp_action_to_ex(a: &Action,
 
             Ex::EQ(*index, value)
         },
+        Compute::Any => {
+            panic!("dont use free variables here")
+        }
         x => panic!("TODO: {:?}", x)
     }
 }
@@ -177,14 +178,8 @@ fn sp_action_to_ac(a: &Action,
     let val = match &a.value {
         Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
             // assign p to var
-            let x = var_map.get(p);
-            if x.is_some() {
-                let (other, var) = var_map.get(p).unwrap();
-                Value::Var(*other)
-            } else {
-                println!("ASSUMING FREE VARIABLE");
-                Value::Free
-            }
+            let (other, var) = var_map.get(p).expect("variable not found");
+            Value::Var(*other)
         },
         Compute::PredicateValue(PredicateValue::SPValue(value)) => {
             // assign value to var
@@ -197,6 +192,7 @@ fn sp_action_to_ac(a: &Action,
                 }
             }
         },
+        Compute::Any => Value::Free,
         x => panic!("TODO: {:?}", x)
     };
     Ac {
@@ -266,74 +262,90 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
     // that was all vars, now add the transitions...
     let b = buddy_rs::take_manager(10000, 10000);
     let (gm, new_initial) = {
-    let mut bc = BDDContext::from(&c, &b);
+        let mut bc = BDDContext::from(&c, &b);
 
-    for t in &trans {
-        let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
-        println!("guard: {:?}", guard);
+        for t in &trans {
+            let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
+            println!("guard: {:?}", guard);
 
-        let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-        // println!("action: {:?}", actions);
+            if t.controlled() {
 
-        let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
-        //println!("effects: {:?}", effects);
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                // println!("action: {:?}", actions);
 
-        let mut a = Vec::new();
-        a.extend(actions.iter().cloned());
-        a.extend(effects.iter().cloned());
-        let a = Ex::AND(a);
-        println!("all a/effects: {:?}", a);
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
+                //println!("effects: {:?}", effects);
 
-        if t.controlled() {
-            bc.c_trans(&t.path().to_string(), guard, a);
-        } else {
-            bc.uc_trans(&t.path().to_string(), guard, a);
+                let mut a = Vec::new();
+                a.extend(actions.iter().cloned());
+                a.extend(effects.iter().cloned());
+                println!("all actions and effects: {:?}", a);
+
+                bc.c_trans2(&t.path().to_string(), guard, &a);
+            } else {
+
+                let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                // println!("action: {:?}", actions);
+
+                let effects: Vec<_> = t.effects().iter().map(|a| sp_action_to_ex(a, &var_map, &pred_map) ).collect();
+                //println!("effects: {:?}", effects);
+
+                let mut a = Vec::new();
+                a.extend(actions.iter().cloned());
+                a.extend(effects.iter().cloned());
+                let a = Ex::AND(a);
+                println!("all a/effects: {:?}", a);
+
+
+
+                bc.uc_trans(&t.path().to_string(), guard, a);
+            }
         }
-    }
 
-    // pull out all specs.
-    let forbidden =  Ex::AND(specs.iter().map(|s| {
-        // todo... for now we just care about the first expression in each spec
-        let s = s.always().first().unwrap().clone();
-        // forbidden = not always
-        Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)))
-    }).collect());
+        // pull out all specs.
+        let forbidden =  Ex::AND(specs.iter().map(|s| {
+            // todo... for now we just care about the first expression in each spec
+            let s = s.always().first().unwrap().clone();
+            // forbidden = not always
+            Ex::NOT(Box::new(sp_pred_to_ex(&s, &var_map, &pred_map)))
+        }).collect());
 
-    // let s = spec.always().first().unwrap().clone(); // lazy
-    // let sex = sp_pred_to_ex(&s, &var_map, &pred_map);
-    // println!("forbidden {:?}", sex);
+        // let s = spec.always().first().unwrap().clone(); // lazy
+        // let sex = sp_pred_to_ex(&s, &var_map, &pred_map);
+        // println!("forbidden {:?}", sex);
 
-    let forbidden = bc.from_expr(&forbidden);
-    // println!("{:#?}", bc);
-
-
-    let init = sp_pred_to_ex(&init, &var_map, &pred_map);
-    println!("init {:?}", init);
-
-    let init = bc.from_expr(&init);
+        let forbidden = bc.from_expr(&forbidden);
+        // println!("{:#?}", bc);
 
 
-    let initial = bc.from_expr(&Ex::TRUE); // all states
-    println!("bdd one {:?}", initial);
+        let init = sp_pred_to_ex(&init, &var_map, &pred_map);
+        println!("init {:?}", init);
 
-    let (reachable, bad, controllable) = bc.controllable(&initial, &forbidden);
-
-    let new_guards = bc.compute_guards(&controllable, &bad);
-
-    for (trans, guard) in &new_guards {
-        let s = c.pretty_print(&guard);
-        // println!("NEW GUARD FOR {}: {}", trans, s);
-        // println!("NEW GUARD FOR {}: {:?}", trans, guard);
-        let sppred = ex_to_sp_pred(&guard, &var_map, &pred_map);
-        println!("sppred guard {}: {:?}", trans, sppred);
-    }
-
-    let new_initial = bc.to_expr(&controllable);
-    let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
+        let init = bc.from_expr(&init);
 
 
-    let gm = new_guards.iter().map(|(path,guard)| (path.clone(),
-                                                   ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
+        let initial = bc.from_expr(&Ex::TRUE); // all states
+        println!("bdd one {:?}", initial);
+
+        let (_reachable, bad, controllable) = bc.controllable(&initial, &forbidden);
+
+        let new_guards = bc.compute_guards(&controllable, &bad);
+
+        for (trans, _guard) in &new_guards {
+            //let s = c.pretty_print(&guard);
+            println!("NEW GUARD FOR {}", trans);
+            //println!("NEW GUARD FOR {}: {}", trans, s);
+            // println!("NEW GUARD FOR {}: {:?}", trans, guard);
+            //let sppred = ex_to_sp_pred(&guard, &var_map, &pred_map);
+            //println!("sppred guard {}: {:?}", trans, sppred);
+        }
+
+        let new_initial = bc.to_expr(&controllable);
+        let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
+
+
+        let gm = new_guards.iter().map(|(path,guard)| (path.clone(),
+                                                       ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
         (gm, new_initial)
     };
 
@@ -467,7 +479,7 @@ fn test_guard_extraction() {
 
     let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
 
-    assert_eq!(new_guards.len(), 4);
+    // assert_eq!(new_guards.len(), 4);
     assert_ne!(new_initial, Predicate::TRUE);
 
     assert!(false);

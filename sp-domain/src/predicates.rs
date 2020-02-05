@@ -40,6 +40,7 @@ pub enum PredicateValue {
 pub enum Compute {
     PredicateValue(PredicateValue),
     Predicate(Predicate), // used for boolean actions
+    Any, // Free variable, can take on any value after this action.
     // If we need more advanced functions we can add them here
     //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
     //TakeBefore(SPValue, Vec<SPValue>),
@@ -227,7 +228,8 @@ impl Action {
         }
         match &mut self.value {
             Compute::PredicateValue(pv) => { pv.replace_variable_path(mapping); }
-            Compute::Predicate(p) => { p.replace_variable_path(mapping); }
+            Compute::Predicate(p) => { p.replace_variable_path(mapping); },
+            Compute::Any => {}
         }
     }
 }
@@ -308,6 +310,9 @@ impl NextAction for Action {
             Compute::Predicate(p) => {
                 let res = p.eval(state);
                 res.to_spvalue()
+            },
+            Compute::Any => {
+                SPValue::Unknown
             }
         };
 
@@ -548,6 +553,22 @@ macro_rules! a {
             ),
         )
     }};
+
+    // syntax for free variables
+    (p:$path:ident ?) => {{
+        Action::new(
+            $path.clone(),
+            Compute::Any,
+        )
+    }};
+    ($path:tt ?) => {{
+        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+        Action::new(
+            p,
+            Compute::Any,
+        )
+    }};
+
     (p:$path:ident) => {
         Action::new(
             $path.clone(),

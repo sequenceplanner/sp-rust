@@ -485,8 +485,24 @@ impl Noder for Topic {
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
         // I dont understand what next and path are, also, does not seem to be used for anything?
-        panic!("todo");
-        None
+        let mut stack = vec![&self.msg];
+        loop {
+            match stack.pop() {
+                Some(MessageField::Msg(msg)) => {
+                    stack.extend(msg.fields.iter().map(|(_n, m)|m).collect::<Vec<_>>()); },
+                Some(MessageField::Var(v)) => {
+                    if v.name() == next && v.path() == path {
+                        return Some(SPItemRef::Variable(v))
+                    }
+                    // if let Some(item) = v.get_child(next, path) {
+                    //     return Some(item)
+                    // }
+                },
+                None => { return None; } // all done
+            }
+        }
+        // panic!("todo next {} path {}", next, path);
+        // None
     }
     fn find_item_among_children<'a>(
         &'a self,

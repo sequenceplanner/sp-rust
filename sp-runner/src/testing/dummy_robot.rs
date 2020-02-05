@@ -31,7 +31,7 @@ pub fn make_dummy_robot(name: &str) -> Resource {
             executing : p!([active] && [ref_pos <!> act_pos]),
             finished : p!([active] && [ref_pos <-> act_pos]),
 
-            *start : p!(enabled) => [ a!(ref_pos <- planned) ] / [a!(act_pos = "unknown")],
+            *start : p!(enabled) => [ a!(ref_pos?) ] / [a!(act_pos = "unknown")],
             finish : p!(executing) => [ a!(prev_pos <- ref_pos) ] / [a!(act_pos <- ref_pos)]
         },
 

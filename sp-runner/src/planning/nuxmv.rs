@@ -57,7 +57,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                     .iter()
                     .map(|p| format!("{}", NuXMVPredicate(&p)))
                     .collect();
-                format!("( {} )", children.join("|"))
+                format!("( {} )", children.join("|\n")) // TEMP to split long lines on disjunctions
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
             Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
@@ -238,10 +238,14 @@ fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: 
 
         let assign = |a: &Action| {
                 let path = NuXMVPath(&a.var);
-                let value = action_to_string(&a).expect("model too complicated");
+                let value = action_to_string(&a).expect(&format!("model too complicated {:?}", a));
                 format!("next({}) = {}", path, value)
             };
-        let mut updates: Vec<_> = t.actions().iter().map(assign).collect();
+        let upd: Vec<_> = t.actions().iter().flat_map(|a| match a.value {
+            Compute::Any => None,
+            _ => Some(a.clone())
+        }).collect();
+        let mut updates: Vec<_> = upd.iter().map(assign).collect();
         updates.extend(t.effects().iter().map(assign));
         updates.extend(keep);
 
@@ -512,7 +516,14 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
             _ => None,
         })
         .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+    let mut vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+
+    let sub_items: Vec<_> = resources.iter().flat_map(|r| r.sub_items()).collect();
+    let sub_item_variables: HashMap<_,_> = sub_items.iter().flat_map(|i| match i {
+        SPItem::Variable(v) => Some((v.path().clone(), v.clone())),
+        _ => None,
+    }).collect();
+    vars.extend(sub_item_variables);
 
     // TODO: maybe later just put these as "invar" expressions which sanitizes the model instead of guard extraction.
     // Collect all offline specs.
@@ -649,10 +660,14 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
 
         let assign = |a: &Action| {
                 let path = NuXMVPath(&a.var);
-                let value = action_to_string(&a).expect("model too complicated");
+                let value = action_to_string(&a).expect(&format!("model too complicated {:?}", a));
                 format!("next({}) = {}", path, value)
             };
-        let mut updates: Vec<_> = t.actions().iter().map(assign).collect();
+        let upd: Vec<_> = t.actions().iter().flat_map(|a| match a.value {
+            Compute::Any => None,
+            _ => Some(a.clone())
+        }).collect();
+        let mut updates: Vec<_> = upd.iter().map(assign).collect();
         updates.extend(t.effects().iter().map(assign));
         updates.extend(keep);
 
