@@ -1019,7 +1019,7 @@ impl IfThen {
     pub fn upd_state_path(&mut self, state: &SPState) {
         self.condition.upd_state_path(state);
         self.goal.upd_state_path(state);
-        self.invariant.as_ref().map(|x|x.upd_state_path(state));
+        self.invariant.as_mut().map(|x|x.upd_state_path(state));
     }
 }
 

@@ -173,7 +173,7 @@ impl SPTicker {
     fn check_forbidden(state: &mut SPState, forbidden_states: &[IfThen]) -> bool {
         forbidden_states
             .iter()
-            .any(|f| f._if.eval(state) && f._then.eval(state))
+            .any(|f| f.condition.eval(state) && f.invariant.map(|x| x.eval(state)).unwrap_or(false))
     }
 }
 
@@ -190,11 +190,11 @@ mod test_new_ticker {
         let pred = SPPath::from_slice(&["pred"]);
 
         let mut s = state!(ab => 2, ac => true, kl => 3, xy => false, pred => false);
-        let p = pr! {{p!(!ac)} && {p!(!xy)}};
+        let p = p!{[!p:ac] && [!p:xy]};
 
-        let a = a!(ac = false);
-        let b = a!(ab <- kl);
-        let c = a!(xy ? p);
+        let a = a!(p:ac = false);
+        let b = a!(p:ab <- p:kl);
+        let c = a!(p:xy ? p);
 
         let t1 = Transition::new("t1", p!(ac), vec![a], vec![], false);
         let t2 = Transition::new("t2", p!(!ac), vec![b], vec![], false);

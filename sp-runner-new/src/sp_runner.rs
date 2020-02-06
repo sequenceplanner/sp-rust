@@ -138,8 +138,8 @@ impl SPRunner {
     /// in the result vec should be conjunted
     pub fn goal(&self) -> Vec<Predicate> {
         let goals: Vec<Predicate> = self.goals.iter().filter(|g| {
-            g._if.eval(&self.ticker.state)
-        }).map(|x| x._then.clone()).collect();
+            g.condition.eval(&self.ticker.state)
+        }).map(|x| x.goal.clone()).collect();
         //Predicate::AND(goals)
         goals
     }
