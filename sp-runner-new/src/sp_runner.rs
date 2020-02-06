@@ -107,38 +107,24 @@ impl SPRunner {
 
     /// The main function to use when running the runner. Connect this to
     /// a channel either using async or standard threads
-    pub fn input(&mut self, input: SPRunnerInput) -> bool {
+    pub fn input(&mut self, input: SPRunnerInput) {
         match input {
             SPRunnerInput::Tick => {
                 self.take_a_tick(SPState::new());
-                true
             },
             SPRunnerInput::StateChange(s) => {
-                // We will not tick the runner when we got no changes. If you need
-                // that, send a Tick.
-                if true {// !self.ticker.state.are_new_values_the_same(&s) {
-                    self.take_a_tick(s);
-                    true
-                } else {
-                    false
-                }
+                self.take_a_tick(s);
             },
-            SPRunnerInput::Settings => {
-                false
-            }, // Will come later
+            SPRunnerInput::Settings => {}, // Will come later
             SPRunnerInput::AbilityPlan(plan) => {
-                // Here we need to match with current plan, but let's do that later
                 self.ability_plan = plan;
                 self.update_state_variables(self.ability_plan.state_change.clone());
                 self.load_plans();
-                false
             },
             SPRunnerInput::OperationPlan(plan) => {
-                // Here we need to match with current plan, but let's do that later
                 self.operation_plan = plan;
                 self.update_state_variables(self.operation_plan.state_change.clone());
                 self.load_plans();
-                false
             },
         }
     }
