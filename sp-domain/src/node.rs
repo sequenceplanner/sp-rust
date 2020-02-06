@@ -17,7 +17,7 @@ impl SPNode {
     pub fn new(name: &str) -> SPNode {
         SPNode {
             name: name.to_string(),
-            path: SPPath::new(),
+            path: SPPath::from_slice(&[name]),
         }
     }
 
@@ -35,15 +35,23 @@ impl SPNode {
     // returns the node's new path and optionally its old path, if it was not empty before
     pub fn update_path(&mut self, path: &SPPath) -> (SPPath, Option<SPPath>) {
         let mut p = path.clone();
-        let old = if p.path.is_empty() { None } else { Some(self.path().clone()) };
+        let old = if p.path.is_empty() {
+            None
+        } else {
+            Some(self.path().clone())
+        };
         self.path = p.add_child(&self.name);
         (self.path().clone(), old)
+    }
+
+    pub fn update_name(&mut self, name: &str) {
+        self.name = name.to_string();
+        self.update_path(&self.path.parent());
     }
 
     pub fn is_eq(&self, path: &SPPath) -> bool {
         self.path() == path
     }
-
 
     fn write_nice(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}:{}", self.name, self.path)
@@ -91,18 +99,14 @@ pub trait Noder {
             return Some(self.as_ref());
         }
         let next = path.next_node_in_path(self.path());
-        next.as_ref().and_then(|n| self.get_child(n, path) )
+        next.as_ref().and_then(|n| self.get_child(n, path))
     }
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item<'a>(&'a self, name: &str, path_sections: &[&str]) -> Option<SPItemRef<'a>> {
         if self.node().name() == name {
-            let found_it = path_sections.iter().all(|x| {
-                self.node()
-                    .path()
-                    .path
-                    .contains(&x.to_string())
-
-            });
+            let found_it = path_sections
+                .iter()
+                .all(|x| self.node().path().path.contains(&x.to_string()));
             if found_it {
                 return Some(self.as_ref());
             }
@@ -160,8 +164,11 @@ where
 
 /// A method used by the items when impl the Noder trait
 /// Updates the path in items in the list of items impl Noder
-pub fn update_path_in_list<'a, T>(xs: &'a mut [T], path: &SPPath, changes: &mut HashMap<SPPath, SPPath>)
-where
+pub fn update_path_in_list<'a, T>(
+    xs: &'a mut [T],
+    path: &SPPath,
+    changes: &mut HashMap<SPPath, SPPath>,
+) where
     T: Noder,
 {
     for i in xs.iter_mut() {

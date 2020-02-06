@@ -62,5 +62,4 @@ mod tests_domain {
     use super::*;
     #[test]
     fn making() {}
-
 }
