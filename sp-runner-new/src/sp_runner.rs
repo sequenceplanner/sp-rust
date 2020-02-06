@@ -9,17 +9,17 @@ use sp_runner_api::*;
 /// also at a specific frequency
 #[derive(Debug, PartialEq, Clone)]
 pub struct SPRunner {
-    name: String,
+    pub name: String,
     ticker: SPTicker,
-    variables: Vec<Variable>,
-    predicates: Vec<Variable>,
-    goals: Vec<IfThen>,
-    global_transition_specs: Vec<TransitionSpec>,
-    ability_plan: SPPlan,
-    operation_plan: SPPlan,
+    pub variables: Vec<Variable>,
+    pub predicates: Vec<Variable>,
+    pub goals: Vec<IfThen>,
+    pub global_transition_specs: Vec<TransitionSpec>,
+    pub ability_plan: SPPlan,
+    pub operation_plan: SPPlan,
     pub last_fired_transitions: Vec<SPPath>,
-    old_model: RunnerModel,
-    in_sync: bool,
+    pub old_model: RunnerModel,
+    pub in_sync: bool,
 }
 
 /// The input to the runner. 
@@ -41,7 +41,6 @@ pub struct SPRunner {
 #[derive(Debug, PartialEq, Clone)]
 pub enum SPRunnerInput {
     Tick,
-    TickAsync,
     StateChange(SPState),
     Settings, // Will come later
     AbilityPlan(SPPlan),
@@ -51,6 +50,7 @@ pub enum SPRunnerInput {
 pub struct SPPlan {
     //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
+    pub state_change: SPState,  // for setting variables use in the plans
     //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
 }
 
@@ -101,49 +101,56 @@ impl SPRunner {
             operation_plan: SPPlan::default(),
             last_fired_transitions: vec!(),
             old_model,
-            in_sync: true,
+            in_sync: false,
         }
     }
 
     /// The main function to use when running the runner. Connect this to
     /// a channel either using async or standard threads
-    pub fn input(&mut self, input: SPRunnerInput) {
+    pub fn input(&mut self, input: SPRunnerInput) -> bool {
         match input {
             SPRunnerInput::Tick => {
-                self.take_a_tick(SPState::new(), self.in_sync);
-            },
-            SPRunnerInput::TickAsync => {
-                self.take_a_tick(SPState::new(), false);
+                self.take_a_tick(SPState::new());
+                true
             },
             SPRunnerInput::StateChange(s) => {
                 // We will not tick the runner when we got no changes. If you need
                 // that, send a Tick.
-                if !self.ticker.state.are_new_values_the_same(&s) {
-                    self.take_a_tick(s, self.in_sync);
+                if true {// !self.ticker.state.are_new_values_the_same(&s) {
+                    self.take_a_tick(s);
+                    true
+                } else {
+                    false
                 }
             },
-            SPRunnerInput::Settings => {}, // Will come later
+            SPRunnerInput::Settings => {
+                false
+            }, // Will come later
             SPRunnerInput::AbilityPlan(plan) => {
                 // Here we need to match with current plan, but let's do that later
                 self.ability_plan = plan;
+                self.update_state_variables(self.ability_plan.state_change.clone());
                 self.load_plans();
+                false
             },
             SPRunnerInput::OperationPlan(plan) => {
                 // Here we need to match with current plan, but let's do that later
                 self.operation_plan = plan;
+                self.update_state_variables(self.operation_plan.state_change.clone());
                 self.load_plans();
+                false
             },
         }
     }
 
     /// Get the current state from the runner
-    pub fn state(&self) -> SPState {
-        self.ticker.state.clone()
+    pub fn state(&self) -> &SPState {
+        &self.ticker.state
     }
 
-    /// Get the current goal that runner runner tries to reach. The predicate 
+    /// Get the current goal that runner tries to reach. The predicate 
     /// in the result vec should be conjunted
-    pub fn goal(&mut self) -> Vec<Predicate> {
+    pub fn goal(&self) -> Vec<Predicate> {
         let goals: Vec<Predicate> = self.goals.iter().filter(|g| {
             g._if.eval(&self.ticker.state)
         }).map(|x| x._then.clone()).collect();
@@ -163,22 +170,16 @@ impl SPRunner {
     }
 
     /// A special function that the owner of the runner can use to 
-    /// force a complete new state. Must include all variables used 
+    /// force a new state. Must include all variables used 
     /// by the runner!
     pub fn force_new_state(&mut self, update: SPState) {
         self.ticker.state = update;
         self.reload_state_paths();
     }
 
-    fn take_a_tick(&mut self, state: SPState, in_sync: bool) {
+
+    fn take_a_tick(&mut self, state: SPState) {
         self.update_state_variables(state);
-        if in_sync {
-            let g = self.goal();
-            let result = crate::planning::compute_plan(&g, &self.ticker.state, &self.old_model, 20);
-            println!("we have a plan? {} -- got it in {}ms", result.plan_found, result.time_to_solve.as_millis());
-            
-            self.include_planning_result(result);
-        }
         let res = self.ticker.tick_transitions();
         self.last_fired_transitions = res.1;
     }
@@ -191,6 +192,7 @@ impl SPRunner {
     }
 
     fn reload_state_paths(&mut self) {
+        println!("RELOAD STATE PATHS");
         self.ticker.reload_state_paths();
         self.reload_state_paths_plans();
         for x in self.goals.iter_mut() {
@@ -208,61 +210,6 @@ impl SPRunner {
             x.spec_transition.upd_state_path(&self.ticker.state)
         }
     }
-
-    fn include_planning_result(&mut self, res: crate::planning::PlanningResult) {
-        let ctrl: Vec<SPPath> = self.old_model.ab_transitions.ctrl.iter().map(|t: &Transition| t.path().clone()).collect();
-        let in_plan: Vec<SPPath> = res.trace.iter()
-            .map(|x| x.transition.clone()).collect();
-        let plan_p = SPPath::from_slice(&["runner","ability_plan"]);
-        let mut tr: Vec<TransitionSpec> = in_plan.iter()
-            .filter(|x| ctrl.contains(x))
-            .enumerate()
-            .map(|(i, p)| {
-                let t = Transition::new(
-                    &format!("step{:?}", i),
-                    p!(plan_p == i),
-                    vec!(a!(plan_p = {i+1})),
-                    vec!(),
-                    true,
-                );
-                TransitionSpec::new(
-                    &format!("spec{:?}", i),
-                    t,
-                    vec!(p.clone())
-                )
-            })
-            .collect();
-
-            let blocked: Vec<TransitionSpec> = ctrl.iter()
-                .filter(|x| !in_plan.contains(x))
-                .map(|p| {
-                    let t = Transition::new(
-                        &format!("Blocked {}", p),
-                        Predicate::FALSE,
-                        vec!(),
-                        vec!(),
-                        true,
-                    );
-                    TransitionSpec::new(
-                        &format!("Blocked {}", p),
-                        t,
-                        vec!(p.clone())
-                    )
-                })
-                .collect();
-            tr.extend(blocked);
-            
-            println!("THE PLAN");
-            tr.iter().for_each(|x| println!("{:?}", x));
-            println!("ctrl");
-            ctrl.iter().for_each(|x| println!("{}", x));
-            
-            self.ticker.state.force_from_path(&plan_p, 0.to_spvalue()).unwrap();
-            self.ability_plan = SPPlan{plan: tr};  
-            self.load_plans();      
-
-    }
-
 
 }
 
@@ -288,18 +235,27 @@ mod test_new_runner {
         println!("Transitions plan");
         runner.ticker.transitions.iter().for_each(|x| println!("{:?}", x));
         println!{""};
-        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::Tick);
         println!("fired:");
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!("fired:");
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        runner.input(SPRunnerInput::TickAsync);
+
+
+        let planner_result = crate::planning::plan(&runner.state(), &runner.goal(), &runner.old_model);
+        let (tr, s) = convert_planning_result(planner_result, &runner.old_model);
+        let plan = SPPlan{plan: tr, state_change: s};
+        runner.input(SPRunnerInput::AbilityPlan(plan));
+
+        
+        
+        runner.input(SPRunnerInput::Tick);
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!("fired:");
-        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::Tick);
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!("fired:");
-        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::Tick);
         println!("fired:");
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!{""};
@@ -312,22 +268,22 @@ mod test_new_runner {
         println!{""};
         println!("State: {}", runner.state());
         println!{""};
-        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::Tick);
         println!("fired:");
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!{""};
         println!("State: {}", runner.state());
         println!{""};
-        runner.input(SPRunnerInput::TickAsync);
-        runner.input(SPRunnerInput::TickAsync);
-        runner.input(SPRunnerInput::TickAsync);
-        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::Tick);
+        runner.input(SPRunnerInput::Tick);
+        runner.input(SPRunnerInput::Tick);
+        runner.input(SPRunnerInput::Tick);
         println!("fired:");
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!{""};
         println!("State: {}", runner.state());
         println!{""};
-        runner.input(SPRunnerInput::TickAsync);
+        runner.input(SPRunnerInput::Tick);
     }
 
     fn make_dummy_robot_runner() -> SPRunner {
@@ -370,6 +326,7 @@ mod test_new_runner {
         );
         runner.input(SPRunnerInput::AbilityPlan(SPPlan{
             plan: restrict_controllable,
+            state_change: SPState::new(),
         }));
         let the_upd_state = state!(
             ["dummy_robot_model", "r1", "State", "act_pos"] => "away",

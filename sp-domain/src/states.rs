@@ -59,6 +59,18 @@ impl<'a> StateProjection<'a> {
         self.state
             .sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
     }
+    pub fn sorted(mut self) -> Self {
+        self.sort();
+        self
+    }
+    pub fn value(&self, path: &SPPath) -> Option<&StateValue> {
+        for (p, v) in self.state.iter() {
+            if *p == path {
+                return Some(*v);
+            }
+        };
+        None
+    }
 }
 
 /// StateValue includes the current and an optional next and prev value.
@@ -86,6 +98,7 @@ impl StateValue {
         }
     }
     pub fn take(&mut self) -> bool {
+        self.prev = None;
         if self.next.is_none() {
             false
         } else {
@@ -331,6 +344,21 @@ impl SPState {
         })
     }
 
+    pub fn difference(&self, new_state: &SPState) -> SPState {
+        let self_p = self.projection();
+        let new_p = new_state.projection();
+        let res: Vec<(SPPath, StateValue)> = self_p.state.iter().flat_map(|(p, v)| {
+            new_p.value(p).map(|new_v| {
+                if new_v.value() != v.value() {
+                    Some(((*p).clone(), new_v.clone()))
+                } else {
+                    None
+                }
+            })
+        }).flatten().collect();
+        SPState::new_from_state_values(&res)
+    }
+
     pub fn prefix_paths(&mut self, parent: &SPPath) {
         let mut xs = HashMap::new();
         for (path, i) in self.index.iter() {
@@ -418,7 +446,7 @@ impl SPState {
     }
 
     pub fn take_transition(&mut self) {
-        self.values.iter_mut().for_each(|v| {
+        self.values.iter_mut().for_each(|v: &mut StateValue| {
             v.take();
         });
     }
@@ -588,5 +616,33 @@ mod sp_value_test {
         assert!(s.is_sub_state_the_same(&s2, &ab));
         s2.add_variable(abc, true.to_spvalue());
         assert!(!s.is_sub_state_the_same(&s2, &ab));
+    }
+
+    #[test]
+    fn test_difference() {
+        let mut s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
+        let ab = s.state_path(&SPPath::from_slice(&["a", "b"])).unwrap();
+        let ac = s.state_path(&SPPath::from_slice(&["a", "c"])).unwrap();
+
+        let mut new_s = s.clone();
+        new_s.force(&ab, 3.to_spvalue());
+
+        println!("{}", s.difference(&new_s));
+        println!("");
+        
+        new_s.force(&ab, 2.to_spvalue());
+        
+        println!("{}", s.difference(&new_s));
+        println!("");
+        
+        new_s.force(&ab, 4.to_spvalue());
+        new_s.force(&ac, 2.to_spvalue());
+        
+        println!("{}", s.difference(&new_s));
+        println!("");
+        println!("{}", new_s.difference(&s));
+        println!("");
+
+
     }
 }

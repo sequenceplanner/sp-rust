@@ -31,19 +31,58 @@ pub fn launch() -> Result<(), Error> {
     // "runner"
     thread::spawn(move || {
         loop {
-            let mess: Result<SPState, RecvError> = rx_in.recv();
-            if let Ok(s) = mess {
-                println!("WE GOT: {}", &s);
-                runner.input(SPRunnerInput::StateChange(s));
+            let mut s = SPState::new();
+            if rx_in.is_empty() {
+                if let Ok(mess) = rx_in.recv() {
+                    s = mess;
+                }
+            } else {
+                for mess in rx_in.try_iter() {
+                    s.extend(mess);
+                }
             }
-            println!("fired:");
-            runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
 
-            // println!{""};
-            // println!("The State: {}", runner.state());
-            // println!{""};
+            
+            println!("WE GOT: {}", &s);
+            let old_g = runner.goal();
+            if runner.input(SPRunnerInput::StateChange(s)) {
+                let new_g = runner.goal();
+                println!("GOALS");
+                new_g.iter().for_each(|x| println!("{:?}", x));
+                println!{""};
+                println!("fired:");
+                println!{""};
+                runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
 
-            tx_out.send(runner.state());
+                println!{""};
+                println!("The State: {}", runner.state());
+                println!{""};
+
+                tx_out.send(runner.state().clone()).unwrap();
+                
+                if old_g != new_g {
+                    println!("NEW GOALS");
+                    println!("*********");
+
+                    let planner_result = crate::planning::plan(&runner.state(), &new_g, &runner.old_model);
+                    let (tr, s) = crate::planning::convert_planning_result(planner_result, &runner.old_model);
+                    let plan = SPPlan{plan: tr, state_change: s};
+                    runner.input(SPRunnerInput::AbilityPlan(plan));
+
+                    tx_out.send(runner.state().clone()).unwrap();
+
+                }
+            }
+            
+
+            // let mess: Result<SPState, RecvError> = rx_in.recv();
+            // if let Ok(s) = mess {
+                
+
+                
+                
+            // }
+            
         }
         
     });
@@ -94,6 +133,7 @@ fn make_dummy_robot_runner(m: RunnerModel, mut initial_state: SPState) -> SPRunn
     );
     runner.input(SPRunnerInput::AbilityPlan(SPPlan{
         plan: restrict_controllable,
+        state_change: SPState::new(),
     }));
     // let the_upd_state = state!(
     //     ["dummy_robot_model", "r1", "State", "act_pos"] => "away",
