@@ -205,7 +205,7 @@ impl Runner {
         }
 
         let goal_invs: Vec<_> = goals.iter().map(|x| (x.goal().clone(), x.invariant().clone())).collect();
-        let result = crate::planning::compute_plan(&goal_invs, &self.state, &self.model, 20);
+        let result = crate::planning::compute_plan(&self.model.model, &goal_invs, &self.state, 20);
         println!("we have a plan? {} -- got it in {}ms",
                  result.plan_found, result.time_to_solve.as_millis());
 

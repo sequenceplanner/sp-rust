@@ -271,6 +271,13 @@ impl Model {
         self.items.as_slice()
     }
 
+    pub fn resources(&self) -> Vec<&Resource> {
+        self.items.iter().flat_map(|i| match i {
+            SPItem::Resource(r) => Some(r),
+            _ => None,
+        }).collect()
+    }
+
     pub fn add_item(&mut self, mut item: SPItem) -> SPPath {
         let mut changes = HashMap::new();
         let path = item.update_path(self.node.path(), &mut changes);
@@ -416,6 +423,7 @@ impl Resource {
 
         return s;
     }
+
     pub fn get_variables(&self) -> Vec<Variable> {
         fn r(m: &MessageField, acum: &mut Vec<Variable>) {
             match m {
@@ -438,41 +446,12 @@ impl Resource {
         return vs;
     }
 
-    // TODO
-    pub fn make_global_transitions(&self) -> Vec<Transition> {
-        // local transitions are defined per resource
-        let rgp = self.node().path().clone();
-        // thus parent of the resource needs to be added to all paths
-        // let parent = rgp.parent();
-
-        let mut r = Vec::new();
-
-        for a in &self.abilities {
-            for t in &a.transitions {
-                // let mut updt = t.clone();
-                // updt.add_parent_path(&parent);
-                r.push(t.clone());
-            }
-        }
-        return r;
+    pub fn get_transitions(&self) -> Vec<Transition> {
+        self.abilities.iter().flat_map(|a| a.transitions.clone()).collect()
     }
 
-    // TODO
-    pub fn make_global_state_predicates(&self) -> Vec<Variable> {
-        // local transitions are defined per resource
-        let rgp = self.node().path().clone();
-        // thus parent of the resource needs to be added to all paths
-        // let parent = rgp.parent();
-
-        let mut r = Vec::new();
-
-        for a in &self.abilities {
-            for p in &a.predicates {
-                // let updp = p.clone_with_global_paths(&parent);
-                r.push(p.clone());
-            }
-        }
-        return r;
+    pub fn get_state_predicates(&self) -> Vec<Variable> {
+        self.abilities.iter().flat_map(|a| a.predicates.clone()).collect()
     }
 
 }

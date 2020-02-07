@@ -1,28 +1,41 @@
 use sp_domain::*;
 use sp_runner::*;
-use sp_runner_api::*;
 
+// ie guard extraction to satisfy global spec.
+fn basic_model() -> Model {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m
+}
+
+fn basic_planning_request(model: &Model, n: u32) -> PlanningResult {
+    let active = model.find_item("active", &["State"]).expect("check spelling").path();
+    let activate = model.find_item("activate", &["Control"]).expect("check spelling").path();
+    let goal = p!(p:active);
+
+    let state = SPState::new_from_values(&[
+        (active.clone(), false.to_spvalue()),
+        (activate.clone(), false.to_spvalue()),
+    ]);
+
+    // requires at least step = 2 to find a plan
+    compute_plan(&model, &vec![(goal,None)], &state, n)
+}
 
 #[test]
 fn planner_fail_1_step() {
-    let (model, state) = one_dummy_robot();
+    let model = basic_model();
 
-    let activated = model
-        .model
-        .find_item("active", &[])
-        .expect("check spelling").path();
-    let goal = p!(p:activated);
-
-    // requires at least step = 2 to find a plan
-    let result = compute_plan(&vec![(goal,None)], &state, &model, 1);
-
+    let result = basic_planning_request(&model, 1);
     assert!(!result.plan_found);
+
+    let active = model.find_item("active", &[]).expect("check spelling").path();
 
     assert_ne!(
         result
             .trace
             .last()
-            .and_then(|f| f.state.sp_value_from_path(&activated)),
+            .and_then(|f| f.state.sp_value_from_path(&active)),
         Some(&true.to_spvalue())
     );
 }
@@ -30,32 +43,24 @@ fn planner_fail_1_step() {
 
 #[test]
 fn planner_success_2_steps() {
-    let (model, state) = one_dummy_robot();
+    let model = basic_model();
 
-    let activated = model
-        .model
-        .find_item("active", &[])
-        .expect("check spelling").path();
-    let goal = p!(p:activated);
-
-    // requires at least step = 2 to find a plan
-    let result = compute_plan(&vec![(goal,None)], &state, &model, 2);
-
+    let result = basic_planning_request(&model, 2);
     assert!(result.plan_found);
 
-    println!("{:#?}", result);
+    let active = model.find_item("active", &[]).expect("check spelling").path();
 
     assert_eq!(
         result
             .trace
             .last()
-            .and_then(|f| f.state.sp_value_from_path(&activated)),
+            .and_then(|f| f.state.sp_value_from_path(&active)),
         Some(&true.to_spvalue())
     );
 }
 
 // ie guard extraction to satisfy global spec.
-fn model_with_global_spec() -> (RunnerModel, SPState) {
+fn model_with_global_spec() -> Model {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
@@ -63,20 +68,18 @@ fn model_with_global_spec() -> (RunnerModel, SPState) {
     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
     // (global offline) Specifications
-    let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+    let table_zone = p!(!([p:r1a == "at"] && [p:r2a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
-    let s = make_initial_state(&m);
-    let rm = make_runner_model(&m);
-    (rm, s)
+    m
 }
 
 // ie without guard extraction to satisfy global spec. needs the spec as invariant during planning
-fn model_without_spec() -> (RunnerModel, SPState) {
+fn model_without_spec() -> Model {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
@@ -87,48 +90,77 @@ fn model_without_spec() -> (RunnerModel, SPState) {
     // No specifications
     // !
 
-    let s = make_initial_state(&m);
-    let rm = make_runner_model(&m);
-    (rm, s)
+    m
 }
 
 #[test]
 fn planner_fail_due_to_conflicting_online_spec_and_goal() {
-    let (model, state) = model_without_spec();
+    let model = model_without_spec();
 
-    let r1_p_a = model.model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-    let r2_p_a = model.model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-    let goal = p!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]);
-    let invar = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+    let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
 
-    let result = compute_plan(&vec![(goal,Some(invar))], &state, &model, 20);
+
+    let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
+    let invar = p!(!([p:r1a == "at"] && [p:r2a == "at"]));
+
+    let state = SPState::new_from_values(&[
+        (r1a.clone(), "away".to_spvalue()),
+        (r2a.clone(), "away".to_spvalue()),
+        (r1r.clone(), "away".to_spvalue()),
+        (r2r.clone(), "away".to_spvalue()),
+    ]);
+
+    let result = compute_plan(&model, &[(goal,Some(invar))], &state, 20);
     assert!(!result.plan_found);
 }
 
 #[test]
 fn planner_fail_due_to_conflicting_offline_spec_and_goal() {
-    let (model, state) = model_with_global_spec();
+    let model = model_with_global_spec();
 
-    let r1_p_a = model.model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-    let r2_p_a = model.model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-    let goal = p!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]);
+    let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
 
-    let result = compute_plan(&vec![(goal,None)], &state, &model, 20);
+    let state = SPState::new_from_values(&[
+        (r1a.clone(), "away".to_spvalue()),
+        (r2a.clone(), "away".to_spvalue()),
+        (r1r.clone(), "away".to_spvalue()),
+        (r2r.clone(), "away".to_spvalue()),
+    ]);
+
+    let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
+
+    let result = compute_plan(&model, &[(goal,None)], &state, 20);
     assert!(!result.plan_found);
 }
 
 #[test]
 fn planner_succeed_when_no_conflicting_spec_and_goal() {
-    let (model, state) = model_without_spec();
+    let model = model_without_spec();
 
-    let r1_p_a = model.model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-    let r2_p_a = model.model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-    let goal = p!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]);
+    let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
 
-    let result = compute_plan(&vec![(goal, None)], &state, &model, 20);
+    let state = SPState::new_from_values(&[
+        (r1a.clone(), "away".to_spvalue()),
+        (r2a.clone(), "away".to_spvalue()),
+        (r1r.clone(), "away".to_spvalue()),
+        (r2r.clone(), "away".to_spvalue()),
+    ]);
+
+    let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
+
+    let result = compute_plan(&model, &[(goal, None)], &state, 20);
     assert!(result.plan_found);
 }
 

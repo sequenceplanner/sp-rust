@@ -19,6 +19,15 @@ pub fn two_dummy_robots() -> (RunnerModel, SPState) {
     two_dummy_robots_guard_extraction()
 }
 
+fn set_dummy_robots_initial_state(m: &Model, state: &mut SPState) {
+    // fixing some things so it runs again...
+    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
+
+    state.force_from_path(&r1r, "away".to_spvalue());
+    state.force_from_path(&r2r, "away".to_spvalue());
+}
+
 pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
     // Make model
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
@@ -35,8 +44,6 @@ pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     let table_zone = refine_invariant(&m, &table_zone);
 
-    // m.add_item(SPItem::Spec(Spec::new("table_zone", true, vec![table_zone])));
-
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![], Some(table_zone.clone()));
 
@@ -52,8 +59,9 @@ pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
     // Make it runnable
-    let s = make_initial_state(&m);
-    let rm = make_runner_model_no_ge(&m);
+    let mut s = make_initial_state(&m);
+    set_dummy_robots_initial_state(&m, &mut s);
+    let rm = make_runner_model(&m);
 
     (rm, s)
 }
@@ -76,14 +84,7 @@ pub fn two_dummy_robots_guard_extraction() -> (RunnerModel, SPState) {
 
     // Specifications
     let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    // let unknown_spec = p!(!([p:r1_p_a == "at"] && [p:r2_r_p == "unknown"]));
-    // let unknown_spec2 = p!(!([p:r1_r_p == "unknown"] && [p:r2_p_a == "at"]));
-
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
-    // m.add_item(SPItem::Spec(Spec::new("unknown1", unknown_spec)));
-    // m.add_item(SPItem::Spec(Spec::new("unknown2", unknown_spec2)));
-
-
 
     // Operations
     let r1_to_at = add_op(&mut m, "r1_to_at", false, p!(p:r1_p_a != "at"), p!(p:r1_p_a == "at"), vec![], None);
@@ -100,7 +101,8 @@ pub fn two_dummy_robots_guard_extraction() -> (RunnerModel, SPState) {
                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
     // Make it runnable
-    let s = make_initial_state(&m);
+    let mut s = make_initial_state(&m);
+    set_dummy_robots_initial_state(&m, &mut s);
     let rm = make_runner_model(&m);
 
     (rm, s)
@@ -138,8 +140,9 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPStat
                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
     // Make it runnable
-    let s = make_initial_state(&m);
-    let rm = make_runner_model_no_ge(&m);
+    let mut s = make_initial_state(&m);
+    set_dummy_robots_initial_state(&m, &mut s);
+    let rm = make_runner_model(&m);
 
     (rm, s)
 }

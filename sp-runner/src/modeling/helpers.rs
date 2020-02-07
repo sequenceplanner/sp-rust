@@ -109,7 +109,6 @@ pub fn build_resource(r: &MResource) -> Resource {
     let mut valid_remaps = Vec::new();
 
     for t in &out_topics {
-        println!("out_topic: {:?}", t);
         for name in t.vars.keys() {
             let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), name.clone()]);
             let op = SPPath::from_string(name);
@@ -118,7 +117,6 @@ pub fn build_resource(r: &MResource) -> Resource {
     }
 
     for t in &in_topics {
-        println!("in_topic: {:?}", t);
         for name in t.vars.keys() {
             let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), name.clone()]);
             let op = SPPath::from_string(name);
@@ -135,17 +133,14 @@ pub fn build_resource(r: &MResource) -> Resource {
     }
 
     for a in &abilities {
-        println!("ability: {}", a.name);
-
         for (name, _pred) in &a.predicates {
             let path = SPPath::from_slice(&[r.name.clone(), a.name.clone(), name.clone()]);
-            // println!("predicate: {}", path);
             let op = SPPath::from_slice(&[a.name.clone(), name.clone()]);
             valid_remaps.push((op, path));
         }
     }
 
-    println!("all valid remaps: {:?}", valid_remaps);
+    // println!("all valid remaps: {:?}", valid_remaps);
 
     // fix ability paths
     for a in &mut abilities {
@@ -160,31 +155,31 @@ pub fn build_resource(r: &MResource) -> Resource {
 
 
         for (_name, pred) in &mut a.predicates {
-            println!("original predicate: {:?}", pred);
+            // println!("original predicate: {:?}", pred);
             fix_predicate(pred, &local_remaps);
             fix_predicate(pred, &valid_remaps);
-            println!("new predicate: {:?}", pred);
+            // println!("new predicate: {:?}", pred);
         }
         for (_name, trans) in &mut a.transitions {
-            println!("original guard: {:?}", trans.guard);
+            // println!("original guard: {:?}", trans.guard);
             fix_predicate(&mut trans.guard, &local_remaps);
             fix_predicate(&mut trans.guard, &valid_remaps);
-            println!("new guard: {:?}", trans.guard);
+            // println!("new guard: {:?}", trans.guard);
 
-            println!("original actions: {:?}", trans.actions);
+            // println!("original actions: {:?}", trans.actions);
             trans.actions.iter_mut().for_each(|a| fix_action(a, &valid_remaps));
-            println!("new actions: {:?}", trans.actions);
+            // println!("new actions: {:?}", trans.actions);
 
-            println!("original effects: {:?}", trans.effects);
+            // println!("original effects: {:?}", trans.effects);
             trans.effects.iter_mut().for_each(|e| fix_action(e, &valid_remaps));
-            println!("new effects: {:?}", trans.effects);
+            // println!("new effects: {:?}", trans.effects);
         }
     }
 
     for i in &mut invariants {
-        println!("INVARIANT BEFORE: {}", i.prop);
+        // println!("INVARIANT BEFORE: {}", i.prop);
         fix_predicate(&mut i.prop, &valid_remaps);
-        println!("INVARIANT AFTER: {}", i.prop);
+        // println!("INVARIANT AFTER: {}", i.prop);
     }
 
     // using all our fixed stuff, build a new resource
@@ -303,7 +298,7 @@ pub fn build_resource(r: &MResource) -> Resource {
             if anys.len() == 1 {
                 // hack to expand into multiple trans
                 let any_var = r.get(&anys[0].var).unwrap();
-                let mut new_actions: Vec<_> = any_var.as_variable()
+                let new_actions: Vec<_> = any_var.as_variable()
                     .unwrap()
                     .domain()
                     .iter()
@@ -341,12 +336,8 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     // lastly, we should preprocess the individual resource.
     let temp_model = Model::new_no_root("temp", to_add);
-    // TODO: initial state
+    // TODO: do something with the new initial state ...
     let (new_guards, new_initial) = crate::runners::extract_guards(&temp_model, &Predicate::TRUE);
-
-    let rm = crate::runners::make_runner_model(&temp_model);
-
-    crate::planning::generate_offline_nuxvm(&rm, &new_initial);
 
     for a in &mut r.abilities {
         for t in &mut a.transitions {
@@ -358,6 +349,9 @@ pub fn build_resource(r: &MResource) -> Resource {
             }
         }
     }
+
+    let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
+    crate::planning::generate_offline_nuxvm(&temp_model, &new_initial);
 
     return r;
 }
