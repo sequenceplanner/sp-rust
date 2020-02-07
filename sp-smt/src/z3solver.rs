@@ -3,6 +3,7 @@
 use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
+use sp_domain::*;
 
 pub struct SolverZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,

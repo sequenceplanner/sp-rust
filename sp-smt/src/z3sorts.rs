@@ -24,6 +24,12 @@ pub struct StringSortZ3<'ctx> {
     pub r: Z3_sort
 }
 
+// pub struct EnumSortZ3<'ctx> {
+//     pub ctx: &'ctx ContextZ3,
+//     pub name: Z3_symbol,
+
+// }
+
 pub struct GetSortZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub arg: Z3_ast,
