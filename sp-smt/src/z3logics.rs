@@ -50,6 +50,18 @@ pub struct IMPZ3<'ctx> {
     pub r: Z3_ast
 }
 
+pub struct EQUIVZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub left: Z3_ast,
+    pub right: Z3_ast,
+    pub r: Z3_ast
+}
+
+pub struct NTRUEZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub r: Z3_ast
+}
+
 pub struct XORZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
@@ -114,6 +126,8 @@ impl<'ctx> DISTINCTZ3<'ctx> {
     }
 }
 
+
+
 impl<'ctx> NOTZ3<'ctx> {
     /// Create an AST node representing `not(arg)`.
     ///
@@ -170,6 +184,44 @@ impl<'ctx> IMPZ3<'ctx> {
             Z3_mk_implies(ctx.r, left, right)
         };
         IMPZ3 {ctx, left, right, r: z3}.r       
+    }
+}
+
+impl<'ctx> EQUIVZ3<'ctx> {
+    /// Create an AST node representing `left implies right and right implies left`.
+    ///
+    /// NOTE: The nodes `left` and `right` must have Boolean sort.
+    /// 
+    /// NOTE: See macro! `equiv_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
+        let z3 = unsafe {
+            let vec = vec!(Z3_mk_implies(ctx.r, left, right), Z3_mk_implies(ctx.r, right, left));
+            Z3_mk_and(ctx.r, 2 as u32, vec.as_ptr())
+        };
+        EQUIVZ3 {ctx, left, right, r: z3}.r       
+    }
+}
+
+impl<'ctx> NTRUEZ3<'ctx> {
+    /// Create an AST node representing `t1 and t2 and not t3 and not t4 and not ...`.
+    ///
+    /// NOTE: The nodes must have Boolean sort.
+    /// 
+    /// NOTE: See macro! `ntrue_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, t: Vec<Z3_ast>, f: Vec<Z3_ast>) -> Z3_ast {
+
+        let z3 = unsafe {
+           
+            let mut falses_init = Vec::new();
+            for fs in &f {
+               falses_init.push(Z3_mk_not(ctx.r, *fs));
+            }
+
+            let together = [t, falses_init].concat();
+            Z3_mk_and(ctx.r, together.len() as u32, together.as_ptr())
+        };
+
+        NTRUEZ3 {ctx, r: z3}.r       
     }
 }
 
@@ -422,6 +474,31 @@ macro_rules! imp_z3 {
     }
 }
 
+/// a bi-implication b
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::BIMPZ3::new(&ctx, a, b).r
+/// ```
+// / Using the default context:
+// / ```text
+// / bimp_z3!(a, b)
+// / ```
+/// Using a specific context:
+/// ```text
+/// bimp_z3!(&ctx, a, b)
+/// ```
+/// Requires that a and b are Bool sort.
+#[macro_export]
+macro_rules! equiv_z3 {
+    // ($a:expr, $b:expr) => {
+    //     IMPZ3::new(&CTX, $a, $b).r
+    // };
+    ($ctx:expr, $b:expr, $c:expr) => {
+        EQUIVZ3::new($ctx, $b, $c)
+    }
+}
+
 /// either a or b
 /// 
 /// Macro rule for:
@@ -506,6 +583,10 @@ fn test_new_not(){
 
     let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
 
+    // let not1 = NOTZ3::new(&ctx, vec!(bool1));
+    // let not2 = NOTZ3::new(&ctx, vec!(x1));
+    // let not3 = NOTZ3::new(&ctx, vec!(not2));
+
     let not1 = NOTZ3::new(&ctx, bool1);
     let not2 = NOTZ3::new(&ctx, x1);
     let not3 = NOTZ3::new(&ctx, not2);
@@ -578,6 +659,60 @@ fn test_new_imp(){
     assert_eq!("(=> true x1)", ast_to_string_z3!(&ctx, imp2));
     assert_eq!("(=> x2 false)", ast_to_string_z3!(&ctx, imp3));
     assert_eq!("(=> x1 x2)", ast_to_string_z3!(&ctx, imp4));
+}
+
+
+#[test]
+fn test_new_equiv(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let boolsort = BoolSortZ3::new(&ctx);
+
+    let bool1 = BoolZ3::new(&ctx, true);
+    let bool2 = BoolZ3::new(&ctx, false);
+
+    let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
+    let x2 = BoolVarZ3::new(&ctx, &boolsort, "x2");
+
+    let equiv1 = EQUIVZ3::new(&ctx, x1, x2);
+
+    assert_eq!("(and (=> x1 x2) (=> x2 x1))", ast_to_string_z3!(&ctx, equiv1));
+}
+
+#[test]
+fn test_new_ntrue(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let boolsort = BoolSortZ3::new(&ctx);
+
+    let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
+    let x2 = BoolVarZ3::new(&ctx, &boolsort, "x2");
+    let x3 = BoolVarZ3::new(&ctx, &boolsort, "x3");
+    let x4 = BoolVarZ3::new(&ctx, &boolsort, "x4");
+    let x5 = BoolVarZ3::new(&ctx, &boolsort, "x5");
+    let x6 = BoolVarZ3::new(&ctx, &boolsort, "x6");
+
+    let ntrue1 = NTRUEZ3::new(&ctx, vec!(x2), vec!(x1, x3, x4, x5, x6));
+
+    assert_eq!("(and x2 (not x1) (not x3) (not x4) (not x5) (not x6))", ast_to_string_z3!(&ctx, ntrue1));
+}
+
+#[test]
+fn test_new_ntrue_2(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let boolsort = BoolSortZ3::new(&ctx);
+
+    let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
+    let x2 = BoolVarZ3::new(&ctx, &boolsort, "x2");
+    let x3 = BoolVarZ3::new(&ctx, &boolsort, "x3");
+    let x4 = BoolVarZ3::new(&ctx, &boolsort, "x4");
+    let x5 = BoolVarZ3::new(&ctx, &boolsort, "x5");
+    let x6 = BoolVarZ3::new(&ctx, &boolsort, "x6");
+
+    let ntrue1 = NTRUEZ3::new(&ctx, vec!(), vec!(x1, x2, x3, x4, x5, x6));
+
+    assert_eq!("(and (not x1) (not x2) (not x3) (not x4) (not x5) (not x6))", ast_to_string_z3!(&ctx, ntrue1));
 }
 
 #[test]
@@ -742,6 +877,17 @@ fn test_imp_macro_1(){
         bool_var_z3!(&ctx, "y")
     );
     assert_eq!("(=> x y)", ast_to_string_z3!(&ctx, imp1));
+}
+
+#[test]
+fn test_bimp_macro_1(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    let equiv1 = equiv_z3!(&ctx,
+        bool_var_z3!(&ctx, "x"),
+        bool_var_z3!(&ctx, "y")
+    );
+    assert_eq!("(and (=> x y) (=> y x))", ast_to_string_z3!(&ctx, equiv1));
 }
 
 #[test]

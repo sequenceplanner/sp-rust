@@ -66,6 +66,13 @@ pub struct StringVarZ3<'ctx, 'ssrt, 'a> {
 //     pub r: Z3_sort
 // }
 
+pub struct EnumSortZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub name: Z3_symbol,
+    pub n: u32,
+    
+}
+
 impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
     /// Declare and create a Boolean variable.
     /// 
