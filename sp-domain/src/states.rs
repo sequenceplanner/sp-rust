@@ -59,6 +59,18 @@ impl<'a> StateProjection<'a> {
         self.state
             .sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
     }
+    pub fn sorted(mut self) -> Self {
+        self.sort();
+        self
+    }
+    pub fn value(&self, path: &SPPath) -> Option<&StateValue> {
+        for (p, v) in self.state.iter() {
+            if *p == path {
+                return Some(*v);
+            }
+        };
+        None
+    }
 }
 
 /// StateValue includes the current and an optional next and prev value.
@@ -86,6 +98,7 @@ impl StateValue {
         }
     }
     pub fn take(&mut self) -> bool {
+        self.prev = None;
         if self.next.is_none() {
             false
         } else {
@@ -114,7 +127,7 @@ impl StateValue {
     pub fn value(&self) -> &SPValue {
         match self.next {
             Some(ref x) => x,
-            None => &self.current
+            None => &self.current,
         }
     }
     pub fn current_value(&self) -> &SPValue {
@@ -128,9 +141,9 @@ impl StateValue {
         &self.prev
     }
     pub fn extract(self) -> SPValue {
-        match  self.next {
+        match self.next {
             Some(x) => x,
-            None => self.current
+            None => self.current,
         }
     }
 }
@@ -144,8 +157,6 @@ pub struct StatePath {
     pub index: usize,
     pub state_id: Uuid,
 }
-
-
 
 impl SPState {
     /// Creates a new empty state.
@@ -202,7 +213,6 @@ impl SPState {
         });
     }
 
-
     /// Add a new state variable to the state. If the path already is included, the value is updated.
     /// Maybe we should change this and not update the state? This will also change the id of the state
     pub fn add_variable(&mut self, path: SPPath, value: SPValue) {
@@ -246,7 +256,7 @@ impl SPState {
     }
 
     pub fn sp_value(&self, state_path: &StatePath) -> Option<&SPValue> {
-        self.state_value(state_path).map(|x| x.current_value())
+        self.state_value(state_path).map(|x| x.value())
     }
 
     /// Get a StateValue from the state based on a path. Only use this when you need do not
@@ -266,7 +276,7 @@ impl SPState {
     /// Get a SPValue from the state based on a path. Only use this when you need do not
     /// need to get the same variable multiple times. Else use sp_value
     pub fn sp_value_from_path(&self, path: &SPPath) -> Option<&SPValue> {
-        self.state_value_from_path(path).map(|x| x.current_value())
+        self.state_value_from_path(path).map(|x| x.value())
     }
 
     /// Get a SPValue based on its index when you need to access the same variable multiple
@@ -274,7 +284,7 @@ impl SPState {
     /// If you do not know if the state can change, check the state id.
     /// This fn will panic if i is larger than no of values
     pub fn sp_value_from_index(&self, i: usize) -> &SPValue {
-        self.state_value_from_index(i).current_value()
+        self.state_value_from_index(i).value()
     }
 
     /// Get a projection of the state
@@ -321,23 +331,33 @@ impl SPState {
             .all(|(key, i)| {
                 state
                     .sp_value_from_path(key)
-                    .map(|x| x == self.values[*i].current_value())
+                    .map(|x| x == self.values[*i].value())
                     .unwrap_or(false)
             })
     }
 
     pub fn are_new_values_the_same(&self, new_values: &SPState) -> bool {
-        new_values
-            .index
-            .iter()
-            .all(|(key, i)| {
-                self
-                    .sp_value_from_path(key)
-                    .map(|x| x == new_values.values[*i].current_value())
-                    .unwrap_or(false)
-            })
+        new_values.index.iter().all(|(key, i)| {
+            self.sp_value_from_path(key)
+                .map(|x| x == new_values.values[*i].value())
+                .unwrap_or(false)
+        })
     }
 
+    pub fn difference(&self, new_state: &SPState) -> SPState {
+        let self_p = self.projection();
+        let new_p = new_state.projection();
+        let res: Vec<(SPPath, StateValue)> = self_p.state.iter().flat_map(|(p, v)| {
+            new_p.value(p).map(|new_v| {
+                if new_v.value() != v.value() {
+                    Some(((*p).clone(), new_v.clone()))
+                } else {
+                    None
+                }
+            })
+        }).flatten().collect();
+        SPState::new_from_state_values(&res)
+    }
 
     pub fn prefix_paths(&mut self, parent: &SPPath) {
         let mut xs = HashMap::new();
@@ -350,7 +370,8 @@ impl SPState {
         self.id = Uuid::new_v4(); // Changing id since the paths changes
     }
 
-    pub fn unprefix_paths(&mut self, parent: &SPPath) { // return a new state without parent for all variables
+    pub fn unprefix_paths(&mut self, parent: &SPPath) {
+        // return a new state without parent for all variables
         let mut new_index = HashMap::new();
         for (path, i) in &self.index {
             let mut new_key = path.clone();
@@ -368,8 +389,10 @@ impl SPState {
     pub fn next(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
             Err(SPError::No("The state path is wrong".to_string()))
-        } else if !self.values[state_path.index].next(value){
-            Err(SPError::No("The state already have a next value".to_string()))
+        } else if !self.values[state_path.index].next(value) {
+            Err(SPError::No(
+                "The state already have a next value".to_string(),
+            ))
         } else {
             Ok(())
         }
@@ -396,20 +419,34 @@ impl SPState {
             Err(SPError::No(format! {"Can not find the path: {:?}", path}))
         }
     }
-
+    pub fn revert_next(&mut self, state_path: &StatePath) -> SPResult<()> {
+        if !self.check_state_path(state_path) {
+            Err(SPError::No("The state path is wrong".to_string()))
+        } else {
+            self.values[state_path.index].revert_next();
+            Ok(())
+        }
+    }
+    pub fn revert_next_from_path(&mut self, path: &SPPath) -> SPResult<()> {
+        if let Some(sp) = self.state_path(&path) {
+            self.revert_next(&sp)
+        } else {
+            Err(SPError::No(format! {"Can not find the path: {:?}", path}))
+        }
+    }
 
     pub fn next_map(&mut self, map: Vec<(StatePath, SPValue)>) -> bool {
-        let ok = map.iter().all(|(p, _)| {
-            self.next_is_allowed(p)
-        });
+        let ok = map.iter().all(|(p, _)| self.next_is_allowed(p));
         ok && {
-            map.into_iter().for_each(|(p, v)| {self.values[p.index].next(v);});
+            map.into_iter().for_each(|(p, v)| {
+                self.values[p.index].next(v);
+            });
             true
         }
     }
 
     pub fn take_transition(&mut self) {
-        self.values.iter_mut().for_each(|v| {
+        self.values.iter_mut().for_each(|v: &mut StateValue| {
             v.take();
         });
     }
@@ -419,7 +456,12 @@ impl SPState {
         let mut values = self.values;
         index
             .into_iter()
-            .map(|(key, i)| (key, std::mem::replace(&mut values[i], StateValue::new(SPValue::Unknown))))
+            .map(|(key, i)| {
+                (
+                    key,
+                    std::mem::replace(&mut values[i], StateValue::new(SPValue::Unknown)),
+                )
+            })
             .collect()
     }
 
@@ -432,7 +474,8 @@ impl SPState {
 impl fmt::Display for SPState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Sort keys by name.
-        let proj = self.projection();
+        let mut proj = self.projection();
+        proj.sort();
         let mut buf = Vec::new();
         for (p, val) in proj.state {
             buf.push(format!("{}: {:?}", p, val));
@@ -440,8 +483,6 @@ impl fmt::Display for SPState {
         write!(f, "{}", buf.join("\n"))
     }
 }
-
-
 
 /// helping making states with a macro
 #[macro_export]
@@ -464,8 +505,6 @@ macro_rules! state {
     }}
 }
 
-
-
 /// ********** TESTS ***************
 
 #[cfg(test)]
@@ -482,7 +521,6 @@ mod sp_value_test {
         println!("s2 proj {:?}", s2.projection());
 
         assert_eq!(s, s2);
-
     }
 
     #[test]
@@ -515,10 +553,6 @@ mod sp_value_test {
 
         let x = s.next(&state_path, 5.to_spvalue());
         assert!(x.is_err());
-
-
-
-
 
         println!("{:?}", x);
         println!("{:?}", s);
@@ -565,8 +599,14 @@ mod sp_value_test {
         let s = state!(abc => false, abx => false, ax => true);
 
         // sub_state_projection
-        assert_eq!(s.sub_state_projection(&ab).clone_state(), state!(abc => false, abx => false));
-        assert_eq!(s.sub_state_projection(&abc).clone_state(), state!(abc => false));
+        assert_eq!(
+            s.sub_state_projection(&ab).clone_state(),
+            state!(abc => false, abx => false)
+        );
+        assert_eq!(
+            s.sub_state_projection(&abc).clone_state(),
+            state!(abc => false)
+        );
         assert_eq!(s.sub_state_projection(&b).clone_state(), state!());
         assert_eq!(s.sub_state_projection(&a).clone_state(), s.clone());
 
@@ -576,5 +616,33 @@ mod sp_value_test {
         assert!(s.is_sub_state_the_same(&s2, &ab));
         s2.add_variable(abc, true.to_spvalue());
         assert!(!s.is_sub_state_the_same(&s2, &ab));
+    }
+
+    #[test]
+    fn test_difference() {
+        let mut s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
+        let ab = s.state_path(&SPPath::from_slice(&["a", "b"])).unwrap();
+        let ac = s.state_path(&SPPath::from_slice(&["a", "c"])).unwrap();
+
+        let mut new_s = s.clone();
+        new_s.force(&ab, 3.to_spvalue());
+
+        println!("{}", s.difference(&new_s));
+        println!("");
+        
+        new_s.force(&ab, 2.to_spvalue());
+        
+        println!("{}", s.difference(&new_s));
+        println!("");
+        
+        new_s.force(&ab, 4.to_spvalue());
+        new_s.force(&ac, 2.to_spvalue());
+        
+        println!("{}", s.difference(&new_s));
+        println!("");
+        println!("{}", new_s.difference(&s));
+        println!("");
+
+
     }
 }

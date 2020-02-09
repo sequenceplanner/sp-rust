@@ -181,6 +181,11 @@ impl ToSPValue for i32 {
         SPValue::Int32(*self)
     }
 }
+impl ToSPValue for usize {
+    fn to_spvalue(&self) -> SPValue {
+        SPValue::Int32(*self as i32)
+    }
+}
 // impl ToSPValue for i64 {
 //     fn to_spvalue(&self) -> SPValue {
 //         SPValue::Int64(*self)
