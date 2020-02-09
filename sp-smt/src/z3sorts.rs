@@ -1,6 +1,6 @@
 //! Z3 sorts for SP
 
-use std::ffi::{CStr};
+use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
 
@@ -21,6 +21,16 @@ pub struct RealSortZ3<'ctx> {
 
 pub struct StringSortZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
+    pub r: Z3_sort
+}
+
+pub struct EnumSortZ3<'ctx, 'a> {
+    pub ctx: &'ctx ContextZ3,
+    pub name: &'a str,
+    pub nr: u32,
+    pub enum_names: Vec<Z3_symbol>,
+    pub enum_consts: Vec<Z3_func_decl>,
+    pub enum_testers: Vec<Z3_func_decl>,
     pub r: Z3_sort
 }
 
@@ -90,6 +100,90 @@ impl <'ctx> RealSortZ3<'ctx> {
         RealSortZ3 {ctx, r: z3}
     }
 }
+
+impl <'ctx, 'a> EnumSortZ3<'ctx, 'a> {
+    /// Create the real type.
+    ///
+    /// NOTE: This type is not a floating point number.
+    /// 
+    /// NOTE: See macro! `real_sort_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, name: &'a str, enum_elements: Vec<&'a str>) -> EnumSortZ3<'ctx, 'a> {
+        
+        let z3 = unsafe {
+            let len = enum_elements.len() as u32;
+            let enum_name = CString::new(name).unwrap(); 
+            let enum_name_symbol = Z3_mk_string_symbol(ctx.r, enum_name.as_ptr());  
+
+            let mut enum_names: Vec<Z3_symbol> = vec![std::ptr::null_mut(); enum_elements.len()];
+            let mut enum_consts: Vec<Z3_func_decl> = vec![std::ptr::null_mut(); enum_elements.len()];
+            let mut enum_testers: Vec<Z3_func_decl> = vec![std::ptr::null_mut(); enum_elements.len()];
+
+            let elems = enum_elements.clone();
+
+            for s in enum_elements {
+                // let str_name = CString::new(s).unwrap();
+                // let sym = Z3_mk_string_symbol(ctx.r, CString::new(str_name).unwrap().as_ptr());
+                let index = elems.iter().position(|&r| r == s).unwrap();
+                enum_names[index] = Z3_mk_string_symbol(ctx.r, CString::new(s).unwrap().as_ptr());
+            }
+
+            let enum1 = Z3_mk_enumeration_sort(ctx.r, enum_name_symbol, enum_names.len() as u32, enum_names.as_ptr(), enum_consts.as_mut_ptr(), enum_testers.as_mut_ptr());
+            (len, enum_names, enum_consts, enum_testers, enum1)
+        };
+        EnumSortZ3 {ctx, name, nr: z3.0, enum_names: z3.1, enum_consts: z3.2, enum_testers: z3.3, r: z3.4}
+    }
+}
+
+// pub fn enumeration(
+//     ctx: &'ctx Context,
+//     name: Symbol,
+//     enum_names: &[Symbol],
+// ) -> (Sort<'ctx>, Vec<FuncDecl<'ctx>>, Vec<FuncDecl<'ctx>>) {
+//     let enum_names: Vec<_> = enum_names.iter().map(|s| s.as_z3_symbol(ctx)).collect();
+//     let mut enum_consts = vec![std::ptr::null_mut(); enum_names.len()];
+//     let mut enum_testers = vec![std::ptr::null_mut(); enum_names.len()];
+
+//     let sort = Sort::new(ctx, unsafe {
+//         Z3_mk_enumeration_sort(
+//             ctx.z3_ctx,
+//             name.as_z3_symbol(ctx),
+//             enum_names.len().try_into().unwrap(),
+//             enum_names.as_ptr(),
+//             enum_consts.as_mut_ptr(),
+//             enum_testers.as_mut_ptr(),
+//         )
+//     });
+
+//     // increase ref counts
+//     for i in &enum_consts {
+//         unsafe {
+//             Z3_inc_ref(ctx.z3_ctx, *i as Z3_ast);
+//         }
+//     }
+//     for i in &enum_testers {
+//         unsafe {
+//             Z3_inc_ref(ctx.z3_ctx, *i as Z3_ast);
+//         }
+//     }
+
+//     // convert to Rust types
+//     let enum_consts: Vec<_> = enum_consts
+//         .iter()
+//         .map(|z3_func_decl| FuncDecl {
+//             ctx,
+//             z3_func_decl: *z3_func_decl,
+//         })
+//         .collect();
+//     let enum_testers: Vec<_> = enum_testers
+//         .iter()
+//         .map(|z3_func_decl| FuncDecl {
+//             ctx,
+//             z3_func_decl: *z3_func_decl,
+//         })
+//         .collect();
+
+//     (sort, enum_consts, enum_testers)
+// }
 
 impl <'ctx> StringSortZ3<'ctx> {
     /// Create a sort for 8 bit strings.
@@ -198,6 +292,14 @@ fn test_string_sort(){
     let ctx = ContextZ3::new(&conf);
     let sort = StringSortZ3::new(&ctx);
     assert_eq!("String", sort_to_string_z3!(&ctx, sort.r));
+}
+
+#[test]
+fn test_enum_sort(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let sort = EnumSortZ3::new(&ctx, "fruit", vec!("apple", "banana", "orange"));
+    assert_eq!("fruit", sort_to_string_z3!(&ctx, sort.r));
 }
 
 

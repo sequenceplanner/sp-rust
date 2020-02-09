@@ -47,9 +47,9 @@ fn main() {
 
         let fruity = Z3_mk_const(ctx.r, Z3_mk_string_symbol(ctx.r, fruity_cstr.as_ptr()), enum_sort);
 
-        let asrt1 = eq_z3!(&ctx, apple, fruity);
-        let asrt2 = eq_z3!(&ctx, banana, fruity);
-        let asrt3 = eq_z3!(&ctx, orange, fruity);
+        let asrt1 = eq_z3!(&ctx, fruity, apple);
+        let asrt2 = eq_z3!(&ctx, fruity, banana);
+        let asrt3 = eq_z3!(&ctx, fruity, orange);
 
         // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, apple, orange));
         slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, asrt1, asrt2, asrt3));

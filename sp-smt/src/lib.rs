@@ -20,7 +20,7 @@ pub use crate::z3optimizer::{OptimizerZ3, OptAssertZ3, OptCheckZ3, OptMaximizeZ3
     OptGetModelZ3, OptGetStringZ3};
 
 pub mod z3sorts;
-pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3, GetSortZ3, SortToStringZ3};
+pub use crate::z3sorts::{IntSortZ3, BoolSortZ3, RealSortZ3, StringSortZ3, EnumSortZ3, GetSortZ3, SortToStringZ3};
 
 pub mod z3values;
 pub use crate::z3values::{BoolZ3, IntZ3, RealZ3, StringZ3};
