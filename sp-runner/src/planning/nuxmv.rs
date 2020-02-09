@@ -11,7 +11,6 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, Instant};
 
-
 fn indent(n: u32) -> String {
     (0..n).map(|_| " ").collect::<Vec<&str>>().concat()
 }
@@ -57,7 +56,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                     .iter()
                     .map(|p| format!("{}", NuXMVPredicate(&p)))
                     .collect();
-                format!("( {} )", children.join("|"))
+                format!("( {} )", children.join("|\n")) // TEMP to split long lines on disjunctions
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
             Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
@@ -104,217 +103,6 @@ fn action_to_string(a: &Action) -> Option<String> {
         _ => None,
     }
 }
-
-fn create_nuxmv_problem(goal_invs: &Vec<(Predicate, Option<Predicate>)>, state: &SPState, model: &RunnerModel) -> String {
-    let items = model.model.items();
-    let resources: Vec<&Resource> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Resource(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
-
-    let mut lines = String::from("MODULE main");
-    lines.push_str("\n");
-    lines.push_str("VAR\n");
-
-    lines.push_str("-- MODEL VARIABLES\n");
-    for (path, variable) in &vars {
-        let path = NuXMVPath(path);
-        if variable.value_type() == SPValueType::Bool {
-            lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
-        } else {
-            let domain: Vec<_> = variable
-                .domain()
-                .iter()
-                .map(|v| NuXMVValue(v).to_string())
-                .collect();
-            let domain = domain.join(",");
-            lines.push_str(&format!(
-                "{i}{v} : {{{d}}};\n",
-                i = indent(2),
-                v = path,
-                d = domain
-            ));
-        }
-    }
-
-    lines.push_str("-- CONTROL VARIABLES\n");
-    lines.push_str("IVAR \n\n");
-
-    // add a control variable for each transition
-    let all_trans = model.ab_transitions.ctrl.iter().chain(model.ab_transitions.un_ctrl.iter());
-    for t in all_trans {
-        let path = NuXMVPath(t.node().path());
-        lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
-    }
-    lines.push_str("\n\n");
-
-    // add DEFINES for specs and state predicates
-    lines.push_str("DEFINE\n\n");
-
-    // lines.push_str("-- GLOBAL SPECIFICATIONS\n");
-    // let mut global = Vec::new();
-    // for s in &specs {
-    //     let path = s.node().path();
-
-    //     for (i,p) in s.always().iter().enumerate() {
-    //         let mut pp = path.clone();
-    //         pp = pp.add_child(&format!("{}", i));
-    //         let path = NuXMVPath(&pp);
-    //         let p = NuXMVPredicate(&p);
-    //         lines.push_str(&format!(
-    //                 "{i}{v} := {p};\n",
-    //                 i = indent(2),
-    //                 v = path,
-    //                 p = p,
-    //         ));
-    //         global.push(p);
-    //     }
-    // }
-
-    lines.push_str("\n\n");
-
-    lines.push_str("-- STATE PREDICATES\n");
-
-    for sp in &model.state_predicates {
-        let path = NuXMVPath(sp.node().path());
-        match sp.variable_type() {
-            VariableType::Predicate(p) => {
-                let p = NuXMVPredicate(&p);
-                lines.push_str(&format!(
-                    "{i}{v} := {p};\n",
-                    i = indent(2),
-                    v = path,
-                    p = p,
-                ));
-            },
-            _ => {
-                panic!("model error")
-            }
-        }
-    }
-
-    lines.push_str("\n\n");
-
-    lines.push_str("ASSIGN\n");
-    lines.push_str("\n\n");
-    lines.push_str("-- CURRENT STATE --\n");
-
-    for (path, _variable) in &vars {
-        let value = state.sp_value_from_path(path).expect("all variables need a valuation!");
-        let path = NuXMVPath(path);
-        let value = NuXMVValue(value);
-        lines.push_str(&format!(
-            "{i}init({v}) := {spv};\n",
-            i = indent(2),
-            v = path,
-            spv = value
-        ));
-    }
-
-    lines.push_str("\n\n");
-    lines.push_str("-- TRANSITIONS --\n");
-    lines.push_str("");
-    lines.push_str("TRANS\n\n");
-
-
-    let mut all_vars = HashSet::new();
-    all_vars.extend(vars.keys().cloned());
-
-    let mut trans = Vec::new();
-
-    let all_trans = model.ab_transitions.ctrl.iter().chain(model.ab_transitions.un_ctrl.iter());
-    for t in all_trans {
-        let modified = modified_by(t);
-        let untouched = all_vars.difference(&modified);
-
-        let keep: Vec<_> = untouched.map(|path| {
-            let path = NuXMVPath(path);
-            format!("( next({v}) = {v} )", v = path)
-        }).collect();
-
-        let assign = |a: &Action| {
-                let path = NuXMVPath(&a.var);
-                let value = action_to_string(&a).expect("model too complicated");
-                format!("next({}) = {}", path, value)
-            };
-        let mut updates: Vec<_> = t.actions().iter().map(assign).collect();
-        updates.extend(t.effects().iter().map(assign));
-        updates.extend(keep);
-
-        let g = NuXMVPredicate(&t.guard());
-        let updates_s = updates.join(" & ");
-
-        // tracking variable
-        let ivar = NuXMVPath(t.node().path());
-
-        trans.push(format!("{i} & {g} & {u}", i=ivar, g=g, u=updates_s));
-    }
-
-    let trans_s = trans.join(" |\n");
-    lines.push_str(&trans_s);
-
-    lines.push_str("\n\n");
-
-    // finally, print out the ltl spec on the form
-    // LTLSPEC ! ( G s1 & G s2 & F g1 & F g2);
-    // let global_str: Vec<String> = global.iter().map(|p| format!("G ( {} )", p)).collect();
-    // let g = if global_str.is_empty() {
-    //     "TRUE".to_string()
-    // } else {
-    //     global_str.join("&")
-    // };
-
-    let goal_str: Vec<String> = goal_invs.iter().map(|(goal,inv)| {
-        if let Some(inv) = inv {
-            // if we have an invariant for our goal,
-            // express it as  inv U (inv & goal)
-            // e.g. we make sure that the invariant also
-            // holds in the post state
-            format!("({inv} U ({inv} & {goal}))", goal = &NuXMVPredicate(goal), inv = &NuXMVPredicate(inv))
-        } else {
-            // no invariant, simple "exists" goal.
-            format!("F ( {} )", &NuXMVPredicate(goal))
-        }
-    }).collect();
-    let goals = if goal_str.is_empty() { // TODO: check this before doing everything else....
-        "TRUE".to_string()
-    } else {
-        goal_str.join("&")
-    };
-
-    // lines.push_str(&format!("LTLSPEC ! ( {} & {} );", g, goals));
-    // without safety specs
-    lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
-
-
-    // TODO: doing this would be an alternative to guard extraction...
-    // Collect all offline specs.
-    let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
-        SPItem::Spec(s) => Some(s),
-        _ => None,
-    }).cloned().collect();
-
-    // now put in the specs as invariants to refine the model.
-    lines.push_str("-- GLOBAL SPECIFICATIONS\n");
-    let mut global = Vec::new();
-    for s in &specs {
-        for p in s.always().iter() {
-            let p = NuXMVPredicate(&p);
-            global.push(format!("{}", p));
-        }
-    }
-    let invars = if global.is_empty() {"".to_string()} else { format!("INVAR {};", global.join("&\n"))};
-
-    lines.push_str(&invars);
-    lines.push_str("\n\n");
-
-    return lines;
-}
-
 
 fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
     // as we have more options than json we switch on the spval type
@@ -368,7 +156,7 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)
     Ok((raw,raw_error))
 }
 
-fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<SPPath, Variable>) -> Option<Vec<PlanningFrame>> {
+fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
         return None;
     }
@@ -400,15 +188,9 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
             let sppath = path.clone();
             let val = path_val.get(1).expect("no value!");
 
-            // check for controllable actions
-            let mut all_trans = model.ab_transitions.ctrl.iter().chain(
-                model.ab_transitions.un_ctrl.iter());
-            if all_trans.find(|t| (t.node().path()) == &path).is_some() {
-            // if model.ab_transitions.ctrl.iter().find(|t| (t.node()) == &path).is_some() {
+            if model.transitions.iter().find(|t| (t.node().path()) == &path).is_some() {
                 if val == &"TRUE" {
                     assert!(last.transition == SPPath::default());
-                    // last.ctrl = Some(sppath);
-                    // last.ctrl.push(sppath.clone());
                     last.transition = sppath.clone();
                 }
             } else {
@@ -417,22 +199,17 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
                     find(|p| (p.node().path()) == &path).is_some() {
                         SPValueType::Bool
                     } else {
-                        // TODO: hacks abound
-                        if !vars.contains_key(&sppath) {
-                            SPValueType::Bool   // this is a spec
+                        if let Some(v) = model.vars.iter().find(|v| v.path() == &sppath) {
+                            v.value_type()
                         } else {
-                            vars
-                                .get(&sppath)
-                                .expect(&format!("path mismatch! {}", path))
-                                .value_type()
+                            SPValueType::Bool   // this is a spec
                         }
                     };
 
                 let spval = spval_from_nuxvm(val, spt);
 
-                // temp test
-                if vars.contains_key(&sppath) {
-                    let v = vars.get(&sppath).unwrap();
+                // temp test. for now we just keep "measured here" save all?
+                if let Some(v) = model.vars.iter().find(|v| v.path() == &sppath) {
                     if v.variable_type() == VariableType::Measured {
                         last.state.add_variable(sppath, spval);
                     }
@@ -445,24 +222,12 @@ fn postprocess_nuxmv_problem(raw: &String, model: &RunnerModel, vars: &HashMap<S
 }
 
 pub fn compute_plan(
-    goal_invs: &Vec<(Predicate, Option<Predicate>)>,
+    model: &TransitionSystemModel,
+    goal_invs: &[(Predicate, Option<Predicate>)],
     state: &SPState,
-    model: &RunnerModel,
     max_steps: u32,
 ) -> PlanningResult {
-    // create variable definitions based on the state
-    // note, we need to exclude predicates...
-    let items = model.model.items();
-    let resources: Vec<&Resource> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Resource(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
-
-    let lines = create_nuxmv_problem(&goal_invs, &state, &model);
+    let lines = create_nuxmv_problem(&model, &goal_invs, &state);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
@@ -479,7 +244,7 @@ pub fn compute_plan(
 
     match result {
         Ok((raw, raw_error)) => {
-            let trace = postprocess_nuxmv_problem(&raw, model, &vars);
+            let trace = postprocess_nuxmv_problem(&model, &raw);
 
             PlanningResult {
                 plan_found: trace.is_some(),
@@ -501,37 +266,77 @@ pub fn compute_plan(
     }
 }
 
+fn create_offline_nuxmv_problem(model: &TransitionSystemModel, initial: &Predicate) -> String {
+    let mut lines = make_base_problem(model);
+
+    add_initial_states(&mut lines, initial);
+
+    lines
+}
+
+fn create_nuxmv_problem(model: &TransitionSystemModel, goal_invs: &[(Predicate, Option<Predicate>)], state: &SPState) -> String {
+    let mut lines = make_base_problem(model);
+
+    add_current_valuations(&mut lines, &model.vars, state);
+
+    add_goals(&mut lines, goal_invs);
+
+    return lines;
+}
+
+fn make_base_problem(model: &TransitionSystemModel) -> String {
+    let mut lines = String::new();
+
+    add_preamble(&mut lines, &model.name);
+
+    add_vars(&mut lines, &model.vars);
+
+    add_ivars(&mut lines, &model.transitions);
+
+    add_statepreds(&mut lines, &model.state_predicates);
+
+    let mut var_set: HashSet<SPPath> = HashSet::new();
+    var_set.extend(model.vars.iter().map(|v|v.path()).cloned());
+
+    add_transitions(&mut lines, &var_set, &model.transitions);
+
+    add_global_specifications(&mut lines, &model.specs);
+
+    return lines;
+}
 
 
-fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> String {
-    let items = model.model.items();
-    let resources: Vec<&Resource> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Resource(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
+pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
+    let mut lines = create_offline_nuxmv_problem(&model, initial);
 
-    // TODO: maybe later just put these as "invar" expressions which sanitizes the model instead of guard extraction.
-    // Collect all offline specs.
-    let specs: Vec<Spec> = items.iter().flat_map(|i| match i {
-        SPItem::Spec(s) => Some(s),
-        _ => None,
-    }).cloned().collect();
+    add_initial_states(&mut lines, initial);
 
-    let mut lines = String::from("MODULE main");
-    lines.push_str("\n");
-    lines.push_str("VAR\n");
+    let datetime: DateTime<Local> = SystemTime::now().into();
+    // todo: use non platform way of getting temporary folder
+    // or maybe just output to a subfolder 'plans'
+    let filename = &format!("/tmp/model_out {}.bmc", datetime);
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
 
-    lines.push_str("-- MODEL VARIABLES\n");
-    for (path, variable) in &vars {
-        let path = NuXMVPath(path);
-        if variable.value_type() == SPValueType::Bool {
+    let filename = &format!("/tmp/last_model_out.bmc");
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
+}
+
+
+fn add_preamble(lines: &mut String, module_name: &str) {
+    lines.push_str(&format!("-- MODULE: {}\n", module_name));
+    lines.push_str("MODULE main\n\n");
+}
+
+fn add_vars(lines: &mut String, vars: &[Variable]) {
+    lines.push_str("VAR\n\n");
+    for v in vars {
+        let path = NuXMVPath(v.path());
+        if v.value_type() == SPValueType::Bool {
             lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
         } else {
-            let domain: Vec<_> = variable
+            let domain: Vec<_> = v
                 .domain()
                 .iter()
                 .map(|v| NuXMVValue(v).to_string())
@@ -545,24 +350,26 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
             ));
         }
     }
+    lines.push_str("\n\n");
+}
 
-    lines.push_str("-- CONTROL VARIABLES\n");
-    lines.push_str("IVAR \n\n");
+fn add_ivars(lines: &mut String, transitions: &[Transition]) {
+    lines.push_str("IVAR\n\n");
 
     // add a control variable for each transition
-    let all_trans = model.ab_transitions.ctrl.iter().chain(model.ab_transitions.un_ctrl.iter());
-    for t in all_trans {
+    for t in transitions {
         let path = NuXMVPath(t.node().path());
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
     lines.push_str("\n\n");
 
+}
+
+fn add_statepreds(lines: &mut String, predicates: &[Variable]) {
     // add DEFINES for specs and state predicates
     lines.push_str("DEFINE\n\n");
 
-    lines.push_str("-- STATE PREDICATES\n");
-
-    for sp in &model.state_predicates {
+    for sp in predicates {
         let path = NuXMVPath(sp.node().path());
         match sp.variable_type() {
             VariableType::Predicate(p) => {
@@ -581,112 +388,7 @@ fn create_offline_nuxmv_problem(model: &RunnerModel, initial: &Predicate) -> Str
     }
 
     lines.push_str("\n\n");
-
-
-    lines.push_str("INIT\n");
-    lines.push_str("\n\n");
-    // big ass initial state expression...
-    // wow it works :)
-    let ip = NuXMVPredicate(&initial);
-    lines.push_str(&format!(
-        "{i}{e};\n",
-        i = indent(2),
-        e = ip
-    ));
-
-
-    // lines.push_str("ASSIGN\n");
-    // lines.push_str("\n\n");
-    // lines.push_str("-- CURRENT STATE --\n");
-
-    // for (path, _variable) in vars {
-    //     let value = state.s.get(path).expect("all variables need a valuation!");
-    //     let path = NuXMVPath(path);
-    //     let value = NuXMVValue(value);
-    //     lines.push_str(&format!(
-    //         "{i}init({v}) := {spv};\n",
-    //         i = indent(2),
-    //         v = path,
-    //         spv = value
-    //     ));
-    // }
-
-    // lines.push_str("\n\n");
-    // lines.push_str("-- CONTROL VARIABLE STATE --\n");
-    // // add a control variable for each controllable transition
-    // for ct in &model.ab_transitions.ctrl {
-    //     let path = NuXMVPath((ct.node()));
-    //     let false_ = false.to_spvalue();
-    //     let value = NuXMVValue(&false_); // they're all false
-    //     lines.push_str(&format!(
-    //         "{i}init({v}) := {spv};\n",
-    //         i = indent(2),
-    //         v = path,
-    //         spv = value
-    //     ));
-    // }
-
-    lines.push_str("\n\n");
-    lines.push_str("-- TRANSITIONS --\n");
-    lines.push_str("");
-    lines.push_str("TRANS\n\n");
-
-
-    let mut all_vars = HashSet::new();
-    all_vars.extend(vars.keys().cloned());
-
-    let mut trans = Vec::new();
-
-    let all_trans = model.ab_transitions.ctrl.iter().chain(model.ab_transitions.un_ctrl.iter());
-    for t in all_trans {
-        let modified = modified_by(t);
-        let untouched = all_vars.difference(&modified);
-
-        let keep: Vec<_> = untouched.map(|path| {
-            let path = NuXMVPath(path);
-            format!("( next({v}) = {v} )", v = path)
-        }).collect();
-
-        let assign = |a: &Action| {
-                let path = NuXMVPath(&a.var);
-                let value = action_to_string(&a).expect("model too complicated");
-                format!("next({}) = {}", path, value)
-            };
-        let mut updates: Vec<_> = t.actions().iter().map(assign).collect();
-        updates.extend(t.effects().iter().map(assign));
-        updates.extend(keep);
-
-        let g = NuXMVPredicate(&t.guard());
-        let updates_s = updates.join(" & ");
-
-        // tracking variable
-        let ivar = NuXMVPath((t.node().path()));
-
-        trans.push(format!("{i} & {g} & {u}", i=ivar, g=g, u=updates_s));
-    }
-
-    let trans_s = trans.join(" |\n");
-    lines.push_str(&trans_s);
-
-    lines.push_str("\n\n");
-
-    // now put in the specs as invariants to refine the model.
-    lines.push_str("-- GLOBAL SPECIFICATIONS\n");
-    let mut global = Vec::new();
-    for s in &specs {
-        for p in s.always().iter() {
-            let p = NuXMVPredicate(&p);
-            global.push(format!("{}", p));
-        }
-    }
-    let invars = format!("INVAR {};", global.join("&\n"));
-
-    lines.push_str(&invars);
-    lines.push_str("\n\n");
-
-    return lines;
 }
-
 
 fn modified_by(t: &Transition) -> HashSet<SPPath> {
     let mut r = HashSet::new();
@@ -697,18 +399,122 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     r
 }
 
+fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: &[Transition]) {
+    lines.push_str("TRANS\n\n");
 
-// make sure specs hold.
-pub fn generate_offline_nuxvm(model: &RunnerModel, initial: &Predicate) {
-    let lines = create_offline_nuxmv_problem(model, initial);
+    let mut trans = Vec::new();
 
-    let datetime: DateTime<Local> = SystemTime::now().into();
-    // todo: use non platform way of getting temporary folder
-    // or maybe just output to a subfolder 'plans'
-    let filename = &format!("/tmp/model_out {}.bmc", datetime);
-    let mut f = File::create(filename).unwrap();
-    write!(f, "{}", lines).unwrap();
+    for t in transitions {
+        let modified = modified_by(t);
+        let untouched = all_vars.difference(&modified);
+
+        let keep: Vec<_> = untouched.map(|path| {
+            let path = NuXMVPath(path);
+            format!("( next({v}) = {v} )", v = path)
+        }).collect();
+
+        let assign = |a: &Action| {
+                let path = NuXMVPath(&a.var);
+                let value = action_to_string(&a).expect(&format!("model too complicated {:?}", a));
+                format!("next({}) = {}", path, value)
+            };
+        let upd: Vec<_> = t.actions().iter().flat_map(|a| match a.value {
+            Compute::Any => None,
+            _ => Some(a.clone())
+        }).collect();
+        let mut updates: Vec<_> = upd.iter().map(assign).collect();
+        updates.extend(t.effects().iter().map(assign));
+        updates.extend(keep);
+
+        let g = NuXMVPredicate(&t.guard());
+        let updates_s = updates.join(" & ");
+
+        // tracking variable
+        let ivar = NuXMVPath(t.node().path());
+
+        trans.push(format!("{i} & {g} & {u}", i=ivar, g=g, u=updates_s));
+    }
+
+    let trans_s = trans.join(" |\n\n");
+    lines.push_str(&trans_s);
+
+    lines.push_str("\n\n");
 }
+
+fn add_initial_states(lines: &mut String, initial: &Predicate) {
+    // we add the initial as INVARS...
+    lines.push_str("INVAR\n\n");
+    let ip = NuXMVPredicate(&initial);
+    lines.push_str(&format!(
+        "{i}{e}\n;\n",
+        i = indent(2),
+        e = ip
+    ));
+    lines.push_str("\n\n");
+}
+
+fn add_global_specifications(lines: &mut String, specs: &[Spec]) {
+    // now put in the specs as invariants to refine the model.
+
+    // if we do guard extraction, the specs leading to these do not
+    // need to be put back as they are redundant.
+
+    lines.push_str("INVAR\n\n");
+    let mut global = Vec::new();
+    for s in specs {
+        global.push(format!("{}", NuXMVPredicate(s.invariant())));
+    }
+    let invars = if global.is_empty() {"TRUE".to_string()} else{
+        global.join("&\n")};
+    let invars = format!("{}\n;\n", invars);
+
+    lines.push_str(&invars);
+    lines.push_str("\n\n");
+}
+
+fn add_current_valuations(lines: &mut String, vars: &[Variable], state: &SPState) {
+    lines.push_str("ASSIGN\n\n");
+
+    for v in vars {
+        let path = v.path();
+        //let value = state.sp_value_from_path(path).expect("all variables need a valuation!");
+        if let Some(value) = state.sp_value_from_path(path) {
+            let path = NuXMVPath(path);
+            let value = NuXMVValue(value);
+            lines.push_str(&format!(
+                "{i}init({v}) := {spv};\n",
+                i = indent(2),
+                v = path,
+                spv = value
+            ));
+        }
+    }
+
+    lines.push_str("\n\n");
+}
+
+fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
+    let goal_str: Vec<String> = goal_invs.iter().map(|(goal,inv)| {
+        if let Some(inv) = inv {
+            // if we have an invariant for our goal,
+            // express it as  inv U (inv & goal)
+            // e.g. we make sure that the invariant also
+            // holds in the post state
+            format!("({inv} U ({inv} & {goal}))", goal = &NuXMVPredicate(goal), inv = &NuXMVPredicate(inv))
+        } else {
+            // no invariant, simple "exists" goal.
+            format!("F ( {} )", &NuXMVPredicate(goal))
+        }
+    }).collect();
+    let goals = if goal_str.is_empty() { // TODO: check this before doing everything else....
+        "TRUE".to_string()
+    } else {
+        goal_str.join("&")
+    };
+
+    lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
+}
+
 
 
 #[test]
@@ -791,17 +597,8 @@ nuXmv >
 ");
 
     let (model, state) = crate::testing::one_dummy_robot();
-        let items = model.model.items();
-    let resources: Vec<&Resource> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Resource(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    let vars: HashMap<SPPath, Variable> = resources.iter().flat_map(|r| r.get_variables()).map(|v| (v.path().clone(), v.clone())).collect();
-
-    let trace = postprocess_nuxmv_problem(&result.to_string(), &model, &vars);
+    let ts_model = TransitionSystemModel::from(&model);
+    let trace = postprocess_nuxmv_problem(&ts_model, &result.to_string());
 
     println!("{:#?}", trace);
 
