@@ -6,8 +6,6 @@ use std::collections::HashMap;
 use guard_extraction::*;
 use buddy_rs::*;
 
-use crate::planning::PlanningModel;
-
 fn sp_pred_to_ex(p: &Predicate,
                  var_map: &HashMap<SPPath, (usize, Variable)>,
                  pred_map: &HashMap<SPPath, Predicate>) -> Ex {
@@ -204,7 +202,7 @@ fn sp_action_to_ac(a: &Action,
     }
 }
 
-fn make_bdd_context<'a>(model: &PlanningModel, b: &'a BDDManager) ->
+fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
     (Context, BDDContext<'a>, HashMap<SPPath, (usize, Variable)>, HashMap<SPPath, Predicate>) {
     let mut c = Context::default();
 
@@ -244,9 +242,7 @@ fn make_bdd_context<'a>(model: &PlanningModel, b: &'a BDDManager) ->
     (c, bc, var_map, pred_map)
 }
 
-pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
-    let model = crate::planning::PlanningModel::from(&model);
-
+pub fn extract_guards(model: &TransitionSystemModel, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
     let b = buddy_rs::take_manager(10000, 10000);
 
     let (gm, new_initial) = { // need to drop bc before we return the manager.
@@ -280,8 +276,7 @@ pub fn extract_guards(model: &Model, init: &Predicate) -> (HashMap<String, Predi
 
 // refines an invariant according to the model
 pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
-    let model = crate::planning::PlanningModel::from(&model);
-
+    let model = TransitionSystemModel::from(&model);
     let b = buddy_rs::take_manager(10000, 10000);
 
     let new_invariant = { // need to drop bc before we return the manager.
@@ -302,47 +297,28 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
 }
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {
+    let mut ts_model = TransitionSystemModel::from(&model);
+
     // TODO: initial conditions...
-    let (new_guards, _new_initial) = extract_guards(&model, &Predicate::TRUE);
+    let (new_guards, _new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
 
-    // TODO: we need to update the model here...
+    // TODO: update planning model with new guards.
 
-
-    let items = model.items();
-
-    // find "ab" transitions from resources
-    let resources: Vec<&Resource> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Resource(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-
-    let trans: Vec<_> = resources.iter().flat_map(|r| r.get_transitions()).collect();
-
-    let mut ab_ctrl: Vec<_> = trans.iter().filter(|t|t.controlled()).cloned().collect();
-    ab_ctrl.iter_mut().for_each(|ct| {
-        match new_guards.get(&ct.path().to_string()) {
-            Some(t) => // AND with new guards.
+    ts_model.transitions.iter_mut().for_each(|ot| {
+        match new_guards.get(&ot.path().to_string()) {
+            Some(nt) => // AND with new guards.
             {
-                println!("UPDATING GUARD FOR TRANS {}", ct.path());
-                println!("NEW GUARD: {:?}", t);
+                println!("UPDATING GUARD FOR TRANS {}", ot.path());
+                println!("NEW GUARD: {:?}", nt);
 
-                *ct.mut_guard() = Predicate::AND(vec![ct.guard().clone(), t.clone()]);
+                *ot.mut_guard() = Predicate::AND(vec![ot.guard().clone(), nt.clone()]);
             },
             None => {},
         }
     });
-    let ab_un_ctrl = trans.iter().filter(|t|!t.controlled()).cloned().collect();
 
-    let preds: Vec<_> = resources.iter().flat_map(|r| r.get_state_predicates()).collect();
-
-    // TODO: handle resource "sub items"
-
-    // TODO: add global transitions.
-
-    // TODO: add global state.?
+    // runner model has everything from planning model + operations and their global state
+    let items = model.items();
 
     // add global op transitions (all automatic for now).
     let global_ops: Vec<&Operation> = items
@@ -355,7 +331,6 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
     let global_ops_ctrl: Vec<_> = global_ops.iter().flat_map(|o|o.start()).cloned().collect();
     let global_ops_un_ctrl: Vec<_> = global_ops.iter().flat_map(|o|o.finish()).cloned().collect();
-
     let global_goals: Vec<IfThen> = global_ops.iter().flat_map(|o|o.goal().as_ref()).cloned().collect();
 
     let rm = RunnerModel {
@@ -364,13 +339,13 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
             un_ctrl: global_ops_un_ctrl,
         },
         ab_transitions: RunnerTransitions {
-            ctrl: ab_ctrl,
-            un_ctrl: ab_un_ctrl,
+            ctrl: ts_model.transitions.iter().filter(|t|t.controlled()).cloned().collect(),
+            un_ctrl: ts_model.transitions.iter().filter(|t|!t.controlled()).cloned().collect(),
         },
         plans: RunnerPlans::default(),
-        state_predicates: preds,
+        state_predicates: ts_model.state_predicates.clone(),
         goals: global_goals,
-        model: model.clone(), // TODO: borrow?
+        model: ts_model.clone(), // TODO: borrow?
     };
 
     return rm;
@@ -429,19 +404,19 @@ fn test_guard_extraction() {
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
-    let (new_guards, new_initial) = extract_guards(&m, &Predicate::TRUE);
+    let ts_model = TransitionSystemModel::from(&m);
+    let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
 
     for (n, g) in &new_guards {
         println!("name: {}", n);
         println!("{:?}", g);
     }
 
-    crate::planning::generate_offline_nuxvm(&m, &new_initial);
+    let ts_model = TransitionSystemModel::from(&m);
+    crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
 
     assert_eq!(new_guards.len(), 4);
     assert_ne!(new_initial, Predicate::TRUE);
-
-    assert!(false);
 }
 
 #[test]
@@ -467,7 +442,8 @@ fn test_invariant_refinement() {
 
     m.add_item(SPItem::Spec(Spec::new("table_zone", new_table_zone)));
 
-    crate::planning::generate_offline_nuxvm(&m, &Predicate::TRUE);
+    let ts_model = TransitionSystemModel::from(&m);
+    crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
 
     assert!(false);
 }

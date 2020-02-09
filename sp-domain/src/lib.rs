@@ -21,6 +21,9 @@ pub use node::*;
 pub mod items;
 pub use items::*;
 
+pub mod transition_system_model;
+pub use transition_system_model::*;
+
 use serde::{Deserialize, Serialize};
 use std::error;
 use std::fmt;

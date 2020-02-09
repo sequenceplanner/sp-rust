@@ -9,7 +9,8 @@ pub struct RunnerModel {
     pub plans: RunnerPlans,
     pub state_predicates: Vec<Variable>,
     pub goals: Vec<IfThen>,
-    pub model: Model,
+    // temporary!
+    pub model: TransitionSystemModel,
 }
 
 impl RunnerModel {

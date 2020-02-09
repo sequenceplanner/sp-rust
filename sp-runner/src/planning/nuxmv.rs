@@ -156,7 +156,7 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)
     Ok((raw,raw_error))
 }
 
-fn postprocess_nuxmv_problem(model: &PlanningModel, raw: &String) -> Option<Vec<PlanningFrame>> {
+fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
         return None;
     }
@@ -222,12 +222,11 @@ fn postprocess_nuxmv_problem(model: &PlanningModel, raw: &String) -> Option<Vec<
 }
 
 pub fn compute_plan(
-    model: &Model,
+    model: &TransitionSystemModel,
     goal_invs: &[(Predicate, Option<Predicate>)],
     state: &SPState,
     max_steps: u32,
 ) -> PlanningResult {
-    let model = PlanningModel::from(model);
     let lines = create_nuxmv_problem(&model, &goal_invs, &state);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
@@ -267,7 +266,7 @@ pub fn compute_plan(
     }
 }
 
-fn create_offline_nuxmv_problem(model: &PlanningModel, initial: &Predicate) -> String {
+fn create_offline_nuxmv_problem(model: &TransitionSystemModel, initial: &Predicate) -> String {
     let mut lines = make_base_problem(model);
 
     add_initial_states(&mut lines, initial);
@@ -275,7 +274,7 @@ fn create_offline_nuxmv_problem(model: &PlanningModel, initial: &Predicate) -> S
     lines
 }
 
-fn create_nuxmv_problem(model: &PlanningModel, goal_invs: &[(Predicate, Option<Predicate>)], state: &SPState) -> String {
+fn create_nuxmv_problem(model: &TransitionSystemModel, goal_invs: &[(Predicate, Option<Predicate>)], state: &SPState) -> String {
     let mut lines = make_base_problem(model);
 
     add_current_valuations(&mut lines, &model.vars, state);
@@ -285,7 +284,7 @@ fn create_nuxmv_problem(model: &PlanningModel, goal_invs: &[(Predicate, Option<P
     return lines;
 }
 
-fn make_base_problem(model: &PlanningModel) -> String {
+fn make_base_problem(model: &TransitionSystemModel) -> String {
     let mut lines = String::new();
 
     add_preamble(&mut lines, &model.name);
@@ -307,8 +306,7 @@ fn make_base_problem(model: &PlanningModel) -> String {
 }
 
 
-pub fn generate_offline_nuxvm(model: &Model, initial: &Predicate) {
-    let model = PlanningModel::from(model);
+pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
     let mut lines = create_offline_nuxmv_problem(&model, initial);
 
     add_initial_states(&mut lines, initial);
@@ -599,9 +597,7 @@ nuXmv >
 ");
 
     let (model, state) = crate::testing::one_dummy_robot();
-    let model = PlanningModel::from(&model.model);
-
-    let trace = postprocess_nuxmv_problem(&model, &result.to_string());
+    let trace = postprocess_nuxmv_problem(&model.model, &result.to_string());
 
     println!("{:#?}", trace);
 

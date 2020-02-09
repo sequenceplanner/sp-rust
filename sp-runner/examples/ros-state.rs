@@ -10,7 +10,7 @@ use tokio::prelude::*;
 use tokio_threadpool;
 
 fn main() -> Result<(), Error> {
-    let (runner_model, initial_state) = two_dummy_robots();
+    let (model, initial_state) = two_dummy_robots();
 
     // start ros node
     let mut node = sp_ros::start_node()?;
@@ -19,7 +19,7 @@ fn main() -> Result<(), Error> {
     let (tx_in, rx_in) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
-    let tx_out = sp_ros::roscomm_setup(&mut node, &runner_model.model, tx_in)?;
+    let tx_out = sp_ros::roscomm_setup(&mut node, &model, tx_in)?;
 
     // misc runner data to/from the network.
     let (tx_in_misc, rx_in_misc) = channel::unbounded();
@@ -29,6 +29,7 @@ fn main() -> Result<(), Error> {
 
     // "runner"
     thread::spawn(move || {
+        let runner_model = make_runner_model(&model);
         let (runner, comm) = Runner::new(runner_model, initial_state);
         launch_tokio(runner, comm, rx_in, tx_out, rx_in_misc, tx_out_misc);
     });

@@ -19,7 +19,8 @@ fn basic_planning_request(model: &Model, n: u32) -> PlanningResult {
     ]);
 
     // requires at least step = 2 to find a plan
-    compute_plan(&model, &vec![(goal,None)], &state, n)
+    let ts_model = TransitionSystemModel::from(&model);
+    compute_plan(&ts_model, &vec![(goal,None)], &state, n)
 }
 
 #[test]
@@ -114,7 +115,8 @@ fn planner_fail_due_to_conflicting_online_spec_and_goal() {
         (r2r.clone(), "away".to_spvalue()),
     ]);
 
-    let result = compute_plan(&model, &[(goal,Some(invar))], &state, 20);
+    let ts_model = TransitionSystemModel::from(&model);
+    let result = compute_plan(&ts_model, &[(goal,Some(invar))], &state, 20);
     assert!(!result.plan_found);
 }
 
@@ -137,6 +139,7 @@ fn planner_fail_due_to_conflicting_offline_spec_and_goal() {
 
     let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
 
+    let model = TransitionSystemModel::from(&model);
     let result = compute_plan(&model, &[(goal,None)], &state, 20);
     assert!(!result.plan_found);
 }
@@ -160,7 +163,8 @@ fn planner_succeed_when_no_conflicting_spec_and_goal() {
 
     let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
 
-    let result = compute_plan(&model, &[(goal, None)], &state, 20);
+    let ts_model = TransitionSystemModel::from(&model);
+    let result = compute_plan(&ts_model, &[(goal, None)], &state, 20);
     assert!(result.plan_found);
 }
 

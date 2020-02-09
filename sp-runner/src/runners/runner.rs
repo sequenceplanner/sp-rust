@@ -90,21 +90,10 @@ impl Runner {
     pub fn new(model: RunnerModel, initial_state: SPState) -> (Runner, RunnerComm) {
         let (comm, external_comm) = RunnerCommInternal::new();
 
-        let items = model.model.items();
-        let resources: Vec<&Resource> = items
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Resource(r) => Some(r),
-                _ => None,
-            })
-            .collect();
-        let vars: HashMap<SPPath, Variable> = resources.iter().
-            flat_map(|r| r.get_variables()).
-            map(|v| (v.path().clone(), v.clone())).collect();
-        let measured_states: HashSet<SPPath> = vars.iter().
-            filter_map(|(p,v)|
+        let measured_states: HashSet<SPPath> = model.model.vars.iter().
+            filter_map(|v|
                 if v.variable_type() == VariableType::Measured {
-                    Some(p.clone())
+                    Some(v.path().clone())
                 } else { None }).collect();
 
         let mut r = Runner {

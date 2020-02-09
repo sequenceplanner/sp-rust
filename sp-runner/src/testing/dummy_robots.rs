@@ -4,17 +4,16 @@ use crate::runners::*;
 use sp_runner_api::*;
 use crate::testing::*;
 
-pub fn one_dummy_robot() -> (RunnerModel, SPState) {
+pub fn one_dummy_robot() -> (Model, SPState) {
     let r1 = make_dummy_robot("r1", &["at", "away"]);
     let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
 
     let s = make_initial_state(&m);
-    let rm = make_runner_model(&m);
 
-    (rm, s)
+    (m, s)
 }
 
-pub fn two_dummy_robots() -> (RunnerModel, SPState) {
+pub fn two_dummy_robots() -> (Model, SPState) {
     // two_dummy_robots_global_but_no_guard_extraction()
     two_dummy_robots_guard_extraction()
 }
@@ -28,7 +27,7 @@ fn set_dummy_robots_initial_state(m: &Model, state: &mut SPState) {
     state.force_from_path(&r2r, "away".to_spvalue());
 }
 
-pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
+pub fn two_dummy_robots_online_specs_only() -> (Model, SPState) {
     // Make model
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
@@ -61,12 +60,11 @@ pub fn two_dummy_robots_online_specs_only() -> (RunnerModel, SPState) {
     // Make it runnable
     let mut s = make_initial_state(&m);
     set_dummy_robots_initial_state(&m, &mut s);
-    let rm = make_runner_model(&m);
 
-    (rm, s)
+    (m, s)
 }
 
-pub fn two_dummy_robots_guard_extraction() -> (RunnerModel, SPState) {
+pub fn two_dummy_robots_guard_extraction() -> (Model, SPState) {
     // Make model
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
@@ -103,12 +101,11 @@ pub fn two_dummy_robots_guard_extraction() -> (RunnerModel, SPState) {
     // Make it runnable
     let mut s = make_initial_state(&m);
     set_dummy_robots_initial_state(&m, &mut s);
-    let rm = make_runner_model(&m);
 
-    (rm, s)
+    (m, s)
 }
 
-pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPState) {
+pub fn two_dummy_robots_global_but_no_guard_extraction() -> (Model, SPState) {
     // Make model
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
@@ -139,17 +136,15 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (RunnerModel, SPStat
                               p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
-    // Make it runnable
     let mut s = make_initial_state(&m);
     set_dummy_robots_initial_state(&m, &mut s);
-    let rm = make_runner_model(&m);
 
-    (rm, s)
+    (m, s)
 }
 
 #[test]
 fn test_two_dummy_robots() {
-    let (rm, s) = two_dummy_robots();
+    let (m, s) = two_dummy_robots();
 
 //    println!("{:#?}", rm);
     println!("=================================");
