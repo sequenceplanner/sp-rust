@@ -476,10 +476,8 @@ impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
                         to_assert.push(eq_z3!(&ctx, bool_var_z3!(&ctx, var_str), val));
                     } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "Int" {
                         to_assert.push(eq_z3!(&ctx, int_var_z3!(&ctx, var_str), val));
-                    // } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "Real" {
-                    //     to_assert.push(eq_z3!(&ctx, real_var_z3!(&ctx, var_str), val));
-                    // } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "String" {
-                    //     to_assert.push(eq_z3!(&ctx, string_var_z3!(&ctx, var_str), val));
+                    } else {
+                        to_assert.push(eq_z3!(&ctx, enum_var_z3!(&ctx, GetSortZ3::new(&ctx, val).r, var_str), val));
                     }
                 }
                 slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, and_z3!(&ctx, to_assert)));
@@ -521,10 +519,8 @@ impl<'ctx, 'slv> SlvGetNModelsZ3<'ctx, 'slv> {
                         to_assert.push(eq_z3!(&ctx, bool_var_z3!(&ctx, var_str), val));
                     } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "Int" {
                         to_assert.push(eq_z3!(&ctx, int_var_z3!(&ctx, var_str), val));
-                    // } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "Real" {
-                    //     to_assert.push(eq_z3!(&ctx, real_var_z3!(&ctx, var_str), val));
-                    // } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "String" {
-                    //     to_assert.push(eq_z3!(&ctx, string_var_z3!(&ctx, var_str), val));
+                    } else {
+                        to_assert.push(eq_z3!(&ctx, enum_var_z3!(&ctx, GetSortZ3::new(&ctx, val).r, var_str), val));
                     }
                 }
                 slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, and_z3!(&ctx, to_assert)));

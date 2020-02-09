@@ -32,49 +32,15 @@ pub struct StringVarZ3<'ctx, 'ssrt, 'a> {
     pub r: Z3_ast,
 }
 
-// /// Create a enumeration sort.
-//     ///
-//     /// An enumeration sort with `n` elements.
-//     /// This function will also declare the functions corresponding to the enumerations.
-//     ///
-//     /// - `c`: logical context
-//     /// - `name`: name of the enumeration sort.
-//     /// - `n`: number of elements in enumeration sort.
-//     /// - `enum_names`: names of the enumerated elements.
-//     /// - `enum_consts`: constants corresponding to the enumerated elements.
-//     /// - `enum_testers`: predicates testing if terms of the enumeration sort correspond to an enumeration.
-//     ///
-//     /// For example, if this function is called with three symbols A, B, C and the name S, then
-//     /// `s` is a sort whose name is S, and the function returns three terms corresponding to A, B, C in
-//     /// `enum_consts`. The array `enum_testers` has three predicates of type `(s -> Bool)`.
-//     /// The first predicate (corresponding to A) is true when applied to A, and false otherwise.
-//     /// Similarly for the other predicates.
-//     pub fn Z3_mk_enumeration_sort(
-//         c: Z3_context,
-//         name: Z3_symbol,
-//         n: ::std::os::raw::c_uint,
-//         enum_names: *const Z3_symbol,
-//         enum_consts: *mut Z3_func_decl,
-//         enum_testers: *mut Z3_func_decl,
-//     ) -> Z3_sort;
-
-// pub struct EnumVarZ3<'ctx, 'a> {
-//     pub ctx: &'ctx ContextZ3,
-//     pub name: &'a str,
-//     pub args: Vec<(Z3_symbol, Z3_func_decl)>,
-//     pub s: String,
-//     pub r: Z3_sort
-// }
-
-pub struct EnumSortZ3<'ctx> {
+pub struct EnumVarZ3<'ctx, 'a> {
     pub ctx: &'ctx ContextZ3,
-    pub name: Z3_symbol,
-    pub n: u32,
-    
+    pub esrt: Z3_sort,
+    pub name: &'a str,
+    pub r: Z3_ast,
 }
 
 impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
-    /// Declare and create a Boolean variable.
+    /// Declare and create a Boolean type variable.
     /// 
     /// NOTE: See macro! `bool_var_z3!`
     pub fn new(ctx: &'ctx ContextZ3, bsrt: &'bsrt BoolSortZ3<'ctx>, name: &'a str) -> Z3_ast {
@@ -89,7 +55,7 @@ impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
 }
 
 impl <'ctx, 'isrt, 'a> IntVarZ3<'ctx, 'isrt, 'a> {
-    /// Declare and create an Integer variable.
+    /// Declare and create an Integer type variable.
     /// 
     /// NOTE: See macro! `int_var_z3!`
     pub fn new(ctx: &'ctx ContextZ3, isrt: &'isrt IntSortZ3<'ctx>, name: &'a str) -> Z3_ast {
@@ -102,9 +68,8 @@ impl <'ctx, 'isrt, 'a> IntVarZ3<'ctx, 'isrt, 'a> {
     }
 }
 
-
 impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
-    /// Declare and create an Real variable.
+    /// Declare and create an Real type variable.
     /// 
     /// NOTE: See macro! `real_var_z3!`
     pub fn new(ctx: &'ctx ContextZ3, rsrt: &'rsrt RealSortZ3<'ctx>, name: &'a str) -> Z3_ast{
@@ -118,7 +83,7 @@ impl <'ctx, 'rsrt, 'a> RealVarZ3<'ctx, 'rsrt, 'a> {
 }
 
 impl <'ctx, 'ssrt, 'a> StringVarZ3<'ctx, 'ssrt, 'a> {
-    /// Declare and create an String variable?
+    /// Declare and create an String type variable
     /// 
     /// NOTE: See macro! `string_var_z3!`
     pub fn new(ctx: &'ctx ContextZ3, ssrt: &'ssrt StringSortZ3<'ctx>, name: &'a str) -> Z3_ast{
@@ -128,6 +93,20 @@ impl <'ctx, 'ssrt, 'a> StringVarZ3<'ctx, 'ssrt, 'a> {
             Z3_mk_const(ctx.r, Z3_mk_string_symbol(ctx.r, str_name.as_ptr()), string_sort)
         };
         StringVarZ3 {ctx, ssrt, name, r: z3}.r
+    }
+}
+
+impl <'ctx, 'a> EnumVarZ3<'ctx, 'a> {
+    /// Declare and create an Enum type variable
+    /// 
+    /// NOTE: See macro! `enum_var_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, esrt: Z3_sort, name: &'a str) -> Z3_ast{
+        // let enum_sort = esrt.r;
+        let str_name = CString::new(name).unwrap();
+        let z3 = unsafe {
+            Z3_mk_const(ctx.r, Z3_mk_string_symbol(ctx.r, str_name.as_ptr()), esrt)
+        };
+        EnumVarZ3 {ctx, esrt, name, r: z3}.r
     }
 }
 
@@ -203,11 +182,35 @@ macro_rules! real_var_z3 {
     }
 }
 
-/// create a string variable?
+/// create a string variable
 /// 
 /// Macro rule for:
 /// ```text
-/// z3variables::StrVarZ3::new(&ctx, a)
+/// z3variables::StringVarZ3::new(&ctx, a)
+/// ```
+// / Using the global context:
+// / ```text
+// / string_var_z3!(a)
+// / ```
+/// Using a specific context:
+/// ```text
+/// string_var_z3!(&ctx, a)
+/// ```
+#[macro_export]
+macro_rules! string_var_z3 {
+    // ($a:expr) => {
+    //     StringVarZ3::new(&CTX, $a).r
+    // };
+    ($ctx:expr, $a:expr) => {
+        StringVarZ3::new($ctx, &StringSortZ3::new($ctx), $a)
+    }
+}
+
+/// create an enumeration variable
+/// 
+/// Macro rule for:
+/// ```text
+/// z3variables::EnumVarZ3::new(&ctx, a)
 /// ```
 // / Using the global context:
 // / ```text
@@ -218,12 +221,12 @@ macro_rules! real_var_z3 {
 /// str_var_z3!(&ctx, a)
 /// ```
 #[macro_export]
-macro_rules! string_var_z3 {
+macro_rules! enum_var_z3 {
     // ($a:expr) => {
-    //     StrVarZ3::new(&CTX, $a).r
+    //     EnumVarZ3::new(&CTX, $a).r
     // };
-    ($ctx:expr, $a:expr) => {
-        StringVarZ3::new($ctx, &StringSortZ3::new($ctx), $a)
+    ($ctx:expr, $a:expr, $b:expr) => {
+        EnumVarZ3::new($ctx, $a, $b)
     }
 }
 

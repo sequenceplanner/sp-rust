@@ -126,8 +126,6 @@ impl<'ctx> DISTINCTZ3<'ctx> {
     }
 }
 
-
-
 impl<'ctx> NOTZ3<'ctx> {
     /// Create an AST node representing `not(arg)`.
     ///
