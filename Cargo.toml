@@ -3,6 +3,6 @@ members = [
     "sp-domain",
     "sp-runner",
     "sp-ros",
-    #"sp-smt",
+    "sp-smt",
     #"sp-codegen"
 ]
