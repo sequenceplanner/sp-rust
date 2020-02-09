@@ -298,26 +298,28 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     new_invariant
 }
 
+fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
+    ts_model.transitions.iter_mut().for_each(|ot| {
+        match ng.get(&ot.path().to_string()) {
+            Some(nt) => {
+                println!("UPDATING GUARD FOR TRANS {}:", ot.path());
+                println!("{}", nt);
+                *ot.mut_guard() = Predicate::AND(vec![ot.guard().clone(), nt.clone()]);
+            },
+            None => {},
+        }
+    });
+}
+
+
 pub fn make_runner_model(model: &Model) -> RunnerModel {
     let mut ts_model = TransitionSystemModel::from(&model);
 
     // TODO: initial conditions...
     let (new_guards, _new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
 
-    // TODO: update planning model with new guards.
-
-    ts_model.transitions.iter_mut().for_each(|ot| {
-        match new_guards.get(&ot.path().to_string()) {
-            Some(nt) => // AND with new guards.
-            {
-                println!("UPDATING GUARD FOR TRANS {}", ot.path());
-                println!("NEW GUARD: {:?}", nt);
-
-                *ot.mut_guard() = Predicate::AND(vec![ot.guard().clone(), nt.clone()]);
-            },
-            None => {},
-        }
-    });
+    // TODO: right now its very cumbersome to update the original Model.
+    update_guards(&mut ts_model, &new_guards);
 
     // runner model has everything from planning model + operations and their global state
     let items = model.items();
@@ -406,15 +408,10 @@ fn test_guard_extraction() {
     let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
-    let ts_model = TransitionSystemModel::from(&m);
+    let mut ts_model = TransitionSystemModel::from(&m);
     let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+    update_guards(&mut ts_model, &new_guards);
 
-    for (n, g) in &new_guards {
-        println!("name: {}", n);
-        println!("{:?}", g);
-    }
-
-    let ts_model = TransitionSystemModel::from(&m);
     crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
 
     assert_eq!(new_guards.len(), 4);

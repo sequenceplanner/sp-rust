@@ -109,14 +109,14 @@ impl fmt::Display for Predicate {
                     .iter()
                     .map(|p| format!("{}", p))
                     .collect();
-                format!("( {} )", children.join("&&"))
+                format!("({})", children.join(" && "))
             }
             Predicate::OR(x) => {
                 let children: Vec<_> = x
                     .iter()
                     .map(|p| format!("{}", p))
                     .collect();
-                format!("( {} )", children.join("||"))
+                format!("({})", children.join(" || "))
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
             Predicate::NOT(p) => format!("!({})", p),
