@@ -597,7 +597,8 @@ nuXmv >
 ");
 
     let (model, state) = crate::testing::one_dummy_robot();
-    let trace = postprocess_nuxmv_problem(&model.model, &result.to_string());
+    let ts_model = TransitionSystemModel::from(&model);
+    let trace = postprocess_nuxmv_problem(&ts_model, &result.to_string());
 
     println!("{:#?}", trace);
 

@@ -1,6 +1,8 @@
 use sp_domain::*;
 use std::collections::HashMap;
 
+use crate::helpers::*;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Domain {
     pub domain: Option<Vec<SPValue>>, // none=domain is boolean
@@ -338,7 +340,7 @@ pub fn build_resource(r: &MResource) -> Resource {
     let temp_model = Model::new_no_root("temp", to_add);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
     // TODO: do something with the new initial state ...
-    let (new_guards, new_initial) = crate::runners::extract_guards(&temp_ts_model, &Predicate::TRUE);
+    let (new_guards, new_initial) = extract_guards(&temp_ts_model, &Predicate::TRUE);
 
     for a in &mut r.abilities {
         for t in &mut a.transitions {

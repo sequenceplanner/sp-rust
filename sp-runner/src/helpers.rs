@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use guard_extraction::*;
 use buddy_rs::*;
 
+use super::*;
+
 fn sp_pred_to_ex(p: &Predicate,
                  var_map: &HashMap<SPPath, (usize, Variable)>,
                  pred_map: &HashMap<SPPath, Predicate>) -> Ex {

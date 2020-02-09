@@ -173,7 +173,7 @@ impl SPTicker {
     fn check_forbidden(state: &mut SPState, forbidden_states: &[IfThen]) -> bool {
         forbidden_states
             .iter()
-            .any(|f| f.condition.eval(state) && f.invariant.map(|x| x.eval(state)).unwrap_or(false))
+            .any(|f| f.condition.eval(state) && f.invariant.as_ref().map(|x| x.eval(state)).unwrap_or(false))
     }
 }
 

@@ -1,8 +1,7 @@
 use sp_domain::*;
-use crate::modeling::*;
-use crate::runners::*;
-use sp_runner_api::*;
+use crate::helpers::*;
 use crate::testing::*;
+use crate::modeling::*;
 
 pub fn one_dummy_robot() -> (Model, SPState) {
     let r1 = make_dummy_robot("r1", &["at", "away"]);
@@ -16,6 +15,7 @@ pub fn one_dummy_robot() -> (Model, SPState) {
 pub fn two_dummy_robots() -> (Model, SPState) {
     // two_dummy_robots_global_but_no_guard_extraction()
     two_dummy_robots_guard_extraction()
+    // two_dummy_robots_online_specs_only()
 }
 
 fn set_dummy_robots_initial_state(m: &Model, state: &mut SPState) {

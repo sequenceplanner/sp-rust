@@ -9,7 +9,8 @@ use crossbeam::RecvError;
 
 
 pub fn launch() -> Result<(), Error> {
-    let (runner_model, initial_state) = crate::testing::two_dummy_robots();
+    let (model, initial_state) = crate::testing::two_dummy_robots();
+    let runner_model = crate::helpers::make_runner_model(&model);
 
     // start ros node
     let mut node = sp_ros::start_node()?;
@@ -18,7 +19,7 @@ pub fn launch() -> Result<(), Error> {
     let (tx_in, rx_in) = channel::unbounded();
 
     // setup ros pub/subs. tx_out to send out to network
-    let tx_out: channel::Sender<SPState> = sp_ros::roscomm_setup(&mut node, &runner_model.model, tx_in)?;
+    let tx_out: channel::Sender<SPState> = sp_ros::roscomm_setup(&mut node, &model, tx_in)?;
 
     // misc runner data to/from the network.
     let (tx_in_misc, rx_in_misc) = channel::unbounded();
@@ -42,7 +43,7 @@ pub fn launch() -> Result<(), Error> {
                 }
             }
 
-            
+
             println!("WE GOT: {}", &s);
             let old_g = runner.goal();
             //if runner.state().are_new_values_the_same(&s) {
@@ -60,13 +61,14 @@ pub fn launch() -> Result<(), Error> {
                 println!{""};
 
                 tx_out.send(runner.state().clone()).unwrap();
-                
+
                 if old_g != new_g {
                     println!("NEW GOALS");
                     println!("*********");
 
-                    let planner_result = crate::planning::plan(&runner.state(), &new_g, &runner.old_model);
-                    let (tr, s) = crate::planning::convert_planning_result(planner_result, &runner.old_model);
+                    let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state());
+                    println!("new plan is: {:?}", planner_result.trace);
+                    let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result);
                     let plan = SPPlan{plan: tr, state_change: s};
                     runner.input(SPRunnerInput::AbilityPlan(plan));
 
@@ -74,18 +76,18 @@ pub fn launch() -> Result<(), Error> {
 
                 }
             //}
-            
+
 
             // let mess: Result<SPState, RecvError> = rx_in.recv();
             // if let Ok(s) = mess {
-                
 
-                
-                
+
+
+
             // }
-            
+
         }
-        
+
     });
 
     loop {
@@ -130,7 +132,7 @@ fn make_dummy_robot_runner(m: RunnerModel, mut initial_state: SPState) -> SPRunn
         m.goals.clone(),
         vec!(),
         vec!(),
-        m
+        m.model.clone(),
     );
     runner.input(SPRunnerInput::AbilityPlan(SPPlan{
         plan: restrict_controllable,
@@ -154,7 +156,7 @@ mod launch_new_runner {
     use crate::planning::*;
 
     #[test]
-    fn go() { 
+    fn go() {
         super::launch();
     }
 }

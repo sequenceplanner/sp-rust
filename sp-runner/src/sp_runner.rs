@@ -18,25 +18,25 @@ pub struct SPRunner {
     pub ability_plan: SPPlan,
     pub operation_plan: SPPlan,
     pub last_fired_transitions: Vec<SPPath>,
-    pub old_model: RunnerModel,
+    pub transition_system_model: TransitionSystemModel,
     pub in_sync: bool,
 }
 
-/// The input to the runner. 
-/// 
+/// The input to the runner.
+///
 /// Tick is used to trigger one evaluation and execution of the transitions. Use
 /// it to run the runner at a frequency.
-/// 
+///
 /// TickAsync is used when the runner is in sync mode but youdo not want to
 /// do the planning before executing the transition.
-/// 
+///
 /// StateChange(upd_variables) is used when the input variables have changed. If
 /// they are the same as the internal state, the runner will not execute the transitions.
-/// 
+///
 /// Settings will change the internal settings of the runner. Maybe send in goals and specs using this?
-/// 
+///
 /// AbilityPlan and OperationPlan will update the plans in the runner. If the runner
-/// is in sync-mode, the AbilityPlan will be computed at each tick and the plan written 
+/// is in sync-mode, the AbilityPlan will be computed at each tick and the plan written
 /// via this input will be overwritten.
 #[derive(Debug, PartialEq, Clone)]
 pub enum SPRunnerInput {
@@ -63,12 +63,12 @@ impl SPRunner {
         goals: Vec<IfThen>,
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
-        old_model: RunnerModel,
+        transition_system_model: TransitionSystemModel,
     ) -> Self {
         let mut vars = vec!();
         let mut preds = vec!();
         let mut initial_state_map = vec!();
-        
+
         variables.into_iter().for_each(|v| {
             let v: Variable = v;
             initial_state_map.push((v.path().clone(), v.initial_value().clone()));
@@ -100,7 +100,7 @@ impl SPRunner {
             ability_plan: SPPlan::default(),
             operation_plan: SPPlan::default(),
             last_fired_transitions: vec!(),
-            old_model,
+            transition_system_model,
             in_sync: false,
         }
     }
@@ -134,17 +134,15 @@ impl SPRunner {
         &self.ticker.state
     }
 
-    /// Get the current goal that runner tries to reach. The predicate 
-    /// in the result vec should be conjunted
-    pub fn goal(&self) -> Vec<Predicate> {
-        let goals: Vec<Predicate> = self.goals.iter().filter(|g| {
+    /// Get the current goal and respective invariant that runner
+    /// tries to reach.
+    pub fn goal(&self) -> Vec<(Predicate, Option<Predicate>)> {
+        self.goals.iter().filter(|g| {
             g.condition.eval(&self.ticker.state)
-        }).map(|x| x.goal.clone()).collect();
-        //Predicate::AND(goals)
-        goals
+        }).map(|x| (x.goal.clone(), x.invariant.clone())).collect()
     }
 
-    /// A special function that the owner of the runner can use to 
+    /// A special function that the owner of the runner can use to
     /// add new state variables
     pub fn update_state_variables(&mut self, update: SPState) {
         let state_id = self.ticker.state.id();
@@ -155,8 +153,8 @@ impl SPRunner {
         }
     }
 
-    /// A special function that the owner of the runner can use to 
-    /// force a new state. Must include all variables used 
+    /// A special function that the owner of the runner can use to
+    /// force a new state. Must include all variables used
     /// by the runner!
     pub fn force_new_state(&mut self, update: SPState) {
         self.ticker.state = update;
@@ -206,9 +204,9 @@ mod test_new_runner {
     use crate::planning::*;
 
     #[test]
-    fn testing_me() { 
+    fn testing_me() {
         let mut runner = make_dummy_robot_runner();
-        
+
 
         println!{""};
         println!("Initial goal: {:?}", runner.goal());
@@ -228,13 +226,13 @@ mod test_new_runner {
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
 
 
-        let planner_result = crate::planning::plan(&runner.state(), &runner.goal(), &runner.old_model);
-        let (tr, s) = convert_planning_result(planner_result, &runner.old_model);
+        let planner_result = crate::planning::plan(&runner.transition_system_model, &runner.goal(), &runner.state());
+        let (tr, s) = convert_planning_result(&runner.transition_system_model, planner_result);
         let plan = SPPlan{plan: tr, state_change: s};
         runner.input(SPRunnerInput::AbilityPlan(plan));
 
-        
-        
+
+
         runner.input(SPRunnerInput::Tick);
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
         println!("fired:");
@@ -273,8 +271,9 @@ mod test_new_runner {
     }
 
     fn make_dummy_robot_runner() -> SPRunner {
-        let (m, mut initial_state) = crate::testing::two_dummy_robots();
-        let m: RunnerModel = m;
+        let (model, mut initial_state) = crate::testing::two_dummy_robots();
+        let ts_model = TransitionSystemModel::from(&model);
+        let m: RunnerModel = crate::helpers::make_runner_model(&model);
         //println!("{:?}", m);
         let mut trans = vec!();
         let mut restrict_controllable = vec!();
@@ -308,7 +307,7 @@ mod test_new_runner {
             m.goals.clone(),
             vec!(),
             vec!(),
-            m
+            ts_model
         );
         runner.input(SPRunnerInput::AbilityPlan(SPPlan{
             plan: restrict_controllable,
