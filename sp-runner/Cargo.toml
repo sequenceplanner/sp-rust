@@ -1,25 +1,21 @@
 [package]
 name = "sp-runner"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Kristofer Bengtsson <kristofer@sekvensa.se>"]
 edition = "2018"
 
 [dependencies]
-tokio = "0.1"
-tokio-threadpool = "0.1.15"
-futures = "0.1"
-uuid = { version = "0.7", features = ["serde", "v4"] }
+uuid = { version = "0.8.1", features = ["serde", "v4"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 crossbeam = "0.7"
-#rayon = "1.1"
-#petgraph = "0.4.13"
 sp-domain = { path = "../sp-domain/" }
 sp-runner-api = { path = "../sp-runner-api/" }
-sp-ros = { path = "../sp-ros/", features = ["ros"] }
-failure = "0.1.5"
-failure_derive = "0.1.5"
-lazy_static = "1.4.0"
+sp-ros = { path = "../sp-ros/", features = [ "ros" ] }
+failure = "0.1.6"
+failure_derive = "0.1.6"
+#lazy_static = "1.4.0"
 chrono = { version = "0.4.9", features = ["serde"] }
+buddy-rs = { git = "https://github.com/m-dahl/buddy-rs.git" }
 guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git" }
 indoc = "0.3"

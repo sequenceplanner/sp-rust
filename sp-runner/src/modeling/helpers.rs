@@ -1,6 +1,8 @@
 use sp_domain::*;
 use std::collections::HashMap;
 
+use crate::helpers::*;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Domain {
     pub domain: Option<Vec<SPValue>>, // none=domain is boolean
@@ -22,6 +24,11 @@ pub struct MeasuredTopic {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct EstimatedVars {
+    pub vars: HashMap<String, Domain>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct MTransition {
     pub controlled: bool,
     pub guard: Predicate,
@@ -37,6 +44,12 @@ pub struct MAbility {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct MInvariant {
+    pub name: String,
+    pub prop: Predicate
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct MResource {
     pub name: String,
     pub items: Vec<ModelItem>
@@ -46,9 +59,10 @@ pub struct MResource {
 pub enum ModelItem {
     CommandTopic(CommandTopic),
     MeasuredTopic(MeasuredTopic),
+    EstimatedVars(EstimatedVars),
     MAbility(MAbility),
+    MInvariant(MInvariant),
 }
-
 
 fn fix_predicate_val(pv: &mut PredicateValue, allowed_remaps: &[(SPPath, SPPath)]) {
     match pv {
@@ -83,6 +97,7 @@ fn fix_action(a: &mut Action, allowed_remaps: &[(SPPath,SPPath)]) {
     match &mut a.value {
         Compute::PredicateValue(pv) => { fix_predicate_val(pv, allowed_remaps); }
         Compute::Predicate(p) => { fix_predicate(p, allowed_remaps); }
+        Compute::Any => {}
     }
 }
 
@@ -90,11 +105,12 @@ pub fn build_resource(r: &MResource) -> Resource {
     let mut abilities: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MAbility(a) => Some(a.clone()), _ => None }).collect();
     let out_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::CommandTopic(ct) => Some(ct.clone()), _ => None }).collect();
     let in_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MeasuredTopic(mt) => Some(mt.clone()), _ => None }).collect();
+    let estimated_vars: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::EstimatedVars(dv) => Some(dv.clone()), _ => None }).collect();
+    let mut invariants: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MInvariant(i) => Some(i.clone()), _ => None }).collect();
 
     let mut valid_remaps = Vec::new();
 
     for t in &out_topics {
-        println!("out_topic: {:?}", t);
         for name in t.vars.keys() {
             let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), name.clone()]);
             let op = SPPath::from_string(name);
@@ -103,7 +119,6 @@ pub fn build_resource(r: &MResource) -> Resource {
     }
 
     for t in &in_topics {
-        println!("in_topic: {:?}", t);
         for name in t.vars.keys() {
             let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), name.clone()]);
             let op = SPPath::from_string(name);
@@ -111,19 +126,23 @@ pub fn build_resource(r: &MResource) -> Resource {
         }
     }
 
+    for t in &estimated_vars {
+        for name in t.vars.keys() {
+            let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
+            let op = SPPath::from_string(name);
+            valid_remaps.push((op,path));
+        }
+    }
 
     for a in &abilities {
-        println!("ability: {}", a.name);
-
         for (name, _pred) in &a.predicates {
             let path = SPPath::from_slice(&[r.name.clone(), a.name.clone(), name.clone()]);
-            // println!("predicate: {}", path);
-            let op = SPPath::from_string(name);
+            let op = SPPath::from_slice(&[a.name.clone(), name.clone()]);
             valid_remaps.push((op, path));
         }
     }
 
-    println!("all valid remaps: {:?}", valid_remaps);
+    // println!("all valid remaps: {:?}", valid_remaps);
 
     // fix ability paths
     for a in &mut abilities {
@@ -138,25 +157,31 @@ pub fn build_resource(r: &MResource) -> Resource {
 
 
         for (_name, pred) in &mut a.predicates {
-            println!("original predicate: {:?}", pred);
+            // println!("original predicate: {:?}", pred);
             fix_predicate(pred, &local_remaps);
             fix_predicate(pred, &valid_remaps);
-            println!("new predicate: {:?}", pred);
+            // println!("new predicate: {:?}", pred);
         }
         for (_name, trans) in &mut a.transitions {
-            println!("original guard: {:?}", trans.guard);
+            // println!("original guard: {:?}", trans.guard);
             fix_predicate(&mut trans.guard, &local_remaps);
             fix_predicate(&mut trans.guard, &valid_remaps);
-            println!("new guard: {:?}", trans.guard);
+            // println!("new guard: {:?}", trans.guard);
 
-            println!("original actions: {:?}", trans.actions);
+            // println!("original actions: {:?}", trans.actions);
             trans.actions.iter_mut().for_each(|a| fix_action(a, &valid_remaps));
-            println!("new actions: {:?}", trans.actions);
+            // println!("new actions: {:?}", trans.actions);
 
-            println!("original effects: {:?}", trans.effects);
+            // println!("original effects: {:?}", trans.effects);
             trans.effects.iter_mut().for_each(|e| fix_action(e, &valid_remaps));
-            println!("new effects: {:?}", trans.effects);
+            // println!("new effects: {:?}", trans.effects);
         }
+    }
+
+    for i in &mut invariants {
+        // println!("INVARIANT BEFORE: {}", i.prop);
+        fix_predicate(&mut i.prop, &valid_remaps);
+        // println!("INVARIANT AFTER: {}", i.prop);
     }
 
     // using all our fixed stuff, build a new resource
@@ -220,16 +245,117 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_message(topic);
     }
 
+    for t in &estimated_vars {
+        t.vars.iter().for_each(|(name, d)| {
+            let is_bool = d.domain.is_none();
+            let var = if is_bool {
+                Variable::new(name,
+                              VariableType::Estimated,
+                              SPValueType::Bool,
+                              SPValue::Bool(false), // replace with initial_values
+                              vec![])
+            } else {
+                let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
+                let sp_val_type = dom[0].has_type();
+                let initial = dom[0].clone(); // replace with initial_values
+                Variable::new(name,
+                              VariableType::Estimated,
+                              sp_val_type,
+                              initial,
+                              dom)
+            };
+            r.add_sub_item(SPItem::Variable(var));
+        });
+    }
+
     // fix ability paths
     for a in &abilities {
         let p = a.predicates.iter().map(|(n,p)| Variable::new_predicate(n, p.clone())).collect();
-        let t = a.transitions.iter().map(|(n, t)|
-                                         Transition::new(n, t.guard.clone(),
-                                                         t.actions.clone(), t.effects.clone(),
-                                                         t.controlled)).collect();
+
+        // below is how I would like to do it => just keep the "Any"
+        // vals. works great for planning and we can still spit out
+        // invariants to the planning problem that works in the same
+        // way as the guards. however its harder to understand what's
+        // going on.
+
+        // let t = a.transitions.iter().map(|(n, t)|
+        //                                  Transition::new(n, t.guard.clone(),
+        //                                                  t.actions.clone(), t.effects.clone(),
+        //                                                  t.controlled)).collect();
+
+        // below is how I have to do it for guard extraction to work,
+        // flattening the "Any"s into new transitions.
+
+        let t = a.transitions.iter().flat_map(|(n, t)| {
+            let anys: Vec<_> = t.actions.iter().flat_map(|a| match a.value {
+                Compute::Any => Some(a.clone()),
+                _ => None
+            }).collect();
+
+            let not_anys: Vec<Action> = t.actions.iter().flat_map(|a| match a.value {
+                Compute::Any => None,
+                _ => Some(a.clone())
+            }).collect();
+
+            if anys.len() == 1 {
+                // hack to expand into multiple trans
+                let any_var = r.get(&anys[0].var).unwrap();
+                let new_actions: Vec<_> = any_var.as_variable()
+                    .unwrap()
+                    .domain()
+                    .iter()
+                    .map(|d|
+                         (Action::new(anys[0].var.clone(),
+                                     Compute::PredicateValue(
+                                         PredicateValue::SPValue(d.clone()))), d.to_string())).collect();
+
+                new_actions.iter().map(|(a,v)| {
+                    let name = format!("{}_with_{}", n, v);
+                    let mut a = vec![a.clone()];
+                    a.extend(not_anys.iter().cloned());
+                    Transition::new(&name, t.guard.clone(),
+                                    a, t.effects.clone(),
+                                    t.controlled)
+                }).collect()
+
+            } else {
+                vec![Transition::new(n, t.guard.clone(),
+                                t.actions.clone(), t.effects.clone(),
+                                t.controlled)]
+            }
+        }).collect();
         let a = Ability::new(&a.name, t, p);
         r.add_ability(a);
     }
+
+    // add invariants to model
+    let mut to_add = Vec::new();
+    to_add.push(SPItem::Resource(r.clone()));
+
+    for i in &invariants {
+        to_add.push(SPItem::Spec(Spec::new(&i.name, i.prop.clone())));
+    }
+
+    // lastly, we should preprocess the individual resource.
+    let temp_model = Model::new_no_root("temp", to_add);
+    let temp_ts_model = TransitionSystemModel::from(&temp_model);
+    // TODO: do something with the new initial state ...
+    let (new_guards, new_initial) = extract_guards(&temp_ts_model, &Predicate::TRUE);
+
+    for a in &mut r.abilities {
+        for t in &mut a.transitions {
+            match new_guards.get(&t.path().to_string()) {
+                Some(g) => {
+                    *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
+                },
+                None => {},
+            }
+        }
+    }
+
+    let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
+    let temp_ts_model = TransitionSystemModel::from(&temp_model);
+    crate::planning::generate_offline_nuxvm(&temp_ts_model, &new_initial);
 
     return r;
 }
@@ -265,9 +391,9 @@ macro_rules! command {
     }};
 
     // variable with domain + trailing comma
-    (private $cmd:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+    (private $cmd:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
-            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $cmd.vars.insert(stringify!($var_name).to_string(),
                              Domain { domain: Some(domain) } );
         }
@@ -314,9 +440,9 @@ macro_rules! measured {
     }};
 
     // variable with domain + trailing comma
-    (private $measured:ident $var_name:tt : [ $( $dom:tt ),+ ], $($rest:tt)*) => {{
+    (private $measured:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
-            let domain = vec![ $($dom.to_spvalue() ,)+ ];
+            let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $measured.vars.insert(stringify!($var_name).to_string(),
                                   Domain { domain: Some(domain) } );
         }
@@ -330,6 +456,70 @@ macro_rules! measured {
 
     (private $measured:expr) => {{
         ModelItem::MeasuredTopic($measured)
+    }};
+}
+
+#[macro_export]
+macro_rules! estimated {
+    // no domain defaults to boolean variable
+    (private $estimated:ident $var_name:tt : bool, $($rest:tt)*) => {{
+        $estimated.vars.insert(stringify!($var_name).to_string(),
+                              Domain { domain: None } );
+        estimated!(private $estimated $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $estimated:ident $first:tt : bool) => {{
+        estimated!(private $estimated $first : bool ,)
+    }};
+
+    // variable with domain + trailing comma
+    (private $estimated:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
+        {
+            let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
+            $estimated.vars.insert(stringify!($var_name).to_string(),
+                                  Domain { domain: Some(domain) } );
+        }
+        estimated!(private $estimated $($rest)*)
+    }};
+
+    // same as above with no trailing comma
+    (private $estimated:ident $first:tt : $second:tt) => {{
+        estimated!(private $estimated $first : $second ,)
+    }};
+
+    (private $estimated:expr) => {{
+        ModelItem::EstimatedVars($estimated)
+    }};
+
+    // didnt match any private. start fresh
+    ($($rest:tt)*) => {{
+        let mut estimated = EstimatedVars {
+            vars: HashMap::new(),
+        };
+        estimated!(private estimated $($rest)*)
+    }};
+}
+
+#[macro_export]
+macro_rules! always {
+    (name: $n:tt , prop: $pred:expr) => {{
+        let spec = MInvariant {
+            name: String::from(stringify!($n)),
+            prop: $pred.clone(),
+        };
+        ModelItem::MInvariant(spec)
+    }};
+}
+
+#[macro_export]
+macro_rules! never {
+    (name: $n:tt , prop: $pred:expr) => {{
+        let spec = MInvariant {
+            name: String::from(stringify!($n)),
+            prop: Predicate::NOT(Box::new($pred.clone())),
+        };
+        ModelItem::MInvariant(spec)
     }};
 }
 
