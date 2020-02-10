@@ -3,7 +3,7 @@
 use std::ffi::{CStr, CString};
 use z3_sys::*;
 use super::*;
-use sp_domain::*;
+// use sp_domain::*;
 
 pub struct SolverZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
@@ -29,6 +29,11 @@ pub struct SlvCheckZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
     pub r: Z3_lbool
+}
+
+pub struct SlvResetZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>
 }
 
 pub struct SlvGetModelZ3<'ctx, 'slv> {
@@ -173,6 +178,17 @@ impl <'ctx, 'slv> SlvCheckZ3<'ctx, 'slv> {
             Z3_solver_check(ctx.r, slv.r)
         };
         SlvCheckZ3 {ctx, slv, r: z3}.r
+    }
+}
+
+impl <'ctx, 'slv> SlvResetZ3<'ctx, 'slv> {
+    /// Remove all assertions from the solver. 
+    ///
+    /// NOTE: See macro! `slv_reset_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> () {
+        unsafe {
+            Z3_solver_reset(ctx.r, slv.r)
+        };
     }
 }
 

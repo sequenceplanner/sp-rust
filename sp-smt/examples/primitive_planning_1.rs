@@ -35,22 +35,22 @@ fn main() {
     let init = eq_z3!(&ctx, pose0, poses[0]);
 
     // transitions:
-    // let t_home_via1 = and_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[1]));
-    // let t_home_via2 = and_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[2]));
-    // let t_via1_table = and_z3!(&ctx, eq_z3!(&ctx, pose1, poses[1]), eq_z3!(&ctx, pose2, poses[3]));
-    // let t_via2_table = and_z3!(&ctx, eq_z3!(&ctx, pose1, poses[2]), eq_z3!(&ctx, pose2, poses[3]));
+    let t_home_via1 = and_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[1]));
+    let t_home_via2 = and_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[2]));
+    let t_via1_table = and_z3!(&ctx, eq_z3!(&ctx, pose1, poses[1]), eq_z3!(&ctx, pose2, poses[3]));
+    let t_via2_table = and_z3!(&ctx, eq_z3!(&ctx, pose1, poses[2]), eq_z3!(&ctx, pose2, poses[3]));
 
     // ite transitions:
-    let t_home_via1 = ite_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[1]), eq_z3!(&ctx, pose1, poses[0]));
-    let t_home_via2 = ite_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[2]), eq_z3!(&ctx, pose1, poses[0]));
-    let t_via1_table = ite_z3!(&ctx, eq_z3!(&ctx, pose1, poses[1]), eq_z3!(&ctx, pose2, poses[3]), eq_z3!(&ctx, pose2, poses[1]));
-    let t_via2_table = ite_z3!(&ctx, eq_z3!(&ctx, pose1, poses[2]), eq_z3!(&ctx, pose2, poses[3]), eq_z3!(&ctx, pose2, poses[2]));
+    // let t_home_via1 = ite_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[1]), eq_z3!(&ctx, pose1, poses[0]));
+    // let t_home_via2 = ite_z3!(&ctx, eq_z3!(&ctx, pose0, poses[0]), eq_z3!(&ctx, pose1, poses[2]), eq_z3!(&ctx, pose1, poses[0]));
+    // let t_via1_table = ite_z3!(&ctx, eq_z3!(&ctx, pose1, poses[1]), eq_z3!(&ctx, pose2, poses[3]), eq_z3!(&ctx, pose2, poses[1]));
+    // let t_via2_table = ite_z3!(&ctx, eq_z3!(&ctx, pose1, poses[2]), eq_z3!(&ctx, pose2, poses[3]), eq_z3!(&ctx, pose2, poses[2]));
 
     // got the same results with transitions and ite transitions...
 
     // goal:
     // let goal = eq_z3!(&ctx, pose1, poses[2]); // why the wrong assignments?
-    let goal = eq_z3!(&ctx, pose2, poses[3]);
+    let goal = eq_z3!(&ctx, pose1, poses[1]);
 
     // track transitions
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, t_home_via1, bool_var_z3!(&ctx, "t_home_via1")));
