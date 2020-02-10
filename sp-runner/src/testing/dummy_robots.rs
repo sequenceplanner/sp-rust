@@ -25,6 +25,12 @@ fn set_dummy_robots_initial_state(m: &Model, state: &mut SPState) {
 
     state.force_from_path(&r1r, "away".to_spvalue());
     state.force_from_path(&r2r, "away".to_spvalue());
+
+    let r1p = m.find_item("prev_pos", &["r1"]).expect("check spelling3").path();
+    let r2p = m.find_item("prev_pos", &["r2"]).expect("check spelling4").path();
+
+    state.add_variable(r1p, "unknown".to_spvalue());
+    state.add_variable(r2p, "unknown".to_spvalue());
 }
 
 pub fn two_dummy_robots_online_specs_only() -> (Model, SPState) {

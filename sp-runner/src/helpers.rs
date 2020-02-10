@@ -6,8 +6,6 @@ use std::collections::HashMap;
 use guard_extraction::*;
 use buddy_rs::*;
 
-use super::*;
-
 fn sp_pred_to_ex(p: &Predicate,
                  var_map: &HashMap<SPPath, (usize, Variable)>,
                  pred_map: &HashMap<SPPath, Predicate>) -> Ex {
@@ -144,36 +142,6 @@ fn ex_to_sp_pred(e: &Ex,
     }
 }
 
-fn sp_action_to_ex(a: &Action,
-                   var_map: &HashMap<SPPath, (usize, Variable)>,
-                   pred_map: &HashMap<SPPath, Predicate>) -> Ex {
-    let (index, var) = var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
-    match &a.value {
-        Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
-            // assign p to var
-            let (other, var) = var_map.get(p).expect("variable not found");
-            Ex::EQ(*index, Value::Var(*other))
-        },
-        Compute::PredicateValue(PredicateValue::SPValue(value)) => {
-            // assign value to var
-            let value = match value {
-                SPValue::Bool(b) => Value::Bool(*b),
-                v => {
-                    // find index in domain.
-                    let dom = var.domain();
-                    Value::InDomain(dom.iter().position(|e| e == v).unwrap())
-                }
-            };
-
-            Ex::EQ(*index, value)
-        },
-        Compute::Any => {
-            panic!("dont use free variables here")
-        }
-        x => panic!("TODO: {:?}", x)
-    }
-}
-
 fn sp_action_to_ac(a: &Action,
                    var_map: &HashMap<SPPath, (usize, Variable)>,
                    pred_map: &HashMap<SPPath, Predicate>) -> Ac {
@@ -263,12 +231,21 @@ pub fn extract_guards(model: &TransitionSystemModel, init: &Predicate) -> (HashM
 
         let new_guards = bc.compute_guards(&controllable, &bad);
 
-        let new_initial = bc.to_expr(&controllable);
+        let new_initial = bc.to_expr(&controllable, ExprType::DNF);
         let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
 
         let gm = new_guards.iter()
-            .map(|(path,guard)| (path.clone(),
-                                 ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
+            .map(|(path,guard)| {
+                let dnf = bc.to_expr(guard, ExprType::DNF);
+                let cnf = bc.to_expr(guard, ExprType::CNF);
+                let dnf_size = c.pretty_print(&dnf).len();
+                let cnf_size = c.pretty_print(&cnf).len();
+                let guard = if cnf_size < dnf_size {
+                    cnf
+                } else {
+                    dnf
+                };
+                (path.clone(), ex_to_sp_pred(&guard, &var_map, &pred_map))}).collect();
         (gm, new_initial)
     };
 
@@ -290,7 +267,7 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
         let forbidden = bc.from_expr(&forbidden);
         let new_invariant = bc.extend_forbidden(&forbidden);
         let new_invariant = bc.b.not(&new_invariant);
-        let new_invariant = bc.to_expr(&new_invariant);
+        let new_invariant = bc.to_expr(&new_invariant, ExprType::DNF);
         ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
     };
 
@@ -317,6 +294,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
     // TODO: initial conditions...
     let (new_guards, _new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+
+    // TODO: this feel wrong... perhaps change their type once processed instead.
+    ts_model.specs.clear();
 
     // TODO: right now its very cumbersome to update the original Model.
     update_guards(&mut ts_model, &new_guards);
@@ -412,6 +392,7 @@ fn test_guard_extraction() {
     let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
     update_guards(&mut ts_model, &new_guards);
 
+    ts_model.specs.clear();
     crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
 
     assert_eq!(new_guards.len(), 4);

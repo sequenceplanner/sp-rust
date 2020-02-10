@@ -56,8 +56,8 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
                 pred.push(p!(p:plan_p == i));
                 println!("");
                 println!("Transition: {:?} {}", i, pf.transition);
-                println!("A new Guard: {:?}", pred); // &guard);
                 let guard = Predicate::AND(pred);
+                println!("A new Guard: {}", guard);
                 // println!("Transition Guard: {:?}", ctrl_map.get(&pf.transition).unwrap().guard);
 
                 println!("");

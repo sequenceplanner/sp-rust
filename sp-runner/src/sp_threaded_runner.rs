@@ -5,7 +5,7 @@ use failure::Error;
 use sp_ros;
 use std::thread;
 use crossbeam::channel;
-use crossbeam::RecvError;
+use std::collections::HashSet;
 
 
 pub fn launch() -> Result<(), Error> {
@@ -31,6 +31,15 @@ pub fn launch() -> Result<(), Error> {
 
     // "runner"
     thread::spawn(move || {
+
+        // hack to wait for all measured to show at least once.
+        let mut measured_states: HashSet<SPPath> = runner.transition_system_model.vars.iter().
+            filter_map(|v| if v.variable_type() == VariableType::Measured {
+                Some(v.path().clone())
+            } else { None }).collect();
+        let mut first_complete_state = SPState::new();
+        let mut waiting = true;
+
         loop {
             let mut s = SPState::new();
             if rx_in.is_empty() {
@@ -43,6 +52,19 @@ pub fn launch() -> Result<(), Error> {
                 }
             }
 
+            // hack to wait for resources initially
+            if waiting {
+                if !measured_states.is_empty() {
+                    s.projection().state.iter().for_each(|(p,_v)| {measured_states.remove(p);});
+                    first_complete_state.extend(s);
+                    println!("Waiting for resources... {}", measured_states.iter().
+                             map(|x|x.to_string()).collect::<Vec<String>>().join(", "));
+                    continue;
+                } else {
+                    waiting = false;
+                    s = first_complete_state.clone();
+                }
+            }
 
             println!("WE GOT: {}", &s);
             let old_g = runner.goal();
@@ -67,7 +89,9 @@ pub fn launch() -> Result<(), Error> {
                     println!("*********");
 
                     let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state());
-                    println!("new plan is: {:?}", planner_result.trace);
+                    assert!(planner_result.plan_found);
+                    println!("new plan is");
+                    planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
                     let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result);
                     let plan = SPPlan{plan: tr, state_change: s};
                     runner.input(SPRunnerInput::AbilityPlan(plan));

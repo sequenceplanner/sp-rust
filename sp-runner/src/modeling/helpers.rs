@@ -1,5 +1,6 @@
 use sp_domain::*;
 use std::collections::HashMap;
+use std::iter::FromIterator;
 
 use crate::helpers::*;
 
@@ -64,43 +65,6 @@ pub enum ModelItem {
     MInvariant(MInvariant),
 }
 
-fn fix_predicate_val(pv: &mut PredicateValue, allowed_remaps: &[(SPPath, SPPath)]) {
-    match pv {
-        PredicateValue::SPValue(_) => {} ,
-        PredicateValue::SPPath(op, _) => {
-            allowed_remaps.iter().find(|(p, _np)| op == p).iter_mut().for_each(|(_p, np)| *op = np.clone());
-        }
-    }
-}
-
-fn fix_predicate(p: &mut Predicate, allowed_remaps: &[(SPPath,SPPath)]) {
-    match p {
-        Predicate::AND(v) => { v.iter_mut().for_each(|e| fix_predicate(e, allowed_remaps)); },
-        Predicate::OR(v) => { v.iter_mut().for_each(|e| fix_predicate(e, allowed_remaps)); },
-        Predicate::XOR(v) => { v.iter_mut().for_each(|e| fix_predicate(e, allowed_remaps)); },
-        Predicate::NOT(b) => { fix_predicate(&mut *b, allowed_remaps);},
-        Predicate::TRUE => {},
-        Predicate::FALSE => {},
-        Predicate::EQ(pv1, pv2) => {
-            fix_predicate_val(pv1, allowed_remaps);
-            fix_predicate_val(pv2, allowed_remaps);
-        },
-        Predicate::NEQ(pv1, pv2) => {
-            fix_predicate_val(pv1, allowed_remaps);
-            fix_predicate_val(pv2, allowed_remaps);
-        },
-    }
-}
-
-fn fix_action(a: &mut Action, allowed_remaps: &[(SPPath,SPPath)]) {
-    allowed_remaps.iter().find(|(p, _np)| &a.var == p).iter_mut().for_each(|(_p, np)| a.var = np.clone());
-    match &mut a.value {
-        Compute::PredicateValue(pv) => { fix_predicate_val(pv, allowed_remaps); }
-        Compute::Predicate(p) => { fix_predicate(p, allowed_remaps); }
-        Compute::Any => {}
-    }
-}
-
 pub fn build_resource(r: &MResource) -> Resource {
     let mut abilities: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MAbility(a) => Some(a.clone()), _ => None }).collect();
     let out_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::CommandTopic(ct) => Some(ct.clone()), _ => None }).collect();
@@ -143,6 +107,7 @@ pub fn build_resource(r: &MResource) -> Resource {
     }
 
     // println!("all valid remaps: {:?}", valid_remaps);
+    let valid_remaps = HashMap::from_iter(valid_remaps.into_iter());
 
     // fix ability paths
     for a in &mut abilities {
@@ -155,32 +120,34 @@ pub fn build_resource(r: &MResource) -> Resource {
             local_remaps.push((op, path));
         }
 
+        let local_remaps = HashMap::from_iter(local_remaps.into_iter());
+
 
         for (_name, pred) in &mut a.predicates {
             // println!("original predicate: {:?}", pred);
-            fix_predicate(pred, &local_remaps);
-            fix_predicate(pred, &valid_remaps);
+            pred.replace_variable_path(&local_remaps);
+            pred.replace_variable_path(&valid_remaps);
             // println!("new predicate: {:?}", pred);
         }
         for (_name, trans) in &mut a.transitions {
             // println!("original guard: {:?}", trans.guard);
-            fix_predicate(&mut trans.guard, &local_remaps);
-            fix_predicate(&mut trans.guard, &valid_remaps);
+            trans.guard.replace_variable_path(&local_remaps);
+            trans.guard.replace_variable_path(&valid_remaps);
             // println!("new guard: {:?}", trans.guard);
 
             // println!("original actions: {:?}", trans.actions);
-            trans.actions.iter_mut().for_each(|a| fix_action(a, &valid_remaps));
+            trans.actions.iter_mut().for_each(|a| a.replace_variable_path(&valid_remaps));
             // println!("new actions: {:?}", trans.actions);
 
             // println!("original effects: {:?}", trans.effects);
-            trans.effects.iter_mut().for_each(|e| fix_action(e, &valid_remaps));
+            trans.effects.iter_mut().for_each(|a| a.replace_variable_path(&valid_remaps));
             // println!("new effects: {:?}", trans.effects);
         }
     }
 
     for i in &mut invariants {
         // println!("INVARIANT BEFORE: {}", i.prop);
-        fix_predicate(&mut i.prop, &valid_remaps);
+        i.prop.replace_variable_path(&valid_remaps);
         // println!("INVARIANT AFTER: {}", i.prop);
     }
 
@@ -568,8 +535,6 @@ macro_rules! ability {
 
 
     (private $ability:ident $controlled:tt $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
-        println!("adding trans: {}", stringify!($name));
-
         let actions = vec![ $($a.clone() ,)* ];
         let effects = vec![ $($e.clone() ,)* ];
 

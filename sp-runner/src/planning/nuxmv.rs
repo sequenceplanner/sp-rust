@@ -56,7 +56,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                     .iter()
                     .map(|p| format!("{}", NuXMVPredicate(&p)))
                     .collect();
-                format!("( {} )", children.join("|\n")) // TEMP to split long lines on disjunctions
+                format!("( {} )", children.join("|"))
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
             Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
@@ -307,16 +307,16 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
 
 
 pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
-    let mut lines = create_offline_nuxmv_problem(&model, initial);
+    let lines = create_offline_nuxmv_problem(&model, initial);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
     // or maybe just output to a subfolder 'plans'
-    let filename = &format!("/tmp/model_out {}.bmc", datetime);
+    let filename = &format!("/tmp/model_out_{} {}.bmc", model.name, datetime);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
 
-    let filename = &format!("/tmp/last_model_out.bmc");
+    let filename = &format!("/tmp/last_model_out_{}.bmc", model.name);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
 }
