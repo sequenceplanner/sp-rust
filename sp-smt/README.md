@@ -2,6 +2,8 @@
 
 High-level rust bindings to the Z3 theorem prover with a completely macro based interface.
 
+NOTE: Not thread safe (yet).
+
 Z3 is a SMT solver from Microsoft Research which supports the SMT-LIB format.
 
 Look at the documentation with:

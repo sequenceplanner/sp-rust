@@ -2,7 +2,7 @@ use sp_smt::*;
 
 use std::ffi::{CStr, CString};
 use z3_sys::*;
-use sp_domain::*;
+// use sp_domain::*;
 
 fn main() {
     let cfg = cfg_z3!();
@@ -11,17 +11,17 @@ fn main() {
 
 
   // sp stuff:  
-    let x = SPPath::from_string("x");
-    let y = SPPath::from_string("y");
-    let vars = vec![x, y];
+    // let x = SPPath::from_string("x");
+    // let y = SPPath::from_string("y");
+    // let vars = vec![x, y];
     
-    let t = Transition::new("tx", p!(!x), vec![a!(x)], vec![], true);
+    // let t = Transition::new("tx", p!(!x), vec![a!(x)], vec![], true);
 
-    let init = p!([!x] && [!y]);
+    // let init = p!([!x] && [!y]);
 
-    println!("vars: {:?}", vars);
-    println!("t: {:?}",t );
-    println!("init: {:?}",init );
+    // println!("vars: {:?}", vars);
+    // println!("t: {:?}",t );
+    // println!("init: {:?}",init );
 
     // source state variables:
     let x0 = bool_var_z3!(&ctx, "x0");
