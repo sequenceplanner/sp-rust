@@ -309,8 +309,6 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
 pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
     let mut lines = create_offline_nuxmv_problem(&model, initial);
 
-    add_initial_states(&mut lines, initial);
-
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
     // or maybe just output to a subfolder 'plans'
@@ -443,7 +441,7 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
 
 fn add_initial_states(lines: &mut String, initial: &Predicate) {
     // we add the initial as INVARS...
-    lines.push_str("INVAR\n\n");
+    lines.push_str("INIT\n\n");
     let ip = NuXMVPredicate(&initial);
     lines.push_str(&format!(
         "{i}{e}\n;\n",

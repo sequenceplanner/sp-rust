@@ -346,6 +346,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         for t in &mut a.transitions {
             match new_guards.get(&t.path().to_string()) {
                 Some(g) => {
+                    println!("adding guard for {}: {}", t.path(), g);
                     *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
                 },
                 None => {},
