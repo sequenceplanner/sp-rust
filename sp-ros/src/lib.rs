@@ -38,7 +38,6 @@ mod ros {
     use sp_domain::*;
     use sp_runner_api::*;
 
-    use std::collections::{BTreeMap};
     use std::thread;
 
     pub struct RosNode(r2r::Node);
@@ -103,7 +102,7 @@ mod ros {
                     // p.pop();
                     serde_json::Value::Object(map)
                 }
-                MessageField::Var(var) => {
+                MessageField::Var(_var) => {
                     if let Some(spval) = state.sp_value_from_path(&SPPath::from_slice(p)) {
                         // TODO use sp type
                         let json = spval.to_json(); // , var.variable_data().type_);

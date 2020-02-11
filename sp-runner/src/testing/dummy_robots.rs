@@ -19,15 +19,8 @@ pub fn two_dummy_robots() -> (Model, SPState) {
 }
 
 fn set_dummy_robots_initial_state(m: &Model, state: &mut SPState) {
-    // fixing some things so it runs again...
-    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
-    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
-
-    state.force_from_path(&r1r, "away".to_spvalue());
-    state.force_from_path(&r2r, "away".to_spvalue());
-
-    let r1p = m.find_item("prev_pos", &["r1"]).expect("check spelling3").path();
-    let r2p = m.find_item("prev_pos", &["r2"]).expect("check spelling4").path();
+    let r1p = m.find_item("prev_pos", &["r1"]).expect("check spelling1").path();
+    let r2p = m.find_item("prev_pos", &["r2"]).expect("check spelling2").path();
 
     state.add_variable(r1p, "unknown".to_spvalue());
     state.add_variable(r2p, "unknown".to_spvalue());
@@ -82,10 +75,6 @@ pub fn two_dummy_robots_guard_extraction() -> (Model, SPState) {
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
     let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-    let r1_r_p = m.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
-    let r2_r_p = m.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
-
-
     // Specifications
     let table_zone = p!(!([p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
@@ -99,10 +88,10 @@ pub fn two_dummy_robots_guard_extraction() -> (Model, SPState) {
                           p!(p:r2_p_a == "at"), vec![], None);
 
     // reset previous ops so we can start over
-    let both_to_away = add_op(&mut m, "both_to_away", true,
-                              p!([p:r1_to_at == "f"] && [p:r2_to_at == "f"]),
-                              p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
-                              vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
+    let _both_to_away = add_op(&mut m, "both_to_away", true,
+                               p!([p:r1_to_at == "f"] && [p:r2_to_at == "f"]),
+                               p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
+                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
     // Make it runnable
     let mut s = make_initial_state(&m);
@@ -137,10 +126,10 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (Model, SPState) {
                           p!(p:r2_p_a == "at"), vec![], None);
 
     // reset previous ops so we can start over
-    let both_to_away = add_op(&mut m, "both_to_away", true,
-                              p!([p:r1_to_at == "f"] && [p:r2_to_at == "f"]),
-                              p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
-                              vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
+    let _both_to_away = add_op(&mut m, "both_to_away", true,
+                               p!([p:r1_to_at == "f"] && [p:r2_to_at == "f"]),
+                               p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
+                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
     let mut s = make_initial_state(&m);
     set_dummy_robots_initial_state(&m, &mut s);

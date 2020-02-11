@@ -13,11 +13,6 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
             Some(t.path().clone())
         } else { None }
     }).collect();
-    let ctrl_map: std::collections::HashMap<SPPath, Transition> = model.transitions.iter().filter_map(|t: &Transition| {
-        if t.controlled() {
-            Some((t.path().clone(), t.clone()))
-        } else { None }
-    }).collect();
     let in_plan: Vec<SPPath> = res.trace.iter()
         .map(|x| x.transition.clone()).collect();
     let plan_p = SPPath::from_slice(&["runner","ability_plan"]);
@@ -58,8 +53,6 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
                 println!("Transition: {:?} {}", i, pf.transition);
                 let guard = Predicate::AND(pred);
                 println!("A new Guard: {}", guard);
-                // println!("Transition Guard: {:?}", ctrl_map.get(&pf.transition).unwrap().guard);
-
                 println!("");
 
                 let t = Transition::new(

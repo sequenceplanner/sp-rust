@@ -53,8 +53,8 @@ fn sp_pred_to_ex(p: &Predicate,
         Predicate::EQ(PredicateValue::SPPath(var, _),
                       PredicateValue::SPPath(other, _)) => {
             if var_map.contains_key(var) && var_map.contains_key(other) {
-                let (index, var) = var_map.get(var).unwrap();
-                let (index2, other) = var_map.get(other).unwrap();
+                let (index, _var) = var_map.get(var).unwrap();
+                let (index2, _other) = var_map.get(other).unwrap();
                 Ex::EQ(*index, Value::Var(*index2))
             } else {
                 panic!("VAR {:?}, OTHER {:?}", var, other)
@@ -63,8 +63,8 @@ fn sp_pred_to_ex(p: &Predicate,
         Predicate::NEQ(PredicateValue::SPPath(var, _),
                        PredicateValue::SPPath(other, _)) => {
             if var_map.contains_key(var) && var_map.contains_key(other) {
-                let (index, var) = var_map.get(var).unwrap();
-                let (index2, other) = var_map.get(other).unwrap();
+                let (index, _var) = var_map.get(var).unwrap();
+                let (index2, _other) = var_map.get(other).unwrap();
                 Ex::NOT(Box::new(Ex::EQ(*index, Value::Var(*index2))))
             } else {
                 panic!("VAR {:?}, OTHER {:?}", var, other)
@@ -143,12 +143,12 @@ fn ex_to_sp_pred(e: &Ex,
 
 fn sp_action_to_ac(a: &Action,
                    var_map: &HashMap<SPPath, (usize, Variable)>,
-                   pred_map: &HashMap<SPPath, Predicate>) -> Ac {
+                   _pred_map: &HashMap<SPPath, Predicate>) -> Ac {
     let (index, var) = var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
     let val = match &a.value {
         Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
             // assign p to var
-            let (other, var) = var_map.get(p).expect("variable not found");
+            let (other, _var) = var_map.get(p).expect("variable not found");
             Value::Var(*other)
         },
         Compute::PredicateValue(PredicateValue::SPValue(value)) => {
