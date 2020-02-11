@@ -73,20 +73,30 @@ pub fn build_resource(r: &MResource) -> Resource {
     let mut invariants: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MInvariant(i) => Some(i.clone()), _ => None }).collect();
 
     let mut valid_remaps = Vec::new();
+    let mut echos = Vec::new();
 
-    for t in &out_topics {
+    for (mt, t) in out_topics.iter().enumerate() {
         for name in t.vars.keys() {
-            let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), name.clone()]);
+            let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), mt.to_string(), name.clone()]);
             let op = SPPath::from_string(name);
             valid_remaps.push((op,path));
         }
     }
 
-    for t in &in_topics {
+    for (mt, t) in in_topics.iter().enumerate() {
         for name in t.vars.keys() {
-            let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), name.clone()]);
+            // take care of our special "echo" here.
+            println!("measured: {}", name);
             let op = SPPath::from_string(name);
-            valid_remaps.push((op,path));
+            let mut path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), mt.to_string()]);
+            path.add_child_path(&op);
+            let is_echo = op.path.iter().nth(0).map(|s| s=="echo").unwrap_or(false);
+            if is_echo {
+                println!("ECHO {}", path);
+                echos.push(path);
+            } else {
+                valid_remaps.push((op,path));
+            }
         }
     }
 
@@ -154,8 +164,9 @@ pub fn build_resource(r: &MResource) -> Resource {
     // using all our fixed stuff, build a new resource
     let mut r = Resource::new(&r.name);
 
-    for t in &out_topics {
+    for (mt, t) in out_topics.iter().enumerate() {
         let msg = Message::new(
+            &mt.to_string(),
             &t.ros_type,
             t.vars.iter().map(|(name, d)| {
 
@@ -176,40 +187,119 @@ pub fn build_resource(r: &MResource) -> Resource {
                                                     initial,
                                                     dom))
                 };
-                (name.clone(), var)
-            }).collect());
+                var
+            }).collect::<Vec<_>>().as_slice());
 
         let topic = Topic::new(&t.topic, MessageField::Msg(msg));
         r.add_message(topic);
     }
 
-    for t in &in_topics {
-        let msg = Message::new(
-            &t.ros_type,
-            t.vars.iter().map(|(name, d)| {
+    for (mt, t) in in_topics.iter().enumerate() {
 
-                let is_bool = d.domain.is_none();
-                let var = if is_bool {
-                    MessageField::Var(Variable::new(name,
-                                                    VariableType::Measured,
-                                                    SPValueType::Bool,
-                                                    SPValue::Bool(false), // replace with initial_values
-                                                    vec![]))
-                } else {
-                    let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
-                    let sp_val_type = dom[0].has_type();
-                    let initial = dom[0].clone(); // replace with initial_values
-                    MessageField::Var(Variable::new(name,
-                                                    VariableType::Measured,
-                                                    sp_val_type,
-                                                    initial,
-                                                    dom))
-                };
-                (name.clone(), var)
-            }).collect());
+        // collect all different set of subtopics
+        let mut subs: Vec<_> = t.vars.iter().map(|(name, _d)| {
+            let op = SPPath::from_string(name);
+            op.parent()
+        }).collect();
 
-        let topic = Topic::new(&t.topic, MessageField::Msg(msg));
+        subs.sort_by(|l,r| {
+            if l.path.len() < r.path.len() {
+                std::cmp::Ordering::Less
+            } else if l.path.len() > r.path.len() {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+        subs.dedup();
+
+        // let mut belongs_to: HashMap<SPPath, Vec<SPPath>> = t.vars
+
+        let sub_leafs: HashMap<SPPath, HashMap<String, MessageField>> = subs.iter().map(|s| {
+            let msg = t.vars.iter().flat_map(|(name, d)| { // not on this "level"
+                let op = SPPath::from_string(name);
+                let name = op.leaf();
+                if &op.parent() != s { None } else {
+                    let is_bool = d.domain.is_none();
+                    let var = if is_bool {
+                        MessageField::Var(Variable::new(&name,
+                                                        VariableType::Measured,
+                                                        SPValueType::Bool,
+                                                        SPValue::Bool(false), // replace with initial_values
+                                                        vec![]))
+                    } else {
+                        let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
+                        let sp_val_type = dom[0].has_type();
+                        let initial = dom[0].clone(); // replace with initial_values
+                        MessageField::Var(Variable::new(&name,
+                                                        VariableType::Measured,
+                                                        sp_val_type,
+                                                        initial,
+                                                        dom))
+                    };
+                    Some((name.clone(), var))
+                }
+            }).collect();
+            (s.clone(), msg)
+        }).collect();
+
+        // start from the top, recurse down.
+        let mut children: HashMap<SPPath, HashMap<String,MessageField>> = HashMap::new();
+        while !subs.is_empty() {
+            let current = subs.pop().unwrap();
+            let mut leafs = sub_leafs.get(&current).unwrap_or(&HashMap::new()).clone();
+
+            // add children of already added
+            let children_to_add = children.get(&current).unwrap_or(&HashMap::new()).clone();
+
+            for (k, v) in children_to_add {
+                leafs.insert(k.clone(),v.clone());
+            }
+
+            let node = current.leaf();
+            let tt = if node == "" {
+                t.ros_type.clone()
+            } else {
+                "anonymous".to_string()
+            };
+            let leafs: Vec<_> = leafs.into_iter().map(|(_k,v)|v).collect();
+            let nn = if node == "" {
+                mt.to_string()
+            } else {
+                node.clone()
+            };
+            let msg = Message::new(
+                &nn,
+                &tt,
+                leafs.as_slice());
+
+            let parent = current.parent();
+
+            if node != "" {
+                let mut old = children.get(&parent).unwrap_or(&HashMap::new()).clone();
+                old.insert(node, MessageField::Msg(msg));
+                children.insert(parent, old);
+            } else {
+                let mut hm = HashMap::new();
+                hm.insert(node, MessageField::Msg(msg));
+                // at the root, overwrite instead of add.
+                children.insert(SPPath::new(), hm);
+            }
+        }
+
+        let msg = children.get(&SPPath::new()).unwrap().clone();
+        let msg = msg.get("").unwrap();
+
+        let topic = Topic::new(&t.topic, msg.clone());
+
         r.add_message(topic);
+    }
+
+    // add echo mirrors
+    for e in echos {
+        let name = SPPath::from_string(&e.leaf());
+        let command_var = valid_remaps.get(&name).expect("echo remap failed");
+        r.add_command_mirror(&command_var, &e);
     }
 
     for t in &estimated_vars {
@@ -266,9 +356,9 @@ pub fn build_resource(r: &MResource) -> Resource {
 
             if anys.len() == 1 {
                 // hack to expand into multiple trans
-                let any_var = r.get(&anys[0].var).unwrap();
+                let any_var = r.get(&anys[0].var).expect("variable not found");
                 let new_actions: Vec<_> = any_var.as_variable()
-                    .unwrap()
+                    .expect("error2")
                     .domain()
                     .iter()
                     .map(|d|
@@ -309,9 +399,15 @@ pub fn build_resource(r: &MResource) -> Resource {
     // TODO: do something with the new initial state ...
     let (new_guards, new_initial) = extract_guards(&temp_ts_model, &Predicate::TRUE);
 
+
     for a in &mut r.abilities {
+        let mut to_remove = Vec::new();
         for t in &mut a.transitions {
             match new_guards.get(&t.path().to_string()) {
+                Some(Predicate::FALSE) => {
+                    println!("guard is FALSE for {}, removing transition", t.path());
+                    to_remove.push(t.path().clone());
+                }
                 Some(g) => {
                     println!("adding guard for {}: {}", t.path(), g);
                     *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
@@ -319,6 +415,7 @@ pub fn build_resource(r: &MResource) -> Resource {
                 None => {},
             }
         }
+        a.transitions.retain(|t| !to_remove.contains(&t.path()));
     }
 
     let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
@@ -389,37 +486,39 @@ macro_rules! measured {
         measured!(private measured $($rest)*)
     }};
 
-    // no domain defaults to boolean variable
     (private $measured:ident msg_type: $msg_type:tt, $($rest:tt)*) => {{
         $measured.ros_type = String::from($msg_type);
         measured!(private $measured $($rest)*)
     }};
 
-    // no domain defaults to boolean variable
-    (private $measured:ident $var_name:tt : bool, $($rest:tt)*) => {{
-        $measured.vars.insert(stringify!($var_name).to_string(),
+    (private $measured:ident $($var_name:ident $(/)?)+ : bool, $($rest:tt)*) => {{
+        let name = vec![ $( stringify!($var_name) , )+ ];
+        let name = name.join("/");
+        $measured.vars.insert(name,
                               Domain { domain: None } );
         measured!(private $measured $($rest)*)
     }};
 
     // same as above with no trailing comma
-    (private $measured:ident $first:tt : bool) => {{
-        measured!(private $measured $first : bool ,)
+    (private $measured:ident $($var_name:ident $(/)?)+ : bool) => {{
+        measured!(private $measured $($var_name:ident $(/)?)+ : bool ,)
     }};
 
     // variable with domain + trailing comma
-    (private $measured:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
+    (private $measured:ident $($var_name:ident $(/)?)+ : $dom:expr, $($rest:tt)*) => {{
         {
+            let name = vec![ $( stringify!($var_name) , )+ ];
+            let name = name.join("/");
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
-            $measured.vars.insert(stringify!($var_name).to_string(),
+            $measured.vars.insert(name,
                                   Domain { domain: Some(domain) } );
         }
         measured!(private $measured $($rest)*)
     }};
 
     // same as above with no trailing comma
-    (private $measured:ident $first:tt : $second:tt) => {{
-        measured!(private $measured $first : $second ,)
+    (private $measured:ident $($var_name:ident $(/)?)+ : $dom:expr) => {{
+        measured!(private $measured $($var_name:ident $(/)?)+ : $dom:expr ,)
     }};
 
     (private $measured:expr) => {{

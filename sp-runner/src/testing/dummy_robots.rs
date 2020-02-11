@@ -72,7 +72,7 @@ pub fn two_dummy_robots_online_specs_only() -> (Model, SPState) {
 
 pub fn two_dummy_robots_guard_extraction() -> (Model, SPState) {
     // Make model
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+    let mut m = Model::new_root("drm", Vec::new());
 
     // Make resoureces
     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));

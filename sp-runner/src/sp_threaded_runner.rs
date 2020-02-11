@@ -5,7 +5,7 @@ use failure::Error;
 use sp_ros;
 use std::thread;
 use crossbeam::channel;
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 
 
 pub fn launch() -> Result<(), Error> {
@@ -40,6 +40,15 @@ pub fn launch() -> Result<(), Error> {
         let mut first_complete_state = SPState::new();
         let mut waiting = true;
 
+        // we extend the hack to also first listen to initial states for our command variables.
+        let cm: HashMap<_,_> = model.resources().iter().flat_map(|r|r.get_command_mirrors()).collect();
+        let cm_rev: HashMap<_,_> = model.resources().iter().flat_map(|r|r.get_command_mirrors_rev()).collect();
+
+        let mut command_with_echoes: HashSet<SPPath> = runner.transition_system_model.vars.iter().
+            filter_map(|v| if v.variable_type() == VariableType::Command && cm.contains_key(v.path()) {
+                Some(v.path().clone())
+            } else { None }).collect();
+
         loop {
             let mut s = SPState::new();
             if rx_in.is_empty() {
@@ -54,19 +63,34 @@ pub fn launch() -> Result<(), Error> {
 
             // hack to wait for resources initially
             if waiting {
-                if !measured_states.is_empty() {
-                    s.projection().state.iter().for_each(|(p,_v)| {measured_states.remove(p);});
-                    first_complete_state.extend(s);
-                    println!("Waiting for resources... {}", measured_states.iter().
+                if !measured_states.is_empty() || !command_with_echoes.is_empty() {
+                    println!("Waiting for measured... {}", measured_states.iter().
                              map(|x|x.to_string()).collect::<Vec<String>>().join(", "));
+                    println!("Waiting for command... {}", command_with_echoes.iter().
+                             map(|x|x.to_string()).collect::<Vec<String>>().join(", "));
+
+                    let s = s.extract();
+                    for (p, v) in &s {
+                        if let Some(&command) = cm_rev.get(p) {
+                            if command_with_echoes.remove(command) {
+                                first_complete_state.add_state_variable(command.clone(), v.clone());
+                            }
+                        } else {
+                            if measured_states.remove(p) {
+                                first_complete_state.add_state_variable(p.clone(), v.clone());
+                            }
+                        }
+                    }
                     continue;
                 } else {
                     waiting = false;
                     s = first_complete_state.clone();
+                    println!("FIRST COMPLETE INITIAL STATE:\n{}", &s);
+
                 }
             }
 
-            println!("WE GOT: {}", &s);
+            println!("WE GOT:\n{}", &s);
             let old_g = runner.goal();
             //if runner.state().are_new_values_the_same(&s) {
                 runner.input(SPRunnerInput::StateChange(s));

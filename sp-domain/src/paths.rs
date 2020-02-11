@@ -74,6 +74,14 @@ impl SPPath {
         }
     }
 
+    pub fn leaf(&self) -> String {
+        if self.path.len() == 0 {
+            "".to_string()
+        } else {
+            self.path[self.path.len() - 1].clone()
+        }
+    }
+
     /// returns the next name in the path of this SPPath based on a path
     /// that is the current parent to this path
     pub fn next_node_in_path(&self, parent_path: &SPPath) -> Option<String> {

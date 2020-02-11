@@ -8,15 +8,25 @@ import random
 
 class Interfacer(Node):
 
+    # we reset after 10 seconds of idle
+    def reset(self):
+        self.active = False
+        self.act_pos = "away"
+        self.ref_pos = "away"
+        self.act_pos_j1 = 0.0
+        self.ref_pos_j1 = 0.0
+        self.act_pos_j2 = 0.0
+        self.ref_pos_j2 = 0.0
+        self.to_r.position = [0.0, 0.0]
+        self.echo.ref_pos = "away"
+        self.echo.activate = False
+
     def __init__(self, r_name):
         super().__init__("{}_interfacer".format(r_name))
 
         self.logger = self.get_logger()
 
         self.r_name = r_name
-        self.active = False
-        self.act_pos = "unknown"
-        self.ref_pos = "unknown"
 
         self.from_r = JointState()
         self.to_r = JointState()
@@ -24,11 +34,9 @@ class Interfacer(Node):
         self.tmr_period2 = 0.5
         self.counter_period = 1
         self.idle_counter = 0
+        self.echo = Control()
 
-        self.act_pos_j1 = 0.0
-        self.ref_pos_j1 = 0.0
-        self.act_pos_j2 = 0.0
-        self.ref_pos_j2 = 0.0
+        self.reset()
 
         self.to_r.name = ["{}_j1".format(self.r_name), "{}_j2".format(self.r_name)]
         self.to_r.position = [0.0, 0.0]
@@ -43,7 +51,7 @@ class Interfacer(Node):
         # Could be good to start the subscribers first so that they update the variables if other nodes are up
         self.cmd_subscriber = self.create_subscription(
             Control,
-            "/dummy_robot_model/{}/Control".format(self.r_name),
+            "/drm/{}/Control".format(self.r_name),
             self.sp_callback,
             10)
 
@@ -52,7 +60,7 @@ class Interfacer(Node):
 
         self.state_to_sp_publisher_ = self.create_publisher(
             State,
-            "/dummy_robot_model/{}/State".format(self.r_name),
+            "/drm/{}/State".format(self.r_name),
             10)
 
         self.joint_cmd_publisher_ = self.create_publisher(
@@ -75,16 +83,9 @@ class Interfacer(Node):
 
     def idle_timer_callback(self):
         self.idle_counter += 1
-        if self.idle_counter > 5:
+        if self.idle_counter > 10:
             self.idle_counter = 0
-            self.active = False
-            self.act_pos = "unknown"
-            self.ref_pos = "unknown"
-            self.act_pos_j1 = 0.0
-            self.ref_pos_j1 = 0.0
-            self.act_pos_j2 = 0.0
-            self.ref_pos_j2 = 0.0
-            self.to_r.position = [0.0, 0.0]
+            self.reset()
 
     def joint_callback(self, data):
         self.act_pos_j1 = data.position[0]
@@ -100,6 +101,8 @@ class Interfacer(Node):
         self.idle_counter = 0
         self.active = data.activate
         self.ref_pos = data.ref_pos
+        self.echo = data
+
         if self.ref_pos == "at":
             self.ref_pos_j1 = -1.0
             self.ref_pos_j2 = -1.0
@@ -135,4 +138,5 @@ class Interfacer(Node):
         msg = State()
         msg.act_pos = self.act_pos
         msg.active = self.active
+        msg.echo = self.echo
         self.state_to_sp_publisher_.publish(msg)

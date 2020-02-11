@@ -21,6 +21,9 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 
             act_pos : domain,
             active : bool,
+
+            echo / ref_pos : domain,   // these are used for handshaking.
+            echo / activate : bool,    // "echo" has special meaning for us.
         },
         estimated!{
             prev_pos: domain,
@@ -43,31 +46,6 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
             name: cannot_go_to_unknown,
             prop: p!( [ active] && [ref_pos == "unknown"] )
         },
-
-        // the above should be be same as the below. TODO: make a test that makes sure that it is
-
-        // ability!{
-        //     name: move_to_at,
-
-        //     enabled : p!([active] && [ref_pos <-> act_pos]),
-        //     executing : p!([active] && [ref_pos <!> act_pos] && [ref_pos == "at"]),
-        //     finished : p!([active] && [ref_pos <-> act_pos] && [ref_pos == "at"]),
-
-        //     *start : p!(enabled) => [ a!(ref_pos = "at") ] / [a!(act_pos = "unknown")],
-        //     finish : p!(executing) => [ a!(prev_pos <- ref_pos) ] / [a!(act_pos <- ref_pos)]
-        // },
-
-        // ability!{
-        //     name: move_to_away,
-
-        //     enabled : p!([active] && [ref_pos <-> act_pos]),
-        //     executing : p!([active] && [ref_pos <!> act_pos] && [ref_pos == "away"]),
-        //     finished : p!([active] && [ref_pos <-> act_pos] && [ref_pos == "away"]),
-
-        //     *start : p!(enabled) => [ a!(ref_pos = "away") ] / [a!(act_pos = "unknown")],
-        //     finish : p!(executing) => [ a!(prev_pos <- ref_pos) ] / [a!(act_pos <- ref_pos)]
-        // },
-
 
         ability!{
             name: activate,
