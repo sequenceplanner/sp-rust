@@ -4,7 +4,6 @@ use sp_runner_api::*;
 use std::collections::HashMap;
 
 use guard_extraction::*;
-use buddy_rs::*;
 
 fn sp_pred_to_ex(p: &Predicate,
                  var_map: &HashMap<SPPath, (usize, Variable)>,
@@ -172,8 +171,8 @@ fn sp_action_to_ac(a: &Action,
     }
 }
 
-fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
-    (Context, BDDContext<'a>, HashMap<SPPath, (usize, Variable)>, HashMap<SPPath, Predicate>) {
+fn make_context<'a>(model: &TransitionSystemModel) ->
+    (Context, HashMap<SPPath, (usize, Variable)>, HashMap<SPPath, Predicate>) {
     let mut c = Context::default();
 
     let mut var_map = HashMap::new();
@@ -192,8 +191,6 @@ fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
         }
     }).collect();
 
-    let mut bc = BDDContext::from(&c, &b);
-
     for t in &model.transitions {
         let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
         let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
@@ -203,76 +200,47 @@ fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
         a.extend(effects.iter().cloned());
 
         if t.controlled() {
-            bc.c_trans(&t.path().to_string(), guard, &a);
+            c.add_c_trans(&t.path().to_string(), &guard, &a);
         } else {
-            bc.uc_trans(&t.path().to_string(), guard, &a);
+            c.add_uc_trans(&t.path().to_string(), &guard, &a);
         }
     }
 
-    (c, bc, var_map, pred_map)
+    (c, var_map, pred_map)
 }
 
-pub fn extract_guards(model: &TransitionSystemModel, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
-    let b = buddy_rs::take_manager(10000, 10000);
+pub fn extract_guards(model: &TransitionSystemModel, initial: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
+    let (c, var_map, pred_map) = make_context(&model);
 
-    let (gm, new_initial) = { // need to drop bc before we return the manager.
+    // pull out all specs.
+    let forbidden =  Ex::OR(model.specs.iter().map(|s| {
+        // forbidden = not always
+        Ex::NOT(Box::new(sp_pred_to_ex(s.invariant(), &var_map, &pred_map)))
+    }).collect());
 
-        let (c, mut bc, var_map, pred_map) = make_bdd_context(&model, &b);
+    let initial = sp_pred_to_ex(&initial, &var_map, &pred_map);
 
-        // pull out all specs.
-        let forbidden =  Ex::OR(model.specs.iter().map(|s| {
-            // forbidden = not always
-            Ex::NOT(Box::new(sp_pred_to_ex(s.invariant(), &var_map, &pred_map)))
-        }).collect());
+    let (ng, supervisor) = c.compute_guards(&initial, &forbidden);
 
-        let forbidden = bc.from_expr(&forbidden);
-        let initial = bc.from_expr(&Ex::TRUE); // all states
-        let (_reachable, bad, controllable) = bc.controllable(&initial, &forbidden);
-
-        let new_guards = bc.compute_guards(&controllable, &bad);
-
-        let new_initial = bc.to_expr(&controllable, ExprType::DNF);
-        let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
-
-        let gm = new_guards.iter()
-            .map(|(path,guard)| {
-                let dnf = bc.to_expr(guard, ExprType::DNF);
-                let cnf = bc.to_expr(guard, ExprType::CNF);
-                let dnf_size = c.pretty_print(&dnf).len();
-                let cnf_size = c.pretty_print(&cnf).len();
-                let guard = if cnf_size < dnf_size {
-                    cnf
-                } else {
-                    dnf
-                };
-                (path.clone(), ex_to_sp_pred(&guard, &var_map, &pred_map))}).collect();
-        (gm, new_initial)
-    };
-
-    buddy_rs::return_manager(b);
-    (gm, new_initial)
+    let ng = ng.into_iter().map(|(n,e)| (n, ex_to_sp_pred(&e, &var_map, &pred_map))).collect();
+    let supervisor = ex_to_sp_pred(&supervisor, &var_map, &pred_map);
+    (ng, supervisor)
 }
 
 // refines an invariant according to the model
 pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     let model = TransitionSystemModel::from(&model);
-    let b = buddy_rs::take_manager(10000, 10000);
 
-    let new_invariant = { // need to drop bc before we return the manager.
-        let (_c, mut bc, var_map, pred_map) = make_bdd_context(&model, &b);
+    let (c, var_map, pred_map) = make_context(&model);
 
-        // forbidden = all states NOT conforming to the invariant
-        let forbidden = Ex::NOT(Box::new(sp_pred_to_ex(&invariant, &var_map, &pred_map)));
+    // forbidden = all states NOT conforming to the invariant
+    let forbidden = Ex::NOT(Box::new(sp_pred_to_ex(&invariant, &var_map, &pred_map)));
 
-        let forbidden = bc.from_expr(&forbidden);
-        let new_invariant = bc.extend_forbidden(&forbidden);
-        let new_invariant = bc.b.not(&new_invariant);
-        let new_invariant = bc.to_expr(&new_invariant, ExprType::DNF);
-        ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
-    };
+    let forbidden = c.extend_forbidden(&forbidden);
 
-    buddy_rs::return_manager(b);
-    new_invariant
+    let new_invariant = Ex::NOT(Box::new(forbidden));
+
+    ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
 }
 
 fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
@@ -287,7 +255,6 @@ fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Pred
         }
     });
 }
-
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {
     let mut ts_model = TransitionSystemModel::from(&model);
