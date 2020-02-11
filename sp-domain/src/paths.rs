@@ -70,7 +70,7 @@ impl SPPath {
         if self.path.len() <= 1 {
             SPPath::new()
         } else {
-            SPPath::from_slice(&self.path[..self.path.len() - 2])
+            SPPath::from_slice(&self.path[..self.path.len() - 1])
         }
     }
 
