@@ -287,9 +287,9 @@ mod ros {
             );
 
             let msg = Message::new(
-//                "str".into(),
+                "str".into(),
                 "std_msgs/msg/String".into(),
-                hashmap![v.node().name().to_string() => MessageField::Var(v)],
+                &[MessageField::Var(v)],
             );
 
             let msg = MessageField::Msg(msg);
@@ -315,9 +315,9 @@ mod ros {
             );
 
             let msg = Message::new(
-//                "str".into(),
+                "str".into(),
                 "std_msgs/msg/String".into(),
-                hashmap![v.node().name().to_string() => MessageField::Var(v)]
+                &[MessageField::Var(v)]
             );
 
             let msg = MessageField::Msg(msg);
