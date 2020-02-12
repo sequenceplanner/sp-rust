@@ -24,13 +24,6 @@ impl TransitionSystemModel {
             .flat_map(|r| r.sub_items())
             .collect();
 
-        let sub_item_variables: Vec<Variable> = sub_items
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
-
         let mut transitions: Vec<Transition> = model.resources()
             .iter().flat_map(|r| r.get_transitions()).collect();
 
@@ -78,8 +71,6 @@ impl TransitionSystemModel {
 
         let state_predicates: Vec<Variable> = model.resources()
             .iter().flat_map(|r| r.get_state_predicates()).collect();
-
-        vars.extend(sub_item_variables.iter().cloned());
 
         let mut specs: Vec<Spec> = model.items().iter().flat_map(|i| match i {
             SPItem::Spec(s) => Some(s),

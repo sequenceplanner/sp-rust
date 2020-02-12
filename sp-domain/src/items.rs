@@ -495,6 +495,9 @@ impl Resource {
             r(&t.msg, &mut vs, &self.command_mirrors_rev);
         }
 
+        // add estimated vars
+        self.sub_items.iter().for_each(|si| if let SPItem::Variable(v) = si { vs.push(v.clone()); });
+
         return vs;
     }
 
