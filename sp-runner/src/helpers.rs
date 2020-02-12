@@ -353,11 +353,20 @@ fn test_guard_extraction() {
     use crate::testing::*;
 
     // Make model
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+    let mut m = Model::new_root("test_guard_extraction", Vec::new());
 
     // Make resoureces
     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+    let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
+        .flat_map(|si| match si {
+            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
+            _ => None
+        }).collect();
+
+    // we need to assume that we are in a state that adheres to the resources
+    let initial = Predicate::AND(inits);
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
@@ -368,7 +377,7 @@ fn test_guard_extraction() {
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
     let mut ts_model = TransitionSystemModel::from(&m);
-    let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+    let (new_guards, new_initial) = extract_guards(&ts_model, &initial);
     update_guards(&mut ts_model, &new_guards);
 
     ts_model.specs.clear();
