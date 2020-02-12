@@ -396,9 +396,7 @@ pub fn build_resource(r: &MResource) -> Resource {
     // lastly, we should preprocess the individual resource.
     let temp_model = Model::new_no_root("temp", to_add);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
-    // TODO: do something with the new initial state ...
-    let (new_guards, new_initial) = extract_guards(&temp_ts_model, &Predicate::TRUE);
-
+    let (new_guards, supervisor) = extract_guards(&temp_ts_model, &Predicate::TRUE);
 
     for a in &mut r.abilities {
         let mut to_remove = Vec::new();
@@ -420,7 +418,10 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
-    crate::planning::generate_offline_nuxvm(&temp_ts_model, &new_initial);
+    crate::planning::generate_offline_nuxvm(&temp_ts_model, &supervisor);
+
+    let supervisor_spec = Spec::new("supervisor", supervisor);
+    r.add_sub_item(SPItem::Spec(supervisor_spec));
 
     return r;
 }

@@ -298,7 +298,10 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
 
     add_transitions(&mut lines, &var_set, &model.transitions);
 
-    add_global_specifications(&mut lines, &model.specs);
+    // for now, don't add this. taken care of by runner + guard extraction.
+    // perhaps later we should have different kinds of specifications in the
+    // model instead.
+    // add_global_specifications(&mut lines, &model.specs);
 
     return lines;
 }
@@ -438,7 +441,6 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
 }
 
 fn add_initial_states(lines: &mut String, initial: &Predicate) {
-    // we add the initial as INVARS...
     lines.push_str("INIT\n\n");
     let ip = NuXMVPredicate(&initial);
     lines.push_str(&format!(

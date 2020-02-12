@@ -44,7 +44,7 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 
         never!{
             name: cannot_go_to_unknown,
-            prop: p!( [ active] && [ref_pos == "unknown"] )
+            prop: p!(ref_pos == "unknown")
         },
 
         ability!{

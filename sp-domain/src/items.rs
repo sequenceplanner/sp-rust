@@ -959,12 +959,8 @@ impl Ability {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Operation {
     node: SPNode,
-    start: Vec<Transition>, // now we talk about transitions and not conditions
-    finish: Vec<Transition>,
-    // skip these for now: finish trans are by default unctrl
-    // uncontrolled: Vec<Transition>,
-    // predicates: Vec<Variable>,
-    pub goal: Option<IfThen>,
+    transitions: Vec<Transition>,
+    goal: Option<IfThen>,
 }
 
 impl Noder for Operation {
@@ -975,8 +971,7 @@ impl Noder for Operation {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.start.as_slice(), next, path)
-            .or_else(|| get_from_list(self.finish.as_slice(), next, path))
+        get_from_list(self.transitions.as_slice(), next, path)
             .or_else(|| self.goal.as_ref().and_then(|x| x.get(path)))
     }
     fn find_item_among_children<'a>(
@@ -984,8 +979,7 @@ impl Noder for Operation {
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.start.as_slice(), name, path_sections)
-            .or_else(|| find_item_in_list(self.finish.as_slice(), name, path_sections))
+        find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| {
                 self.goal
                     .as_ref()
@@ -993,13 +987,11 @@ impl Noder for Operation {
             })
     }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        update_path_in_list(self.start.as_mut_slice(), path, changes);
-        update_path_in_list(self.finish.as_mut_slice(), path, changes);
+        update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         self.goal.as_mut().map(|mut x| x.update_path(path, changes));
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.start.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
-        self.finish.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.transitions.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
         if let Some(goal) = &mut self.goal { goal.rewrite_expressions(mapping) };
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -1010,15 +1002,13 @@ impl Noder for Operation {
 impl Operation {
     pub fn new(
         name: &str,
-        start: Vec<Transition>,
-        finish: Vec<Transition>,
+        trans: &[Transition],
         goal: Option<IfThen>,
     ) -> Operation {
         let node = SPNode::new(name);
         Operation {
             node,
-            start,
-            finish,
+            transitions: trans.to_vec(),
             goal,
         }
     }
@@ -1027,12 +1017,8 @@ impl Operation {
         &self.goal
     }
 
-    pub fn start(&self) -> &Vec<Transition> {
-        &self.start
-    }
-
-    pub fn finish(&self) -> &Vec<Transition> {
-        &self.finish
+    pub fn transitinos(&self) -> &Vec<Transition> {
+        &self.transitions
     }
 }
 

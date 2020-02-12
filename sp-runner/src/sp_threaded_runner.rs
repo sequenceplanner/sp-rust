@@ -92,7 +92,8 @@ pub fn launch() -> Result<(), Error> {
 
             println!("WE GOT:\n{}", &s);
             let old_g = runner.goal();
-            //if runner.state().are_new_values_the_same(&s) {
+            //if runner.state().are_new_values_the_same(&s)
+            {
                 runner.input(SPRunnerInput::StateChange(s));
                 let new_g = runner.goal();
                 println!("GOALS");
@@ -123,7 +124,7 @@ pub fn launch() -> Result<(), Error> {
                     tx_out.send(runner.state().clone()).unwrap();
 
                 }
-            //}
+            }
 
 
             // let mess: Result<SPState, RecvError> = rx_in.recv();
