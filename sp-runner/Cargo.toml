@@ -16,5 +16,7 @@ failure = "0.1.6"
 failure_derive = "0.1.6"
 #lazy_static = "1.4.0"
 chrono = { version = "0.4.9", features = ["serde"] }
-guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", tag = "for_sp_0.1.0" }
+#guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", tag = "for_sp_0.1.0" }
+guard_extraction = { path = "../../rust/guard_extraction/" }
 indoc = "0.3"
+cryptominisat = { git = "https://github.com/Storyyeller/cryptominisat-rs.git" }
