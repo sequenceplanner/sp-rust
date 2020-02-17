@@ -236,7 +236,7 @@ macro_rules! gt_z3 {
 }
 
 #[test]
-fn test_new_eq(){
+fn test_new_eq_1(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
     let intsort = IntSortZ3::new(&ctx);
@@ -257,6 +257,7 @@ fn test_new_eq(){
     assert_eq!("(= y (to_real x))", ast_to_string_z3!(&ctx, rel3));
     assert_eq!("(= (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(&ctx, rel4));
 }
+
 
 #[test]
 fn test_new_le(){
@@ -360,6 +361,8 @@ fn test_eq_macro_1(){
     );    
     assert_eq!("(= y 11.0)", ast_to_string_z3!(&ctx, eq1));
 }
+
+
 
 #[test]
 fn test_lt_macro_1(){

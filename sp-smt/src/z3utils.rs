@@ -51,7 +51,8 @@ pub struct GetSymbolStringZ3<'ctx> {
 
 pub struct GetTseitinCnfZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
-    pub r: String
+    pub cnf: String
+    // pub nr_clauses: String
 }
 
 impl<'ctx> AstToStringZ3<'ctx> {
@@ -147,10 +148,15 @@ impl<'ctx> GetTseitinCnfZ3<'ctx> {
             }
             let tactic = Z3_mk_tactic(ctx.r, CString::new("tseitin-cnf".to_string()).unwrap().as_ptr());
             Z3_tactic_inc_ref(ctx.r, tactic);
-            Z3_tactic_apply(ctx.r, tactic, goal);            
-            CStr::from_ptr(Z3_goal_to_string(ctx.r, goal)).to_str().unwrap().to_owned()
+            let applied = Z3_tactic_apply(ctx.r, tactic, goal);            
+            let cnf = CStr::from_ptr(Z3_apply_result_to_string(ctx.r, applied)).to_str().unwrap().to_owned();
+            // let clauses = Z3_goal_size(ctx.r, goal);
+            // let clauses_string: String = clauses.to_string();
+            // (cnf, clauses_string)
+            cnf
         };
-        GetTseitinCnfZ3 {ctx, r: z3}.r
+        // GetTseitinCnfZ3 {ctx, cnf: z3.0, nr_clauses: z3.1}
+        GetTseitinCnfZ3 {ctx, cnf: z3}.cnf
     }
 }
 
@@ -175,26 +181,32 @@ fn test_tseitin(){
     let conf = ConfigZ3::new();
     let ctx = ContextZ3::new(&conf);
 
-    let intsort = IntSortZ3::new(&ctx);
-    let x = IntVarZ3::new(&ctx, &intsort, "x");
-    let y = IntVarZ3::new(&ctx, &intsort, "y");
-    let int1 = IntZ3::new(&ctx, &intsort, 1);
-    let int2 = IntZ3::new(&ctx, &intsort, 10);
+    let sort = BoolSortZ3::new(&ctx);
+    let x = BoolVarZ3::new(&ctx, &sort, "x");
+    let y = BoolVarZ3::new(&ctx, &sort, "y");
+    let z = BoolVarZ3::new(&ctx, &sort, "z");
+    
+    let asrt1 = NOTZ3::new(&ctx, x);
+    let asrt2 = XORZ3::new(&ctx, x, y);
+    let asrt2 = XORZ3::new(&ctx, x, z);
 
-    let asrt1 = GEZ3::new(&ctx, x, int1);
-    let asrt2 = LEZ3::new(&ctx, x, int2);
+    let asrt3 = IMPZ3::new(&ctx, y, x);
 
-    let asrt3 = GEZ3::new(&ctx, y, int1);
-    let asrt4 = LEZ3::new(&ctx, y, int2);
-
-    let asrt5 = DISTINCTZ3::new(&ctx, vec!(x, y));
+    let asrt4 = DISTINCTZ3::new(&ctx, vec!(x, y));
+    let asrt5 = XORZ3::new(&ctx, x, y);
 
     let tseit = GetTseitinCnfZ3::new(&ctx, vec!(asrt1, asrt2, asrt3, asrt4, asrt5));
 
-    assert_eq!("(goal
-  (>= x 1)
-  (<= x 10)
-  (>= y 1)
-  (<= y 10)
-  (distinct x y))", tseit);
+    // println!("{}", tseit);
+    assert_eq!("(goals
+(goal
+  (not x)
+  (or (not x) (not z))
+  (or x z)
+  (or x (not y))
+  (or (not x) (not y))
+  (or x y))
+)", tseit);
+
+// assert_eq!("4", tseit.nr_clauses);
 }
