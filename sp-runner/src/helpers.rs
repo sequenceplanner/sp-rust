@@ -244,13 +244,13 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
 }
 
 use cryptominisat::*;
-pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goal: &Predicate) {
+pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[Predicate]) {
     let (c, var_map, pred_map) = make_context(&model);
 
     let initial = sp_pred_to_ex(&initial, &var_map, &pred_map);
-    let goal = sp_pred_to_ex(&goal, &var_map, &pred_map);
+    let goals: Vec<Ex> = goals.iter().map(|g|sp_pred_to_ex(&g, &var_map, &pred_map)).collect();
 
-    let sat_model = c.model_as_sat_model(&initial, &goal);
+    let sat_model = c.model_as_sat_model(&initial, &goals);
 
     // println!("{:?}", sat_model);
     println!("start planning");
@@ -259,8 +259,13 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goal: &Predicate
 
     let mut s = Solver::new();
 
+    type GLit = guard_extraction::Lit;
+    type CLit = cryptominisat::Lit;
+
+    // s.set_num_threads(4); play with this some day
     let nv = sat_model.norm_vars.len();
-    let mut vars: Vec<Lit> = (0 .. nv).map(|_v| s.new_var()).collect();
+    let all_num_vars = sat_model.num_vars - nv;
+    let mut vars: Vec<CLit> = (0 .. all_num_vars).map(|_v| s.new_var()).collect();
 
     let pairing: Vec<_> = sat_model.norm_vars
         .iter()
@@ -272,104 +277,132 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goal: &Predicate
         sat_model.norm_vars.iter().position(|&r| r == i).unwrap()
     };
 
-    for c in &sat_model.init {
-        let clause: Vec<Lit> = c.lits.iter().enumerate().flat_map(|(i, l)| match l {
-            0 if sat_model.norm_vars.contains(&i) => Some(!vars[ci(i)]),
-            1 if sat_model.norm_vars.contains(&i) => Some(vars[ci(i)]),
-            _ => None,
-        }).collect();
+    let ti = |i| {
+        i - sat_model.next_vars.len() // next does not exist...
+    };
+
+    let is_norm = |l: &GLit| {
+        sat_model.norm_vars.contains(&l.var)
+    };
+
+    let is_next = |l: &guard_extraction::Lit| {
+        sat_model.next_vars.contains(&l.var)
+    };
+
+    let is_ts = |l: &guard_extraction::Lit| {
+        !is_norm(l) && !is_next(l)
+    };
+
+    // add clauses for the initial state
+    for c in &sat_model.init_clauses {
+        let clause: Vec<cryptominisat::Lit> = c.0.iter().map(|l| {
+            if is_norm(l) {
+                if l.neg { !vars[ci(l.var)] } else { vars[ci(l.var)] }
+            } else if is_ts(l) {
+                if l.neg { !vars[ti(l.var)] } else { vars[ti(l.var)] }
+            } else {
+                panic!("error");
+            }
+        }
+        ).collect();
         s.add_clause(&clause);
     }
 
-    /* Difference between keeping the context and not:
-
-    Without:
-
-    start planning
-    SAT?: false
-    Step computed in: 0ms
-
-    SAT?: false
-    Step computed in: 10ms
-
-    SAT?: false
-    Step computed in: 22ms
-
-    SAT?: false
-    Step computed in: 32ms
-
-    SAT?: true
-    Step computed in: 42ms
-
-    Found plan after 5 steps
-    Plan computed in: 108ms
-
-    WITH:
-
-    SAT?: false
-    Step computed in: 11ms
-
-    SAT?: false
-    Step computed in: 11ms
-
-    SAT?: false
-    Step computed in: 11ms
-
-    SAT?: true
-    Step computed in: 10ms
-
-    Found plan after 5 steps
-    Plan computed in: 45ms
-    */
-
-
+    // unroll transitions, goals, and later invariants up to n steps
     for step in 0..20 {
+        // println!("START STEP {}", step);
         let now = std::time::Instant::now();
 
-        let new_vars: Vec<Lit> = (0 .. nv).map(|_v| s.new_var()).collect();
-        vars.extend(new_vars.iter());
+        let goal_active = s.new_var();
+        vars.push(goal_active);
+
+        // println!("vars.len: {}", vars.len());
+
+        // at each step we have  + 1 extra variables due to goal activation.
+        let nv = all_num_vars + 1;
 
         if step > 0 {
             for c in &sat_model.model_clauses {
                 // model clauses has cur and next. let cur refer to previous step.
-                let clause: Vec<Lit> = c.lits.iter().enumerate().flat_map(|(i, l)| {
-                    if sat_model.norm_vars.contains(&i) {
-                        match l {
-                            0 => Some(!vars[ci(i)+(step-1)*nv]),
-                            1 => Some(vars[ci(i)+(step-1)*nv]),
-                            _ => None,
-                        }
+                let clause: Vec<cryptominisat::Lit> = c.0.iter().map(|l| {
+                    if is_norm(&l) {
+                        if l.neg { !vars[ci(l.var)+(step-1)*nv] } else { vars[ci(l.var)+(step-1)*nv] }
+                    } else if is_next(&l) {
+                        let i = pairing.iter().find(|(_idx,jdx)| &l.var == jdx).unwrap().0;
+                        if l.neg { !vars[ci(i)+step*nv] } else { vars[ci(i)+step*nv] }
                     } else {
-                        let i = pairing.iter().find(|(_idx,jdx)| &i == jdx).unwrap().0;
-                        match l {
-                            0 => Some(!vars[ci(i)+step*nv]),
-                            1 => Some(vars[ci(i)+step*nv]),
-                            _ => None,
-                        }
+                        if l.neg { !vars[ti(l.var)+(step-1)*nv] } else { vars[ti(l.var)+(step-1)*nv] }
                     }
                 }).collect();
                 s.add_clause(&clause);
             }
         }
 
-        let mut reached_goal = true;
-        for c in &sat_model.goal {
-            let clause: Vec<Lit> = c.lits.iter().enumerate().flat_map(|(i, l)| match l {
-                0 if sat_model.norm_vars.contains(&i) => Some(!vars[ci(i)+step*nv]),
-                1 if sat_model.norm_vars.contains(&i) => Some(vars[ci(i)+step*nv]),
-                _ => None,
+        // add new goals
+        for c in &sat_model.goal_clauses {
+            let mut clause: Vec<cryptominisat::Lit> = c.0.iter().flat_map(|l| {
+                if sat_model.norm_vars.contains(&l.var) {
+                    if l.neg { Some(!vars[ci(l.var)+step*nv]) } else { Some(vars[ci(l.var)+step*nv]) }
+                } else if is_ts(l) {
+                    if l.neg { Some(!vars[ti(l.var)+step*nv]) } else { Some(vars[ti(l.var)+step*nv]) }
+                } else {
+                    panic!("error");
+                    None
+                }
             }).collect();
-            if s.solve_with_assumptions(&clause) != Lbool::True {
-                reached_goal = false;
-                break;
-            }
+
+            // when this is false, the goal clause must be true instead.
+            // let ga = goal_active;
+            // clause.push(ga);
+            s.add_clause(&clause);
         }
 
-        println!("Step computed in: {}ms\n", now.elapsed().as_millis());
+        // add a disjunction that allows the goal to be active in any time step
+        // (so we can finish one goal early but then keep going)
+        for top in &sat_model.goal_tops {
+            let mut clause: Vec<cryptominisat::Lit> = Vec::new();
+            for i in 0..(step+1) {
+                let lit = if sat_model.norm_vars.contains(&top.var) {
+                    panic!("unexpected");
+                    if top.neg { Some(!vars[ci(top.var)+i*nv]) } else { Some(vars[ci(top.var)+i*nv]) }
+                } else if is_ts(top) {
+                    if top.neg { panic!("not good"); }
+                    if top.neg { Some(!vars[ti(top.var)+i*nv]) } else { Some(vars[ti(top.var)+i*nv]) }
+                } else {
+                    panic!("error");
+                    None
+                };
+
+                if let Some(l) = lit {
+                    clause.push(l);
+                } else { panic!("ho no"); }
+            }
+
+            // here we force only TOP to be true. which should propagate down...
+            let ga = goal_active;
+            // println!("goal clause: {:?}, activation: {:?}", clause, ga);
+            clause.push(ga);
+            s.add_clause(&clause);
+        }
+
+        let ga = !goal_active;
+        let res = s.solve_with_assumptions(&[ga]);
+
+        // println!("res is {:?}", res);
+
+
+        let reached_goal = res == Lbool::True;
+
+        println!("Step {} computed in: {}ms\n", step, now.elapsed().as_millis());
         if reached_goal {
             println!("Found plan after {} steps", step+1);
             // println!("{:#?}", s.get_model());
             break;
+        } else {
+            let new_vars: Vec<cryptominisat::Lit> = (0 .. all_num_vars).map(|_v| s.new_var()).collect();
+
+            vars.extend(new_vars.iter());
+
         }
     }
 
@@ -525,24 +558,50 @@ fn test_sat_planning() {
     use crate::testing::*;
 
     // Make model
-    let mut m = Model::new_root("test_guard_extraction", Vec::new());
+    let mut m = Model::new_root("test_sat_planning", Vec::new());
 
     // Make resoureces
     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
+    // was 872
     let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
     let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
     let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
     let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
 
-    let ts_model = TransitionSystemModel::from(&m);
+    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+    let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+    let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+
+
+    // spec to make it take more steps
+    let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
+
+    let mut ts_model = TransitionSystemModel::from(&m);
+    let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+    update_guards(&mut ts_model, &new_guards);
+
+    let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
+
+    let i = Predicate::AND(vec![new_initial, init.clone()]);
+    crate::planning::generate_offline_nuxvm(&ts_model, &i);
+    // crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
 
     // start planning test
 
-    let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate]);
-    let goal = p!(p:r1a == "at");
+    let g1 = p!(p:r1a == "at");
+    let g2 = p!(p:r2a == "at");
+    //let g2 = p!(p:r2active);
 
-    plan(&ts_model, &init, &goal);
+    let goals = vec![g1, g2];
+    //let goal = p!(p:r1a == "at");
+
+    let now = std::time::Instant::now();
+    plan(&ts_model, &init, &goals);
+    println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
 
     assert!(false);
 }
