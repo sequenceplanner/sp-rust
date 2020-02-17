@@ -17,6 +17,23 @@ pub struct SlvAssertZ3<'ctx, 'slv> {
     pub r: ()
 }
 
+pub struct SlvPushZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>
+}
+
+pub struct SlvPopZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub p: u32
+}
+
+pub struct SlvGetPopPointsZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: u32
+}
+
 pub struct SlvAssertAndTrackZ3<'ctx, 'slv, 't> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
@@ -149,6 +166,49 @@ impl <'ctx, 'slv> SlvAssertZ3<'ctx, 'slv> {
             Z3_solver_assert(ctx.r, slv.r, cst)
         };
         SlvAssertZ3 {ctx, slv, cst, r: z3}.r
+    }
+}
+
+impl <'ctx, 'slv> SlvPushZ3<'ctx, 'slv> {
+    /// Create a backtracking point.
+    ///  
+    /// The solver contains a stack of assertions, SlvPopZ3 can be used to remove constraints
+    /// from the stack after a backtracking point has been made. 
+    ///
+    /// NOTE: See macro! `slv_push_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> () {
+        unsafe {
+            // Z3_MUTEX.lock().unwrap();
+            Z3_solver_push(ctx.r, slv.r)
+        };
+    }
+}
+
+impl <'ctx, 'slv> SlvPopZ3<'ctx, 'slv> {
+    /// Backtrack n backtracking points.
+    ///  
+    /// The solver contains a stack of assertions, SlvPopZ3 can be used to remove constraints
+    /// from the stack after a backtracking point has been made with SlvPushZ3. 
+    ///
+    /// NOTE: See macro! `slv_pop_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, p: u32) -> () {
+        unsafe {
+            // Z3_MUTEX.lock().unwrap();
+            Z3_solver_pop(ctx.r, slv.r, p)
+        };
+    }
+}
+
+impl <'ctx, 'slv> SlvGetPopPointsZ3<'ctx, 'slv> {
+    /// Return the number of backtracking points. 
+    ///
+    /// NOTE: See macro! `slv_get_pop_points_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> u32 {
+        let z3 = unsafe {
+            // Z3_MUTEX.lock().unwrap();
+            Z3_solver_get_num_scopes(ctx.r, slv.r)
+        };
+        SlvGetPopPointsZ3 {ctx, slv, r: z3}.r
     }
 }
 
@@ -757,6 +817,42 @@ fn test_new_solver_assert(){
     SlvAssertZ3::new(&ctx, &solv, rel1);
     assert_eq!("(declare-fun y () Real)
 (assert (= y (- (/ 271549371.0 500000.0))))\n", slv_to_string_z3!(&ctx, &solv));
+}
+
+#[test]
+fn test_push_pop(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let solv = SolverZ3::new(&ctx);
+
+    let boolsort = BoolSortZ3::new(&ctx);
+    let x = BoolVarZ3::new(&ctx, &boolsort, "x");
+
+    SlvAssertZ3::new(&ctx, &solv, x);
+
+    SlvPushZ3::new(&ctx, &solv);
+    SlvAssertZ3::new(&ctx, &solv, NOTZ3::new(&ctx, x));
+    let res1 = SlvCheckZ3::new(&ctx, &solv);
+    
+    if res1 == 1 {
+        println!("SAT");
+    } else if res1 == -1 {
+        println!("UNSAT");
+    } else {
+        println!("UNDEF");
+    };
+    
+    SlvPopZ3::new(&ctx, &solv, 1);
+
+    let res1 = SlvCheckZ3::new(&ctx, &solv);
+    
+    if res1 == 1 {
+        println!("SAT");
+    } else if res1 == -1 {
+        println!("UNSAT");
+    } else {
+        println!("UNDEF");
+    };
 }
 
 #[test]

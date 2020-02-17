@@ -35,24 +35,27 @@ fn main() {
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, pose0, poses[0]));
 
     // goal state:
+    SlvPushZ3::new(&ctx, &slv);
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, pose0, poses[3]));
 
     while SlvCheckZ3::new(&ctx, &slv) != 1 && step < max_steps {
-        // println!("step: {:?}", step);
+        println!("step: {:?}", step);
         step = step + 1;
-        SlvResetZ3::new(&ctx, &slv);
+
+        // println!("backtracking {:?}", SlvGetPopPointsZ3::new(&ctx, &slv));
+
+        //if SlvGetPopPointsZ3::new(&ctx, &slv) != 0 {
+        SlvPopZ3::new(&ctx, &slv, 1);
+        //}
 
         // initial state:
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, pose0, poses[0]));
+        // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, pose0, poses[0]));
 
         let current_step: &str = &format!("pose{}", step); // &pose_string[..];
         let previous_step: &str = &format!("pose{}", step - 1);
 
         // println!("current_step: {:?}", current_step);
         // println!("previous_step: {:?}", previous_step);
-
-        // goal state:
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[3]));
 
         let t_home_via1 = and_z3!(&ctx, 
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, previous_step), poses[0]), 
@@ -70,12 +73,16 @@ fn main() {
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, previous_step), poses[2]),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[3]));
 
+        SlvPushZ3::new(&ctx, &slv);
+
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, t_home_via1, bool_var_z3!(&ctx, "t_home_via1")));
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, t_via1_table, bool_var_z3!(&ctx, "t_via1_table")));
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, t_home_via2, bool_var_z3!(&ctx, "t_home_via2")));
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, t_via2_table, bool_var_z3!(&ctx, "t_via2_table")));
-
         slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, t_home_via1, t_home_via2, t_via1_table, t_via2_table));
+
+        // goal state:
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[3]));
 
     }
 

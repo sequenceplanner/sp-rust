@@ -49,6 +49,11 @@ pub struct GetSymbolStringZ3<'ctx> {
     pub r: Z3_string
 }
 
+pub struct GetTseitinCnfZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub r: String
+}
+
 impl<'ctx> AstToStringZ3<'ctx> {
     /// AST to readable string
     /// 
@@ -131,6 +136,24 @@ impl<'ctx> GetSymbolStringZ3<'ctx> {
     }
 }
 
+impl<'ctx> GetTseitinCnfZ3<'ctx> {
+    /// Get cnf
+    pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> String {
+        let z3 = unsafe {
+            let goal = Z3_mk_goal(ctx.r, false, false, false);
+            for formula in args {
+                Z3_goal_assert(ctx.r, goal, formula);
+                Z3_goal_inc_ref(ctx.r, goal);
+            }
+            let tactic = Z3_mk_tactic(ctx.r, CString::new("tseitin-cnf".to_string()).unwrap().as_ptr());
+            Z3_tactic_inc_ref(ctx.r, tactic);
+            Z3_tactic_apply(ctx.r, tactic, goal);            
+            CStr::from_ptr(Z3_goal_to_string(ctx.r, goal)).to_str().unwrap().to_owned()
+        };
+        GetTseitinCnfZ3 {ctx, r: z3}.r
+    }
+}
+
 /// abstract static tree to readable string
 #[macro_export]
 macro_rules! ast_to_string_z3 {
@@ -145,4 +168,33 @@ macro_rules! model_to_string_z3 {
     ($ctx:expr, $a:expr) => {
         ModelToStringZ3::new($ctx, $a)
     }
+}
+
+#[test]
+fn test_tseitin(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+
+    let intsort = IntSortZ3::new(&ctx);
+    let x = IntVarZ3::new(&ctx, &intsort, "x");
+    let y = IntVarZ3::new(&ctx, &intsort, "y");
+    let int1 = IntZ3::new(&ctx, &intsort, 1);
+    let int2 = IntZ3::new(&ctx, &intsort, 10);
+
+    let asrt1 = GEZ3::new(&ctx, x, int1);
+    let asrt2 = LEZ3::new(&ctx, x, int2);
+
+    let asrt3 = GEZ3::new(&ctx, y, int1);
+    let asrt4 = LEZ3::new(&ctx, y, int2);
+
+    let asrt5 = DISTINCTZ3::new(&ctx, vec!(x, y));
+
+    let tseit = GetTseitinCnfZ3::new(&ctx, vec!(asrt1, asrt2, asrt3, asrt4, asrt5));
+
+    assert_eq!("(goal
+  (>= x 1)
+  (<= x 10)
+  (>= y 1)
+  (<= y 10)
+  (distinct x y))", tseit);
 }
