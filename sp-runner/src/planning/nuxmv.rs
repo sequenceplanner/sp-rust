@@ -1,9 +1,7 @@
 use chrono::offset::Local;
 use chrono::DateTime;
 use sp_domain::*;
-use sp_runner_api::*;
 use crate::planning::*;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
@@ -56,7 +54,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                     .iter()
                     .map(|p| format!("{}", NuXMVPredicate(&p)))
                     .collect();
-                format!("( {} )", children.join("|\n")) // TEMP to split long lines on disjunctions
+                format!("( {} )", children.join("|"))
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
             Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
@@ -300,23 +298,26 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
 
     add_transitions(&mut lines, &var_set, &model.transitions);
 
-    add_global_specifications(&mut lines, &model.specs);
+    // for now, don't add this. taken care of by runner + guard extraction.
+    // perhaps later we should have different kinds of specifications in the
+    // model instead.
+    // add_global_specifications(&mut lines, &model.specs);
 
     return lines;
 }
 
 
 pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
-    let mut lines = create_offline_nuxmv_problem(&model, initial);
+    let lines = create_offline_nuxmv_problem(&model, initial);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
     // or maybe just output to a subfolder 'plans'
-    let filename = &format!("/tmp/model_out {}.bmc", datetime);
+    let filename = &format!("/tmp/model_out_{} {}.bmc", model.name, datetime);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
 
-    let filename = &format!("/tmp/last_model_out.bmc");
+    let filename = &format!("/tmp/last_model_out_{}.bmc", model.name);
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
 }
@@ -440,7 +441,6 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
 }
 
 fn add_initial_states(lines: &mut String, initial: &Predicate) {
-    // we add the initial as INVARS...
     lines.push_str("INIT\n\n");
     let ip = NuXMVPredicate(&initial);
     lines.push_str(&format!(

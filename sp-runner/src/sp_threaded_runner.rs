@@ -5,7 +5,7 @@ use failure::Error;
 use sp_ros;
 use std::thread;
 use crossbeam::channel;
-use crossbeam::RecvError;
+use std::collections::{HashSet,HashMap};
 
 
 pub fn launch() -> Result<(), Error> {
@@ -31,6 +31,24 @@ pub fn launch() -> Result<(), Error> {
 
     // "runner"
     thread::spawn(move || {
+
+        // hack to wait for all measured to show at least once.
+        let mut measured_states: HashSet<SPPath> = runner.transition_system_model.vars.iter().
+            filter_map(|v| if v.variable_type() == VariableType::Measured {
+                Some(v.path().clone())
+            } else { None }).collect();
+        let mut first_complete_state = SPState::new();
+        let mut waiting = true;
+
+        // we extend the hack to also first listen to initial states for our command variables.
+        let cm: HashMap<_,_> = model.resources().iter().flat_map(|r|r.get_command_mirrors()).collect();
+        let cm_rev: HashMap<_,_> = model.resources().iter().flat_map(|r|r.get_command_mirrors_rev()).collect();
+
+        let mut command_with_echoes: HashSet<SPPath> = runner.transition_system_model.vars.iter().
+            filter_map(|v| if v.variable_type() == VariableType::Command && cm.contains_key(v.path()) {
+                Some(v.path().clone())
+            } else { None }).collect();
+
         loop {
             let mut s = SPState::new();
             if rx_in.is_empty() {
@@ -43,10 +61,39 @@ pub fn launch() -> Result<(), Error> {
                 }
             }
 
+            // hack to wait for resources initially
+            if waiting {
+                if !measured_states.is_empty() || !command_with_echoes.is_empty() {
+                    println!("Waiting for measured... {}", measured_states.iter().
+                             map(|x|x.to_string()).collect::<Vec<String>>().join(", "));
+                    println!("Waiting for command... {}", command_with_echoes.iter().
+                             map(|x|x.to_string()).collect::<Vec<String>>().join(", "));
 
-            println!("WE GOT: {}", &s);
+                    let s = s.extract();
+                    for (p, v) in &s {
+                        if let Some(&command) = cm_rev.get(p) {
+                            if command_with_echoes.remove(command) {
+                                first_complete_state.add_state_variable(command.clone(), v.clone());
+                            }
+                        } else {
+                            if measured_states.remove(p) {
+                                first_complete_state.add_state_variable(p.clone(), v.clone());
+                            }
+                        }
+                    }
+                    continue;
+                } else {
+                    waiting = false;
+                    s = first_complete_state.clone();
+                    println!("FIRST COMPLETE INITIAL STATE:\n{}", &s);
+
+                }
+            }
+
+            println!("WE GOT:\n{}", &s);
             let old_g = runner.goal();
-            //if runner.state().are_new_values_the_same(&s) {
+            //if runner.state().are_new_values_the_same(&s)
+            {
                 runner.input(SPRunnerInput::StateChange(s));
                 let new_g = runner.goal();
                 println!("GOALS");
@@ -67,7 +114,9 @@ pub fn launch() -> Result<(), Error> {
                     println!("*********");
 
                     let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state());
-                    println!("new plan is: {:?}", planner_result.trace);
+                    assert!(planner_result.plan_found);
+                    println!("new plan is");
+                    planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
                     let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result);
                     let plan = SPPlan{plan: tr, state_change: s};
                     runner.input(SPRunnerInput::AbilityPlan(plan));
@@ -75,7 +124,7 @@ pub fn launch() -> Result<(), Error> {
                     tx_out.send(runner.state().clone()).unwrap();
 
                 }
-            //}
+            }
 
 
             // let mess: Result<SPState, RecvError> = rx_in.recv();

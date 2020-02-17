@@ -153,7 +153,7 @@ impl SPTicker {
         ts: &[&Transition],
         forbidden_states: &[IfThen],
     ) -> Vec<SPPath> {
-        let enabled = ts.iter().all(|t| t.eval(state));
+        let enabled = ts.iter().all(|t| t.eval(state)) && ts.iter().any(|t| !t.actions.is_empty());
         if enabled {
             ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                 a.next(state); // if actions write to the same path, only the first will be used

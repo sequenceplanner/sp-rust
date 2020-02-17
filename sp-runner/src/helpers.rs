@@ -4,9 +4,6 @@ use sp_runner_api::*;
 use std::collections::HashMap;
 
 use guard_extraction::*;
-use buddy_rs::*;
-
-use super::*;
 
 fn sp_pred_to_ex(p: &Predicate,
                  var_map: &HashMap<SPPath, (usize, Variable)>,
@@ -56,8 +53,8 @@ fn sp_pred_to_ex(p: &Predicate,
         Predicate::EQ(PredicateValue::SPPath(var, _),
                       PredicateValue::SPPath(other, _)) => {
             if var_map.contains_key(var) && var_map.contains_key(other) {
-                let (index, var) = var_map.get(var).unwrap();
-                let (index2, other) = var_map.get(other).unwrap();
+                let (index, _var) = var_map.get(var).unwrap();
+                let (index2, _other) = var_map.get(other).unwrap();
                 Ex::EQ(*index, Value::Var(*index2))
             } else {
                 panic!("VAR {:?}, OTHER {:?}", var, other)
@@ -66,8 +63,8 @@ fn sp_pred_to_ex(p: &Predicate,
         Predicate::NEQ(PredicateValue::SPPath(var, _),
                        PredicateValue::SPPath(other, _)) => {
             if var_map.contains_key(var) && var_map.contains_key(other) {
-                let (index, var) = var_map.get(var).unwrap();
-                let (index2, other) = var_map.get(other).unwrap();
+                let (index, _var) = var_map.get(var).unwrap();
+                let (index2, _other) = var_map.get(other).unwrap();
                 Ex::NOT(Box::new(Ex::EQ(*index, Value::Var(*index2))))
             } else {
                 panic!("VAR {:?}, OTHER {:?}", var, other)
@@ -144,44 +141,14 @@ fn ex_to_sp_pred(e: &Ex,
     }
 }
 
-fn sp_action_to_ex(a: &Action,
-                   var_map: &HashMap<SPPath, (usize, Variable)>,
-                   pred_map: &HashMap<SPPath, Predicate>) -> Ex {
-    let (index, var) = var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
-    match &a.value {
-        Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
-            // assign p to var
-            let (other, var) = var_map.get(p).expect("variable not found");
-            Ex::EQ(*index, Value::Var(*other))
-        },
-        Compute::PredicateValue(PredicateValue::SPValue(value)) => {
-            // assign value to var
-            let value = match value {
-                SPValue::Bool(b) => Value::Bool(*b),
-                v => {
-                    // find index in domain.
-                    let dom = var.domain();
-                    Value::InDomain(dom.iter().position(|e| e == v).unwrap())
-                }
-            };
-
-            Ex::EQ(*index, value)
-        },
-        Compute::Any => {
-            panic!("dont use free variables here")
-        }
-        x => panic!("TODO: {:?}", x)
-    }
-}
-
 fn sp_action_to_ac(a: &Action,
                    var_map: &HashMap<SPPath, (usize, Variable)>,
-                   pred_map: &HashMap<SPPath, Predicate>) -> Ac {
+                   _pred_map: &HashMap<SPPath, Predicate>) -> Ac {
     let (index, var) = var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
     let val = match &a.value {
         Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
             // assign p to var
-            let (other, var) = var_map.get(p).expect("variable not found");
+            let (other, _var) = var_map.get(p).expect("variable not found");
             Value::Var(*other)
         },
         Compute::PredicateValue(PredicateValue::SPValue(value)) => {
@@ -204,8 +171,8 @@ fn sp_action_to_ac(a: &Action,
     }
 }
 
-fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
-    (Context, BDDContext<'a>, HashMap<SPPath, (usize, Variable)>, HashMap<SPPath, Predicate>) {
+fn make_context<'a>(model: &TransitionSystemModel) ->
+    (Context, HashMap<SPPath, (usize, Variable)>, HashMap<SPPath, Predicate>) {
     let mut c = Context::default();
 
     let mut var_map = HashMap::new();
@@ -224,8 +191,6 @@ fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
         }
     }).collect();
 
-    let mut bc = BDDContext::from(&c, &b);
-
     for t in &model.transitions {
         let guard = sp_pred_to_ex(t.guard(), &var_map, &pred_map);
         let actions: Vec<_> = t.actions().iter().map(|a| sp_action_to_ac(a, &var_map, &pred_map) ).collect();
@@ -235,67 +200,47 @@ fn make_bdd_context<'a>(model: &TransitionSystemModel, b: &'a BDDManager) ->
         a.extend(effects.iter().cloned());
 
         if t.controlled() {
-            bc.c_trans(&t.path().to_string(), guard, &a);
+            c.add_c_trans(&t.path().to_string(), &guard, &a);
         } else {
-            bc.uc_trans(&t.path().to_string(), guard, &a);
+            c.add_uc_trans(&t.path().to_string(), &guard, &a);
         }
     }
 
-    (c, bc, var_map, pred_map)
+    (c, var_map, pred_map)
 }
 
-pub fn extract_guards(model: &TransitionSystemModel, init: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
-    let b = buddy_rs::take_manager(10000, 10000);
+pub fn extract_guards(model: &TransitionSystemModel, initial: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
+    let (c, var_map, pred_map) = make_context(&model);
 
-    let (gm, new_initial) = { // need to drop bc before we return the manager.
+    // pull out all specs.
+    let forbidden =  Ex::OR(model.specs.iter().map(|s| {
+        // forbidden = not always
+        Ex::NOT(Box::new(sp_pred_to_ex(s.invariant(), &var_map, &pred_map)))
+    }).collect());
 
-        let (c, mut bc, var_map, pred_map) = make_bdd_context(&model, &b);
+    let initial = sp_pred_to_ex(&initial, &var_map, &pred_map);
 
-        // pull out all specs.
-        let forbidden =  Ex::OR(model.specs.iter().map(|s| {
-            // forbidden = not always
-            Ex::NOT(Box::new(sp_pred_to_ex(s.invariant(), &var_map, &pred_map)))
-        }).collect());
+    let (ng, supervisor) = c.compute_guards(&initial, &forbidden);
 
-        let forbidden = bc.from_expr(&forbidden);
-        let initial = bc.from_expr(&Ex::TRUE); // all states
-        let (_reachable, bad, controllable) = bc.controllable(&initial, &forbidden);
-
-        let new_guards = bc.compute_guards(&controllable, &bad);
-
-        let new_initial = bc.to_expr(&controllable);
-        let new_initial = ex_to_sp_pred(&new_initial, &var_map, &pred_map);
-
-        let gm = new_guards.iter()
-            .map(|(path,guard)| (path.clone(),
-                                 ex_to_sp_pred(&guard, &var_map, &pred_map))).collect();
-        (gm, new_initial)
-    };
-
-    buddy_rs::return_manager(b);
-    (gm, new_initial)
+    let ng = ng.into_iter().map(|(n,e)| (n, ex_to_sp_pred(&e, &var_map, &pred_map))).collect();
+    let supervisor = ex_to_sp_pred(&supervisor, &var_map, &pred_map);
+    (ng, supervisor)
 }
 
 // refines an invariant according to the model
 pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     let model = TransitionSystemModel::from(&model);
-    let b = buddy_rs::take_manager(10000, 10000);
 
-    let new_invariant = { // need to drop bc before we return the manager.
-        let (_c, mut bc, var_map, pred_map) = make_bdd_context(&model, &b);
+    let (c, var_map, pred_map) = make_context(&model);
 
-        // forbidden = all states NOT conforming to the invariant
-        let forbidden = Ex::NOT(Box::new(sp_pred_to_ex(&invariant, &var_map, &pred_map)));
+    // forbidden = all states NOT conforming to the invariant
+    let forbidden = Ex::NOT(Box::new(sp_pred_to_ex(&invariant, &var_map, &pred_map)));
 
-        let forbidden = bc.from_expr(&forbidden);
-        let new_invariant = bc.extend_forbidden(&forbidden);
-        let new_invariant = bc.b.not(&new_invariant);
-        let new_invariant = bc.to_expr(&new_invariant);
-        ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
-    };
+    let forbidden = c.extend_forbidden(&forbidden);
 
-    buddy_rs::return_manager(b);
-    new_invariant
+    let new_invariant = Ex::NOT(Box::new(forbidden));
+
+    ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
 }
 
 fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
@@ -311,14 +256,27 @@ fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Pred
     });
 }
 
-
 pub fn make_runner_model(model: &Model) -> RunnerModel {
+    // each resource contains a supervisor defining its good states
+    let inits: Vec<Predicate> = model.resources().iter().flat_map(|r| r.sub_items())
+        .flat_map(|si| match si {
+            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
+            _ => None
+        }).collect();
+
+    // we need to assume that we are in a state that adheres to the resources
+    let initial = Predicate::AND(inits);
+
     let mut ts_model = TransitionSystemModel::from(&model);
 
-    // TODO: initial conditions...
-    let (new_guards, _new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+    let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
+
+    // The specs are converted into guards + a global supervisor
+    ts_model.specs.clear();
+    ts_model.specs.push(Spec::new("global_supervisor", supervisor));
 
     // TODO: right now its very cumbersome to update the original Model.
+    // but it would be nice if we could.
     update_guards(&mut ts_model, &new_guards);
 
     // runner model has everything from planning model + operations and their global state
@@ -333,8 +291,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         })
         .collect();
 
-    let global_ops_ctrl: Vec<_> = global_ops.iter().flat_map(|o|o.start()).cloned().collect();
-    let global_ops_un_ctrl: Vec<_> = global_ops.iter().flat_map(|o|o.finish()).cloned().collect();
+    let global_ops_trans:Vec<_> = global_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
+    let global_ops_ctrl: Vec<_> = global_ops_trans.iter().filter(|o|o.controlled).cloned().collect();
+    let global_ops_un_ctrl: Vec<_> = global_ops_trans.iter().filter(|o|!o.controlled).cloned().collect();
     let global_goals: Vec<IfThen> = global_ops.iter().flat_map(|o|o.goal().as_ref()).cloned().collect();
 
     let rm = RunnerModel {
@@ -394,11 +353,20 @@ fn test_guard_extraction() {
     use crate::testing::*;
 
     // Make model
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+    let mut m = Model::new_root("test_guard_extraction", Vec::new());
 
     // Make resoureces
     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+    let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
+        .flat_map(|si| match si {
+            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
+            _ => None
+        }).collect();
+
+    // we need to assume that we are in a state that adheres to the resources
+    let initial = Predicate::AND(inits);
 
     // Make some global stuff
     let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
@@ -409,9 +377,10 @@ fn test_guard_extraction() {
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
     let mut ts_model = TransitionSystemModel::from(&m);
-    let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+    let (new_guards, new_initial) = extract_guards(&ts_model, &initial);
     update_guards(&mut ts_model, &new_guards);
 
+    ts_model.specs.clear();
     crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
 
     assert_eq!(new_guards.len(), 4);

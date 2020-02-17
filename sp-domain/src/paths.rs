@@ -70,7 +70,15 @@ impl SPPath {
         if self.path.len() <= 1 {
             SPPath::new()
         } else {
-            SPPath::from_slice(&self.path[..self.path.len() - 2])
+            SPPath::from_slice(&self.path[..self.path.len() - 1])
+        }
+    }
+
+    pub fn leaf(&self) -> String {
+        if self.path.len() == 0 {
+            "".to_string()
+        } else {
+            self.path[self.path.len() - 1].clone()
         }
     }
 

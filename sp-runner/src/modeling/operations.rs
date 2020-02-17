@@ -35,8 +35,7 @@ pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Pre
 
     let op = Operation::new(
         name,
-        vec![op_start],
-        vec![op_finish],
+        &[op_start, op_finish],
         Some(op_goal),
     );
 

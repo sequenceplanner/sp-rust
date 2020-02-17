@@ -164,6 +164,17 @@ impl SPRunner {
 
     fn take_a_tick(&mut self, state: SPState) {
         self.update_state_variables(state);
+
+        // do nothing if we are in a (globally) bad state.
+        // these exprs can be pretty big. do some benchmark here.
+        let good = self.transition_system_model.specs.iter()
+            .fold(true, |x, s| x && s.invariant().eval(&self.ticker.state));
+
+        if !good {
+            println!("\nDOING NOTHING: WE ARE IN A BAD STATE.\n");
+            return;
+        }
+
         let res = self.ticker.tick_transitions();
         self.last_fired_transitions = res.1;
     }

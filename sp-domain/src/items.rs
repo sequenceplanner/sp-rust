@@ -7,7 +7,7 @@ use std::collections::HashMap;
 pub enum SPItem {
     Model(Model),
     Resource(Resource),
-//    Message(Message),
+    Message(Message),
     Topic(Topic),
     Variable(Variable),
     Operation(Operation),
@@ -24,6 +24,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.node(),
             SPItem::Resource(x) => x.node(),
+            SPItem::Message(x) => x.node(),
             SPItem::Topic(x) => x.node(),
             SPItem::Variable(x) => x.node(),
             SPItem::Operation(x) => x.node(),
@@ -38,6 +39,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(ref mut x) => x.node_mut(),
             SPItem::Resource(ref mut x) => x.node_mut(),
+            SPItem::Message(ref mut x) => x.node_mut(),
             SPItem::Topic(ref mut x) => x.node_mut(),
             SPItem::Variable(ref mut x) => x.node_mut(),
             SPItem::Operation(ref mut x) => x.node_mut(),
@@ -52,6 +54,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.get_child(next, path),
             SPItem::Resource(x) => x.get_child(next, path),
+            SPItem::Message(x) => x.get_child(next, path),
             SPItem::Topic(x) => x.get_child(next, path),
             SPItem::Variable(x) => x.get_child(next, path),
             SPItem::Operation(x) => x.get_child(next, path),
@@ -70,6 +73,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.find_item_among_children(name, path_sections),
             SPItem::Resource(x) => x.find_item_among_children(name, path_sections),
+            SPItem::Message(x) => x.find_item_among_children(name, path_sections),
             SPItem::Topic(x) => x.find_item_among_children(name, path_sections),
             SPItem::Variable(x) => x.find_item_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_among_children(name, path_sections),
@@ -84,6 +88,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.update_path_children(path, changes),
             SPItem::Resource(x) => x.update_path_children(path, changes),
+            SPItem::Message(x) => x.update_path_children(path, changes),
             SPItem::Topic(x) => x.update_path_children(path, changes),
             SPItem::Variable(x) => x.update_path_children(path, changes),
             SPItem::Operation(x) => x.update_path_children(path, changes),
@@ -98,6 +103,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.rewrite_expressions(mapping),
             SPItem::Resource(x) => x.rewrite_expressions(mapping),
+            SPItem::Message(x) => x.rewrite_expressions(mapping),
             SPItem::Topic(x) => x.rewrite_expressions(mapping),
             SPItem::Variable(x) => x.rewrite_expressions(mapping),
             SPItem::Operation(x) => x.rewrite_expressions(mapping),
@@ -112,6 +118,7 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.as_ref(),
             SPItem::Resource(x) => x.as_ref(),
+            SPItem::Message(x) => x.as_ref(),
             SPItem::Topic(x) => x.as_ref(),
             SPItem::Variable(x) => x.as_ref(),
             SPItem::Operation(x) => x.as_ref(),
@@ -128,6 +135,7 @@ impl Noder for SPItem {
 pub enum SPItemRef<'a> {
     Model(&'a Model),
     Resource(&'a Resource),
+    Message(&'a Message),
     Topic(&'a Topic),
     Variable(&'a Variable),
     Operation(&'a Operation),
@@ -148,6 +156,7 @@ impl<'a> SPItemRef<'a> {
         match self {
             SPItemRef::Model(x) => &x.node,
             SPItemRef::Resource(x) => &x.node,
+            SPItemRef::Message(x) => &x.node,
             SPItemRef::Topic(x) => &x.node,
             SPItemRef::Variable(x) => &x.node,
             SPItemRef::Operation(x) => &x.node,
@@ -162,6 +171,7 @@ impl<'a> SPItemRef<'a> {
         match self {
             SPItemRef::Model(x) => SPItem::Model({ *x }.clone()),
             SPItemRef::Resource(x) => SPItem::Resource({ *x }.clone()),
+            SPItemRef::Message(x) => SPItem::Message({ *x }.clone()),
             SPItemRef::Topic(x) => SPItem::Topic({ *x }.clone()),
             SPItemRef::Variable(x) => SPItem::Variable({ *x }.clone()),
             SPItemRef::Operation(x) => SPItem::Operation({ *x }.clone()),
@@ -307,6 +317,8 @@ pub struct Resource {
     parameters: Vec<Variable>,
     messages: Vec<Topic>, // Also include estimated here on an estimated topic
     sub_items: Vec<SPItem>,
+    command_mirrors: HashMap<SPPath, SPPath>, // command var -> measured var mirror
+    command_mirrors_rev: HashMap<SPPath, SPPath>, // measured var mirror -> command var
 }
 
 impl Noder for Resource {
@@ -339,6 +351,13 @@ impl Noder for Resource {
         update_path_in_list(self.parameters.as_mut_slice(), &path, changes);
         update_path_in_list(self.sub_items.as_mut_slice(), &path, changes);
         update_path_in_list(self.messages.as_mut_slice(), &path, changes);
+
+        self.command_mirrors = self.command_mirrors.iter().map(|(k,v)|
+            (changes.get(k).unwrap_or(k).clone(), changes.get(v).unwrap_or(v).clone())
+        ).collect();
+        self.command_mirrors_rev = self.command_mirrors_rev.iter().map(|(k,v)|
+            (changes.get(k).unwrap_or(k).clone(), changes.get(v).unwrap_or(v).clone())
+        ).collect();
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.abilities
@@ -410,11 +429,24 @@ impl Resource {
         path
     }
 
+    pub fn add_command_mirror(&mut self, command_var: &SPPath, mirror: &SPPath) {
+        self.command_mirrors.insert(command_var.clone(), mirror.clone());
+        self.command_mirrors_rev.insert(mirror.clone(), command_var.clone());
+    }
+
+    pub fn get_command_mirrors(&self) -> &HashMap<SPPath, SPPath> {
+        &self.command_mirrors
+    }
+
+    pub fn get_command_mirrors_rev(&self) -> &HashMap<SPPath, SPPath> {
+        &self.command_mirrors_rev
+    }
+
     pub fn make_initial_state(&self) -> SPState {
         fn r(m: &MessageField, acum: &mut SPState) {
             match m {
                 MessageField::Msg(msg) => {
-                    for (_, f) in &msg.fields {
+                    for f in &msg.fields {
                         r(f, acum);
                     }
                 }
@@ -441,22 +473,26 @@ impl Resource {
     }
 
     pub fn get_variables(&self) -> Vec<Variable> {
-        fn r(m: &MessageField, acum: &mut Vec<Variable>) {
+        fn r(m: &MessageField, acum: &mut Vec<Variable>, command_mirrors_rev: &HashMap<SPPath, SPPath>) {
             match m {
                 MessageField::Msg(msg) => {
-                    for (_n, f) in &msg.fields {
-                        r(f, acum);
+                    for f in &msg.fields {
+                        r(f, acum, command_mirrors_rev);
                     }
                 }
                 MessageField::Var(var) => {
-                    let _res = acum.push(var.clone());
+                    // filter out our mappings...
+                    if var.variable_type() == VariableType::Measured &&
+                        command_mirrors_rev.contains_key(var.path()) {} else {
+                            acum.push(var.clone());
+                        }
                 }
             }
         }
 
         let mut vs = Vec::new();
         for t in &self.messages {
-            r(&t.msg, &mut vs);
+            r(&t.msg, &mut vs, &self.command_mirrors_rev);
         }
 
         return vs;
@@ -485,65 +521,22 @@ impl Noder for Topic {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        // I dont understand what next and path are, also, does not seem to be used for anything?
-        let mut stack = vec![&self.msg];
-        loop {
-            match stack.pop() {
-                Some(MessageField::Msg(msg)) => {
-                    stack.extend(msg.fields.iter().map(|(_n, m)|m).collect::<Vec<_>>()); },
-                Some(MessageField::Var(v)) => {
-                    if v.name() == next && v.path() == path {
-                        return Some(SPItemRef::Variable(v))
-                    }
-                    // if let Some(item) = v.get_child(next, path) {
-                    //     return Some(item)
-                    // }
-                },
-                None => { return None; } // all done
-            }
+        if self.msg.name() != next {
+            return None;
         }
-        // panic!("todo next {} path {}", next, path);
-        // None
+        self.msg.get(path)
     }
     fn find_item_among_children<'a>(
         &'a self,
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        let mut stack = vec![&self.msg];
-        loop {
-            match stack.pop() {
-                Some(MessageField::Msg(msg)) => {
-                    stack.extend(msg.fields.iter().map(|(_n, m)| m).collect::<Vec<_>>());
-                }
-                Some(MessageField::Var(v)) => {
-                    if let Some(item) = v.find_item(name, path_sections) {
-                        return Some(item);
-                    }
-                }
-                None => {
-                    return None;
-                } // all done
-            }
-        }
+        self.msg.find_item(name, path_sections)
     }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        let mut stack = vec![&mut self.msg];
-        loop {
-            match stack.pop() {
-                Some(MessageField::Msg(msg)) => {
-                    stack.extend(msg.fields.iter_mut().map(|(_n, m)| m).collect::<Vec<_>>());
-                }
-                Some(MessageField::Var(v)) => {
-                    v.update_path(path, changes);
-                }
-                None => {
-                    return;
-                } // all done
-            }
-        }
+        self.msg.update_path(path, changes);
     }
-    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+    fn rewrite_expressions(&mut self, _mapping: &HashMap<SPPath, SPPath>) {
         // TODO: variables with expressions in the messages.
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -564,7 +557,7 @@ impl Topic {
     pub fn is_subscriber(&self) -> bool {
         fn is_sub(f: &MessageField) -> bool {
             match f {
-                MessageField::Msg(msg) => msg.fields.iter().all(|(_n, m)| is_sub(m)),
+                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_sub(m)),
                 MessageField::Var(v) => v.type_ == VariableType::Measured,
             }
         }
@@ -574,7 +567,7 @@ impl Topic {
     pub fn is_publisher(&self) -> bool {
         fn is_pub(f: &MessageField) -> bool {
             match f {
-                MessageField::Msg(msg) => msg.fields.iter().all(|(_n, m)| is_pub(m)),
+                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_pub(m)),
                 MessageField::Var(v) => v.type_ == VariableType::Command,
             }
         }
@@ -584,15 +577,46 @@ impl Topic {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Message {
+    node: SPNode,
     pub type_: String, // ros type
-    pub fields: HashMap<String, MessageField>,
+    pub fields: Vec<MessageField>,
+}
+
+impl Noder for Message {
+    fn node(&self) -> &SPNode {
+        &self.node
+    }
+    fn node_mut(&mut self) -> &mut SPNode {
+        &mut self.node
+    }
+    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
+        get_from_list(self.fields.as_slice(), next, path)
+    }
+    fn find_item_among_children<'a>(
+        &'a self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPItemRef<'a>> {
+        find_item_in_list(self.fields.as_slice(), name, path_sections)
+    }
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        update_path_in_list(self.fields.as_mut_slice(), path, changes);
+    }
+    fn rewrite_expressions(&mut self, _mapping: &HashMap<SPPath, SPPath>) {
+        // TODO: variables with expressions in the messages.
+    }
+    fn as_ref(&self) -> SPItemRef<'_> {
+        SPItemRef::Message(self)
+    }
 }
 
 impl Message {
-    pub fn new(type_: &str, fields: HashMap<String, MessageField>) -> Message {
+    pub fn new(name: &str, type_: &str, fields: &[MessageField]) -> Message {
+        let node = SPNode::new(name);
         Message {
+            node,
             type_: type_.to_string(),
-            fields,
+            fields: fields.to_vec(),
         }
     }
 }
@@ -602,6 +626,60 @@ pub enum MessageField {
     Msg(Message),
     Var(Variable),
 }
+
+impl Noder for MessageField {
+    fn node(&self) -> &SPNode {
+        match self {
+            MessageField::Msg(ref x) => x.node(),
+            MessageField::Var(ref x) => x.node(),
+        }
+    }
+    fn node_mut(&mut self) -> &mut SPNode {
+        match self {
+            MessageField::Msg(ref mut x) => x.node_mut(),
+            MessageField::Var(ref mut x) => x.node_mut(),
+        }
+    }
+
+    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
+        match self {
+            MessageField::Msg(ref x) => x.get_child(next, path),
+            MessageField::Var(ref x) => x.get_child(next, path),
+        }
+    }
+    fn find_item_among_children<'a>(
+        &'a self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPItemRef<'a>> {
+        match self {
+            MessageField::Msg(ref x) => x.find_item(name, path_sections),
+            MessageField::Var(ref x) => x.find_item(name, path_sections),
+        }
+    }
+    fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        match self {
+            MessageField::Msg(ref mut x) => x.update_path_children(path, changes),
+            MessageField::Var(ref mut x) => x.update_path_children(path, changes),
+        }
+    }
+    fn rewrite_expressions(&mut self, _mapping: &HashMap<SPPath, SPPath>) {
+        // TODO: variables with expressions in the messages.
+    }
+    fn as_ref(&self) -> SPItemRef<'_> {
+        match self {
+            MessageField::Msg(ref x) => x.as_ref(),
+            MessageField::Var(ref x) => x.as_ref(),
+        }
+    }
+}
+
+impl Default for MessageField {
+    fn default() -> Self {
+        MessageField::Var(Variable::default())
+    }
+}
+
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Variable {
@@ -881,12 +959,8 @@ impl Ability {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Operation {
     node: SPNode,
-    start: Vec<Transition>, // now we talk about transitions and not conditions
-    finish: Vec<Transition>,
-    // skip these for now: finish trans are by default unctrl
-    // uncontrolled: Vec<Transition>,
-    // predicates: Vec<Variable>,
-    pub goal: Option<IfThen>,
+    transitions: Vec<Transition>,
+    goal: Option<IfThen>,
 }
 
 impl Noder for Operation {
@@ -897,8 +971,7 @@ impl Noder for Operation {
         &mut self.node
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.start.as_slice(), next, path)
-            .or_else(|| get_from_list(self.finish.as_slice(), next, path))
+        get_from_list(self.transitions.as_slice(), next, path)
             .or_else(|| self.goal.as_ref().and_then(|x| x.get(path)))
     }
     fn find_item_among_children<'a>(
@@ -906,8 +979,7 @@ impl Noder for Operation {
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.start.as_slice(), name, path_sections)
-            .or_else(|| find_item_in_list(self.finish.as_slice(), name, path_sections))
+        find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| {
                 self.goal
                     .as_ref()
@@ -915,13 +987,11 @@ impl Noder for Operation {
             })
     }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        update_path_in_list(self.start.as_mut_slice(), path, changes);
-        update_path_in_list(self.finish.as_mut_slice(), path, changes);
+        update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         self.goal.as_mut().map(|mut x| x.update_path(path, changes));
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.start.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
-        self.finish.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
+        self.transitions.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
         if let Some(goal) = &mut self.goal { goal.rewrite_expressions(mapping) };
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -932,15 +1002,13 @@ impl Noder for Operation {
 impl Operation {
     pub fn new(
         name: &str,
-        start: Vec<Transition>,
-        finish: Vec<Transition>,
+        trans: &[Transition],
         goal: Option<IfThen>,
     ) -> Operation {
         let node = SPNode::new(name);
         Operation {
             node,
-            start,
-            finish,
+            transitions: trans.to_vec(),
             goal,
         }
     }
@@ -949,12 +1017,8 @@ impl Operation {
         &self.goal
     }
 
-    pub fn start(&self) -> &Vec<Transition> {
-        &self.start
-    }
-
-    pub fn finish(&self) -> &Vec<Transition> {
-        &self.finish
+    pub fn transitinos(&self) -> &Vec<Transition> {
+        &self.transitions
     }
 }
 

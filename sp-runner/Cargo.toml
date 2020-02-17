@@ -11,11 +11,10 @@ serde_json = "1.0"
 crossbeam = "0.7"
 sp-domain = { path = "../sp-domain/" }
 sp-runner-api = { path = "../sp-runner-api/" }
-sp-ros = { path = "../sp-ros/", features = [] }
+sp-ros = { path = "../sp-ros/", features = ["ros"] }
 failure = "0.1.6"
 failure_derive = "0.1.6"
 #lazy_static = "1.4.0"
 chrono = { version = "0.4.9", features = ["serde"] }
-buddy-rs = { git = "https://github.com/m-dahl/buddy-rs.git" }
-guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git" }
+guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", tag = "for_sp_0.1.0" }
 indoc = "0.3"

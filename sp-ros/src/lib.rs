@@ -38,7 +38,6 @@ mod ros {
     use sp_domain::*;
     use sp_runner_api::*;
 
-    use std::collections::{BTreeMap};
     use std::thread;
 
     pub struct RosNode(r2r::Node);
@@ -57,9 +56,9 @@ mod ros {
                 MessageField::Msg(msg) => {
                     // let path_name = msg.node().name();
                     // p.push(&path_name); // keep message type in path?
-                    for (field_name, field) in &msg.fields {
-                        if let Some(json_child) = json.get(field_name) {
-                            p.push(&field_name);
+                    for field in &msg.fields {
+                        if let Some(json_child) = json.get(field.name()) {
+                            p.push(&field.name());
                             json_to_state_(json_child, field, p, a);
                             p.pop();
                         }
@@ -95,15 +94,15 @@ mod ros {
                     let mut map = serde_json::Map::new();
                     // let path_name = msg.node().name();
                     // p.push(&path_name); // keep message type in path?
-                    for (field_name, field) in &msg.fields {
-                        p.push(field_name);
-                        map.insert(field_name.to_string(), state_to_json_(state, field, p));
+                    for field in &msg.fields {
+                        p.push(field.name());
+                        map.insert(field.name().to_string(), state_to_json_(state, field, p));
                         p.pop();
                     }
                     // p.pop();
                     serde_json::Value::Object(map)
                 }
-                MessageField::Var(var) => {
+                MessageField::Var(_var) => {
                     if let Some(spval) = state.sp_value_from_path(&SPPath::from_slice(p)) {
                         // TODO use sp type
                         let json = spval.to_json(); // , var.variable_data().type_);
@@ -154,12 +153,11 @@ mod ros {
                         let topic_str = topic.to_string();
 
                         let tx = tx_in.clone();
-                        let topic_cb = topic.clone();
-                        let msgtype = t.msg().clone();
+                        let msg_cb = t.msg().clone();
                         let cb = move |msg: r2r::Result<serde_json::Value>| {
                             let json = msg.unwrap();
-                            let mut state = json_to_state(&json, &msgtype);
-                            state.prefix_paths(&topic_cb);
+                            let mut state = json_to_state(&json, &msg_cb);
+                            state.prefix_paths(&msg_cb.path());
                             tx.send(state).unwrap();
                         };
                         println!("setting up subscription to topic: {}", topic);
@@ -171,13 +169,12 @@ mod ros {
                         let topic_str = topic.to_string();
                         println!("setting up publishing to topic: {}", topic);
                         let rp = node.0.create_publisher_untyped(&topic_str, &m.type_)?;
-                        let topic_cb = topic.clone();
-                        let msgtype = t.msg().clone();
+                        let msg_cb = t.msg().clone();
                         let cb = move |state: &SPState| {
-                            let local_state = state.sub_state_projection(&topic_cb);
+                            let local_state = state.sub_state_projection(&msg_cb.path());
                             let mut dropped_local_state = local_state.clone_state();
-                            dropped_local_state.unprefix_paths(&topic_cb);
-                            let to_send = state_to_json(&dropped_local_state, &msgtype);
+                            dropped_local_state.unprefix_paths(&msg_cb.path());
+                            let to_send = state_to_json(&dropped_local_state, &msg_cb);
                             rp.publish(to_send).unwrap();
                         };
                         ros_pubs.push(cb);
@@ -290,9 +287,9 @@ mod ros {
             );
 
             let msg = Message::new(
-//                "str".into(),
+                "str".into(),
                 "std_msgs/msg/String".into(),
-                hashmap![v.node().name().to_string() => MessageField::Var(v)],
+                &[MessageField::Var(v)],
             );
 
             let msg = MessageField::Msg(msg);
@@ -318,9 +315,9 @@ mod ros {
             );
 
             let msg = Message::new(
-//                "str".into(),
+                "str".into(),
                 "std_msgs/msg/String".into(),
-                hashmap![v.node().name().to_string() => MessageField::Var(v)]
+                &[MessageField::Var(v)]
             );
 
             let msg = MessageField::Msg(msg);
