@@ -244,11 +244,16 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
 }
 
 use cryptominisat::*;
-pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[Predicate]) {
+pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predicate,Predicate)]) {
     let (c, var_map, pred_map) = make_context(&model);
 
     let initial = sp_pred_to_ex(&initial, &var_map, &pred_map);
-    let goals: Vec<Ex> = goals.iter().map(|g|sp_pred_to_ex(&g, &var_map, &pred_map)).collect();
+    let goals: Vec<(Ex,Ex)> = goals
+        .iter()
+        .map(|(i,g)|
+             (sp_pred_to_ex(&i, &var_map, &pred_map),
+              sp_pred_to_ex(&g, &var_map, &pred_map))
+             ).collect();
 
     let sat_model = c.model_as_sat_model(&initial, &goals);
 
@@ -351,15 +356,29 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[Predica
                 }
             }).collect();
 
-            // when this is false, the goal clause must be true instead.
-            // let ga = goal_active;
-            // clause.push(ga);
+            s.add_clause(&clause);
+        }
+
+        // add all invar clauses
+        for c in &sat_model.invar_clauses {
+            let mut clause: Vec<cryptominisat::Lit> = c.0.iter().flat_map(|l| {
+                if sat_model.norm_vars.contains(&l.var) {
+                    if l.neg { Some(!vars[ci(l.var)+step*nv]) } else { Some(vars[ci(l.var)+step*nv]) }
+                } else if is_ts(l) {
+                    if l.neg { Some(!vars[ti(l.var)+step*nv]) } else { Some(vars[ti(l.var)+step*nv]) }
+                } else {
+                    panic!("error");
+                    None
+                }
+            }).collect();
+
             s.add_clause(&clause);
         }
 
         // add a disjunction that allows the goal to be active in any time step
         // (so we can finish one goal early but then keep going)
-        for top in &sat_model.goal_tops {
+        // for top in &sat_model.goal_tops {
+        for (invar, top) in sat_model.invar_tops.iter().zip(sat_model.goal_tops.iter()) {
             let mut clause: Vec<cryptominisat::Lit> = Vec::new();
             for i in 0..(step+1) {
                 let lit = if sat_model.norm_vars.contains(&top.var) {
@@ -376,6 +395,9 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[Predica
                 if let Some(l) = lit {
                     clause.push(l);
                 } else { panic!("ho no"); }
+
+                println!("gtop: {}", ti(top.var)+i*nv);
+                println!("adding goal: {}", i);
             }
 
             // here we force only TOP to be true. which should propagate down...
@@ -383,6 +405,58 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[Predica
             // println!("goal clause: {:?}, activation: {:?}", clause, ga);
             clause.push(ga);
             s.add_clause(&clause);
+
+            // we also need to make sure our invariants hold for all timesteps
+            // until the goal holds.
+            // ie. (i0 | g0) & (i1 | g0 | g1) & (i2 | g0 | g1 | g2) ...
+
+            // this is the same semantics as the LTL UNTIL operator.
+
+
+            for i in 0..(step) {
+                let i = i as usize;
+                let mut clause: Vec<cryptominisat::Lit> = Vec::new();
+
+                println!("itop: {}", ti(invar.var)+i*nv);
+
+                let i_lit = if sat_model.norm_vars.contains(&invar.var) {
+                    panic!("unexpected");
+                    if invar.neg { Some(!vars[ci(invar.var)+i*nv]) } else { Some(vars[ci(invar.var)+i*nv]) }
+                } else if is_ts(top) {
+                    if invar.neg { panic!("not good"); }
+                    if invar.neg { Some(!vars[ti(invar.var)+i*nv]) } else { Some(vars[ti(invar.var)+i*nv]) }
+                } else {
+                    panic!("error");
+                    None
+                };
+
+                if let Some(l) = i_lit {
+                    clause.push(l);
+                } else { panic!("ho no"); }
+
+                for j in 0..(i+1) {
+                    println!("jtop: {}", ti(top.var)+j*nv);
+                    let lit = if sat_model.norm_vars.contains(&top.var) {
+                        panic!("unexpected");
+                        if top.neg { Some(!vars[ci(top.var)+j*nv]) } else { Some(vars[ci(top.var)+j*nv]) }
+                    } else if is_ts(top) {
+                        if top.neg { panic!("not good"); }
+                        if top.neg { Some(!vars[ti(top.var)+j*nv]) } else { Some(vars[ti(top.var)+j*nv]) }
+                    } else {
+                        panic!("error");
+                        None
+                    };
+
+                    if let Some(l) = lit {
+                        clause.push(l);
+                    } else { panic!("ho no"); }
+
+                    println!("adding invar: {} {}", i, j);
+                }
+
+                s.add_clause(&clause);
+            }
+
         }
 
         let ga = !goal_active;
@@ -592,12 +666,73 @@ fn test_sat_planning() {
 
     // start planning test
 
+    let i1 = Predicate::TRUE;
     let g1 = p!(p:r1a == "at");
+    //let i2 = p!(!p:r2active);
+    let i2 = Predicate::TRUE;
     let g2 = p!(p:r2a == "at");
     //let g2 = p!(p:r2active);
 
-    let goals = vec![g1, g2];
+    let goals = vec![(i1, g1), (i2,g2)];
     //let goal = p!(p:r1a == "at");
+
+    let now = std::time::Instant::now();
+    plan(&ts_model, &init, &goals);
+    println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
+
+    assert!(false);
+}
+
+#[test]
+fn invar_plan() {
+    use crate::testing::*;
+
+    // Make model
+    let mut m = Model::new_root("tsi", Vec::new());
+
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+    // was 872
+    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+    let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+    let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
+
+    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+    let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+    let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+
+
+    let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
+    let new_table_zone = refine_invariant(&m, &table_zone);
+    println!("new table zone:\n{}", new_table_zone);
+
+    // no guard extr.
+    let ts_model = TransitionSystemModel::from(&m);
+
+    let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
+
+    crate::planning::generate_offline_nuxvm(&ts_model, &init);
+
+    // start planning test
+
+    //let i1 = Predicate::TRUE;
+    let i1 = table_zone.clone();
+    //let i1 = new_table_zone.clone();
+    let g1 = p!(p:r1a == "at");
+    let g1 = Predicate::AND(vec![g1, table_zone.clone()]);
+
+
+    //let i2 = Predicate::TRUE;
+    let i2 = table_zone.clone();
+    //let i2 = new_table_zone.clone();
+    let g2 = p!(p:r2a == "at");
+    let g2 = Predicate::AND(vec![g2, table_zone.clone()]);
+
+    let goals = vec![(i1, g1), (i2,g2)];
 
     let now = std::time::Instant::now();
     plan(&ts_model, &init, &goals);
