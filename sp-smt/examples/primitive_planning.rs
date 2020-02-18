@@ -6,6 +6,21 @@ use sp_domain::*;
 
 fn main() {
 
+
+    // sp stuff:  
+    // let x = SPPath::from_string("x");
+    // let y = SPPath::from_string("y");
+    // let vars = vec![x, y];
+    
+    // let t = Transition::new("tx", p!(!x), vec![a!(x)], vec![], true);
+
+    // let init = p!([!x] && [!y]);
+
+    // println!("vars: {:?}", vars);
+    // println!("t: {:?}",t );
+    // println!("init: {:?}",init );
+
+
     // problem descriprion:
     println!("\n Find a plan to go from home to the table:
     
@@ -45,11 +60,8 @@ fn main() {
         // initial state:
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, pose0, poses[0]));
 
-        let current_step: &str = &format!("pose{}", step); // &pose_string[..];
+        let current_step: &str = &format!("pose{}", step);
         let previous_step: &str = &format!("pose{}", step - 1);
-
-        // println!("current_step: {:?}", current_step);
-        // println!("previous_step: {:?}", previous_step);
 
         // goal state:
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[3]));
@@ -76,7 +88,6 @@ fn main() {
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, t_via2_table, bool_var_z3!(&ctx, "t_via2_table")));
 
         slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, t_home_via1, t_home_via2, t_via1_table, t_via2_table));
-
     }
 
     let model = slv_get_model_z3!(&ctx, &slv);

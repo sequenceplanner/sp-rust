@@ -34,10 +34,8 @@ impl <'ctx> BoolZ3<'ctx> {
     /// NOTE: See macro! `bool_z3!`
     pub fn new(ctx: &'ctx ContextZ3, val: bool) -> Z3_ast {
         let z3 = if val == true { unsafe {
-                // Z3_MUTEX.lock().unwrap();
                 Z3_mk_true(ctx.r)
             }} else { unsafe { 
-                // Z3_MUTEX.lock().unwrap();
                 Z3_mk_false(ctx.r)
             }
         };
@@ -102,19 +100,12 @@ impl <'ctx, 'a> StringZ3<'ctx, 'a> {
 /// ```text
 /// z3values::BoolZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / bool_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// bool_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! bool_z3 {
-    // ($a:expr) => {
-    //     BoolZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         BoolZ3::new($ctx, $a)
     }
@@ -126,19 +117,12 @@ macro_rules! bool_z3 {
 /// ```text
 /// z3values::IntZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / int_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// int_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! int_z3 {
-    // ($a:expr) => {
-    //     IntZ3::new(&CTX, &IntSortZ3::new(&CTX), $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         IntZ3::new($ctx, &IntSortZ3::new($ctx), $a)
     }
@@ -150,19 +134,12 @@ macro_rules! int_z3 {
 /// ```text
 /// z3values::RealZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / real_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// real_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! real_z3 {
-    // ($a:expr) => {
-    //     RealZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         RealZ3::new($ctx, &RealSortZ3::new($ctx), $a)
     }
@@ -174,19 +151,12 @@ macro_rules! real_z3 {
 /// ```text
 /// z3values::StringZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / string_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// string_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! string_z3 {
-    // ($a:expr) => {
-    //     StringZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         StringZ3::new($ctx, $a)
     }

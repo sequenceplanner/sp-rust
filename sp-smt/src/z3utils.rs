@@ -49,10 +49,9 @@ pub struct GetSymbolStringZ3<'ctx> {
     pub r: Z3_string
 }
 
-pub struct GetTseitinCnfZ3<'ctx> {
+pub struct GetCnfStringZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub cnf: String
-    // pub nr_clauses: String
 }
 
 impl<'ctx> AstToStringZ3<'ctx> {
@@ -137,8 +136,8 @@ impl<'ctx> GetSymbolStringZ3<'ctx> {
     }
 }
 
-impl<'ctx> GetTseitinCnfZ3<'ctx> {
-    /// Get cnf
+impl<'ctx> GetCnfStringZ3<'ctx> {
+    /// Get cnf as a String.
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> String {
         let z3 = unsafe {
             let goal = Z3_mk_goal(ctx.r, false, false, false);
@@ -150,13 +149,9 @@ impl<'ctx> GetTseitinCnfZ3<'ctx> {
             Z3_tactic_inc_ref(ctx.r, tactic);
             let applied = Z3_tactic_apply(ctx.r, tactic, goal);            
             let cnf = CStr::from_ptr(Z3_apply_result_to_string(ctx.r, applied)).to_str().unwrap().to_owned();
-            // let clauses = Z3_goal_size(ctx.r, goal);
-            // let clauses_string: String = clauses.to_string();
-            // (cnf, clauses_string)
             cnf
         };
-        // GetTseitinCnfZ3 {ctx, cnf: z3.0, nr_clauses: z3.1}
-        GetTseitinCnfZ3 {ctx, cnf: z3}.cnf
+        GetCnfStringZ3 {ctx, cnf: z3}.cnf
     }
 }
 
@@ -195,7 +190,7 @@ fn test_tseitin(){
     let asrt4 = DISTINCTZ3::new(&ctx, vec!(x, y));
     let asrt5 = XORZ3::new(&ctx, x, y);
 
-    let tseit = GetTseitinCnfZ3::new(&ctx, vec!(asrt1, asrt2, asrt3, asrt4, asrt5));
+    let tseit = GetCnfStringZ3::new(&ctx, vec!(asrt1, asrt2, asrt3, asrt4, asrt5));
 
     // println!("{}", tseit);
     assert_eq!("(goals
@@ -207,6 +202,4 @@ fn test_tseitin(){
   (or (not x) (not y))
   (or x y))
 )", tseit);
-
-// assert_eq!("4", tseit.nr_clauses);
 }

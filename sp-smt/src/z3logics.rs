@@ -81,7 +81,6 @@ impl<'ctx> ANDZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
-            // Z3_MUTEX.lock().unwrap();
             Z3_mk_and(ctx.r, args_slice.len() as u32, args_slice.as_ptr())
         };
         ANDZ3{ctx, r: z3, args}.r   
@@ -100,7 +99,6 @@ impl<'ctx> ORZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
-            // Z3_MUTEX.lock().unwrap();
             Z3_mk_or(ctx.r, args_slice.len() as u32, args_slice.as_ptr())
         };
         ORZ3 {ctx, r: z3, args}.r       
@@ -119,7 +117,6 @@ impl<'ctx> DISTINCTZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> Z3_ast {
         let args_slice = &args;
         let z3 = unsafe {
-            // Z3_MUTEX.lock().unwrap();
             Z3_mk_distinct(ctx.r, args_slice.len() as u32, args_slice.as_ptr())
         };
         DISTINCTZ3 {ctx, r: z3, args}.r       
@@ -134,7 +131,6 @@ impl<'ctx> NOTZ3<'ctx> {
     /// NOTE: See macro! `not_z3!`
     pub fn new(ctx: &'ctx ContextZ3, arg: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
-            // Z3_MUTEX.lock().unwrap();
             Z3_mk_not(ctx.r, arg)
         };
         NOTZ3 {ctx, r: z3, arg}.r  
@@ -150,7 +146,6 @@ impl<'ctx> ITEZ3<'ctx> {
     /// NOTE: See macro! `ite_z3!`
     pub fn new(ctx: &'ctx ContextZ3, ifz3: Z3_ast, thenz3: Z3_ast, elsez3: Z3_ast) -> Z3_ast {
         let z3 = unsafe {
-            // Z3_MUTEX.lock().unwrap();
             Z3_mk_ite(ctx.r, ifz3, thenz3, elsez3)
         };
         ITEZ3 {ctx, ifz3, thenz3, elsez3, r: z3}.r
@@ -243,10 +238,6 @@ impl<'ctx> XORZ3<'ctx> {
 /// ```text
 /// z3logics::ANDZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-// / Using the default context:
-// / ```text
-// / and_z3!(a, b, c)
-// / ```
 /// Using a specific context and passing elements:
 /// ```text
 /// and_z3!(&ctx, a, b, c)
@@ -259,15 +250,6 @@ impl<'ctx> XORZ3<'ctx> {
 /// Requires that a, b, c... are of Bool sort.
 #[macro_export]
 macro_rules! and_z3 {
-    // ( $( $x:expr ),* ) => {
-    //     {
-    //         let mut temp_vec = Vec::new();
-    //         $(
-    //             temp_vec.push($x);
-    //         )*
-    //         ANDZ3::new(&CTX, temp_vec).r
-    //     }
-    // };
     ($ctx:expr, $b:expr) => {
         ANDZ3::new($ctx, $b)
     };
@@ -288,10 +270,6 @@ macro_rules! and_z3 {
 /// ```text
 /// z3logics::ORZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-// / Using the default context:
-// / ```text
-// / or_z3!(a, b, c)
-// / ```
 /// Using a specific context and passing elements:
 /// ```text
 /// or_z3!(&ctx, a, b, c)
@@ -304,15 +282,6 @@ macro_rules! and_z3 {
 /// Requires that a, b, c... are of Bool sort.
 #[macro_export]
 macro_rules! or_z3 {
-    // ( $( $x:expr ),* ) => {
-    //     {
-    //         let mut temp_vec = Vec::new();
-    //         $(
-    //             temp_vec.push($x);
-    //         )*
-    //         ORZ3::new(&CTX, temp_vec).r
-    //     }
-    // };
     ($ctx:expr, $b:expr) => {
         ORZ3::new($ctx, $b)
     };
@@ -333,10 +302,6 @@ macro_rules! or_z3 {
 /// ```text
 /// z3logics::DISTINCTZ3::new(&ctx, vec!(a, b, c)).r
 /// ```
-// / Using the default context:
-// / ```text
-// / distinct_z3!(a, b, c)
-// / ```
 /// Using a specific context and passing elements:
 /// ```text
 /// distinct_z3!(&ctx, a, b, c)
@@ -349,15 +314,6 @@ macro_rules! or_z3 {
 /// Requires that a, b, c... are of the same sort.
 #[macro_export]
 macro_rules! distinct_z3 {
-    // ( $( $x:expr ),* ) => {
-    //     {
-    //         let mut temp_vec = Vec::new();
-    //         $(
-    //             temp_vec.push($x);
-    //         )*
-    //         DISTINCTZ3::new(&CTX, temp_vec).r
-    //     }
-    // };
     ($ctx:expr, $b:expr) => {
         DISTINCTZ3::new($ctx, $b)
     };
@@ -378,10 +334,6 @@ macro_rules! distinct_z3 {
 /// ```text
 /// z3logics::NOTZ3::new(&ctx, a).r
 /// ```
-// / Using the default context:
-// / ```text
-// / not_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// not_z3!(&ctx, a)
@@ -389,9 +341,6 @@ macro_rules! distinct_z3 {
 /// Requires that a is of Bool sort.
 #[macro_export]
 macro_rules! not_z3 {
-    // ($a:expr) => {
-    //     NOTZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $b:expr) => {
         NOTZ3::new($ctx, $b)
     }
@@ -403,10 +352,6 @@ macro_rules! not_z3 {
 /// ```text
 /// z3logics::ITEZ3::new(&ctx, a, b, c).r
 /// ```
-// / Using the default context:
-// / ```text
-// / ite_z3!(a, b, c)
-// / ```
 /// Using a specific context:
 /// ```text
 /// ite_z3!(&ctx, a, b, c)
@@ -414,9 +359,6 @@ macro_rules! not_z3 {
 /// Requires that a is Bool sort and that b and c are of same sort.
 #[macro_export]
 macro_rules! ite_z3 {
-    // ($a:expr, $b:expr, $c:expr) => {
-    //     ITEZ3::new(&CTX, $a, $b, $c).r
-    // };
     ($ctx:expr, $b:expr, $c:expr, $d:expr) => {
         ITEZ3::new($ctx, $b, $c, $d)
     }
@@ -428,10 +370,6 @@ macro_rules! ite_z3 {
 /// ```text
 /// z3logics::IFFZ3::new(&ctx, a, b).r
 /// ```
-// / Using the default context:
-// / ```text
-// / iff_z3!(a, b)
-// / ```
 /// Using a specific context:
 /// ```text
 /// iff_z3!(&ctx, a, b)
@@ -439,9 +377,6 @@ macro_rules! ite_z3 {
 /// Requires that a and b are Bool sort.
 #[macro_export]
 macro_rules! iff_z3 {
-    // ($a:expr, $b:expr) => {
-    //     IFFZ3::new(&CTX, $a, $b).r
-    // };
     ($ctx:expr, $b:expr, $c:expr) => {
         IFFZ3::new($ctx, $b, $c)
     }
@@ -453,10 +388,6 @@ macro_rules! iff_z3 {
 /// ```text
 /// z3logics::IMPZ3::new(&ctx, a, b).r
 /// ```
-// / Using the default context:
-// / ```text
-// / imp_z3!(a, b)
-// / ```
 /// Using a specific context:
 /// ```text
 /// imp_z3!(&ctx, a, b)
@@ -464,24 +395,17 @@ macro_rules! iff_z3 {
 /// Requires that a and b are Bool sort.
 #[macro_export]
 macro_rules! imp_z3 {
-    // ($a:expr, $b:expr) => {
-    //     IMPZ3::new(&CTX, $a, $b).r
-    // };
     ($ctx:expr, $b:expr, $c:expr) => {
         IMPZ3::new($ctx, $b, $c)
     }
 }
 
-/// a bi-implication b
+/// a equivalent to b
 /// 
 /// Macro rule for:
 /// ```text
-/// z3logics::BIMPZ3::new(&ctx, a, b).r
+/// z3logics::EQUIVZ3::new(&ctx, a, b).r
 /// ```
-// / Using the default context:
-// / ```text
-// / bimp_z3!(a, b)
-// / ```
 /// Using a specific context:
 /// ```text
 /// bimp_z3!(&ctx, a, b)
@@ -489,13 +413,31 @@ macro_rules! imp_z3 {
 /// Requires that a and b are Bool sort.
 #[macro_export]
 macro_rules! equiv_z3 {
-    // ($a:expr, $b:expr) => {
-    //     IMPZ3::new(&CTX, $a, $b).r
-    // };
     ($ctx:expr, $b:expr, $c:expr) => {
         EQUIVZ3::new($ctx, $b, $c)
     }
 }
+
+/// t1 and t2 and not t3 and not t4 and not ...
+/// 
+/// Macro rule for:
+/// ```text
+/// z3logics::NTRUEZ3::new(&ctx, vec!(a, b), vec!(c, d)).r
+/// ```
+/// Using a specific context:
+/// ```text
+/// ntrue_z3!(&ctx, vec!(a, b), vec!(c, d))
+/// ```
+/// The first vector is for true assignments and the second for false.
+/// They can be empty.
+/// Requires that a, b, c, d... are Bool sort.
+#[macro_export]
+macro_rules! ntrue_z3 {
+    ($ctx:expr, $b:expr, $c:expr) => {
+        NTRUEZ3::new($ctx, $b, $c)
+    }
+}
+
 
 /// either a or b
 /// 
@@ -503,10 +445,6 @@ macro_rules! equiv_z3 {
 /// ```text
 /// z3logics::XORZ3::new(&ctx, a, b).r
 /// ```
-// / Using the default context:
-// / ```text
-// / xor_z3!(a, b)
-// / ```
 /// Using a specific context:
 /// ```text
 /// xor_z3!(&ctx, a, b)
@@ -514,9 +452,6 @@ macro_rules! equiv_z3 {
 /// Requires that a and b are Bool sort.
 #[macro_export]
 macro_rules! xor_z3 {
-    // ($a:expr, $b:expr) => {
-    //     XORZ3::new(&CTX, $a, $b).r
-    // };
     ($ctx:expr, $b:expr, $c:expr) => {
         XORZ3::new($ctx, $b, $c)
     }
@@ -580,10 +515,6 @@ fn test_new_not(){
     let bool1 = BoolZ3::new(&ctx, true);
 
     let x1 = BoolVarZ3::new(&ctx, &boolsort, "x1");
-
-    // let not1 = NOTZ3::new(&ctx, vec!(bool1));
-    // let not2 = NOTZ3::new(&ctx, vec!(x1));
-    // let not3 = NOTZ3::new(&ctx, vec!(not2));
 
     let not1 = NOTZ3::new(&ctx, bool1);
     let not2 = NOTZ3::new(&ctx, x1);
@@ -878,7 +809,7 @@ fn test_imp_macro_1(){
 }
 
 #[test]
-fn test_bimp_macro_1(){
+fn test_equiv_macro_1(){
     let cfg = cfg_z3!();
     let ctx = ctx_z3!(&cfg);
     let equiv1 = equiv_z3!(&ctx,
@@ -886,6 +817,22 @@ fn test_bimp_macro_1(){
         bool_var_z3!(&ctx, "y")
     );
     assert_eq!("(and (=> x y) (=> y x))", ast_to_string_z3!(&ctx, equiv1));
+}
+
+#[test]
+fn test_ntrue_macro(){
+    let cfg = cfg_z3!();
+    let ctx = ctx_z3!(&cfg);
+    
+    let ntrue1 = ntrue_z3!(&ctx, 
+        vec!(bool_var_z3!(&ctx, "x2")), 
+        vec!(bool_var_z3!(&ctx, "x1"), 
+             bool_var_z3!(&ctx, "x3"), 
+             bool_var_z3!(&ctx, "x4"), 
+             bool_var_z3!(&ctx, "x5"), 
+             bool_var_z3!(&ctx, "x6")));
+
+    assert_eq!("(and x2 (not x1) (not x3) (not x4) (not x5) (not x6))", ast_to_string_z3!(&ctx, ntrue1));
 }
 
 #[test]
