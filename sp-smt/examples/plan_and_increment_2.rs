@@ -29,7 +29,7 @@ fn main() {
     let zero = int_z3!(&ctx, 0);
     let one = int_z3!(&ctx, 1);
     let two = int_z3!(&ctx, 2);
-    let hundred = int_z3!(&ctx, 4);
+    let goal_x = int_z3!(&ctx, 47);
 
     let int_sort = IntSortZ3::new(&ctx);
 
@@ -48,7 +48,7 @@ fn main() {
 
     // goal state:
     SlvPushZ3::new(&ctx, &slv);
-    slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, eq_z3!(&ctx, x0, hundred), eq_z3!(&ctx, pose0, poses[3])));
+    slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, eq_z3!(&ctx, x0, goal_x), eq_z3!(&ctx, pose0, poses[3])));
 
     let now = std::time::Instant::now();
 
@@ -57,45 +57,51 @@ fn main() {
         step2 = step2 + 2;
         SlvPopZ3::new(&ctx, &slv, 1);
 
-        let current_step: &str = &format!("pose_s{}", step);
-        let next_step: &str = &format!("pose_s{}", step + 1);
+        let current_step: &str = &format!("pose_s{}", step - 1);
+        let next_step: &str = &format!("pose_s{}", step);
 
-        let current_x: &str = &format!("x_s{}", step);
-        let next_x: &str = &format!("x_s{}", step + 1);
+        let current_x: &str = &format!("x_s{}", step - 1);
+        let next_x: &str = &format!("x_s{}", step);
+
+
+        // of course:
+        // current_step = guard
+        // next step = action
+
 
         let via1_via1 = and_z3!(&ctx,
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step)),
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step + 1)),
-            eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[1]), 
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step - 2)),
+            eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[1]),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step - 1)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[1]));
             
         let via2_via2 = and_z3!(&ctx,
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step2)),
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step2 + 2)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step2 - 4)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[2]), 
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step2 - 2)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[2]));
 
         let home_via1 = and_z3!(&ctx,
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntVarZ3::new(&ctx, &int_sort, current_x)),
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step)),
-            eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[0]), 
-            eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[1]));
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), zero),
+            eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[0]),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), zero),
+            eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[1]));          
 
         let home_via2 = and_z3!(&ctx, 
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntVarZ3::new(&ctx, &int_sort, current_x)),
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step2)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), zero),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), zero),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[0]),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[2]));
 
         let via1_table = and_z3!(&ctx, 
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntVarZ3::new(&ctx, &int_sort, current_x)), 
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), goal_x),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), goal_x),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[1]),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[3]));
 
         let via2_table = and_z3!(&ctx,
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntVarZ3::new(&ctx, &int_sort, current_x)),
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step2)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), goal_x),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), goal_x),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[2]),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[3]));
 
@@ -112,18 +118,12 @@ fn main() {
         
         // goal state:
         slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, 
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), hundred), 
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), goal_x), 
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[3])));
 
     }
 
     let model = slv_get_model_z3!(&ctx, &slv);
-
-    // let modelsasdf = SlvGetAllModelsZ3::new(&ctx, &slv).s;
-
-    // for modelasdf in modelsasdf {
-    //     println!("{}", modelasdf);
-    // }
 
     let num = ModelGetNumConstsZ3::new(&ctx, model);
     let mut frames = vec!();
