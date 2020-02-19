@@ -344,8 +344,8 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         }
 
         if step > 0 {
-            for c in &sat_model.model_clauses {
-                // model clauses has cur and next. let cur refer to previous step.
+            for c in &sat_model.trans_clauses {
+                // transition relation clauses has cur and next. let cur refer to previous step.
                 let clause: Vec<cryptominisat::Lit> = c.0.iter().map(|l| {
                     if is_norm(&l) {
                         if l.neg { !vars[ci(l.var)+(step-1)*nv] } else { vars[ci(l.var)+(step-1)*nv] }
@@ -358,6 +358,21 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                 }).collect();
                 s.add_clause(&clause);
             }
+
+            // make a clause for the disjunction of the transitions.
+            let clause: Vec<cryptominisat::Lit> = sat_model.trans_map.values().map(|l| {
+                if is_norm(&l) {
+                    panic!("bad");
+                    if l.neg { !vars[ci(l.var)+(step-1)*nv] } else { vars[ci(l.var)+(step-1)*nv] }
+                } else if is_next(&l) {
+                    panic!("bad21");
+                    let i = pairing.iter().find(|(_idx,jdx)| &l.var == jdx).unwrap().0;
+                    if l.neg { !vars[ci(i)+step*nv] } else { vars[ci(i)+step*nv] }
+                } else {
+                    if l.neg { !vars[ti(l.var)+(step-1)*nv] } else { vars[ti(l.var)+(step-1)*nv] }
+                }
+            }).collect();
+            s.add_clause(&clause);
         }
 
         // add new goals
@@ -481,6 +496,20 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
             println!("Found plan after {} steps", step+1);
             steps = step as i32 + 1;
             // println!("{:#?}", s.get_model());
+
+
+            // print all transition names.
+            for i in 0..step {
+                for (n, l) in &sat_model.trans_map {
+                    let v = vars[ti(l.var)+(i)*nv];
+                    if s.is_true(v) {
+                        println!("{}: {}", i, n);
+                    }
+                }
+            }
+
+
+
             break;
         } else {
             let new_vars: Vec<cryptominisat::Lit> = (0 .. all_num_vars).map(|_v| s.new_var()).collect();
