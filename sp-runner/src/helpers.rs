@@ -267,10 +267,14 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
     type GLit = guard_extraction::Lit;
     type CLit = cryptominisat::Lit;
 
-    // s.set_num_threads(4); play with this some day
-    let nv = sat_model.norm_vars.len();
-    let all_num_vars = sat_model.num_vars - nv;
-    let mut vars: Vec<CLit> = (0 .. all_num_vars).map(|_v| s.new_var()).collect();
+    // s.set_num_threads(1); // play with this some day
+
+    let vars_per_step = sat_model.num_aux_vars
+        + sat_model.norm_vars.len()
+        + sat_model.trans_map.len()
+        + 1; // goal activation literal
+
+    let mut vars: Vec<CLit> = (0 .. vars_per_step).map(|_v| s.new_var()).collect();
 
     let pairing: Vec<_> = sat_model.norm_vars
         .iter()
@@ -278,36 +282,31 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         .map(|(x, y)| (*x, *y))
         .collect();
 
-    let ci = |i| {
-        sat_model.norm_vars.iter().position(|&r| r == i).unwrap()
+    let map_lit = |l: &GLit| {
+        if sat_model.norm_vars.contains(&l.var) {
+            sat_model.norm_vars.iter().position(|&r| r == l.var).unwrap()
+        } else if sat_model.next_vars.contains(&l.var) {
+            panic!("dont use");
+        } else if sat_model.trans_map.values().any(|&val| val == l.var as i32) {
+            l.var - sat_model.next_vars.len()
+        } else {
+            l.var - sat_model.next_vars.len()
+        }
     };
 
-    let ti = |i| {
-        i - sat_model.next_vars.len() // next does not exist...
+    let map_at_step = |vars: &Vec<CLit>, l: &GLit, step: usize| {
+        let lit = vars[map_lit(l) + step*vars_per_step];
+        if l.neg { !lit } else { lit }
     };
 
-    let is_norm = |l: &GLit| {
-        sat_model.norm_vars.contains(&l.var)
-    };
-
-    let is_next = |l: &guard_extraction::Lit| {
+    let is_next = |l: &GLit| {
         sat_model.next_vars.contains(&l.var)
-    };
-
-    let is_ts = |l: &guard_extraction::Lit| {
-        !is_norm(l) && !is_next(l)
     };
 
     // add clauses for the initial state
     for c in &sat_model.init_clauses {
-        let clause: Vec<cryptominisat::Lit> = c.0.iter().map(|l| {
-            if is_norm(l) {
-                if l.neg { !vars[ci(l.var)] } else { vars[ci(l.var)] }
-            } else if is_ts(l) {
-                if l.neg { !vars[ti(l.var)] } else { vars[ti(l.var)] }
-            } else {
-                panic!("error");
-            }
+        let clause: Vec<CLit> = c.0.iter().map(|l| {
+            map_at_step(&vars, l, 0)
         }
         ).collect();
         s.add_clause(&clause);
@@ -319,26 +318,12 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         // println!("START STEP {}", step);
         let now = std::time::Instant::now();
 
-        let goal_active = s.new_var();
-        vars.push(goal_active);
-
-        // println!("vars.len: {}", vars.len());
-
-        // at each step we have  + 1 extra variables due to goal activation.
-        let nv = all_num_vars + 1;
-
+        let goal_active = vars[vars.len()-1];
 
         // in all steps, add all global invariants.
         for c in &sat_model.global_invariants {
-            let mut clause: Vec<cryptominisat::Lit> = c.0.iter().flat_map(|l| {
-                if sat_model.norm_vars.contains(&l.var) {
-                    if l.neg { Some(!vars[ci(l.var)+step*nv]) } else { Some(vars[ci(l.var)+step*nv]) }
-                } else if is_ts(l) {
-                    if l.neg { Some(!vars[ti(l.var)+step*nv]) } else { Some(vars[ti(l.var)+step*nv]) }
-                } else {
-                    panic!("error");
-                    None
-                }
+            let clause: Vec<CLit> = c.0.iter().map(|l| {
+                map_at_step(&vars, l, step)
             }).collect();
             s.add_clause(&clause);
         }
@@ -346,46 +331,39 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         if step > 0 {
             for c in &sat_model.trans_clauses {
                 // transition relation clauses has cur and next. let cur refer to previous step.
-                let clause: Vec<cryptominisat::Lit> = c.0.iter().map(|l| {
-                    if is_norm(&l) {
-                        if l.neg { !vars[ci(l.var)+(step-1)*nv] } else { vars[ci(l.var)+(step-1)*nv] }
-                    } else if is_next(&l) {
+                let clause: Vec<CLit> = c.0.iter().map(|l| {
+                    if is_next(&l) {
+                        let mut l = l.clone();
                         let i = pairing.iter().find(|(_idx,jdx)| &l.var == jdx).unwrap().0;
-                        if l.neg { !vars[ci(i)+step*nv] } else { vars[ci(i)+step*nv] }
+                        l.var = i;
+                        map_at_step(&vars, &l, step)
                     } else {
-                        if l.neg { !vars[ti(l.var)+(step-1)*nv] } else { vars[ti(l.var)+(step-1)*nv] }
+                        map_at_step(&vars, l, step - 1)
                     }
                 }).collect();
                 s.add_clause(&clause);
             }
 
             // make a clause for the disjunction of the transitions.
-            let clause: Vec<cryptominisat::Lit> = sat_model.trans_map.values().map(|l| {
-                if is_norm(&l) {
-                    panic!("bad");
-                    if l.neg { !vars[ci(l.var)+(step-1)*nv] } else { vars[ci(l.var)+(step-1)*nv] }
-                } else if is_next(&l) {
-                    panic!("bad21");
-                    let i = pairing.iter().find(|(_idx,jdx)| &l.var == jdx).unwrap().0;
-                    if l.neg { !vars[ci(i)+step*nv] } else { vars[ci(i)+step*nv] }
-                } else {
-                    if l.neg { !vars[ti(l.var)+(step-1)*nv] } else { vars[ti(l.var)+(step-1)*nv] }
-                }
-            }).collect();
-            s.add_clause(&clause);
+            // let clause: Vec<CLit> = sat_model.trans_map.values().map(|l| {
+            //     if is_norm(&l) {
+            //         panic!("bad");
+            //         if l.neg { !vars[ci(l.var)+(step-1)*nv] } else { vars[ci(l.var)+(step-1)*nv] }
+            //     } else if is_next(&l) {
+            //         panic!("bad21");
+            //         let i = pairing.iter().find(|(_idx,jdx)| &l.var == jdx).unwrap().0;
+            //         if l.neg { !vars[ci(i)+step*nv] } else { vars[ci(i)+step*nv] }
+            //     } else {
+            //         if l.neg { !vars[ti(l.var)+(step-1)*nv] } else { vars[ti(l.var)+(step-1)*nv] }
+            //     }
+            // }).collect();
+            // s.add_clause(&clause);
         }
 
         // add new goals
         for c in &sat_model.goal_clauses {
-            let mut clause: Vec<cryptominisat::Lit> = c.0.iter().flat_map(|l| {
-                if sat_model.norm_vars.contains(&l.var) {
-                    if l.neg { Some(!vars[ci(l.var)+step*nv]) } else { Some(vars[ci(l.var)+step*nv]) }
-                } else if is_ts(l) {
-                    if l.neg { Some(!vars[ti(l.var)+step*nv]) } else { Some(vars[ti(l.var)+step*nv]) }
-                } else {
-                    panic!("error");
-                    None
-                }
+            let clause: Vec<CLit> = c.0.iter().map(|l| {
+                map_at_step(&vars, l,step)
             }).collect();
 
             s.add_clause(&clause);
@@ -393,15 +371,8 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
 
         // add all invar clauses
         for c in &sat_model.invar_clauses {
-            let mut clause: Vec<cryptominisat::Lit> = c.0.iter().flat_map(|l| {
-                if sat_model.norm_vars.contains(&l.var) {
-                    if l.neg { Some(!vars[ci(l.var)+step*nv]) } else { Some(vars[ci(l.var)+step*nv]) }
-                } else if is_ts(l) {
-                    if l.neg { Some(!vars[ti(l.var)+step*nv]) } else { Some(vars[ti(l.var)+step*nv]) }
-                } else {
-                    panic!("error");
-                    None
-                }
+            let clause: Vec<CLit> = c.0.iter().map(|l| {
+                map_at_step(&vars, l,step)
             }).collect();
 
             s.add_clause(&clause);
@@ -411,23 +382,10 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         // (so we can finish one goal early but then keep going)
         // for top in &sat_model.goal_tops {
         for (invar, top) in sat_model.invar_tops.iter().zip(sat_model.goal_tops.iter()) {
-            let mut clause: Vec<cryptominisat::Lit> = Vec::new();
+            let mut clause: Vec<CLit> = Vec::new();
             for i in 0..(step+1) {
-                let lit = if sat_model.norm_vars.contains(&top.var) {
-                    panic!("unexpected");
-                    if top.neg { Some(!vars[ci(top.var)+i*nv]) } else { Some(vars[ci(top.var)+i*nv]) }
-                } else if is_ts(top) {
-                    if top.neg { panic!("not good"); }
-                    if top.neg { Some(!vars[ti(top.var)+i*nv]) } else { Some(vars[ti(top.var)+i*nv]) }
-                } else {
-                    panic!("error");
-                    None
-                };
-
-                if let Some(l) = lit {
-                    clause.push(l);
-                } else { panic!("ho no"); }
-
+                let l = map_at_step(&vars, top, i);
+                clause.push(l);
             }
 
             // here we force only TOP to be true. which should propagate down...
@@ -443,40 +401,16 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
             // this is the same semantics as the LTL UNTIL operator.
 
 
-            for i in 0..(step) {
+            for i in 0..step {
                 let i = i as usize;
-                let mut clause: Vec<cryptominisat::Lit> = Vec::new();
+                let mut clause: Vec<CLit> = Vec::new();
 
-                let i_lit = if sat_model.norm_vars.contains(&invar.var) {
-                    panic!("unexpected");
-                    if invar.neg { Some(!vars[ci(invar.var)+i*nv]) } else { Some(vars[ci(invar.var)+i*nv]) }
-                } else if is_ts(top) {
-                    if invar.neg { panic!("not good"); }
-                    if invar.neg { Some(!vars[ti(invar.var)+i*nv]) } else { Some(vars[ti(invar.var)+i*nv]) }
-                } else {
-                    panic!("error");
-                    None
-                };
-
-                if let Some(l) = i_lit {
-                    clause.push(l);
-                } else { panic!("ho no"); }
+                let l = map_at_step(&vars, invar, i);
+                clause.push(l);
 
                 for j in 0..(i+1) {
-                    let lit = if sat_model.norm_vars.contains(&top.var) {
-                        panic!("unexpected");
-                        if top.neg { Some(!vars[ci(top.var)+j*nv]) } else { Some(vars[ci(top.var)+j*nv]) }
-                    } else if is_ts(top) {
-                        if top.neg { panic!("not good"); }
-                        if top.neg { Some(!vars[ti(top.var)+j*nv]) } else { Some(vars[ti(top.var)+j*nv]) }
-                    } else {
-                        panic!("error");
-                        None
-                    };
-
-                    if let Some(l) = lit {
-                        clause.push(l);
-                    } else { panic!("ho no"); }
+                    let l = map_at_step(&vars, top, j);
+                    clause.push(l);
                 }
 
                 s.add_clause(&clause);
@@ -501,18 +435,31 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
             // print all transition names.
             for i in 0..step {
                 for (n, l) in &sat_model.trans_map {
-                    let v = vars[ti(l.var)+(i)*nv];
+                    let v = map_at_step(&vars, &GLit { var: *l as usize, neg: false }, i);
                     if s.is_true(v) {
                         println!("{}: {}", i, n);
                     }
                 }
+                println!("------------------");
+
+                for v in &sat_model.norm_vars {
+                    let v = map_at_step(&vars, &GLit { var: *v as usize, neg: false }, i);
+                    if s.is_true(v) {
+                        println!("{:?}: true", v);
+                    } else {
+                        println!("{:?}: false", v);
+                    }
+                }
+
+                println!("");
+
+
+
             }
-
-
 
             break;
         } else {
-            let new_vars: Vec<cryptominisat::Lit> = (0 .. all_num_vars).map(|_v| s.new_var()).collect();
+            let new_vars: Vec<CLit> = (0 .. vars_per_step).map(|_v| s.new_var()).collect();
 
             vars.extend(new_vars.iter());
 
