@@ -244,7 +244,7 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
 }
 
 use cryptominisat::*;
-pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predicate,Predicate)]) {
+pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predicate,Predicate)]) -> i32 {
     let (c, var_map, pred_map) = make_context(&model);
 
     let initial = sp_pred_to_ex(&initial, &var_map, &pred_map);
@@ -314,6 +314,7 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
     }
 
     // unroll transitions, goals, and later invariants up to n steps
+    let mut steps = -1i32;
     for step in 0..20 {
         // println!("START STEP {}", step);
         let now = std::time::Instant::now();
@@ -396,8 +397,6 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                     clause.push(l);
                 } else { panic!("ho no"); }
 
-                println!("gtop: {}", ti(top.var)+i*nv);
-                println!("adding goal: {}", i);
             }
 
             // here we force only TOP to be true. which should propagate down...
@@ -417,8 +416,6 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                 let i = i as usize;
                 let mut clause: Vec<cryptominisat::Lit> = Vec::new();
 
-                println!("itop: {}", ti(invar.var)+i*nv);
-
                 let i_lit = if sat_model.norm_vars.contains(&invar.var) {
                     panic!("unexpected");
                     if invar.neg { Some(!vars[ci(invar.var)+i*nv]) } else { Some(vars[ci(invar.var)+i*nv]) }
@@ -435,7 +432,6 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                 } else { panic!("ho no"); }
 
                 for j in 0..(i+1) {
-                    println!("jtop: {}", ti(top.var)+j*nv);
                     let lit = if sat_model.norm_vars.contains(&top.var) {
                         panic!("unexpected");
                         if top.neg { Some(!vars[ci(top.var)+j*nv]) } else { Some(vars[ci(top.var)+j*nv]) }
@@ -450,13 +446,10 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                     if let Some(l) = lit {
                         clause.push(l);
                     } else { panic!("ho no"); }
-
-                    println!("adding invar: {} {}", i, j);
                 }
 
                 s.add_clause(&clause);
             }
-
         }
 
         let ga = !goal_active;
@@ -470,6 +463,7 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         println!("Step {} computed in: {}ms\n", step, now.elapsed().as_millis());
         if reached_goal {
             println!("Found plan after {} steps", step+1);
+            steps = step as i32 + 1;
             // println!("{:#?}", s.get_model());
             break;
         } else {
@@ -481,6 +475,8 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
     }
 
     println!("Plan computed in: {}ms\n", now.elapsed().as_millis());
+
+    return steps; // for now :)
 }
 
 fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
@@ -587,185 +583,237 @@ pub fn make_initial_state(model: &Model) -> SPState {
     return s;
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
 
-#[test]
-fn test_guard_extraction() {
-    use crate::testing::*;
+    #[test]
+    #[serial]
+    fn test_guard_extraction() {
+        use crate::testing::*;
 
-    // Make model
-    let mut m = Model::new_root("test_guard_extraction", Vec::new());
+        // Make model
+        let mut m = Model::new_root("test_guard_extraction", Vec::new());
 
-    // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+        // Make resoureces
+        m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+        m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
-    let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
-        .flat_map(|si| match si {
-            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
-            _ => None
-        }).collect();
+        let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
+            .flat_map(|si| match si {
+                SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
+                _ => None
+            }).collect();
 
-    // we need to assume that we are in a state that adheres to the resources
-    let initial = Predicate::AND(inits);
+        // we need to assume that we are in a state that adheres to the resources
+        let initial = Predicate::AND(inits);
 
-    // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+        // Make some global stuff
+        let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+        let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
 
-    // (offline) Specifications
-    let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
+        // (offline) Specifications
+        let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+        m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
-    let mut ts_model = TransitionSystemModel::from(&m);
-    let (new_guards, new_initial) = extract_guards(&ts_model, &initial);
-    update_guards(&mut ts_model, &new_guards);
+        let mut ts_model = TransitionSystemModel::from(&m);
+        let (new_guards, new_initial) = extract_guards(&ts_model, &initial);
+        update_guards(&mut ts_model, &new_guards);
 
-    ts_model.specs.clear();
-    crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
+        ts_model.specs.clear();
+        crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
 
-    assert_eq!(new_guards.len(), 4);
-    assert_ne!(new_initial, Predicate::TRUE);
-}
+        assert_eq!(new_guards.len(), 4);
+        assert_ne!(new_initial, Predicate::TRUE);
+    }
 
-#[test]
-fn test_sat_planning() {
-    use crate::testing::*;
+    #[test]
+    #[serial]
+    fn test_sat_planning_ge_len11() {
+        use crate::testing::*;
 
-    // Make model
-    let mut m = Model::new_root("test_sat_planning", Vec::new());
+        // Make model
+        let mut m = Model::new_root("test_sat_planning", Vec::new());
 
-    // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+        // Make resoureces
+        m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+        m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
-    // was 872
-    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
-    let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
-    let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
+        // was 872
+        let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+        let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+        let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+        let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
 
-    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
-    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
-    let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
-    let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
-
-
-    // spec to make it take more steps
-    let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
-    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
-
-    let mut ts_model = TransitionSystemModel::from(&m);
-    let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
-    update_guards(&mut ts_model, &new_guards);
-
-    let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
-
-    let i = Predicate::AND(vec![new_initial, init.clone()]);
-    crate::planning::generate_offline_nuxvm(&ts_model, &i);
-    // crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
-
-    // start planning test
-
-    let i1 = Predicate::TRUE;
-    let g1 = p!(p:r1a == "at");
-    //let i2 = p!(!p:r2active);
-    let i2 = Predicate::TRUE;
-    let g2 = p!(p:r2a == "at");
-    //let g2 = p!(p:r2active);
-
-    let goals = vec![(i1, g1), (i2,g2)];
-    //let goal = p!(p:r1a == "at");
-
-    let now = std::time::Instant::now();
-    plan(&ts_model, &init, &goals);
-    println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
-
-    assert!(false);
-}
-
-#[test]
-fn invar_plan() {
-    use crate::testing::*;
-
-    // Make model
-    let mut m = Model::new_root("tsi", Vec::new());
-
-    // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
-
-    // was 872
-    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
-    let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
-    let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
-
-    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
-    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
-    let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
-    let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+        let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+        let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+        let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+        let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
 
 
-    let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
-    let new_table_zone = refine_invariant(&m, &table_zone);
-    println!("new table zone:\n{}", new_table_zone);
+        // spec to make it take more steps
+        let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
+        m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
-    // no guard extr.
-    let ts_model = TransitionSystemModel::from(&m);
+        let mut ts_model = TransitionSystemModel::from(&m);
+        let (new_guards, new_initial) = extract_guards(&ts_model, &Predicate::TRUE);
+        update_guards(&mut ts_model, &new_guards);
 
-    let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
+        let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
 
-    crate::planning::generate_offline_nuxvm(&ts_model, &init);
+        let i = Predicate::AND(vec![new_initial, init.clone()]);
+        crate::planning::generate_offline_nuxvm(&ts_model, &i);
+        // crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
 
-    // start planning test
+        // start planning test
 
-    //let i1 = Predicate::TRUE;
-    let i1 = table_zone.clone();
-    //let i1 = new_table_zone.clone();
-    let g1 = p!(p:r1a == "at");
-    let g1 = Predicate::AND(vec![g1, table_zone.clone()]);
+        let i1 = Predicate::TRUE;
+        let g1 = p!(p:r1a == "at");
+        //let i2 = p!(!p:r2active);
+        let i2 = Predicate::TRUE;
+        let g2 = p!(p:r2a == "at");
+        //let g2 = p!(p:r2active);
+
+        let goals = vec![(i1, g1), (i2,g2)];
+        //let goal = p!(p:r1a == "at");
+
+        let now = std::time::Instant::now();
+        let len = plan(&ts_model, &init, &goals);
+        println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
+
+        assert_eq!(len, 11);
+    }
+
+    #[test]
+    #[serial]
+    fn test_sat_planning_invar_len11() {
+        use crate::testing::*;
+
+        // Make model
+        let mut m = Model::new_root("tsi", Vec::new());
+
+        // Make resoureces
+        m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+        m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+        // was 872
+        let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+        let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+        let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+        let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
+
+        let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+        let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+        let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+        let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
 
 
-    //let i2 = Predicate::TRUE;
-    let i2 = table_zone.clone();
-    //let i2 = new_table_zone.clone();
-    let g2 = p!(p:r2a == "at");
-    let g2 = Predicate::AND(vec![g2, table_zone.clone()]);
+        let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
+        let new_table_zone = refine_invariant(&m, &table_zone);
+        println!("new table zone:\n{}", new_table_zone);
 
-    let goals = vec![(i1, g1), (i2,g2)];
+        // no guard extr.
+        let ts_model = TransitionSystemModel::from(&m);
 
-    let now = std::time::Instant::now();
-    plan(&ts_model, &init, &goals);
-    println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
+        let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
 
-    assert!(false);
-}
+        crate::planning::generate_offline_nuxvm(&ts_model, &init);
 
-#[test]
-fn test_invariant_refinement() {
-    use crate::testing::*;
+        // start planning test
 
-    // Make model
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+        //let i1 = Predicate::TRUE;
+        let i1 = table_zone.clone();
+        //let i1 = new_table_zone.clone();
+        let g1 = p!(p:r1a == "at");
+        let g1 = Predicate::AND(vec![g1, table_zone.clone()]);
 
-    // Make resoureces
-    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
-    // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+        //let i2 = Predicate::TRUE;
+        let i2 = table_zone.clone();
+        //let i2 = new_table_zone.clone();
+        let g2 = p!(p:r2a == "at");
+        let g2 = Predicate::AND(vec![g2, table_zone.clone()]);
 
-    // (offline) Specifications
-    let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+        let goals = vec![(i1, g1), (i2,g2)];
 
-    let new_table_zone = refine_invariant(&m, &table_zone);
-    // println!("new spec: {}", new_table_zone);
+        let now = std::time::Instant::now();
+        let len = plan(&ts_model, &init, &goals);
+        println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
 
-    m.add_item(SPItem::Spec(Spec::new("table_zone", new_table_zone)));
+        assert_eq!(len, 11);
+    }
 
-    let ts_model = TransitionSystemModel::from(&m);
-    crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
+    #[test]
+    #[serial]
+    fn test_sat_planning_invar_len9() {
+        use crate::testing::*;
 
-    assert!(false);
+        // Make model
+        let mut m = Model::new_root("tsi", Vec::new());
+
+        // Make resoureces
+        m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+        m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+        // was 872
+        let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+        let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+        let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+        let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
+
+        let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+        let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+        let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+        let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+
+        // no guard extr.
+        let ts_model = TransitionSystemModel::from(&m);
+
+        let init = p!([p:r1a == "away"] && [p:r1r == "away"] && [!p:r1active] && [!p:r1activate] && [p:r2a == "away"] && [p:r2r == "away"] && [!p:r2active] && [!p:r2activate]);
+
+        let i1 = Predicate::TRUE;
+        let g1 = p!(p:r1a == "at");
+
+        let i2 = Predicate::TRUE;
+        let g2 = p!(p:r2a == "at");
+
+        let goals = vec![(i1, g1), (i2,g2)];
+
+        let now = std::time::Instant::now();
+        let len = plan(&ts_model, &init, &goals);
+        println!("Planning test performed in: {}ms\n", now.elapsed().as_millis());
+
+        assert_eq!(len, 9);
+    }
+
+    #[test]
+    #[serial]
+    fn test_invariant_refinement() {
+        use crate::testing::*;
+
+        // Make model
+        let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+        // Make resoureces
+        m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+        m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+        // Make some global stuff
+        let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+        let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+
+        // (offline) Specifications
+        let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+
+        let new_table_zone = refine_invariant(&m, &table_zone);
+        // println!("new spec: {}", new_table_zone);
+
+        m.add_item(SPItem::Spec(Spec::new("table_zone", new_table_zone)));
+
+        let ts_model = TransitionSystemModel::from(&m);
+        crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
+
+        assert!(false);
+    }
 }
