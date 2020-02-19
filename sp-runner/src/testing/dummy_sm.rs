@@ -6,15 +6,15 @@ pub fn make_dummy_sm(name: &str) -> Resource {
     resource!{
         name: name,
         command!{
-            topic: "Control",
-            msg_type: "dummy_sm_messages/msg/Control",
+            topic: "command",
+            msg_type: "cubes_msgs/msg/SMCommand",
 
             attach_r1_box: bool,
             attach_r2_box: bool,
         },
         measured!{
-            topic: "State",
-            msg_type: "dummy_sm_messages/msg/State",
+            topic: "state",
+            msg_type: "cubes_msgs/msg/SMState",
 
             attached_r1_box: bool,
             attached_r2_box: bool,

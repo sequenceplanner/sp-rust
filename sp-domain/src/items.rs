@@ -964,6 +964,7 @@ pub struct Operation {
     node: SPNode,
     transitions: Vec<Transition>,
     goal: Option<IfThen>,
+    state_variable: Variable,
 }
 
 impl Noder for Operation {
@@ -975,6 +976,7 @@ impl Noder for Operation {
     }
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
         get_from_list(self.transitions.as_slice(), next, path)
+            .or_else(|| self.state_variable.get(path))
             .or_else(|| self.goal.as_ref().and_then(|x| x.get(path)))
     }
     fn find_item_among_children<'a>(
@@ -984,6 +986,9 @@ impl Noder for Operation {
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| {
+                self.state_variable.find_item(name, path_sections)
+            })
+            .or_else(|| {
                 self.goal
                     .as_ref()
                     .and_then(|x| x.find_item(name, path_sections))
@@ -992,10 +997,12 @@ impl Noder for Operation {
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         self.goal.as_mut().map(|mut x| x.update_path(path, changes));
+        self.state_variable.update_path(path, changes);
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.transitions.iter_mut().for_each(|i| i.rewrite_expressions(mapping));
         if let Some(goal) = &mut self.goal { goal.rewrite_expressions(mapping) };
+        self.state_variable.rewrite_expressions(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
@@ -1009,9 +1016,19 @@ impl Operation {
         goal: Option<IfThen>,
     ) -> Operation {
         let node = SPNode::new(name);
+
+        let op_state = Variable::new(
+            "state",
+            VariableType::Estimated,
+            SPValueType::String,
+            "i".to_spvalue(),
+            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+        );
+
         Operation {
             node,
             transitions: trans.to_vec(),
+            state_variable: op_state,
             goal,
         }
     }
@@ -1019,6 +1036,11 @@ impl Operation {
     pub fn goal(&self) -> &Option<IfThen> {
         &self.goal
     }
+
+    pub fn state_variable(&self) -> &Variable {
+        &self.state_variable
+    }
+
 
     pub fn transitinos(&self) -> &Vec<Transition> {
         &self.transitions

@@ -9,14 +9,14 @@ pub fn make_dummy_mecademic(name: &str, poses: &[&str]) -> Resource {
     resource!{
         name: name,
         command!{
-            topic: "Control",
-            msg_type: "dummy_mecademic_messages/msg/Control",
+            topic: "command",
+            msg_type: "cubes_msgs/msg/RCommand",
 
             ref_pos : domain,
         },
         measured!{
-            topic: "State",
-            msg_type: "dummy_mecademic_messages/msg/State",
+            topic: "state",
+            msg_type: "cubes_msgs/msg/RState",
 
             act_pos : domain,
 

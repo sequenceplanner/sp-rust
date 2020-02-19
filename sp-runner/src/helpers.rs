@@ -337,13 +337,24 @@ pub fn make_initial_state(model: &Model) -> SPState {
     }
 
     // add global state
-    let vars: Vec<&Variable> = items
+    let mut vars: Vec<&Variable> = items
         .iter()
         .flat_map(|i| match i {
             SPItem::Variable(v) => Some(v),
             _ => None,
         })
         .collect();
+
+    // add operation state
+    let global_ops: Vec<&Operation> = items
+        .iter()
+        .flat_map(|i| match i {
+            SPItem::Operation(o) => Some(o),
+            _ => None,
+        })
+        .collect();
+    let global_ops_vars = global_ops.iter().map(|o|o.state_variable());
+    vars.extend(global_ops_vars);
 
     let state: Vec<_> = vars.iter().map(|v| (v.node().path().clone(), v.initial_value())).collect();
     s.extend(SPState::new_from_values(&state[..]));

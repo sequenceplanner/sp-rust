@@ -58,6 +58,12 @@ impl GModel {
         self.model.add_item(SPItem::Variable(v))
     }
 
+    pub fn add_predicate_variable(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
+        let v = Variable::new(name, VariableType::Estimated, SPValueType::String, domain[0].clone(),
+                              domain.to_vec());
+        self.model.add_item(SPItem::Variable(v))
+    }
+
     pub fn add_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
         let trans = Transition::new(
             name,
@@ -69,40 +75,39 @@ impl GModel {
         self.model.add_item(SPItem::Transition(trans));
     }
 
-    pub fn add_op(&mut self, name: &str, resets: bool, pre: Predicate,
-                  post: Predicate, post_actions: Vec<Action>,
+    pub fn find(&mut self, name: &str, path_sections: &[&str]) -> SPPath {
+        self.model.find_item(name, path_sections)
+            .expect(&format!("cannot find {:?} / {}", path_sections, name)).path()
+    }
+
+    pub fn add_op(&mut self, name: &str, resets: bool, pre: &Predicate,
+                  post: &Predicate, post_actions: &[Action],
                   invariant: Option<Predicate>) -> SPPath {
-        let op_state = Variable::new(
-            name,
-            VariableType::Estimated,
-            SPValueType::String,
-            "i".to_spvalue(),
-            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
-        );
-        let op_state = self.model.add_item(SPItem::Variable(op_state));
+
+        let state = SPPath::from_slice(&[self.model.name(), name, "state"]);
 
         let op_start = Transition::new(
             "start",
-            Predicate::AND(vec![p!(p:op_state == "i"), pre.clone()]),
-            vec![a!(p:op_state = "e")],
+            Predicate::AND(vec![p!(p:state == "i"), pre.clone()]),
+            vec![a!(p:state = "e")],
             vec![],
             true,
         );
         let mut f_actions =
             if resets {
-                vec![a!(p:op_state = "i")]
+                vec![a!(p:state = "i")]
             } else {
-                vec![a!(p:op_state = "f")]
+                vec![a!(p:state = "f")]
             };
-        f_actions.extend(post_actions);
+        f_actions.extend(post_actions.iter().cloned());
         let op_finish = Transition::new(
             "finish",
-            Predicate::AND(vec![p!(p:op_state == "e"), post.clone()]),
+            Predicate::AND(vec![p!(p:state == "e"), post.clone()]),
             f_actions,
             vec![],
             false,
         );
-        let op_goal = IfThen::new("goal", p!(p:op_state == "e"), post.clone(), invariant);
+        let op_goal = IfThen::new("goal", p!(p:state == "e"), post.clone(), invariant);
 
         let op = Operation::new(
             name,
@@ -125,8 +130,25 @@ impl GModel {
     }
 
     pub fn make_model(self) -> (Model, SPState) {
+
+        let mut s = self.initial_state.clone();
+
+        // add operation to the initial state here
+        let global_ops: Vec<&Operation> = self.model.items()
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Operation(o) => Some(o),
+                _ => None,
+            })
+            .collect();
+        let global_ops_vars = global_ops.iter().map(|o|o.state_variable());
+
+        let state: Vec<_> = global_ops_vars.map(|v| (v.node().path().clone(), v.initial_value())).collect();
+        s.extend(SPState::new_from_values(&state[..]));
+
+
         // lastly, add all specifications.
-        (self.model, self.initial_state)
+        (self.model, s)
     }
 }
 
@@ -135,8 +157,9 @@ impl GModel {
 
 pub fn cubes() -> (Model, SPState, Predicate) {
     let mut m = GModel::new("cubes");
-    let r1 = m.use_resource(make_dummy_mecademic("r1", &["at", "away"]));
-    let r2 = m.use_resource(make_dummy_mecademic("r2", &["at", "away"]));
+
+    let r1 = m.use_resource(make_dummy_mecademic("r1", &["r1table", "r1buffer"]));
+    let r2 = m.use_resource(make_dummy_mecademic("r2", &["r2table", "r2buffer"]));
     let sm = m.use_resource(make_dummy_sm("sm"));
 
     let cube = m.add_estimated_domain("cube_pos", &[
@@ -147,7 +170,7 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r1act = &r1["act_pos"];
     let r2act = &r2["act_pos"];
 
-    m.add_invar("table_zone", &p!(!([p:r1act == "at"] && [p:r2act == "at"])));
+    m.add_invar("table_zone", &p!(!([p:r1act == "r1table"] && [p:r2act == "r2table"])));
 
     let r1prev = &r1["prev_pos"];
     let r2prev = &r2["prev_pos"];
@@ -158,29 +181,61 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let attached_box_r1 = &sm["attached_r1_box"];
     let attached_box_r2 = &sm["attached_r2_box"];
 
-    m.add_auto("r1_take_cube", &p!([p:r1act == "at"] && [p:cube == "table"] && [p:attached_box_r1]),
+    // m.add_auto("r1_take_cube", &p!([p:r1act == "r1table"] && [p:cube == "table"] && [p:attached_box_r1]),
+    //            &[a!(p:cube = "rob1")]);
+
+    // m.add_auto("r1_leave_cube", &p!([p:r1act == "r1buffer"] && [p:cube == "rob1"] && [p:attached_box_r1]),
+    //            &[a!(p:cube = "leave1"), a!(!p:attach_box_r1)]);
+
+    m.add_auto("r1_take_cube", &p!([p:r1act == "r1table"] && [p:cube == "table"]),
                &[a!(p:cube = "rob1")]);
 
+    m.add_auto("r1_leave_cube", &p!([p:r1act == "r1buffer"] && [p:cube == "rob1"]),
+               &[a!(p:cube = "leave1")]);
+
+
     // its never the case that rob1 holds the cube and we are not sending attach to the scene mgr
-    m.add_invar("sync_scene_status", &p!(!([p:cube == "rob1"] && [!p:attach_box_r1])));
+    //m.add_invar("sync_scene_status", &p!(!([p:cube == "rob1"] && [!p:attach_box_r1])));
 
     // its not allowed to take the cube unless the robot is in position
-    let p1 = p!(p:attached_box_r1);
-    let p2 = p!([p:r1act == "at"] || [p:cube == "rob1"]);
-    let p1_imp_p2 = Predicate::OR(vec![Predicate::NOT(Box::new(p1)), p2]);
-    m.add_invar("interact with sm at the right position", &p1_imp_p2);
+    let attach_exec = m.find("executing", &["sm", "attach_r1"]);
+    let detach_exec = m.find("executing", &["sm", "detach_r1"]);
+    let r1_move_exec = m.find("executing", &["r1", "move_to"]);
+
+    // not allowed to move the robot whilst interacting with scene manager
+    // m.add_invar("mutex move attach",
+    //             &p!(!( [p:attach_exec] && [p:r1_move_exec])));
+    // m.add_invar("mutex move deattach",
+    //             &p!(!( [p:detach_exec] && [p:r1_move_exec])));
+
+    //let p1 = p!(p:attached_box_r1);
+    //    let p2 = p!([p:r1act == "r1table"] || [p:cube == "rob1"]);
+
+    // let p1 = p!(p:attach_exec);
+    // let p2 = p!([p:r1act == "r1table"] || [p:r1act == "r1buffer"]);
+    // let p3 = p!([ [p:cube == "table"] && [p:r1act == "r1table"] ] ||
+    //             [ [p:cube == "leave1"] && [p:r1act == "r1buffer"] ]);
+    // let p4 = Predicate::AND(vec![p2,p3]);
+    // let p1_imp_p2 = Predicate::OR(vec![Predicate::NOT(Box::new(p1)), p4]);
+    // m.add_invar("interact with sm at the right position", &p1_imp_p2);
 
 
     // goal for testing
-    let g = p!([p:r1act == "away"] && [p:cube == "rob1"]);
+    //let g = p!([p:r1act == "r1buffer"] && [p:cube == "rob1"]);
+    let g = p!([p:cube == "leave1"] && [p:r1act == "r1table"]);
+
+    // make an operation with that goal
+    // m.add_op("take_part", false, &p!(p:cube != "rob1"), &p!([p:cube == "rob1"] && [p:r1act == "r1buffer"]), &[], None);
+
+    m.add_op("take_part", false, &p!(p:cube != "rob1"), &g, &[], None);
 
     m.initial_state(&[
-        (r1prev, "away".to_spvalue()),
-        (r2prev, "away".to_spvalue()),
-        (r1act, "away".to_spvalue()),
-        (r2act, "away".to_spvalue()),
-        (r1ref, "away".to_spvalue()),
-        (r2ref, "away".to_spvalue()),
+        (r1prev, "r1buffer".to_spvalue()),
+        (r2prev, "r2buffer".to_spvalue()),
+        (r1act, "r1buffer".to_spvalue()),
+        (r2act, "r2buffer".to_spvalue()),
+        (r1ref, "r1buffer".to_spvalue()),
+        (r2ref, "r2buffer".to_spvalue()),
 
         (attach_box_r1, false.to_spvalue()),
         (attach_box_r2, false.to_spvalue()),
@@ -199,7 +254,6 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 fn test_cubes() {
     let (m, s, g) = cubes();
 
-
     let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
         .flat_map(|si| match si {
             SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
@@ -211,7 +265,7 @@ fn test_cubes() {
 
     let mut ts_model = TransitionSystemModel::from(&m);
     println!("G GEN");
-    let (new_guards, new_initial) = extract_guards(&ts_model, &initial);
+    let (new_guards, _new_initial) = extract_guards(&ts_model, &initial);
     println!("G GEN DONE");
     update_guards(&mut ts_model, &new_guards);
 
@@ -233,6 +287,9 @@ fn test_cubes() {
     }
 
     println!("\n\n\n");
+
+    // println!("initial state");
+    // println!("{}",s);
 
     assert!(false);
 }
