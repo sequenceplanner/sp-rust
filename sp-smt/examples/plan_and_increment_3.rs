@@ -29,7 +29,7 @@ fn main() {
     let zero = int_z3!(&ctx, 0);
     let one = int_z3!(&ctx, 1);
     let two = int_z3!(&ctx, 2);
-    let goal_x = int_z3!(&ctx, 312);
+    let goal_x = int_z3!(&ctx, 21);
 
     let int_sort = IntSortZ3::new(&ctx);
 
@@ -50,6 +50,10 @@ fn main() {
     SlvPushZ3::new(&ctx, &slv);
     slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, eq_z3!(&ctx, x0, goal_x), eq_z3!(&ctx, pose0, poses[3])));
 
+    // save to extract frames later:
+    // let mut stuff = vec!();
+    // let mut transitions_taken = vec!();
+
     let now = std::time::Instant::now();
 
     while SlvCheckZ3::new(&ctx, &slv) != 1 && step < max_steps {
@@ -63,11 +67,14 @@ fn main() {
         let current_x: &str = &format!("x_s{}", step - 1);
         let next_x: &str = &format!("x_s{}", step);
 
+        // stuff.push(current_step);
+        // stuff.push(next_step);
+        // stuff.push(current_x);
+        // stuff.push(next_x);
 
         // of course:
         // current_step = guard
         // next step = action
-
 
         let via1_via1 = and_z3!(&ctx,
             eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step - 2)),
@@ -107,12 +114,26 @@ fn main() {
 
         slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, via1_via1, via2_via2, home_via1, home_via2, via1_table, via2_table));
         
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_via1, bool_var_z3!(&ctx, &format!("via1_via1_t{}", step))));
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_via2, bool_var_z3!(&ctx, &format!("via2_via2_t{}", step))));
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via1, bool_var_z3!(&ctx, &format!("home_via1_t{}", step))));
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_table, bool_var_z3!(&ctx, &format!("via1_table_t{}", step))));
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via2, bool_var_z3!(&ctx, &format!("home_via2_t{}", step))));
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_table, bool_var_z3!(&ctx, &format!("via2_table_t{}", step))));
+        let via1_via1_name = &format!("via1_via1_t{}", step);
+        let via2_via2_name = &format!("via2_via2_t{}", step);
+        let home_via1_name = &format!("home_via1_t{}", step);
+        let via1_table_name = &format!("via1_table_t{}", step);
+        let home_via2_name = &format!("home_via2_t{}", step);
+        let via2_table_name = &format!("via2_table_t{}", step);
+        
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_via1, bool_var_z3!(&ctx, via1_via1_name)));
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_via2, bool_var_z3!(&ctx, via2_via2_name)));
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via1, bool_var_z3!(&ctx, home_via1_name)));
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_table, bool_var_z3!(&ctx, via1_table_name)));
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via2, bool_var_z3!(&ctx, home_via2_name)));
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_table, bool_var_z3!(&ctx, via2_table_name)));
+
+        // stuff.push(via1_via1_name);
+        // stuff.push(via2_via2_name);
+        // stuff.push(home_via1_name);
+        // stuff.push(via1_table_name);
+        // stuff.push(home_via2_name);
+        // stuff.push(via2_table_name);
 
         SlvPushZ3::new(&ctx, &slv);
         
@@ -129,10 +150,20 @@ fn main() {
 
     println!("Model generation time: {}ms\n", now.elapsed().as_millis());
 
+    // let num = ModelGetNumConstsZ3::new(&ctx, model);
+    // let mut frames = vec!();
+
+    // for i in 0..stuff.len() {
+    //     let val = ModelGetConstInterpZ3::new(&ctx, model, stuff[i]);
+    //     let val_str = AstToStringZ3::new(&ctx, val);
+    // }
+
+
+    // could be done faster maybe ?
     let num = ModelGetNumConstsZ3::new(&ctx, model);
     let mut frames = vec!();
     unsafe {
-    for i in 0..max_steps {
+    for i in 0..step + 2 {
         let mut frame: (Vec<String>, String) = (vec!(), "".to_string());
         for j in 0..num {
             
