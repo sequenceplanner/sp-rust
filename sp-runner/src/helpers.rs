@@ -327,6 +327,22 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
         // at each step we have  + 1 extra variables due to goal activation.
         let nv = all_num_vars + 1;
 
+
+        // in all steps, add all global invariants.
+        for c in &sat_model.global_invariants {
+            let mut clause: Vec<cryptominisat::Lit> = c.0.iter().flat_map(|l| {
+                if sat_model.norm_vars.contains(&l.var) {
+                    if l.neg { Some(!vars[ci(l.var)+step*nv]) } else { Some(vars[ci(l.var)+step*nv]) }
+                } else if is_ts(l) {
+                    if l.neg { Some(!vars[ti(l.var)+step*nv]) } else { Some(vars[ti(l.var)+step*nv]) }
+                } else {
+                    panic!("error");
+                    None
+                }
+            }).collect();
+            s.add_clause(&clause);
+        }
+
         if step > 0 {
             for c in &sat_model.model_clauses {
                 // model clauses has cur and next. let cur refer to previous step.
