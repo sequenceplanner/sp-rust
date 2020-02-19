@@ -41,6 +41,10 @@ fn sp_pred_to_ex(p: &Predicate,
                     v => {
                         // find index in domain.
                         let dom = var.domain();
+                        if dom.iter().position(|e| e == v).is_none() {
+                            println!("VALUE: {} is not in domain of {}, which is {:?}",
+                                     v, var.path(), dom);
+                        }
                         Value::InDomain(dom.iter().position(|e| e == v).unwrap())
                     }
                 };
@@ -243,7 +247,7 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
 }
 
-fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
+pub fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
     ts_model.transitions.iter_mut().for_each(|ot| {
         match ng.get(&ot.path().to_string()) {
             Some(nt) => {
