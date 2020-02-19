@@ -1,0 +1,55 @@
+{
+    "related_transforms": [
+        {
+            "frame_id": "cubes/r1/meca_base_link",
+            "parent_id": "world",
+            "transform": {
+                "Vector3": {
+                    "x": 0.0,
+                    "y": 0.2,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                }
+            }
+		},
+		{
+            "frame_id": "cubes/r2/meca_base_link",
+            "parent_id": "world",
+            "transform": {
+                "Vector3": {
+                    "x": 0.0,
+                    "y": -0.2,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+ 		}
+            }
+                },
+		{
+            "frame_id": "cube",
+            "parent_id": "world",
+            "transform": {
+                "Vector3": {
+                    "x": 0.0,
+                    "y": 0.4,
+                    "z": 0.025
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                }
+            }
+        }
+    ]
+}

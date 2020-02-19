@@ -1,0 +1,412 @@
+{
+    "related_transforms": [
+        {
+            "frame_id": "f1_1",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.016000076622539,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_2",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.090000048279803,
+                    "y": 0.011999982886358,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_3",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.1740000322461,
+                    "y": 0.012000009417534,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_4",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.25700007662254,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_5",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.34200007662254,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_6",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.42600007662254,
+                    "y": 0.012000009417534,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_7",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.51000007662254,
+                    "y": 0.012000009417534,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_8",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.59400007662254,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_9",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.67800007662254,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_10",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.76200007662254,
+                    "y": 0.012000009417534,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_11",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.84600007662254,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f1_12",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.93000007662254,
+                    "y": 0.012000053615882,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_1",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.016000076622539,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_2",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.090000048279803,
+                    "y": 0.28099998288636,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_3",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.1740000322461,
+                    "y": 0.28100000941753,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_4",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.25700007662254,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_5",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.34200007662254,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_6",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.42600007662254,
+                    "y": 0.28100000941753,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_7",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.51000007662254,
+                    "y": 0.28100000941753,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_8",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.59400007662254,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_9",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.67800007662254,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_10",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.76200007662254,
+                    "y": 0.28100000941753,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_11",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.84600007662254,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        },
+        {
+            "frame_id": "f2_12",
+            "parent_id": "wobj_ladderframe",
+            "transform": {
+                "Vector3": {
+                    "x": 0.93000007662254,
+                    "y": 0.28100005361588,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0,
+                    "w": 6.1232339957368e-17
+                }
+            }
+        }
+    ]
+}

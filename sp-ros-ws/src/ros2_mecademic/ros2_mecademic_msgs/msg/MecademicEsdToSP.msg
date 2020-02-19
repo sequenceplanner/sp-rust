@@ -1,0 +1,4 @@
+string act_pos
+uint8 act_joint_speed
+string echo_ref_pos
+uint8 echo_ref_joint_speed

@@ -1,0 +1,21 @@
+{
+    "related_transforms": [
+	{
+            "frame_id": "cube",
+            "parent_id": "cubes/r1/meca_axis_6_link",
+            "transform": {
+                "Vector3": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                }
+            }
+        }
+    ]
+}
