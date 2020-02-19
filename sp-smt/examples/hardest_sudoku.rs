@@ -51,9 +51,7 @@ fn main(){
 
     let mut row_index = 0;
     for row in &rows {
-        // let row_index = rows.iter().position(|&r| r.to_string() == row.to_string()).unwrap();
         for elem in row {
-            // let elem_index = row.iter().position(|&r| r.to_string() == elem.to_string()).unwrap();
             rows_z3[row_index].push(int_var_z3!(&ctx, elem));
             slv_assert_z3!(&ctx, &slv, gt_z3!(&ctx, int_var_z3!(&ctx, elem), int_z3!(&ctx, 0)));
             slv_assert_z3!(&ctx, &slv, lt_z3!(&ctx, int_var_z3!(&ctx, elem), int_z3!(&ctx, 10)));
@@ -159,8 +157,6 @@ fn main(){
     slv_assert_z3!(&ctx, &slv, distinct_z3!(&ctx, cell32));
     slv_assert_z3!(&ctx, &slv, distinct_z3!(&ctx, cell33));
 
-    println!("{}", slv_to_string_z3!(&ctx, &slv));
-
     let now = Instant::now();
 
     // check consistency:
@@ -177,10 +173,4 @@ fn main(){
 
     let model = slv_get_model_z3!(&ctx, &slv);
     println!("{}", model_to_string_z3!(&ctx, model));
-
-    // let models = SlvGetAllModelsDontCareZ3::new(&ctx, &slv).s;
-
-    // for model in models {
-    //     println!("{}", model);
-    // }
 }

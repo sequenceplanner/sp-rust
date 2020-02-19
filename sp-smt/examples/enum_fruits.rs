@@ -33,9 +33,6 @@ fn main() {
         println!("UNDEF");
     };
 
-    // let model = slv_get_model_z3!(&ctx, &slv);
-    // println!("{}", model_to_string_z3!(&ctx, model));
-
     let models = SlvGetAllModelsZ3::new(&ctx, &slv).s;
 
     for model in models {

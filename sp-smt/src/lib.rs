@@ -4,14 +4,14 @@
 extern crate lazy_static;
 
 pub mod z3config;
-pub use crate::z3config::{ConfigZ3, SetParamZ3, Z3_MUTEX}; // CFG, Z3_MUTEX};
+pub use crate::z3config::{ConfigZ3, SetParamZ3};
 
 pub mod z3context;
-pub use crate::z3context::{ContextZ3}; //, CTX};
+pub use crate::z3context::{ContextZ3, UpdateParamZ3};
 
 pub mod z3solver;
-pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvAssertAndTrackZ3, SlvCheckZ3, SlvResetZ3, SlvGetModelZ3, SlvGetAllModelsZ3,
-    // SlvGetAllModelsExplicitZ3, 
+pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvPushZ3, SlvPopZ3, SlvGetPopPointsZ3, SlvAssertAndTrackZ3, 
+    SlvCheckZ3, SlvResetZ3, SlvGetModelZ3, SlvGetAllModelsZ3,
     SlvGetNModelsZ3, SlvGetParamDescrZ3, SlvGetProofZ3, 
     SlvGetUnsatCoreZ3, SlvToStringZ3, SlvUnsatCoreToStringZ3, SlvProofToStringZ3};
 
@@ -39,4 +39,7 @@ pub use crate::z3logics::{ANDZ3, ORZ3, DISTINCTZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, X
 
 pub mod z3utils;
 pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3, ModelGetNumConstsZ3, ModelGetConstDeclZ3, 
-    GetDeclNameZ3, ModelGetConstInterpZ3, GetSymbolStringZ3};
+    GetDeclNameZ3, ModelGetConstInterpZ3, GetSymbolStringZ3, GetCnfStringZ3};
+
+pub mod z3planning;
+pub use crate::z3planning::{};

@@ -47,7 +47,6 @@ impl <'ctx, 'bsrt, 'a> BoolVarZ3<'ctx, 'bsrt, 'a> {
         let bool_sort = bsrt.r;
         let str_name = CString::new(name).unwrap();
         let z3 = unsafe {
-            // Z3_MUTEX.lock().unwrap();
             Z3_mk_const(ctx.r, Z3_mk_string_symbol(ctx.r, str_name.as_ptr()), bool_sort)
         };
         BoolVarZ3 {ctx, bsrt, name, r: z3}.r
@@ -101,7 +100,6 @@ impl <'ctx, 'a> EnumVarZ3<'ctx, 'a> {
     /// 
     /// NOTE: See macro! `enum_var_z3!`
     pub fn new(ctx: &'ctx ContextZ3, esrt: Z3_sort, name: &'a str) -> Z3_ast{
-        // let enum_sort = esrt.r;
         let str_name = CString::new(name).unwrap();
         let z3 = unsafe {
             Z3_mk_const(ctx.r, Z3_mk_string_symbol(ctx.r, str_name.as_ptr()), esrt)
@@ -116,19 +114,12 @@ impl <'ctx, 'a> EnumVarZ3<'ctx, 'a> {
 /// ```text
 /// z3variables::BoolVarZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / bool_var_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// bool_var_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! bool_var_z3 {
-    // ($a:expr) => {
-    //     BoolVarZ3::new(&CTX, &BoolSortZ3::new(&CTX), $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         BoolVarZ3::new($ctx, &BoolSortZ3::new($ctx), $a)
     }
@@ -140,19 +131,12 @@ macro_rules! bool_var_z3 {
 /// ```text
 /// z3variables::IntVarZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / int_var_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// int_var_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! int_var_z3 {
-    // ($a:expr) => {
-    //     IntVarZ3::new(&CTX, &IntSortZ3::new(&CTX), $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         IntVarZ3::new($ctx, &IntSortZ3::new($ctx), $a)
     }
@@ -164,19 +148,12 @@ macro_rules! int_var_z3 {
 /// ```text
 /// z3variables::RealVarZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / real_var_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// real_var_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! real_var_z3 {
-    // ($a:expr) => {
-    //     RealVarZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         RealVarZ3::new($ctx, &RealSortZ3::new($ctx), $a)
     }
@@ -188,19 +165,12 @@ macro_rules! real_var_z3 {
 /// ```text
 /// z3variables::StringVarZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / string_var_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// string_var_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! string_var_z3 {
-    // ($a:expr) => {
-    //     StringVarZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $a:expr) => {
         StringVarZ3::new($ctx, &StringSortZ3::new($ctx), $a)
     }
@@ -212,19 +182,12 @@ macro_rules! string_var_z3 {
 /// ```text
 /// z3variables::EnumVarZ3::new(&ctx, a)
 /// ```
-// / Using the global context:
-// / ```text
-// / str_var_z3!(a)
-// / ```
 /// Using a specific context:
 /// ```text
 /// str_var_z3!(&ctx, a)
 /// ```
 #[macro_export]
 macro_rules! enum_var_z3 {
-    // ($a:expr) => {
-    //     EnumVarZ3::new(&CTX, $a).r
-    // };
     ($ctx:expr, $a:expr, $b:expr) => {
         EnumVarZ3::new($ctx, $a, $b)
     }

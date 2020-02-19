@@ -49,6 +49,11 @@ pub struct GetSymbolStringZ3<'ctx> {
     pub r: Z3_string
 }
 
+pub struct GetCnfStringZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub cnf: String
+}
+
 impl<'ctx> AstToStringZ3<'ctx> {
     /// AST to readable string
     /// 
@@ -131,6 +136,25 @@ impl<'ctx> GetSymbolStringZ3<'ctx> {
     }
 }
 
+impl<'ctx> GetCnfStringZ3<'ctx> {
+    /// Get cnf as a String.
+    pub fn new(ctx: &'ctx ContextZ3, args: Vec<Z3_ast>) -> String {
+        let z3 = unsafe {
+            let goal = Z3_mk_goal(ctx.r, false, false, false);
+            for formula in args {
+                Z3_goal_assert(ctx.r, goal, formula);
+                Z3_goal_inc_ref(ctx.r, goal);
+            }
+            let tactic = Z3_mk_tactic(ctx.r, CString::new("tseitin-cnf".to_string()).unwrap().as_ptr());
+            Z3_tactic_inc_ref(ctx.r, tactic);
+            let applied = Z3_tactic_apply(ctx.r, tactic, goal);            
+            let cnf = CStr::from_ptr(Z3_apply_result_to_string(ctx.r, applied)).to_str().unwrap().to_owned();
+            cnf
+        };
+        GetCnfStringZ3 {ctx, cnf: z3}.cnf
+    }
+}
+
 /// abstract static tree to readable string
 #[macro_export]
 macro_rules! ast_to_string_z3 {
@@ -145,4 +169,37 @@ macro_rules! model_to_string_z3 {
     ($ctx:expr, $a:expr) => {
         ModelToStringZ3::new($ctx, $a)
     }
+}
+
+#[test]
+fn test_tseitin(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+
+    let sort = BoolSortZ3::new(&ctx);
+    let x = BoolVarZ3::new(&ctx, &sort, "x");
+    let y = BoolVarZ3::new(&ctx, &sort, "y");
+    let z = BoolVarZ3::new(&ctx, &sort, "z");
+    
+    let asrt1 = NOTZ3::new(&ctx, x);
+    let asrt2 = XORZ3::new(&ctx, x, y);
+    let asrt2 = XORZ3::new(&ctx, x, z);
+
+    let asrt3 = IMPZ3::new(&ctx, y, x);
+
+    let asrt4 = DISTINCTZ3::new(&ctx, vec!(x, y));
+    let asrt5 = XORZ3::new(&ctx, x, y);
+
+    let tseit = GetCnfStringZ3::new(&ctx, vec!(asrt1, asrt2, asrt3, asrt4, asrt5));
+
+    // println!("{}", tseit);
+    assert_eq!("(goals
+(goal
+  (not x)
+  (or (not x) (not z))
+  (or x z)
+  (or x (not y))
+  (or (not x) (not y))
+  (or x y))
+)", tseit);
 }
