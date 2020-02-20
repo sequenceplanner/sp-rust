@@ -9,7 +9,7 @@ fn main() {
     // problem descriprion:
     println!("\n Find all paths to go from home to the table, concidering x as well:
     
-               home and x = 0 
+              home and x = 0 
                    .  . 
            . .    .    .    . .
           .   .  .      .  .   .
@@ -17,7 +17,7 @@ fn main() {
           .   .  .      .  .   .
            . .    .    .    . .
                    .  .  
-            table and x = 11 (12)\n");
+             table and x = 12\n");
 
     let cfg = cfg_z3!();
     let ctx = ctx_z3!(&cfg);
@@ -118,12 +118,8 @@ fn main() {
 
         }
 
-    println!("\n");
-    println!("Path: {:?}", path);
-    let now = std::time::Instant::now();
+    println!("\nPath: {:?}", path);
     let model = SlvGetModelAndForbidZ3::new(&ctx, &slv);
-
-    let now = std::time::Instant::now();
     let frames = GetPlanningFramesZ3::new(&ctx, model, step);
     
     for l in frames {
