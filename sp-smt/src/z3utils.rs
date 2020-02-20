@@ -49,6 +49,11 @@ pub struct GetSymbolStringZ3<'ctx> {
     pub r: Z3_string
 }
 
+pub struct Z3StringToStringZ3 {
+    pub cstr: Z3_string,
+    pub r: String
+}
+
 pub struct GetCnfStringZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub cnf: String
@@ -133,6 +138,16 @@ impl<'ctx> GetSymbolStringZ3<'ctx> {
             Z3_get_symbol_string(ctx.r, symbol)
         };
         GetSymbolStringZ3 {ctx, symbol, r: z3}.r
+    }
+}
+
+impl Z3StringToStringZ3 {
+    /// Get usable String from a Z3_string..
+    pub fn new(cstr: Z3_string) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(cstr).to_str().unwrap().to_owned()
+        };
+        Z3StringToStringZ3 {cstr, r: z3}.r
     }
 }
 

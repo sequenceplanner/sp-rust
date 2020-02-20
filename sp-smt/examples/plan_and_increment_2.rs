@@ -29,15 +29,15 @@ fn main() {
     let zero = int_z3!(&ctx, 0);
     let one = int_z3!(&ctx, 1);
     let two = int_z3!(&ctx, 2);
-    let goal_x = int_z3!(&ctx, 312);
+    let goal_x = int_z3!(&ctx, 18);
 
     let int_sort = IntSortZ3::new(&ctx);
 
     let poses = &pose_sort.enum_asts;
 
-    let mut step: i32 = 0;
-    let mut step2: i32 = 0;
-    let max_steps: i32 = 1000;
+    let mut step: u32 = 0;
+    let mut step2: u32 = 0;
+    let max_steps: u32 = 100;
 
     let pose0 = EnumVarZ3::new(&ctx, pose_sort.r, "pose_s0");
 
@@ -63,22 +63,16 @@ fn main() {
         let current_x: &str = &format!("x_s{}", step - 1);
         let next_x: &str = &format!("x_s{}", step);
 
-
-        // of course:
-        // current_step = guard
-        // next step = action
-
-
         let via1_via1 = and_z3!(&ctx,
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step - 2)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step as i32 - 2)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[1]),
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step - 1)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step as i32 - 1)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[1]));
             
         let via2_via2 = and_z3!(&ctx,
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step2 - 4)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, current_x), IntZ3::new(&ctx, &int_sort, step2 as i32 - 4)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[2]), 
-            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step2 - 2)),
+            eq_z3!(&ctx, IntVarZ3::new(&ctx, &int_sort, next_x), IntZ3::new(&ctx, &int_sort, step2 as i32 - 2)),
             eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[2]));
 
         let home_via1 = and_z3!(&ctx,
@@ -108,7 +102,7 @@ fn main() {
         slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, via1_via1, via2_via2, home_via1, home_via2, via1_table, via2_table));
         
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_via1, bool_var_z3!(&ctx, &format!("via1_via1_t{}", step))));
-        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_via2, bool_var_z3!(&ctx, &format!("via2_via2_t{}", step))));
+        slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_via2, bool_var_z3!(&ctx,  &format!("via2_via2_t{}", step))));
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via1, bool_var_z3!(&ctx, &format!("home_via1_t{}", step))));
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_table, bool_var_z3!(&ctx, &format!("via1_table_t{}", step))));
         slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via2, bool_var_z3!(&ctx, &format!("home_via2_t{}", step))));
@@ -125,42 +119,15 @@ fn main() {
 
     println!("Solving time: {}ms\n", now.elapsed().as_millis());
 
+    let now = std::time::Instant::now();
     let model = slv_get_model_z3!(&ctx, &slv);
-
     println!("Model generation time: {}ms\n", now.elapsed().as_millis());
 
-    let num = ModelGetNumConstsZ3::new(&ctx, model);
-    let mut frames = vec!();
-    unsafe {
-    for i in 0..max_steps {
-        let mut frame: (Vec<String>, String) = (vec!(), "".to_string());
-        for j in 0..num {
-            
-            let decl = ModelGetConstDeclZ3::new(&ctx, model, j);
-            let var = GetDeclNameZ3::new(&ctx, model, decl);
-            let var_str_init = GetSymbolStringZ3::new(&ctx, var);
-            let var_str = &CStr::from_ptr(var_str_init).to_str().unwrap().to_owned();
-            let val = ModelGetConstInterpZ3::new(&ctx, model, decl);
-            let val_str = AstToStringZ3::new(&ctx, val);
-
-            if var_str.ends_with(&format!("_s{}", i)) {
-                // var_str.replace(&format!("_s{}", i), "");
-                frame.0.push(val_str.to_string());
-            } else if var_str.ends_with(&format!("_t{}", i)) && val_str == "true" {
-                let trimmed = var_str.trim_end_matches(&format!("_t{}", i));
-                frame.1 = trimmed.to_string();
-            }
-            }
-            if frame.0.len() != 0 {
-                frames.push(frame);
-            } 
-            
-        }
+    let now = std::time::Instant::now();
+    let frames = GetPlanningFramesZ3::new(&ctx, model, step);
+    for l in frames {
+        println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
     }
+    println!("\nFast frames extraction time: {}ms\n", now.elapsed().as_millis());
 
-    for l in 0..frames.len() {
-        println!("{:?} : {:?} : {:?}", l, frames[l].0, frames[l].1);
-    }
-
-    println!("\nFrames extraction time: {}ms\n", now.elapsed().as_millis());
 }

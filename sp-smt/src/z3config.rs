@@ -24,8 +24,7 @@ impl ConfigZ3 {
     pub fn new() -> ConfigZ3 {
         ConfigZ3 {
             r: unsafe {
-                let conf = Z3_mk_config();
-                conf
+                Z3_mk_config()
             }
         }
     }
