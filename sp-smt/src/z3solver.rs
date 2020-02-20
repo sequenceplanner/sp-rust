@@ -77,6 +77,13 @@ pub struct SlvGetNModelsZ3<'ctx, 'slv> {
     pub s: Vec<String>
 }
 
+pub struct SlvGetModelAndForbidZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub n: u32,
+    pub r: Z3_model
+}
+
 pub struct SlvGetAllModelsZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
@@ -339,6 +346,34 @@ impl<'ctx, 'slv> SlvGetAllModelsZ3<'ctx, 'slv> {
             }
             SlvGetAllModelsZ3 {ctx, n: nr_st, r: models, s: models_str, slv}        
     }
+}
+
+impl<'ctx, 'slv> SlvGetModelAndForbidZ3<'ctx, 'slv> {
+    /// Write stuff here
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_model {
+    
+        let model = SlvGetModelZ3::new(&ctx, &slv);
+        let num = ModelGetNumConstsZ3::new(&ctx, model);
+        let mut to_assert = Vec::new();
+
+        for i in 0..num {
+            let decl = ModelGetConstDeclZ3::new(&ctx, model, i);
+            let var = GetDeclNameZ3::new(&ctx, model, decl);
+            let var_str_init = GetSymbolStringZ3::new(&ctx, var);
+            let var_str = &Z3StringToStringZ3::new(var_str_init);
+            let val = ModelGetConstInterpZ3::new(&ctx, model, decl);
+                    
+            if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "Bool" {
+                to_assert.push(eq_z3!(&ctx, bool_var_z3!(&ctx, var_str), val));
+            } else if SortToStringZ3::new(&ctx, GetSortZ3::new(&ctx, val).r) == "Int" {
+                to_assert.push(eq_z3!(&ctx, int_var_z3!(&ctx, var_str), val));
+            } else {
+                to_assert.push(eq_z3!(&ctx, enum_var_z3!(&ctx, GetSortZ3::new(&ctx, val).r, var_str), val));
+            }
+        }
+        slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, and_z3!(&ctx, to_assert)));
+        model
+    }       
 }
 
 impl<'ctx, 'slv> SlvGetNModelsZ3<'ctx, 'slv> {

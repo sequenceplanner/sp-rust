@@ -11,7 +11,7 @@ pub use crate::z3context::{ContextZ3, UpdateParamZ3};
 
 pub mod z3solver;
 pub use crate::z3solver::{SolverZ3, SlvAssertZ3, SlvPushZ3, SlvPopZ3, SlvGetPopPointsZ3, SlvAssertAndTrackZ3, 
-    SlvCheckZ3, SlvResetZ3, SlvGetModelZ3, SlvGetAllModelsZ3,
+    SlvCheckZ3, SlvResetZ3, SlvGetModelZ3, SlvGetModelAndForbidZ3, SlvGetAllModelsZ3,
     SlvGetNModelsZ3, SlvGetParamDescrZ3, SlvGetProofZ3, 
     SlvGetUnsatCoreZ3, SlvToStringZ3, SlvUnsatCoreToStringZ3, SlvProofToStringZ3};
 

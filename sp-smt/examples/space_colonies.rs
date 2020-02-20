@@ -37,8 +37,7 @@ fn main(){
         vec!(12, 7, 13, 9)
     );
 
-    // the first constraint is about limiting the possible amount of conduits that the
-    // starbases can deliver to colonies:
+    // the first constraint is about limiting the possible amount of conduits that the starbases can deliver to colonies:
     for starbase in &starbases {
         let mut variables = vec!();
         // extracting the index of the element in the vector
