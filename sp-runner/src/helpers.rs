@@ -243,6 +243,22 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     ex_to_sp_pred(&new_invariant, &var_map, &pred_map)
 }
 
+fn sat_clause_to_spstate(values: &[guard_extraction::Value],
+                         var_map: &HashMap<SPPath, (usize, Variable)>) -> SPState {
+    let mut state = SPState::new();
+    values.iter().enumerate().for_each(|(i,v)| {
+        let var = var_map.values().find(|(idx, _)| idx == &i).unwrap().1.clone();
+        let val = match v {
+            Value::Bool(b) => SPValue::Bool(*b),
+            Value::InDomain(vid) => var.domain()[*vid].clone(),
+            _ => panic!("cannot happen")
+        };
+
+        state.add_variable(var.path().clone(), val);
+    });
+    state
+}
+
 use cryptominisat::*;
 pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predicate,Predicate)]) -> i32 {
     let (c, var_map, pred_map) = make_context(&model);
@@ -442,19 +458,18 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                 }
                 println!("------------------");
 
+                let mut clause = Vec::new();
                 for v in &sat_model.norm_vars {
-                    let v = map_at_step(&vars, &GLit { var: *v as usize, neg: false }, i);
-                    if s.is_true(v) {
-                        println!("{:?}: true", v);
+                    let mv = map_at_step(&vars, &GLit { var: *v as usize, neg: false }, i);
+                    if s.is_true(mv) {
+                        clause.push(GLit { var: *v as usize, neg: false });
                     } else {
-                        println!("{:?}: false", v);
+                        clause.push(GLit { var: *v as usize, neg: true });
                     }
                 }
-
-                println!("");
-
-
-
+                let vals = c.sat_result_to_values(&Clause(clause));
+                let state = sat_clause_to_spstate(&vals, &var_map);
+                println!("{}", state);
             }
 
             break;
@@ -718,14 +733,14 @@ mod tests {
         let i1 = table_zone.clone();
         //let i1 = new_table_zone.clone();
         let g1 = p!(p:r1a == "at");
-        let g1 = Predicate::AND(vec![g1, table_zone.clone()]);
+        let g1 = Predicate::AND(vec![g1, new_table_zone.clone()]);
 
 
         //let i2 = Predicate::TRUE;
         let i2 = table_zone.clone();
         //let i2 = new_table_zone.clone();
         let g2 = p!(p:r2a == "at");
-        let g2 = Predicate::AND(vec![g2, table_zone.clone()]);
+        let g2 = Predicate::AND(vec![g2, new_table_zone.clone()]);
 
         let goals = vec![(i1, g1), (i2,g2)];
 
