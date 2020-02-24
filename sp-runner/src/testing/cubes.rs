@@ -181,21 +181,11 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let attached_box_r1 = &sm["attached_r1_box"];
     let attached_box_r2 = &sm["attached_r2_box"];
 
-    // m.add_auto("r1_take_cube", &p!([p:r1act == "r1table"] && [p:cube == "table"] && [p:attached_box_r1]),
-    //            &[a!(p:cube = "rob1")]);
-
-    // m.add_auto("r1_leave_cube", &p!([p:r1act == "r1buffer"] && [p:cube == "rob1"] && [p:attached_box_r1]),
-    //            &[a!(p:cube = "leave1"), a!(!p:attach_box_r1)]);
-
     m.add_auto("r1_take_cube", &p!([p:r1act == "r1table"] && [p:cube == "table"]),
-               &[a!(p:cube = "rob1")]);
+               &[a!(p:cube = "rob1"), a!(p:attach_box_r1)]);
 
     m.add_auto("r1_leave_cube", &p!([p:r1act == "r1buffer"] && [p:cube == "rob1"]),
-               &[a!(p:cube = "leave1")]);
-
-
-    // its never the case that rob1 holds the cube and we are not sending attach to the scene mgr
-    //m.add_invar("sync_scene_status", &p!(!([p:cube == "rob1"] && [!p:attach_box_r1])));
+               &[a!(p:cube = "leave1"), a!(!p:attach_box_r1)]);
 
     // its not allowed to take the cube unless the robot is in position
     let attach_exec = m.find("executing", &["sm", "attach_r1"]);
@@ -203,30 +193,15 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r1_move_exec = m.find("executing", &["r1", "move_to"]);
 
     // not allowed to move the robot whilst interacting with scene manager
-    // m.add_invar("mutex move attach",
-    //             &p!(!( [p:attach_exec] && [p:r1_move_exec])));
-    // m.add_invar("mutex move deattach",
-    //             &p!(!( [p:detach_exec] && [p:r1_move_exec])));
-
-    //let p1 = p!(p:attached_box_r1);
-    //    let p2 = p!([p:r1act == "r1table"] || [p:cube == "rob1"]);
-
-    // let p1 = p!(p:attach_exec);
-    // let p2 = p!([p:r1act == "r1table"] || [p:r1act == "r1buffer"]);
-    // let p3 = p!([ [p:cube == "table"] && [p:r1act == "r1table"] ] ||
-    //             [ [p:cube == "leave1"] && [p:r1act == "r1buffer"] ]);
-    // let p4 = Predicate::AND(vec![p2,p3]);
-    // let p1_imp_p2 = Predicate::OR(vec![Predicate::NOT(Box::new(p1)), p4]);
-    // m.add_invar("interact with sm at the right position", &p1_imp_p2);
-
+    m.add_invar("mutex move attach",
+                &p!(!( [p:attach_exec] && [p:r1_move_exec])));
+    m.add_invar("mutex move deattach",
+                &p!(!( [p:detach_exec] && [p:r1_move_exec])));
 
     // goal for testing
-    //let g = p!([p:r1act == "r1buffer"] && [p:cube == "rob1"]);
     let g = p!([p:cube == "leave1"] && [p:r1act == "r1table"]);
 
     // make an operation with that goal
-    // m.add_op("take_part", false, &p!(p:cube != "rob1"), &p!([p:cube == "rob1"] && [p:r1act == "r1buffer"]), &[], None);
-
     m.add_op("take_part", false, &p!(p:cube != "rob1"), &g, &[], None);
 
     m.initial_state(&[
