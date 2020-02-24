@@ -10,8 +10,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from ros2_mecademic_msgs.msg import MecademicGuiToEsd
 from ros2_mecademic_msgs.msg import MecademicEsdToGui
-from cubes_msgs.msg import RCommand
-from cubes_msgs.msg import RState
+from cubes_1_msgs.msg import RCommand
+from cubes_1_msgs.msg import RState
 # from ros2_mecademic_msgs.msg import MecademicSPToEsd
 # from ros2_mecademic_msgs.msg import MecademicEsdToSP
 from ament_index_python.packages import get_package_share_directory
