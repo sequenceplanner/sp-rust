@@ -2,7 +2,6 @@
 
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
-use sp_runner_api::*;
 
 /// The SPRunner that keep tracks of the state and the transition execution
 /// When using the runner, call the input method on every state change and probably
@@ -284,7 +283,7 @@ mod test_new_runner {
     fn make_dummy_robot_runner() -> SPRunner {
         let (model, mut initial_state) = crate::testing::two_dummy_robots();
         let ts_model = TransitionSystemModel::from(&model);
-        let m: RunnerModel = crate::helpers::make_runner_model(&model);
+        let m: sp_runner_api::RunnerModel = crate::helpers::make_runner_model(&model);
         //println!("{:?}", m);
         let mut trans = vec!();
         let mut restrict_controllable = vec!();
