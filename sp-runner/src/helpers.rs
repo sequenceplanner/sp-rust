@@ -331,7 +331,6 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
     // unroll transitions, goals, and later invariants up to n steps
     let mut steps = -1i32;
     for step in 0..20 {
-        // println!("START STEP {}", step);
         let now = std::time::Instant::now();
 
         let goal_active = vars[vars.len()-1];
@@ -360,6 +359,7 @@ pub fn plan(model: &TransitionSystemModel, initial: &Predicate, goals: &[(Predic
                 s.add_clause(&clause);
             }
 
+            // this actually resulted in worse performance when solving.
             // make a clause for the disjunction of the transitions.
             // let clause: Vec<CLit> = sat_model.trans_map.values().map(|l| {
             //     if is_norm(&l) {

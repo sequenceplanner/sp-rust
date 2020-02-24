@@ -1,9 +1,15 @@
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
 
+mod sat_planner;
+pub use sat_planner::*;
+
 pub fn plan(model: &TransitionSystemModel, goal: &[(Predicate, Option<Predicate>)], state: &SPState) -> PlanningResult {
     let result = crate::planning::compute_plan(model, goal, state, 20);
     println!("we have a plan? {} -- got it in {}ms", result.plan_found, result.time_to_solve.as_millis());
+
+    let result2 = SatPlanner::plan(model, goal, state, 20);
+
     result
 }
 
@@ -141,7 +147,12 @@ pub struct PlanningFrame {
     pub transition: SPPath,
 }
 
-
+trait Planner {
+    fn plan(model: &TransitionSystemModel,
+            goal: &[(Predicate, Option<Predicate>)],
+            state: &SPState,
+            max_steps: u32) -> PlanningResult;
+}
 
 mod nuxmv;
 pub use nuxmv::*;
