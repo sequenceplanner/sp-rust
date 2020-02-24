@@ -19,20 +19,26 @@ impl TransitionSystemModel {
             .flat_map(|r| r.get_variables())
             .collect();
 
-        let sub_items: Vec<_> = model.resources()
+        let resource_sub_items: Vec<_> = model.resources()
             .iter()
             .flat_map(|r| r.sub_items())
             .collect();
 
-        let sub_item_variables: Vec<Variable> = sub_items
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
+        let model_item_vars: Vec<Variable> = model.items().iter().flat_map(|i| match i {
+            SPItem::Variable(s) => Some(s.clone()),
+            _ => None,
+        }).collect();
+        vars.extend(model_item_vars.iter().cloned());
 
         let mut transitions: Vec<Transition> = model.resources()
             .iter().flat_map(|r| r.get_transitions()).collect();
+
+        let model_transitions = model.items().iter().flat_map(|i| match i {
+            SPItem::Transition(t) => Some(t.clone()),
+            _ => None,
+        });
+        transitions.extend(model_transitions);
+
 
         // EXPERIMENT:
 
@@ -79,17 +85,20 @@ impl TransitionSystemModel {
         let state_predicates: Vec<Variable> = model.resources()
             .iter().flat_map(|r| r.get_state_predicates()).collect();
 
-        vars.extend(sub_item_variables.iter().cloned());
-
         let mut specs: Vec<Spec> = model.items().iter().flat_map(|i| match i {
             SPItem::Spec(s) => Some(s),
             _ => None,
         }).cloned().collect();
-        let sub_item_specs: Vec<Spec> = sub_items.iter().flat_map(|i| match i {
+        let resource_sub_item_specs: Vec<Spec> = resource_sub_items.iter().flat_map(|i| match i {
             SPItem::Spec(s) => Some(s.clone()),
             _ => None,
         }).collect();
-        specs.extend(sub_item_specs.iter().cloned());
+        specs.extend(resource_sub_item_specs.iter().cloned());
+        let model_item_specs: Vec<Spec> = model.items().iter().flat_map(|i| match i {
+            SPItem::Spec(s) => Some(s.clone()),
+            _ => None,
+        }).collect();
+        specs.extend(model_item_specs.iter().cloned());
 
         TransitionSystemModel {
             name: model.name().into(),

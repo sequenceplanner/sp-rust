@@ -10,7 +10,8 @@ use std::time::{Instant, Duration};
 
 
 pub fn launch() -> Result<(), Error> {
-    let (model, initial_state) = crate::testing::two_dummy_robots();
+    //let (model, initial_state) = crate::testing::two_dummy_robots();
+    let (model, initial_state, _) = crate::testing::cubes();
     let runner_model = crate::helpers::make_runner_model(&model);
 
     // start ros node
@@ -53,6 +54,9 @@ pub fn launch() -> Result<(), Error> {
         let mut resource_map = HashMap::new();
         let ticker = Instant::now();
         loop {
+            println!("STARTING");
+
+
             let mut s = SPState::new();
             if rx_in.is_empty() {
                 if let Ok(mess) = rx_in.recv() {
@@ -94,6 +98,11 @@ pub fn launch() -> Result<(), Error> {
                 } else {
                     waiting = false;
                     s = first_complete_state.clone();
+
+                    // s.add_variable(SPPath::from_string("cubes/r1/command/0/ref_pos"),
+                    //                "r1buffer".to_spvalue());
+                    // s.add_variable(SPPath::from_string("cubes/r2/command/0/ref_pos"),
+                    //                "r2table".to_spvalue());
                     println!("FIRST COMPLETE INITIAL STATE:\n{}", &s);
 
                 }
@@ -204,6 +213,7 @@ fn make_dummy_robot_runner(m: RunnerModel, mut initial_state: SPState) -> SPRunn
     // );
     // initial_state.extend(the_upd_state);
     runner.update_state_variables(initial_state);
+
     runner
 }
 
