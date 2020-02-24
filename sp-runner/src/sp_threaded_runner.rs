@@ -6,10 +6,12 @@ use sp_ros;
 use std::thread;
 use crossbeam::channel;
 use std::collections::{HashSet,HashMap};
+use std::time::{Instant, Duration};
 
 
 pub fn launch() -> Result<(), Error> {
-    let (model, initial_state) = crate::testing::two_dummy_robots();
+    //let (model, initial_state) = crate::testing::two_dummy_robots();
+    let (model, initial_state, _) = crate::testing::cubes();
     let runner_model = crate::helpers::make_runner_model(&model);
 
     // start ros node
@@ -49,15 +51,26 @@ pub fn launch() -> Result<(), Error> {
                 Some(v.path().clone())
             } else { None }).collect();
 
+        let mut resource_map = HashMap::new();
+        let ticker = Instant::now();
         loop {
+            println!("STARTING");
+
+
             let mut s = SPState::new();
             if rx_in.is_empty() {
                 if let Ok(mess) = rx_in.recv() {
-                    s = mess;
+                    let x = resource_map.entry(mess.resource.clone()).or_insert(mess.time_stamp.clone());
+                    println!{"resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
+                    *x = mess.time_stamp.clone();
+                    s = mess.state;
                 }
             } else {
                 for mess in rx_in.try_iter() {
-                    s.extend(mess);
+                    let x = resource_map.entry(mess.resource.clone()).or_insert(mess.time_stamp.clone());
+                    println!{"M: resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
+                    *x = mess.time_stamp.clone();
+                    s.extend(mess.state);  // Do the merge only if not overwriting, else save mess for next iteration
                 }
             }
 
@@ -85,27 +98,32 @@ pub fn launch() -> Result<(), Error> {
                 } else {
                     waiting = false;
                     s = first_complete_state.clone();
+
+                    // s.add_variable(SPPath::from_string("cubes/r1/command/0/ref_pos"),
+                    //                "r1buffer".to_spvalue());
+                    // s.add_variable(SPPath::from_string("cubes/r2/command/0/ref_pos"),
+                    //                "r2table".to_spvalue());
                     println!("FIRST COMPLETE INITIAL STATE:\n{}", &s);
 
                 }
             }
 
-            println!("WE GOT:\n{}", &s);
+            //println!("WE GOT:\n{}", &s);
             let old_g = runner.goal();
             //if runner.state().are_new_values_the_same(&s)
             {
                 runner.input(SPRunnerInput::StateChange(s));
                 let new_g = runner.goal();
-                println!("GOALS");
-                new_g.iter().for_each(|x| println!("{:?}", x));
-                println!{""};
-                println!("fired:");
-                println!{""};
-                runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+                // println!("GOALS");
+                // new_g.iter().for_each(|x| println!("{:?}", x));
+                if !runner.last_fired_transitions.is_empty() {
+                    println!("fired:");
+                    runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+                }
 
-                println!{""};
-                println!("The State: {}", runner.state());
-                println!{""};
+                // println!{""};
+                // println!("The State: {}", runner.state());
+                // println!{""};
 
                 tx_out.send(runner.state().clone()).unwrap();
 
@@ -195,6 +213,7 @@ fn make_dummy_robot_runner(m: RunnerModel, mut initial_state: SPState) -> SPRunn
     // );
     // initial_state.extend(the_upd_state);
     runner.update_state_variables(initial_state);
+
     runner
 }
 

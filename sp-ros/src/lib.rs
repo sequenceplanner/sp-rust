@@ -3,6 +3,11 @@
 mod ros {
     // empty when no ros support compiled in.
     pub struct RosNode {}
+    pub struct RosMessage {
+        pub state: SPState,
+        pub resource: SPPath,
+        pub time_stamp: std::time::Instant,
+    }
     use crossbeam::channel;
     use failure::*;
     use sp_domain::*;
@@ -14,7 +19,7 @@ mod ros {
     pub fn roscomm_setup(
         _node: &mut RosNode,
         _model: &Model,
-        _tx_in: channel::Sender<SPState>,
+        _tx_in: channel::Sender<RosMessage>,
     ) -> Result<channel::Sender<SPState>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
@@ -41,6 +46,12 @@ mod ros {
     use std::thread;
 
     pub struct RosNode(r2r::Node);
+
+    pub struct RosMessage{
+        pub state: SPState,
+        pub resource: SPPath,
+        pub time_stamp: std::time::Instant,
+    }
 
     pub fn json_to_state(
         json: &serde_json::Value,
@@ -132,7 +143,7 @@ mod ros {
     pub fn roscomm_setup(
         node: &mut RosNode,
         model: &Model,
-        tx_in: channel::Sender<SPState>,
+        tx_in: channel::Sender<RosMessage>,
     ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
@@ -151,14 +162,22 @@ mod ros {
                     if t.is_subscriber() {
                         let topic = t.path();
                         let topic_str = topic.to_string();
-
+                        
                         let tx = tx_in.clone();
                         let msg_cb = t.msg().clone();
+                        let r_path = r.path().clone();
                         let cb = move |msg: r2r::Result<serde_json::Value>| {
                             let json = msg.unwrap();
                             let mut state = json_to_state(&json, &msg_cb);
                             state.prefix_paths(&msg_cb.path());
-                            tx.send(state).unwrap();
+                            let time_stamp = std::time::Instant::now();
+                            let m = RosMessage {
+                                state: state,
+                                resource: r_path.clone(),
+                                time_stamp,
+                            };
+
+                            tx.send(m).unwrap();
                         };
                         println!("setting up subscription to topic: {}", topic);
                         let _subref = node.0.subscribe_untyped(&topic_str, &m.type_, Box::new(cb))?;
