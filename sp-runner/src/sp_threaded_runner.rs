@@ -54,21 +54,21 @@ pub fn launch() -> Result<(), Error> {
         let mut resource_map = HashMap::new();
         let ticker = Instant::now();
         loop {
-            println!("STARTING");
+            // println!("STARTING");
 
 
             let mut s = SPState::new();
             if rx_in.is_empty() {
                 if let Ok(mess) = rx_in.recv() {
                     let x = resource_map.entry(mess.resource.clone()).or_insert(mess.time_stamp.clone());
-                    println!{"resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
+                    //println!{"resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
                     *x = mess.time_stamp.clone();
                     s = mess.state;
                 }
             } else {
                 for mess in rx_in.try_iter() {
                     let x = resource_map.entry(mess.resource.clone()).or_insert(mess.time_stamp.clone());
-                    println!{"M: resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
+                    //println!{"M: resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
                     *x = mess.time_stamp.clone();
                     s.extend(mess.state);  // Do the merge only if not overwriting, else save mess for next iteration
                 }

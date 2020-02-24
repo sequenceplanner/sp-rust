@@ -75,6 +75,17 @@ impl GModel {
         self.model.add_item(SPItem::Transition(trans));
     }
 
+    pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            actions.to_vec(),
+            vec![], // no effects
+            true, // auto!
+        );
+        self.model.add_item(SPItem::Transition(trans));
+    }
+
     pub fn find(&mut self, name: &str, path_sections: &[&str]) -> SPPath {
         self.model.find_item(name, path_sections)
             .expect(&format!("cannot find {:?} / {}", path_sections, name)).path()
@@ -162,10 +173,15 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r2 = m.use_resource(make_dummy_mecademic("r2", &["r2table", "r2buffer"]));
     let sm = m.use_resource(make_dummy_sm("sm"));
 
-    let cube = m.add_estimated_domain("cube_pos", &[
-        "rob1".to_spvalue(), "rob2".to_spvalue(),
-        "table".to_spvalue(), "leave1".to_spvalue(),
-        "leave2".to_spvalue()]);
+    let products = &[0.to_spvalue(), 1.to_spvalue(),
+                     2.to_spvalue(), 3.to_spvalue()];
+
+
+    let r1_holding = m.add_estimated_domain("r1_holding", products);
+    let r2_holding = m.add_estimated_domain("r2_holding", products);
+    let table_holding = m.add_estimated_domain("table_holding", products);
+    let buffer1_holding = m.add_estimated_domain("buffer1_holding", products);
+    let buffer2_holding = m.add_estimated_domain("buffer2_holding", products);
 
     let r1act = &r1["act_pos"];
     let r2act = &r2["act_pos"];
@@ -181,28 +197,65 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let attached_box_r1 = &sm["attached_r1_box"];
     let attached_box_r2 = &sm["attached_r2_box"];
 
-    m.add_auto("r1_take_cube", &p!([p:r1act == "r1table"] && [p:cube == "table"]),
-               &[a!(p:cube = "rob1"), a!(p:attach_box_r1)]);
+    // r1 take/leave products
 
-    m.add_auto("r1_leave_cube", &p!([p:r1act == "r1buffer"] && [p:cube == "rob1"]),
-               &[a!(p:cube = "leave1"), a!(!p:attach_box_r1)]);
+    m.add_delib("r1_take_table", &p!([p:r1act == "r1table"] && [p:table_holding != 0] && [p:r1_holding == 0]),
+               &[a!(p:r1_holding <- p:table_holding), a!(p:table_holding = 0), a!(p:attach_box_r1)]);
 
-    // its not allowed to take the cube unless the robot is in position
-    let attach_exec = m.find("executing", &["sm", "attach_r1"]);
-    let detach_exec = m.find("executing", &["sm", "detach_r1"]);
-    let r1_move_exec = m.find("executing", &["r1", "move_to"]);
+    m.add_delib("r1_take_buffer1", &p!([p:r1act == "r1buffer"] && [p:buffer1_holding != 0] && [p:r1_holding == 0]),
+               &[a!(p:r1_holding <- p:buffer1_holding), a!(p:buffer1_holding = 0), a!(p:attach_box_r1)]);
+
+    m.add_delib("r1_leave_table", &p!([p:r1act == "r1table"] && [p:r1_holding != 0] && [p:table_holding == 0]),
+               &[a!(p:table_holding <- p:r1_holding), a!(p:r1_holding = 0), a!(!p:attach_box_r1)]);
+
+    m.add_delib("r1_leave_buffer", &p!([p:r1act == "r1buffer"] && [p:r1_holding != 0] && [p:buffer1_holding == 0]),
+               &[a!(p:buffer1_holding <- p:r1_holding), a!(p:r1_holding = 0), a!(!p:attach_box_r1)]);
+
+    // r2 take/leave products
+
+    m.add_delib("r2_take_table", &p!([p:r2act == "r2table"] && [p:table_holding != 0] && [p:r2_holding == 0]),
+               &[a!(p:r2_holding <- p:table_holding), a!(p:table_holding = 0), a!(p:attach_box_r2)]);
+
+    m.add_delib("r2_take_buffer2", &p!([p:r2act == "r2buffer"] && [p:buffer2_holding != 0] && [p:r2_holding == 0]),
+               &[a!(p:r2_holding <- p:buffer2_holding), a!(p:buffer2_holding = 0), a!(p:attach_box_r2)]);
+
+    m.add_delib("r2_leave_table", &p!([p:r2act == "r2table"] && [p:r2_holding != 0] && [p:table_holding == 0]),
+               &[a!(p:table_holding <- p:r2_holding), a!(p:r2_holding = 0), a!(!p:attach_box_r2)]);
+
+    m.add_delib("r2_leave_buffer", &p!([p:r2act == "r2buffer"] && [p:r2_holding != 0] && [p:buffer2_holding == 0]),
+               &[a!(p:buffer2_holding <- p:r2_holding), a!(p:r2_holding = 0), a!(!p:attach_box_r2)]);
 
     // not allowed to move the robot whilst interacting with scene manager
+    let r1_attach_exec = m.find("executing", &["sm", "attach_r1"]);
+    let r1_detach_exec = m.find("executing", &["sm", "detach_r1"]);
+    let r1_move_exec = m.find("executing", &["r1", "move_to"]);
+
+    let r2_attach_exec = m.find("executing", &["sm", "attach_r2"]);
+    let r2_detach_exec = m.find("executing", &["sm", "detach_r2"]);
+    let r2_move_exec = m.find("executing", &["r2", "move_to"]);
+
     m.add_invar("mutex move attach",
-                &p!(!( [p:attach_exec] && [p:r1_move_exec])));
+                &p!(!( [p:r1_attach_exec] && [p:r1_move_exec])));
     m.add_invar("mutex move deattach",
-                &p!(!( [p:detach_exec] && [p:r1_move_exec])));
+                &p!(!( [p:r1_detach_exec] && [p:r1_move_exec])));
+
+    m.add_invar("mutex move attach",
+                &p!(!( [p:r2_attach_exec] && [p:r2_move_exec])));
+    m.add_invar("mutex move deattach",
+                &p!(!( [p:r2_detach_exec] && [p:r2_move_exec])));
+
+    // robots cannot both be at table
+    m.add_invar("mutex table",
+                &p!(!( [p:r1act == "r1table"] && [p:r2act == "r2table"])));
 
     // goal for testing
-    let g = p!([p:cube == "leave1"] && [p:r1act == "r1table"]);
+    //let g = p!([p:buffer1_holding == 1] && [p:r1act == "r1table"]);
+    let g = p!(p:buffer2_holding == 1);
 
     // make an operation with that goal
-    m.add_op("take_part", false, &p!(p:cube != "rob1"), &g, &[], None);
+    m.add_op("take_part1", false, &p!(p:r1_holding == 0), &p!(p:buffer1_holding == 1), &[], None);
+
+    m.add_op("take_part2", false, &p!(p:buffer1_holding == 1), &p!(p:buffer2_holding == 1), &[], None);
 
     m.initial_state(&[
         (r1prev, "r1buffer".to_spvalue()),
@@ -217,7 +270,12 @@ pub fn cubes() -> (Model, SPState, Predicate) {
         (attached_box_r1, false.to_spvalue()),
         (attached_box_r2, false.to_spvalue()),
 
-        (&cube, "table".to_spvalue()),
+
+        (&r1_holding, 0.to_spvalue()),
+        (&r2_holding, 0.to_spvalue()),
+        (&table_holding, 0.to_spvalue()),
+        (&buffer1_holding, 1.to_spvalue()),
+        (&buffer2_holding, 0.to_spvalue()),
     ]);
 
     println!("MAKING MODEL");
@@ -239,15 +297,21 @@ fn test_cubes() {
     let initial = Predicate::AND(inits);
 
     let mut ts_model = TransitionSystemModel::from(&m);
-    println!("G GEN");
+    // guard gen takes too much time....
+    // println!("G GEN");
     let (new_guards, _new_initial) = extract_guards(&ts_model, &initial);
-    println!("G GEN DONE");
+    // println!("G GEN DONE");
     update_guards(&mut ts_model, &new_guards);
 
-    ts_model.specs.clear();
+    //ts_model.specs.clear();
+
+    for s in &mut ts_model.specs {
+        *s = Spec::new(s.name(), crate::helpers::refine_invariant(&m, s.invariant()));
+    }
 
     let goal = (g, None);
-    let plan = crate::planning::compute_plan(&ts_model, &[goal], &s, 20);
+    let plan = crate::planning::plan(&ts_model, &[goal], &s);
+    //crate::planning::compute_plan(&ts_model, &[goal], &s, 20);
 
     // crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
 

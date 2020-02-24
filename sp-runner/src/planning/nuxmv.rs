@@ -301,7 +301,9 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     // for now, don't add this. taken care of by runner + guard extraction.
     // perhaps later we should have different kinds of specifications in the
     // model instead.
-    // add_global_specifications(&mut lines, &model.specs);
+
+    // for now we actually do this instead of GE.
+    add_global_specifications(&mut lines, &model.specs);
 
     return lines;
 }
