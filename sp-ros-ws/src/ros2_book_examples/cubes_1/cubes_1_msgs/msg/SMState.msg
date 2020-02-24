@@ -1,0 +1,3 @@
+bool attached_r1_box
+bool attached_r2_box
+cubes_1_msgs/SMCommand echo
