@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="2">
+  <name>cubes_1_bringup</name>
+  <version>0.0.1</version>
+  <description>
+    cubes from ros2_book_examples
+  </description>
+  <maintainer email="endree@chalmers.se">endre_eros</maintainer>
+  <license>no_license</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+<!--
+  <build_depend>ros2_mecademic_bringup</build_depend>
+  <build_depend>ros2_mecademic_description</build_depend>
+  <build_depend>ros2_mecademic_gui</build_depend>
+  <build_depend>ros2_mecademic_msgs</build_depend>
+  <build_depend>ros2_mecademic_simulator</build_depend>
+  <build_depend>ros2_mecademic_state_publisher</build_depend>
+  <build_depend>ros2_mecademic_utilities</build_depend>
+
+  <build_depend>ros2_robotiq_2f_bringup</build_depend>
+  <build_depend>ros2_robotiq_2f_description</build_depend>
+  <build_depend>ros2_robotiq_2f_gui</build_depend>
+  <build_depend>ros2_robotiq_2f_msgs</build_depend>
+  <build_depend>ros2_robotiq_2f_simulator</build_depend>
+  <build_depend>ros2_robotiq_2f_state_publisher</build_depend>
+  <build_depend>ros2_robotiq_2f_utilities</build_depend>
+
+  <build_depend>ros2_scene_manipulation</build_depend>
+  <build_depend>ros2_scene_manipulation_msgs</build_depend>
+-->
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>ros2run</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

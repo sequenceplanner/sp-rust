@@ -10,6 +10,12 @@ pub struct AstToStringZ3<'ctx> {
     pub r: String
 }
 
+pub struct AstVectorToStringZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub what: Z3_ast_vector,
+    pub r: String
+}
+
 pub struct ModelToStringZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub what: Z3_model,
@@ -54,6 +60,12 @@ pub struct Z3StringToStringZ3 {
     pub r: String
 }
 
+pub struct Z3AstVectorToVectorAstZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub ast_vec: Z3_ast_vector,
+    pub r: Vec<Z3_ast>
+}
+
 pub struct GetCnfStringZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub cnf: String
@@ -68,6 +80,18 @@ impl<'ctx> AstToStringZ3<'ctx> {
             CStr::from_ptr(Z3_ast_to_string(ctx.r, what)).to_str().unwrap().to_owned()
         };
         AstToStringZ3 {ctx, what, r: z3}.r
+    }
+}
+
+impl<'ctx> AstVectorToStringZ3<'ctx> {
+    /// AST vector to readable string
+    /// 
+    /// NOTE: See macro! `ast_vector_to_string_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, what: Z3_ast_vector) -> String {
+        let z3 = unsafe {
+            CStr::from_ptr(Z3_ast_vector_to_string(ctx.r, what)).to_str().unwrap().to_owned()
+        };
+        AstVectorToStringZ3 {ctx, what, r: z3}.r
     }
 }
 
@@ -148,6 +172,20 @@ impl Z3StringToStringZ3 {
             CStr::from_ptr(cstr).to_str().unwrap().to_owned()
         };
         Z3StringToStringZ3 {cstr, r: z3}.r
+    }
+}
+
+impl <'ctx> Z3AstVectorToVectorAstZ3<'ctx> {
+    /// transform to extract
+    pub fn new(ctx: &'ctx ContextZ3, ast_vec: Z3_ast_vector) -> Vec<Z3_ast> {
+        let mut vec: Vec<Z3_ast> = vec!();
+        unsafe {
+            let size = Z3_ast_vector_size(ctx.r, ast_vec);
+            for i in 0..size {
+                vec.push(Z3_ast_vector_get(ctx.r, ast_vec, i));
+            }
+        }
+        vec
     }
 }
 

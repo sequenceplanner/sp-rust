@@ -69,6 +69,12 @@ pub struct SlvGetProofZ3<'ctx, 'slv> {
     pub r: Z3_ast
 }
 
+pub struct SlvGetAssertsZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub r: Z3_ast_vector
+}
+
 pub struct SlvGetNModelsZ3<'ctx, 'slv> {
     pub ctx: &'ctx ContextZ3,
     pub slv: &'slv SolverZ3<'ctx>,
@@ -277,6 +283,16 @@ impl <'ctx, 'slv> SlvGetProofZ3<'ctx, 'slv> {
             Z3_solver_get_proof(ctx.r, slv.r)
         };
         SlvGetProofZ3 {ctx, slv, r: z3}.r
+    }
+}
+
+impl <'ctx, 'slv> SlvGetAssertsZ3<'ctx, 'slv> {
+    /// Get assertions
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>) -> Z3_ast_vector {
+        let z3 = unsafe {
+            Z3_solver_get_assertions(ctx.r, slv.r)
+        };
+        SlvGetAssertsZ3 {ctx, slv, r: z3}.r
     }
 }
 
@@ -523,6 +539,14 @@ macro_rules! slv_check_z3 {
 macro_rules! slv_get_model_z3 {
     ($ctx:expr, $a:expr) => {
         SlvGetModelZ3::new($ctx, $a)
+    }
+}
+
+/// get the model from solver
+#[macro_export]
+macro_rules! slv_get_all_models_z3 {
+    ($ctx:expr, $a:expr) => {
+        SlvGetAllModelsZ3::new($ctx, $a).s
     }
 }
 
