@@ -1,0 +1,1 @@
+string mode_cmd  // Command from SP, "init", "run", for now

@@ -23,6 +23,11 @@ pub fn launch() -> Result<(), Error> {
     // setup ros pub/subs. tx_out to send out to network
     let tx_out: channel::Sender<SPState> = sp_ros::roscomm_setup(&mut node, &model, tx_in)?;
 
+    // data from nodes to runner
+    let (tx_in, rx_from_nodes) = channel::unbounded();
+    // setup ros node handling pub/subs. tx_out to send out to network
+    let tx_out_node: channel::Sender<sp_ros::NodeCmd> = sp_ros::roscomm_node_setup(&mut node, &model, tx_in)?;
+
     // misc runner data to/from the network.
     let (tx_in_misc, rx_in_misc) = channel::unbounded();
 

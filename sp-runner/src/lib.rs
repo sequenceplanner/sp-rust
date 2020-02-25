@@ -12,5 +12,8 @@ pub use helpers::*;
 mod planning;
 pub use planning::*;
 
+mod sp_node_handler;
+pub use sp_node_handler::*;
+
 mod testing;
 pub use testing::*;

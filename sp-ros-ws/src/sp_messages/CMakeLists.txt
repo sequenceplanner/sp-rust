@@ -28,6 +28,7 @@ rosidl_generate_interfaces(sp_messages
   "msg/State.msg"
   "msg/RunnerInfo.msg"
   "msg/RunnerCommand.msg"
+  "msg/NodeCmd.msg"
   DEPENDENCIES builtin_interfaces
 )
 

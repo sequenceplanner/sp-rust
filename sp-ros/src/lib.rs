@@ -8,6 +8,11 @@ mod ros {
         pub resource: SPPath,
         pub time_stamp: std::time::Instant,
     }
+    pub struct NodeCmd {
+        pub resource: SPPath,
+        pub mode: String,
+    }
+
     use crossbeam::channel;
     use failure::*;
     use sp_domain::*;
@@ -46,11 +51,16 @@ mod ros {
     use std::thread;
 
     pub struct RosNode(r2r::Node);
-
+    #[derive(Debug, Clone)]
     pub struct RosMessage{
         pub state: SPState,
         pub resource: SPPath,
         pub time_stamp: std::time::Instant,
+    }
+    #[derive(Debug, PartialEq, Clone, Default)]
+    pub struct NodeCmd {
+        pub resource: SPPath,
+        pub mode: String,
     }
 
     pub fn json_to_state(
@@ -147,7 +157,7 @@ mod ros {
     ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
-        let rcs: Vec<_> = model
+        let rcs: Vec<&Resource> = model
             .items()
             .iter()
             .flat_map(|i| match i {
@@ -217,6 +227,77 @@ mod ros {
         Ok(tx_out)
     }
 
+
+    pub fn roscomm_node_setup(
+        node: &mut RosNode,
+        model: &Model,
+        tx_in: channel::Sender<RosMessage>,
+    ) -> Result<channel::Sender<NodeCmd>, Error> {
+        let mut ros_pubs = Vec::new();
+
+        let rcs: Vec<&Resource> = model
+            .items()
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Resource(r) => Some(r),
+                _ => None,
+            })
+            .collect();
+
+        for r in rcs {
+            let name = r.name();
+            let tx = tx_in.clone();
+            let r_path = r.path().clone();
+
+            // Incoming from node:
+            let t: Topic = r.messages().iter().find(|x| x.is_publisher()).unwrap().clone();
+            let msg_cb = t.msg().clone();
+            if let MessageField::Msg(m) = t.msg() {
+                let cb = move |msg: r2r::Result<serde_json::Value>| {
+                    let json = msg.unwrap();
+                    let state = json_to_state(&json, &msg_cb);
+                    let time_stamp = std::time::Instant::now();
+                    let m = RosMessage {
+                        state: state,
+                        resource: r_path.clone(),
+                        time_stamp,
+                    };
+    
+                    tx.send(m).unwrap();
+                };
+                let topic = format!("{}/{}/echo", model.name(), name);
+                println!("setting up subscription to node topic: {}", topic);
+                let _subref = node.0.subscribe_untyped(&topic, &m.type_ , Box::new(cb))?;
+            }
+            
+            // Outgoing
+            let topic = format!("{}/{}/node_cmd", model.name(), name);
+            let msg_type = "sp_messages/msg/NodeCmd";
+            let r_path = r.path().clone();
+            let rp = node.0.create_publisher_untyped(&topic, msg_type)?;
+            let cb = move |cmd: &NodeCmd| {
+                if cmd.resource == r_path.clone() {
+                    let mut map = serde_json::Map::new();
+                    map.insert("mode".to_string(), serde_json::Value::String(cmd.mode.clone()));
+                    let to_send = serde_json::Value::Object(map);
+                    rp.publish(to_send).unwrap();
+                }
+            };
+            ros_pubs.push(cb);
+        
+            }
+        
+
+        let (tx_out, rx_out) = channel::unbounded();
+        thread::spawn(move || loop {
+            let state = rx_out.recv().unwrap();
+            for rp in &ros_pubs {
+                (rp)(&state);
+            }
+        });
+
+        Ok(tx_out)
+    }
 
     pub fn roscomm_setup_misc(
         node: &mut RosNode,

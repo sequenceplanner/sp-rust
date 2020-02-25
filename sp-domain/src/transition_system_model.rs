@@ -109,10 +109,3 @@ impl TransitionSystemModel {
         }
     }
 }
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct TransitionSystemResource {
-    pub path: SPPath, // the path of the resource
-    pub last_tick: Option<std::time::Instant>,  // Last massage instant
-    pub last_echo: Option<SPState>
-}
