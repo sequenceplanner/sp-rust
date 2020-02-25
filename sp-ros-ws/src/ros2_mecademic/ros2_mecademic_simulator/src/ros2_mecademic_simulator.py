@@ -31,6 +31,9 @@ class Ros2MecademicSimulator(Node):
         else:
             pass
 
+        self.callback_timeout = time.time()
+        self.timeout = 5
+
         self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.pub_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.sync_speed_scale = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -292,12 +295,14 @@ class Ros2MecademicSimulator(Node):
         self.esd_to_gui_publisher_.publish(self.esd_to_gui_msg)
 
     def esd_to_sp_callback(self):
-        self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
-        self.esd_to_sp_msg.echo = self.sp_to_esd_msg
-        # self.esd_to_sp_msg.actual_joint_speed = self.sp_to_esd_msg.reference_joint_speed
-        # self.esd_to_sp_msg.echo_ref_pose = self.sp_to_esd_msg.ref_pos
-        # self.esd_to_sp_msg.echo_reference_joint_speed = self.sp_to_esd_msg.reference_joint_speed
-        self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
+        if time.time() < self.callback_timeout:
+            self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
+            self.esd_to_sp_msg.echo = self.sp_to_esd_msg
+            self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
+        else:
+            self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
+            self.esd_to_sp_msg.echo.ref_pos = self.esd_to_gui_msg.act_pos
+            self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
     
 def main(args=None):
 

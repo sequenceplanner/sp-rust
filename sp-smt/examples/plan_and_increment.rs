@@ -3,6 +3,7 @@ use sp_smt::*;
 use std::ffi::{CStr, CString};
 use z3_sys::*;
 use sp_domain::*;
+use std::time::{Duration, Instant};
 
 fn main() {
 
@@ -28,7 +29,7 @@ fn main() {
     let zero = int_z3!(&ctx, 0);
     let one = int_z3!(&ctx, 1);
     let two = int_z3!(&ctx, 2);
-    let goal_x = int_z3!(&ctx, 6);
+    let goal_x = int_z3!(&ctx, 424);
 
     let int_sort = IntSortZ3::new(&ctx);
 
@@ -118,12 +119,18 @@ fn main() {
 
         }
 
+    let now = Instant::now();
+
     println!("\nPath: {:?}", path);
     let model = SlvGetModelAndForbidZ3::new(&ctx, &slv);
     let frames = GetPlanningFramesZ3::new(&ctx, model, step);
     
+    println!("Solving time: {} milliseconds", now.elapsed().as_millis());
+
     for l in frames {
         println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
         }
     }
+
+
 }
