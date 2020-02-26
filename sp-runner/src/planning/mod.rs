@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use sp_domain::*;
 
 pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState, max_steps: u32) -> PlanningResult {
-
     // if we have an invariant for our goal, express it as inv U (inv
     // & goal) e.g. we make sure that the invariant also holds in the
     // post state. consider for example the two robots that cannot be
@@ -17,7 +16,7 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
         }
     }).collect();
 
-    let result = crate::planning::compute_plan(model, &goals, state, max_steps);
+    let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
     let result2 = SatPlanner::plan(model, &goals, state, max_steps);
 
     if result.plan_found != result2.plan_found {

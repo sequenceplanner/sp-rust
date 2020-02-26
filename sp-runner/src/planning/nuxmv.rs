@@ -218,52 +218,54 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
     Some(trace)
 }
 
-pub fn compute_plan(
-    model: &TransitionSystemModel,
-    goal_invs: &[(Predicate, Option<Predicate>)],
-    state: &SPState,
-    max_steps: u32,
-) -> PlanningResult {
-    let lines = create_nuxmv_problem(&model, &goal_invs, &state);
+pub struct NuXmvPlanner {}
 
-    let datetime: DateTime<Local> = SystemTime::now().into();
-    // todo: use non platform way of getting temporary folder
-    // or maybe just output to a subfolder 'plans'
-    let filename = &format!("/tmp/planner {}.bmc", datetime);
-    let mut f = File::create(filename).unwrap();
-    write!(f, "{}", lines).unwrap();
-    let mut f = File::create("/tmp/last_planning_request.bmc").unwrap();
-    write!(f, "{}", lines).unwrap();
+impl Planner for NuXmvPlanner {
+    fn plan(model: &TransitionSystemModel,
+            goals: &[(Predicate, Option<Predicate>)],
+            state: &SPState,
+            max_steps: u32) -> PlanningResult {
+        let lines = create_nuxmv_problem(&model, &goals, &state);
 
-    let start = Instant::now();
-    let result = call_nuxmv(max_steps, filename);
-    let duration = start.elapsed();
+        let datetime: DateTime<Local> = SystemTime::now().into();
+        // todo: use non platform way of getting temporary folder
+        // or maybe just output to a subfolder 'plans'
+        let filename = &format!("/tmp/planner {}.bmc", datetime);
+        let mut f = File::create(filename).unwrap();
+        write!(f, "{}", lines).unwrap();
+        let mut f = File::create("/tmp/last_planning_request.bmc").unwrap();
+        write!(f, "{}", lines).unwrap();
 
-    match result {
-        Ok((raw, raw_error)) => {
-            let plan = postprocess_nuxmv_problem(&model, &raw);
-            let plan_found = plan.is_some();
-            let trace = plan.unwrap_or_else(|| {
-                vec![PlanningFrame { transition: SPPath::new(), state: state.clone() }]
-            });
+        let start = Instant::now();
+        let result = call_nuxmv(max_steps, filename);
+        let duration = start.elapsed();
 
-            PlanningResult {
-                plan_found: plan_found,
-                plan_length: trace.len() as u32 - 1, // hack :)
-                trace: trace,
-                time_to_solve: duration,
-                raw_output: raw.to_owned(),
-                raw_error_output: raw_error.to_owned(),
+        match result {
+            Ok((raw, raw_error)) => {
+                let plan = postprocess_nuxmv_problem(&model, &raw);
+                let plan_found = plan.is_some();
+                let trace = plan.unwrap_or_else(|| {
+                    vec![PlanningFrame { transition: SPPath::new(), state: state.clone() }]
+                });
+
+                PlanningResult {
+                    plan_found: plan_found,
+                    plan_length: trace.len() as u32 - 1, // hack :)
+                    trace: trace,
+                    time_to_solve: duration,
+                    raw_output: raw.to_owned(),
+                    raw_error_output: raw_error.to_owned(),
+                }
             }
-        }
-        Err(e) => {
-            PlanningResult {
-                plan_found: false,
-                plan_length: 0,
-                trace: Vec::new(),
-                time_to_solve: duration,
-                raw_output: "".into(),
-                raw_error_output: e.to_string(),
+            Err(e) => {
+                PlanningResult {
+                    plan_found: false,
+                    plan_length: 0,
+                    trace: Vec::new(),
+                    time_to_solve: duration,
+                    raw_output: "".into(),
+                    raw_error_output: e.to_string(),
+                }
             }
         }
     }

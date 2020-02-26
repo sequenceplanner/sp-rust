@@ -29,7 +29,7 @@ impl Planner for SatPlanner {
 
         let initial = state_to_predicate(&model.vars, state);
         let initial = c.sp_pred_to_ex(&initial);
-        // goals are invar,goal
+        // goals are (invar,goal)
         let goals: Vec<(Ex,Ex)> = goals
             .iter()
             .map(|(g,i)|
@@ -161,7 +161,6 @@ impl Planner for SatPlanner {
 
             // add a disjunction that allows the goal to be active in any time step
             // (so we can finish one goal early but then keep going)
-            // for top in &sat_model.goal_tops {
             for (invar, top) in sat_model.invar_tops.iter().zip(sat_model.goal_tops.iter()) {
                 let mut clause: Vec<CLit> = Vec::new();
                 for i in 0..(step+1) {
@@ -179,7 +178,7 @@ impl Planner for SatPlanner {
                 // ie. (i0 | g0) & (i1 | g0 | g1) & (i2 | g0 | g1 | g2) ...
 
                 // this is the same semantics as the LTL UNTIL operator.
-                for i in 0..(step) {
+                for i in 0..step {
                     let mut clause: Vec<CLit> = Vec::new();
 
                     let l = map_at_step(&vars, invar, i);
@@ -248,7 +247,6 @@ impl Planner for SatPlanner {
             }
         }
 
-        //return steps; // for now :)
         let fail = PlanningResult { plan_found: false,
                                     time_to_solve: total_now.elapsed(),
                                     .. PlanningResult::default() };
