@@ -20,8 +20,6 @@ fn main() {
     let max_steps: u32 = 100;
     let max_paths: u32 = 100;
 
-    
-
     // initial state:
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, state, states[0]));
 

@@ -22,40 +22,55 @@ pub struct GetPlanningFramesZ3<'ctx> {
     pub frames: Vec<(i32, Vec<String>, String)> 
 }
 
-impl Planner for ComputePlanSPModelZ3 {
-    fn plan(model: &TransitionSystemModel,
-            goals: &[(Predicate, Option<Predicate>)],
-            state: &SPState,
-            max_steps: u32) -> PlanningResult {
+// impl Planner for ComputePlanSPModelZ3 {
+//     fn plan(model: &TransitionSystemModel,
+//             goals: &[(Predicate, Option<Predicate>)],
+//             state: &SPState,
+//             max_steps: u32) -> PlanningResult {
 
-        let cfg = ConfigZ3::new();
-        let ctx = ContextZ3::new(&cfg);
-        let slv = SolverZ3::new(&ctx);
+//         let cfg = ConfigZ3::new();
+//         let ctx = ContextZ3::new(&cfg);
+//         let slv = SolverZ3::new(&ctx);
 
-        let v: Vec<_> = state.clone().extract().iter().map(|(path,value)|path.clone()).collect();
-        let vs: Vec<_> = v.iter().map(|x|x.to_string()).collect();
-        let init_name =  vs.join(",");
+//         let v: Vec<_> = state.clone().extract().iter().map(|(path,value)|path.clone()).collect();
+//         let vs: Vec<_> = v.iter().map(|x|x.to_string()).collect();
+//         let init_name =  vs.join(",");
 
-        let init_type: SPValueType = match init.sp_value_from_path(&x) {
-            Some(x) => x.has_type(),
-            None    => SPValueType::Unknown,
-        };
+//         let init_type: SPValueType = match state.sp_value_from_path(&SPPath::from_string(&init_name)) {
+//             Some(x) => x.has_type(),
+//             None    => SPValueType::Unknown,
+//         };
     
-        let init_value: String = match init.sp_value_from_path(&x) {
-            Some(x) => x.to_string(),
-            None    => SPValue::Unknown.to_string(),
-        };
+//         let init_value: String = match state.sp_value_from_path(&SPPath::from_string(&init_name)) {
+//             Some(x) => x.to_string(),
+//             None    => SPValue::Unknown.to_string(),
+//         };
 
-        if init_type == SPValueType::Bool {
-            let bool_sort = BoolSortZ3::new(&ctx);
-            let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name);
-            SlvAssertZ3::new(&ctx, &slv, cst: Z3_ast)
-        } else {
-            let enum_sort = EnumSortZ3::new(&ctx, &format!("{}_sort", init_name), 
-        }
+//         let vars = model.vars;
+//         let mut init_domain = vec!();
+//         for var in vars {
+//             if init_name == var.path().to_string() {
+//                 for v in var.domain() {
+//                     init_domain.push(v.to_string());
+//                 }
+//             }
+//         }
 
-    }
-}
+//         if init_type == SPValueType::Bool {
+//             let bool_sort = BoolSortZ3::new(&ctx);
+//             let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name));
+//             if init_value == "false" {
+//                 SlvAssertZ3::new(&ctx, &slv, EQZ3::new(&ctx, init, BoolZ3::new(&ctx, false)));
+//             } else {
+//                 SlvAssertZ3::new(&ctx, &slv, EQZ3::new(&ctx, init, BoolZ3::new(&ctx, true)));
+//             }
+        
+//         } else {
+//             let enum_sort = EnumSortZ3::new(&ctx, &format!("{}_sort", init_name), init_domain);
+//             // let init = Enum
+//         }
+//     }
+// }
 
 impl <'ctx> GetPlanningFramesZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32) -> Vec<(u32, Vec<String>, String)> {
