@@ -34,7 +34,7 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-rosidl_generate_interfaces(manipulate_scene
+rosidl_generate_interfaces(ros2_scene_manipulation_msgs
   "srv/ManipulateScene.srv"
   DEPENDENCIES
     builtin_interfaces

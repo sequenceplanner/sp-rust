@@ -53,7 +53,7 @@ class Cubes1SceneMaster(Node):
         self.sm_state = SMState()
         self.sm_state.attached_r1_box = False
         self.sm_state.attached_r2_box = False
-        self.sm_state.echo = self.sm_command
+        #self.sm_state.echo = self.sm_command
 
         self.sm_state_publisher_ = self.create_publisher(
             SMState,
@@ -97,8 +97,8 @@ class Cubes1SceneMaster(Node):
         if time.time() < self.callback_timeout:
             self.sm_state_publisher_.publish(self.sm_state)
         else:
-            self.sm_state.echo.attach_r1_box = self.sm_state.attached_r1_box
-            self.sm_state.echo.attach_r2_box = self.sm_state.attached_r2_box
+            #self.sm_state.echo.attach_r1_box = self.sm_state.attached_r1_box
+            #self.sm_state.echo.attach_r2_box = self.sm_state.attached_r2_box
             self.sm_state_publisher_.publish(self.sm_state)
      
     def inhibit_tick(self):

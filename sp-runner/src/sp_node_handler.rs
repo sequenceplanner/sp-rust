@@ -2,12 +2,20 @@
 use sp_domain::*;
 use std::time::{Instant, Duration};
 use std::collections::HashMap;
+use sp_ros;
 
 #[derive(Debug)]
 pub struct NodeHandler {
     nodes: HashMap<SPPath, RosNode>,
     ability_plan: Option<PlanProgress>,
-    effectProgress: Vec<EffectProgress>,
+    effect_progress: Vec<EffectProgress>,
+}
+
+pub struct NodeHandlerResult {
+    dead_nodes: Vec<SPPath>,
+    dead_effects: Vec<SPPath>,
+    dead_plans: Vec<SPPath>
+
 }
 
 impl NodeHandler {
@@ -24,8 +32,12 @@ impl NodeHandler {
         NodeHandler {
             nodes: xs, 
             ability_plan: None, 
-            effectProgress: vec!(), 
+            effect_progress: vec!(), 
         }
+    }
+
+    pub fn newMessage(&mut self, mess: sp_ros::RosMessage, state: SPState) -> NodeHandlerResult {
+
     }
 
     
@@ -47,6 +59,7 @@ enum NodeCmd {
 
 #[derive(Debug, PartialEq, Clone)]
 struct PlanProgress {
+    plan: SPPath,
     plan_no: usize,
     time_stamp: Instant,
     state: SPState,
@@ -54,6 +67,7 @@ struct PlanProgress {
 
 #[derive(Debug, PartialEq, Clone)]
 struct EffectProgress {
+    transition: SPPath,
     waiting_for_effect: Action,  // Will all be true at the same time?
     max_time: Option<Duration>,
     time_stamp: Instant,

@@ -39,8 +39,8 @@ int main(int argc, char ** argv)
 {
 	rclcpp::init(argc, argv);
 
-	std::string active_transforms_path = readFile("/home/endre/sp-rust/sp-ros-ws/src/ros2_book_examples/cubes_1/ros2_scene_manipulation/active_transforms.json");
-	std::string static_transforms_path = readFile("/home/endre/sp-rust/sp-ros-ws/src/ros2_book_examples/cubes_1/ros2_scene_manipulation/static_transforms.json");
+	std::string active_transforms_path = readFile("/Users/kristofer/sw/sp-rust/sp-ros-ws/src/ros2_book_examples/cubes_1/ros2_scene_manipulation/active_transforms.json");
+	std::string static_transforms_path = readFile("/Users/kristofer/sw/sp-rust/sp-ros-ws/src/ros2_book_examples/cubes_1/ros2_scene_manipulation/static_transforms.json");
 
 	std::unordered_map<std::string, RelatedTransform> active_transforms = readTransforms(active_transforms_path);
 	std::unordered_map<std::string, RelatedTransform> static_transforms = readTransforms(static_transforms_path);
