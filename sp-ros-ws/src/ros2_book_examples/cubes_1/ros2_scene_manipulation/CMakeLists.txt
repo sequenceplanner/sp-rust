@@ -11,6 +11,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(ros2_scene_manipulation_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -29,6 +30,7 @@ add_executable(service_main
 )
 
 ament_target_dependencies(service_main
+  ament_index_cpp
   rclcpp
   ros2_scene_manipulation_msgs
   geometry_msgs
@@ -37,6 +39,11 @@ ament_target_dependencies(service_main
 
 install(TARGETS service_main
   DESTINATION lib/${PROJECT_NAME})
+
+install(
+  FILES active_transforms.json static_transforms.json
+  DESTINATION share/${PROJECT_NAME})
+
 
 # Client
 
