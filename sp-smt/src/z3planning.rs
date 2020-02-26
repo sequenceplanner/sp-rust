@@ -7,12 +7,10 @@ use z3_sys::*;
 use sp_domain::*;
 use sp_runner::*;
 
-pub struct ComputePlanTSModelZ3<'ctx, 'slv> {
-    pub ctx: &'ctx ContextZ3,
-    pub slv: &'slv SolverZ3<'ctx>,
-    pub ts_model: TransitionSystemModel,
-    pub init: SPState,
-    pub goal: Predicate,
+pub struct ComputePlanSPModelZ3 {
+    pub mdoel: TransitionSystemModel,
+    pub state: SPState,
+    pub goals: Vec<(Predicate, Option<Predicate>)>,
     pub max_steps: u32,
     pub r: Z3_model
 }
@@ -24,11 +22,17 @@ pub struct GetPlanningFramesZ3<'ctx> {
     pub frames: Vec<(i32, Vec<String>, String)> 
 }
 
-impl <'ctx, 'slv> ComputePlanTSModelZ3<'ctx, 'slv> {
-    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, ts_model: TransitionSystemModel, init: SPState, goal: Predicate, max_steps: u32) -> Z3_model {
-        let mut step: u32 = 0;
-        
-        let v: Vec<_> = init.clone().extract().iter().map(|(path,value)|path.clone()).collect();
+impl Planner for ComputePlanSPModelZ3 {
+    fn plan(model: &TransitionSystemModel,
+            goals: &[(Predicate, Option<Predicate>)],
+            state: &SPState,
+            max_steps: u32) -> PlanningResult {
+
+        let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+
+        let v: Vec<_> = state.clone().extract().iter().map(|(path,value)|path.clone()).collect();
         let vs: Vec<_> = v.iter().map(|x|x.to_string()).collect();
         let init_name =  vs.join(",");
 
@@ -44,41 +48,14 @@ impl <'ctx, 'slv> ComputePlanTSModelZ3<'ctx, 'slv> {
 
         if init_type == SPValueType::Bool {
             let bool_sort = BoolSortZ3::new(&ctx);
-            BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name);
+            let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name);
+            SlvAssertZ3::new(&ctx, &slv, cst: Z3_ast)
+        } else {
+            let enum_sort = EnumSortZ3::new(&ctx, &format!("{}_sort", init_name), 
         }
+
     }
 }
-
-// impl <'ctx, 'slv> ComputePlanFiniteDomainZ3<'ctx, 'slv> {
-//     /// Get a plan from the initial to the goal state. 
-//     ///
-//     /// NOTE: See macro! `compute_plan_z3!`
-//     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, vars: Vec<Z3_ast>, init: Z3_ast, goal: Z3_ast, trans: Vec<Z3_ast>, max_steps: u32) -> (Z3_model, u32) {
-//         let mut step: u32 = 0;
-
-//         SlvAssertZ3::new(&ctx, &slv, init);
-
-//         SlvPushZ3::new(&ctx, &slv);
-//         SlvAssertZ3::new(&ctx, &slv, goal);
-
-//         while SlvCheckZ3::new(&ctx, &slv) != 1 && step < max_steps {
-
-//             step = step + 1;
-//             SlvPopZ3::new(&ctx, &slv, 1);
-
-//             let current_step: &str = &format!("pose_s{}", step);
-//             let next_step: &str = &format!("pose_s{}", step + 1);
-
-//             for tran in trans {
-//                 SlvAssertZ3::new(&ctx, &slv, tran);
-
-//             }
-
-//         }
-
-//         ComputePlanZ3 {ctx, slv, r: z3}.r
-//     }
-// }
 
 impl <'ctx> GetPlanningFramesZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32) -> Vec<(u32, Vec<String>, String)> {
