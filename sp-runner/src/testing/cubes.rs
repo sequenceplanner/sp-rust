@@ -301,7 +301,7 @@ fn test_cubes() {
     // println!("G GEN");
     let (new_guards, _new_initial) = extract_guards(&ts_model, &initial);
     // println!("G GEN DONE");
-    update_guards(&mut ts_model, &new_guards);
+    // update_guards(&mut ts_model, &new_guards);
 
     //ts_model.specs.clear();
 
@@ -310,7 +310,7 @@ fn test_cubes() {
     }
 
     let goal = (g, None);
-    let plan = crate::planning::plan(&ts_model, &[goal], &s);
+    let plan = crate::planning::plan(&ts_model, &[goal], &s, 20);
     //crate::planning::compute_plan(&ts_model, &[goal], &s, 20);
 
     // crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);

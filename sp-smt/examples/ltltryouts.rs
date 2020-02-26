@@ -19,6 +19,8 @@ fn main() {
     let max_steps: u32 = 100;
     let max_paths: u32 = 100;
 
+    
+
     // initial state:
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, state, states[0]));
 
@@ -29,6 +31,12 @@ fn main() {
     // goal state:
     SlvPushZ3::new(&ctx, &slv);
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, state, states[2]));
+
+    
+    pub fn new(ctx: &'ctx ContextZ3, x: Z3_ast, y: Z3_ast) -> Z3_ast {
+        ORZ3::new(&ctx, vec!(y, ANDZ3::new(&ctx, vec!(x, new(&ctx, x: Z3_ast, y: Z3_ast)))))
+    }
+    
 
     while path < max_paths {
         path = path + 1;
@@ -43,6 +51,7 @@ fn main() {
             // forbidden state (solve commented and uncommented):
             slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[6])));
             slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[3])));
+
 
             // I think that we need some kind of a notion of an uncontrollable transtion (or state):
             
