@@ -7,14 +7,14 @@ pub fn make_dummy_sm(name: &str) -> Resource {
         name: name,
         command!{
             topic: "command",
-            msg_type: "cubes_msgs/msg/SMCommand",
+            msg_type: "cubes_1_msgs/msg/SMCommand",
 
             attach_r1_box: bool,
             attach_r2_box: bool,
         },
         measured!{
             topic: "state",
-            msg_type: "cubes_msgs/msg/SMState",
+            msg_type: "cubes_1_msgs/msg/SMState",
 
             attached_r1_box: bool,
             attached_r2_box: bool,

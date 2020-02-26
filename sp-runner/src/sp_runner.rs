@@ -237,7 +237,7 @@ mod test_new_runner {
         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
 
 
-        let planner_result = crate::planning::plan(&runner.transition_system_model, &runner.goal(), &runner.state());
+        let planner_result = crate::planning::plan(&runner.transition_system_model, &runner.goal(), &runner.state(), 20);
         let (tr, s) = convert_planning_result(&runner.transition_system_model, planner_result);
         let plan = SPPlan{plan: tr, state_change: s};
         runner.input(SPRunnerInput::AbilityPlan(plan));

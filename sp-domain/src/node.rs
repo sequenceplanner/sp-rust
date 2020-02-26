@@ -79,9 +79,15 @@ pub trait Noder {
         name: &str,
         path_sections: &[&str],
     ) -> Option<SPItemRef<'a>>;
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>>;
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>);
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>);
     fn as_ref(&self) -> SPItemRef<'_>;
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_>;
     fn path(&self) -> &SPPath {
         self.node().path()
     }
@@ -112,6 +118,18 @@ pub trait Noder {
             }
         }
         self.find_item_among_children(name, path_sections)
+    }
+    /// Finds the first item with a specific name and that includes all path sections (in any order).
+    fn find_item_mut<'a>(&'a mut self, name: &str, path_sections: &[&str]) -> Option<SPMutItemRef<'a>> {
+        if self.node().name() == name {
+            let found_it = path_sections
+                .iter()
+                .all(|x| self.node().path().path.contains(&x.to_string()));
+            if found_it {
+                return Some(self.as_mut_ref());
+            }
+        }
+        self.find_item_mut_among_children(name, path_sections)
     }
 
     /// updates the path of this item and its children
@@ -155,6 +173,23 @@ where
 {
     for i in xs.iter() {
         let res = i.find_item(name, path_sections);
+        if res.is_some() {
+            return res;
+        }
+    }
+    None
+}
+
+pub fn find_item_mut_in_list<'a, T>(
+    xs: &'a mut [T],
+    name: &str,
+    path_sections: &[&str],
+) -> Option<SPMutItemRef<'a>>
+where
+    T: Noder,
+{
+    for i in xs.iter_mut() {
+        let res = i.find_item_mut(name, path_sections);
         if res.is_some() {
             return res;
         }
