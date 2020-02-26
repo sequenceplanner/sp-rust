@@ -17,18 +17,18 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
     }).collect();
 
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
-    let result2 = SatPlanner::plan(model, &goals, state, max_steps);
+    // let result2 = SatPlanner::plan(model, &goals, state, max_steps);
 
-    if result.plan_found != result2.plan_found {
-        println!("result1 {}", result.plan_found);
-        println!("result2 {}", result2.plan_found);
-    }
-    assert_eq!(result.plan_found, result2.plan_found);
-    assert_eq!(result.plan_length, result2.plan_length);
+    // if result.plan_found != result2.plan_found {
+    //     println!("result1 {}", result.plan_found);
+    //     println!("result2 {}", result2.plan_found);
+    // }
+    // assert_eq!(result.plan_found, result2.plan_found);
+    // assert_eq!(result.plan_length, result2.plan_length);
 
     println!("we have a plan? {}", result.plan_found);
     println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
-    println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
+    // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
 
     result
 }

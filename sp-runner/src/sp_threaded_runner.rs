@@ -131,7 +131,7 @@ pub fn launch() -> Result<(), Error> {
                     println!("NEW GOALS");
                     println!("*********");
 
-                    let max_steps = 20; // arbitrary decision
+                    let max_steps = 30; // arbitrary decision
                     let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state(), max_steps);
                     assert!(planner_result.plan_found);
                     println!("new plan is");
