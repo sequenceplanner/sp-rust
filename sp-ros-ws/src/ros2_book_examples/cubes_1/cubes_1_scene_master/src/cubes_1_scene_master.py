@@ -112,26 +112,26 @@ class Cubes1SceneMaster(Node):
         self.sm_command.attach_r1_box = data.attach_r1_box
         self.sm_command.attach_r2_box = data.attach_r2_box
 
-        if self.sm_command.attach_r1_box == self.prev_sm_command.attach_r1_box and \
-           self.sm_command.attach_r1_box == self.prev_sm_command.attach_r1_box:
-            print("NOT CHANGING STUFF")
-            self.tick_inhibited = True
-        else:
-            print("CHANGING STUFF")
-            self.tick_inhibited = False
+        # if self.sm_command.attach_r1_box == self.prev_sm_command.attach_r1_box and \
+        #    self.sm_command.attach_r1_box == self.prev_sm_command.attach_r1_box:
+        #     # print("NOT CHANGING STUFF")
+        #     self.tick_inhibited = True
+        # else:
+        #     # print("CHANGING STUFF")
+        #     self.tick_inhibited = False
         
-        if self.tick_inhibited == False:
-            self.inhibit_tick()
-            if self.sm_command.attach_r1_box == True:
-                self.fn_attach_r1_box()
-            elif self.sm_command.attach_r2_box == True:
-                self.fn_attach_r2_box()
-            elif self.sm_command.attach_r1_box == False and self.sm_command.attach_r2_box == False:
-                self.fn_detach_box()
-            else:
-                pass
+        # if self.tick_inhibited == False:
+            # self.inhibit_tick()
+        if self.sm_command.attach_r1_box == True:
+            self.fn_attach_r1_box()
+        elif self.sm_command.attach_r2_box == True:
+            self.fn_attach_r2_box()
+        elif self.sm_command.attach_r1_box == False and self.sm_command.attach_r2_box == False:
+            self.fn_detach_box()
         else:
-            pass   
+            pass
+        # else:
+        #     pass   
 
     def send_request(self, frame, parent, pos):
         self.req.frame_id = frame
@@ -149,14 +149,20 @@ class Cubes1SceneMaster(Node):
     def fn_attach_r1_box(self):
         print("ATTACH TO R1")
         self.send_request("cubes/c1/cube", "cubes/r1/meca_axis_1_link", True)
+        self.sm_state.attached_r1_box = True
+        self.sm_state.attached_r2_box = False
     
     def fn_attach_r2_box(self):
         print("ATTACH TO R2")
         self.send_request("cubes/c1/cube", "cubes/r2/meca_axis_1_link", True)
+        self.sm_state.attached_r2_box = True
+        self.sm_state.attached_r1_box = False
     
     def fn_detach_box(self):
         print("DETACH")
-        self.send_request("cubes/c1/cube", "world", True)      
+        self.send_request("cubes/c1/cube", "world", True)     
+        self.sm_state.attached_r1_box = False
+        self.sm_state.attached_r2_box = False 
        
 def main(args=None):
     rclpy.init(args=args)
