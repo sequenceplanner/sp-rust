@@ -1,9 +1,36 @@
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
 
-pub fn plan(model: &TransitionSystemModel, goal: &[(Predicate, Option<Predicate>)], state: &SPState) -> PlanningResult {
-    let result = crate::planning::compute_plan(model, goal, state, 20);
-    println!("we have a plan? {} -- got it in {}ms", result.plan_found, result.time_to_solve.as_millis());
+pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState, max_steps: u32) -> PlanningResult {
+
+    // if we have an invariant for our goal, express it as inv U (inv
+    // & goal) e.g. we make sure that the invariant also holds in the
+    // post state. consider for example the two robots that cannot be
+    // at the table at the same time. reaching a goal that they should
+    // both at the table shouldn't make us ignore the
+    // invariants. instead we don't want a plan to be found.
+    let goals: Vec<_> = goals.iter().map(|(g,i)| {
+        if let Some(invar) = i {
+            (Predicate::AND(vec![g.clone(),invar.clone()]), i.clone())
+        } else {
+            (g.clone(),i.clone())
+        }
+    }).collect();
+
+    let result = crate::planning::compute_plan(model, &goals, state, max_steps);
+    let result2 = SatPlanner::plan(model, &goals, state, max_steps);
+
+    if result.plan_found != result2.plan_found {
+        println!("result1 {}", result.plan_found);
+        println!("result2 {}", result2.plan_found);
+    }
+    assert_eq!(result.plan_found, result2.plan_found);
+    assert_eq!(result.plan_length, result2.plan_length);
+
+    println!("we have a plan? {}", result.plan_found);
+    println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+    println!("satplanner time: {}ms", result.time_to_solve.as_millis());
+
     result
 }
 
@@ -127,6 +154,7 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct PlanningResult {
     pub plan_found: bool,
+    pub plan_length: u32,
     pub trace: Vec<PlanningFrame>,
     pub time_to_solve: std::time::Duration,
     pub raw_output: String,
@@ -141,7 +169,15 @@ pub struct PlanningFrame {
     pub transition: SPPath,
 }
 
-
+pub trait Planner {
+    fn plan(model: &TransitionSystemModel,
+            goal: &[(Predicate, Option<Predicate>)],
+            state: &SPState,
+            max_steps: u32) -> PlanningResult;
+}
 
 mod nuxmv;
 pub use nuxmv::*;
+
+mod sat_planner;
+pub use sat_planner::*;
