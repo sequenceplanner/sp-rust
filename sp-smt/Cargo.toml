@@ -9,5 +9,6 @@ env_logger = "0.6.2"
 log = "0.4.8"
 z3-sys = { git = "https://github.com/endre90/z3_sys_v2" }
 sp-domain = { path = "../sp-domain" }
+sp-runner = { path = "../sp-runner" }
 itertools = "0.8.1"
 lazy_static = "1.4.0"

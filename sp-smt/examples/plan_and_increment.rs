@@ -29,7 +29,7 @@ fn main() {
     let zero = int_z3!(&ctx, 0);
     let one = int_z3!(&ctx, 1);
     let two = int_z3!(&ctx, 2);
-    let goal_x = int_z3!(&ctx, 424);
+    let goal_x = int_z3!(&ctx, 6);
 
     let int_sort = IntSortZ3::new(&ctx);
 
@@ -38,8 +38,8 @@ fn main() {
     let mut step: u32 = 0;
     let mut path: u32 = 0;
     let mut step2: u32 = 0;
-    let max_steps: u32 = 1000;
-    let max_paths: u32 = 1000;
+    let max_steps: u32 = 100;
+    let max_paths: u32 = 100;
 
     let pose0 = EnumVarZ3::new(&ctx, pose_sort.r, "pose_s0");
 
@@ -131,6 +131,4 @@ fn main() {
         println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
         }
     }
-
-
 }

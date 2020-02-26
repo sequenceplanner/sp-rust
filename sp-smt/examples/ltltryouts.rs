@@ -12,7 +12,8 @@ fn main() {
 
     let state_sort = EnumSortZ3::new(&ctx, "state_sort", vec!("a", "b", "c", "d", "e", "f", "g"));
     let states = &state_sort.enum_asts;
-    let state = EnumVarZ3::new(&ctx, state_sort.r, "state_s0");
+    let x = EnumVarZ3::new(&ctx, state_sort.r, "x_s0");
+    let y = EnumVarZ3::new(&ctx, state_sort.r, "y_s0");
 
     let mut step: u32 = 0;
     let mut path: u32 = 0;
@@ -32,11 +33,9 @@ fn main() {
     SlvPushZ3::new(&ctx, &slv);
     slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, state, states[2]));
 
-    
     pub fn new(ctx: &'ctx ContextZ3, x: Z3_ast, y: Z3_ast) -> Z3_ast {
         ORZ3::new(&ctx, vec!(y, ANDZ3::new(&ctx, vec!(x, new(&ctx, x: Z3_ast, y: Z3_ast)))))
     }
-    
 
     while path < max_paths {
         path = path + 1;
@@ -52,44 +51,10 @@ fn main() {
             slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[6])));
             slv_assert_z3!(&ctx, &slv, not_z3!(&ctx, eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[3])));
 
-
-            // I think that we need some kind of a notion of an uncontrollable transtion (or state):
+            pub fn new(ctx: &'ctx ContextZ3, x: Z3_ast, y: Z3_ast) -> Z3_ast {
+                ORZ3::new(&ctx, vec!(y, ANDZ3::new(&ctx, vec!(x, new(&ctx, x: Z3_ast, y: Z3_ast)))))
+            }
             
-
-            let a_b = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[0]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[1]));
-            
-            let a_e = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[0]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[4]));
-            
-            let a_g = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[0]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[6]));
-            
-            let e_f = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[4]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[5]));
-
-            let f_c = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[5]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[2]));
-
-            let b_c = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[1]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[2]));
-            
-            let g_c = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[6]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[2]));
-            
-            let b_d = and_z3!(&ctx,
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, current_step), states[1]),
-                eq_z3!(&ctx, EnumVarZ3::new(&ctx, state_sort.r, next_step), states[3]));
-
-            slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, a_b, a_e, a_g, e_f, f_c, b_c, b_d, g_c));
-
             slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, a_b, bool_var_z3!(&ctx, &format!("a_b_t{}", step))));
             slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, a_e, bool_var_z3!(&ctx, &format!("a_e_t{}", step))));
             slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, a_g, bool_var_z3!(&ctx, &format!("a_g_t{}", step))));

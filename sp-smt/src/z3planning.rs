@@ -2,24 +2,51 @@
 
 use super::*;
 use std::ffi::{CStr, CString};
+use std::collections::HashMap;
 use z3_sys::*;
+use sp_domain::*;
+use sp_runner::*;
 
-// pub struct ComputePlanFiniteDomainZ3<'ctx, 'slv> {
-//     pub ctx: &'ctx ContextZ3,
-//     pub slv: &'slv SolverZ3<'ctx>,
-//     pub vars: Vec<Z3_ast>,
-//     pub init: Z3_ast,
-//     pub goal: Z3_ast, // for now... (add Vec<Z3_ast> later instead)
-//     pub trans: Vec<Z3_ast>,
-//     pub max_steps: u32,
-//     pub r: Z3_model
-// }
+pub struct ComputePlanTSModelZ3<'ctx, 'slv> {
+    pub ctx: &'ctx ContextZ3,
+    pub slv: &'slv SolverZ3<'ctx>,
+    pub ts_model: TransitionSystemModel,
+    pub init: SPState,
+    pub goal: Predicate,
+    pub max_steps: u32,
+    pub r: Z3_model
+}
 
 pub struct GetPlanningFramesZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub model: Z3_model,
     pub nr_steps: u32,
     pub frames: Vec<(i32, Vec<String>, String)> 
+}
+
+impl <'ctx, 'slv> ComputePlanTSModelZ3<'ctx, 'slv> {
+    pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, ts_model: TransitionSystemModel, init: SPState, goal: Predicate, max_steps: u32) -> Z3_model {
+        let mut step: u32 = 0;
+        
+        let v: Vec<_> = init.clone().extract().iter().map(|(path,value)|path.clone()).collect();
+        let vs: Vec<_> = v.iter().map(|x|x.to_string()).collect();
+        let init_name =  vs.join(",");
+
+        let init_type: SPValueType = match init.sp_value_from_path(&x) {
+            Some(x) => x.has_type(),
+            None    => SPValueType::Unknown,
+        };
+    
+        let init_value: String = match init.sp_value_from_path(&x) {
+            Some(x) => x.to_string(),
+            None    => SPValue::Unknown.to_string(),
+        };
+
+        if init_type == SPValueType::Bool {
+            let bool_sort = BoolSortZ3::new(&ctx);
+            BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name);
+        }
+    }
 }
 
 // impl <'ctx, 'slv> ComputePlanFiniteDomainZ3<'ctx, 'slv> {

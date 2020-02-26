@@ -26,6 +26,11 @@ fn main() {
 
     let pose_sort = EnumSortZ3::new(&ctx, "pose_sort", vec!("home", "via1", "via2", "table"));
     let poses = &pose_sort.enum_asts;
+    // let pose = EnumVarZ3::new(&ctx, pose_sort.r, "pose");
+    let pose = "pose";
+
+    let transitions = vec!();
+    let t1 = 
 
     let mut step: u32 = 0;
     let mut path: u32 = 0;
