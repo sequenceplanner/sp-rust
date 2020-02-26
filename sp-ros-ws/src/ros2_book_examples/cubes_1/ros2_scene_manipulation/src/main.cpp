@@ -20,34 +20,49 @@
 
 #include "ros2_scene_manipulation_msgs/srv/manipulate_scene.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 
 #include "read_transforms.h"
 #include "scene_manipulation_service.h"
 
-using ManipulateScene = ros2_scene_manipulation_msgs::srv::ManipulateScene; 
+using ManipulateScene = ros2_scene_manipulation_msgs::srv::ManipulateScene;
 
 std::string readFile(const char* path)
 {
-	std::ifstream t(path);
-	std::string file_contents((std::istreambuf_iterator<char>(t)),
-					std::istreambuf_iterator<char>());
-	t.close();
-	return file_contents;
+    std::ifstream t(path);
+    std::string file_contents((std::istreambuf_iterator<char>(t)),
+                    std::istreambuf_iterator<char>());
+    t.close();
+    return file_contents;
 }
 
 int main(int argc, char ** argv)
 {
-	rclcpp::init(argc, argv);
+    rclcpp::init(argc, argv);
 
-	std::string active_transforms_path = readFile("/home/endre/sp-rust/sp-ros-ws/src/ros2_book_examples/cubes_1/ros2_scene_manipulation/active_transforms.json");
-	std::string static_transforms_path = readFile("/home/endre/sp-rust/sp-ros-ws/src/ros2_book_examples/cubes_1/ros2_scene_manipulation/static_transforms.json");
+    std::string package_share_directory = "";
+    try {
+        // may throw PackageNotFoundError exception
+        package_share_directory = ament_index_cpp::get_package_share_directory("ros2_scene_manipulation");
+    } catch(const std::exception& e) {
+        fprintf(stderr, "error: %s\n", e.what());
+        return 1;
+    }
 
-	std::unordered_map<std::string, RelatedTransform> active_transforms = readTransforms(active_transforms_path);
-	std::unordered_map<std::string, RelatedTransform> static_transforms = readTransforms(static_transforms_path);
+    printf("package share: %s\n", package_share_directory.c_str());
 
-	auto scene_manipulation_service = std::make_shared<SceneManipulationService>(active_transforms, static_transforms);
+    std::string active_fn = package_share_directory + "/active_transforms.json";
+    std::string static_fn = package_share_directory + "/static_transforms.json";
 
-	rclcpp::spin(scene_manipulation_service);
-	rclcpp::shutdown();
-	return 0;
+    std::string active_transforms_path = readFile(active_fn.c_str());
+    std::string static_transforms_path = readFile(static_fn.c_str());
+
+    std::unordered_map<std::string, RelatedTransform> active_transforms = readTransforms(active_transforms_path);
+    std::unordered_map<std::string, RelatedTransform> static_transforms = readTransforms(static_transforms_path);
+
+    auto scene_manipulation_service = std::make_shared<SceneManipulationService>(active_transforms, static_transforms);
+
+    rclcpp::spin(scene_manipulation_service);
+    rclcpp::shutdown();
+    return 0;
 }
