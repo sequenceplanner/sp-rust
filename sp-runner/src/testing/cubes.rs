@@ -169,8 +169,8 @@ impl GModel {
 pub fn cubes() -> (Model, SPState, Predicate) {
     let mut m = GModel::new("cubes");
 
-    let r1 = m.use_resource(make_dummy_mecademic("r1", &["r1table", "r1buffer"]));
-    let r2 = m.use_resource(make_dummy_mecademic("r2", &["r2table", "r2buffer"]));
+    let r1 = m.use_resource(make_dummy_mecademic("r1", &["home", "r1table", "r1buffer"]));
+    let r2 = m.use_resource(make_dummy_mecademic("r2", &["home", "r2table", "r2buffer"]));
     let sm = m.use_resource(make_dummy_sm("sm"));
 
     let products = &[0.to_spvalue(), 1.to_spvalue(),
@@ -273,8 +273,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
         (&r1_holding, 0.to_spvalue()),
         (&r2_holding, 0.to_spvalue()),
-        (&table_holding, 0.to_spvalue()),
-        (&buffer1_holding, 1.to_spvalue()),
+        (&table_holding, 1.to_spvalue()),
+        (&buffer1_holding, 0.to_spvalue()),
         (&buffer2_holding, 0.to_spvalue()),
     ]);
 

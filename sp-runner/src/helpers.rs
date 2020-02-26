@@ -162,7 +162,8 @@ fn sp_action_to_ac(a: &Action,
                 v => {
                     // find index in domain.
                     let dom = var.domain();
-                    Value::InDomain(dom.iter().position(|e| e == v).unwrap())
+                    Value::InDomain(dom.iter().position(|e| e == v)
+                                    .expect(&format!("{} not in domain {:?}", v, dom)))
                 }
             }
         },
