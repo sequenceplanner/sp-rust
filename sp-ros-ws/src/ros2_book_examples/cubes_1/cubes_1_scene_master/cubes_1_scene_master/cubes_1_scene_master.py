@@ -2,11 +2,14 @@ import sys
 import os
 import rclpy
 import time
+import json
 
 from builtin_interfaces.msg import Time
 
 from rclpy.node import Node
 from cubes_1_msgs.msg import SMCommand
+from sp_messages.msg import RunnerInfo
+from sp_messages.msg import State
 from cubes_1_msgs.msg import SMState
 from visualization_msgs.msg import Marker
 from std_msgs.msg import ColorRGBA
@@ -29,12 +32,21 @@ class Cubes1SceneMaster(Node):
         self.sm_state_timer_period = 0.2
         self.marker_timer_period = 0.01
 
+        self.sp_path_to_product_name = {
+            'cubes/buffer1_holding': 'buffer1',
+            'cubes/buffer2_holding': 'buffer2',
+            'cubes/r1_holding': 'robot1',
+            'cubes/r2_holding': 'robot2',
+            'cubes/table_holding': 'table1',
+            'cubes/table2_holding': 'table2',
+        }
+
         self.products = {
             'robot1' : 0,
             'robot2' : 0,
             'buffer1' : 0,
             'buffer2' : 0,
-            'table1' : 1,
+            'table1' : 0,
             'table2' : 0,
         }
 
@@ -74,20 +86,11 @@ class Cubes1SceneMaster(Node):
             3: self.create_publisher(Marker, "cubes/sm/cube3_marker", 20),
         }
 
-        self.sm_command_subscriber = self.create_subscription(
-            SMCommand,
-            "cubes/sm/command",
-            self.sp_command_callback,
+        self.sm_sp_runner_subscriber = self.create_subscription(
+            RunnerInfo,
+            "sp/runner/info",
+            self.sp_runner_callback,
             20)
-
-        self.sm_state_publisher_ = self.create_publisher(
-            SMState,
-            "cubes/sm/state",
-            20)
-
-        self.sm_state_timer = self.create_timer(
-            self.sm_state_timer_period,
-            self.sm_state_publisher_callback)
 
         self.marker_timer = self.create_timer(
             self.marker_timer_period,
@@ -121,27 +124,32 @@ class Cubes1SceneMaster(Node):
             marker = self.cube_marker(frame, color)
             self.product_marker_publishers[key].publish(marker)
 
-    def sm_state_publisher_callback(self):
-        # wanted to send an array but its too messy in sp...
-        state = SMState()
-        state.robot1 = self.products['robot1']
-        state.robot2 = self.products['robot2']
-        state.buffer1 = self.products['buffer1']
-        state.buffer2 = self.products['buffer2']
-        state.table1 = self.products['table1']
-        state.table2 = self.products['table2']
+    def sp_runner_callback(self, data):
+        old = set(self.products.items())
+        for s in data.state:
+            pn = self.sp_path_to_product_name.get(s.path)
+            if pn != None:
+                v = json.loads(s.value_as_json)
+                self.products[pn] = v
 
-        self.sm_state_publisher_.publish(state)
+        # update what has changed
+        new = set(self.products.items())
+        changes = new - old
+        if changes != set():
+            print(changes)
+            for slot, prod in changes:
+                self.handle_change(slot, prod)
 
-    def sp_command_callback(self, data):
+
+    def handle_change(self, slot, prod):
         for key, value in self.products.items():
-            if value == data.value:
+            if value == prod:
                 self.products[key] = 0  # "move" the item (it can only be in one slot)
-        self.products[data.slot_id] = data.value
+        self.products[slot] = prod
         # we never "detach" an item, just attach it to its new owner. (with teleport)
-        if data.value != 0:
-            child = self.product_to_frame[data.value]
-            parent = self.slot_to_frame[data.slot_id]
+        if prod != 0:
+            child = self.product_to_frame[prod]
+            parent = self.slot_to_frame[slot]
             self.send_request(child, parent, False)
 
     def send_request(self, frame, parent, pos):

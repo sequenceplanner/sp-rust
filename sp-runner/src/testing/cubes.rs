@@ -80,8 +80,30 @@ impl GModel {
             name,
             guard.clone(),
             actions.to_vec(),
+            vec![],
+            true,
+        );
+        self.model.add_item(SPItem::Transition(trans));
+    }
+
+    pub fn add_effect(&mut self, name: &str, guard: &Predicate, effects: &[Action]) {
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            vec![],
+            effects.to_vec(),
+            false,
+        );
+        self.model.add_item(SPItem::Transition(trans));
+    }
+
+    pub fn add_simulation_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            actions.to_vec(),
             vec![], // no effects
-            true, // auto!
+            false, // auto!
         );
         self.model.add_item(SPItem::Transition(trans));
     }
@@ -171,11 +193,9 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     let r1 = m.use_resource(make_dummy_mecademic("r1", &["home", "r1table", "r1buffer"]));
     let r2 = m.use_resource(make_dummy_mecademic("r2", &["home", "r2table", "r2buffer"]));
-    let sm = m.use_resource(make_dummy_sm("sm"));
 
     let products = &[0.to_spvalue(), 1.to_spvalue(),
                      2.to_spvalue(), 3.to_spvalue()];
-
 
     let r1_holding = m.add_estimated_domain("r1_holding", products);
     let r2_holding = m.add_estimated_domain("r2_holding", products);
@@ -192,61 +212,43 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r2prev = &r2["prev_pos"];
     let r1ref = &r1["ref_pos"];
     let r2ref = &r2["ref_pos"];
-    let attach_box_r1 = &sm["attach_r1_box"];
-    let attach_box_r2 = &sm["attach_r2_box"];
-    let attached_box_r1 = &sm["attached_r1_box"];
-    let attached_box_r2 = &sm["attached_r2_box"];
 
     // r1 take/leave products
 
     m.add_delib("r1_take_table", &p!([p:r1act == "r1table"] && [p:table_holding != 0] && [p:r1_holding == 0]),
-               &[a!(p:r1_holding <- p:table_holding), a!(p:table_holding = 0), a!(p:attach_box_r1)]);
+               &[a!(p:r1_holding <- p:table_holding), a!(p:table_holding = 0)]);
 
     m.add_delib("r1_take_buffer1", &p!([p:r1act == "r1buffer"] && [p:buffer1_holding != 0] && [p:r1_holding == 0]),
-               &[a!(p:r1_holding <- p:buffer1_holding), a!(p:buffer1_holding = 0), a!(p:attach_box_r1)]);
+               &[a!(p:r1_holding <- p:buffer1_holding), a!(p:buffer1_holding = 0)]);
 
     m.add_delib("r1_leave_table", &p!([p:r1act == "r1table"] && [p:r1_holding != 0] && [p:table_holding == 0]),
-               &[a!(p:table_holding <- p:r1_holding), a!(p:r1_holding = 0), a!(!p:attach_box_r1)]);
+               &[a!(p:table_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
 
     m.add_delib("r1_leave_buffer", &p!([p:r1act == "r1buffer"] && [p:r1_holding != 0] && [p:buffer1_holding == 0]),
-               &[a!(p:buffer1_holding <- p:r1_holding), a!(p:r1_holding = 0), a!(!p:attach_box_r1)]);
+               &[a!(p:buffer1_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
 
     // r2 take/leave products
 
     m.add_delib("r2_take_table", &p!([p:r2act == "r2table"] && [p:table_holding != 0] && [p:r2_holding == 0]),
-               &[a!(p:r2_holding <- p:table_holding), a!(p:table_holding = 0), a!(p:attach_box_r2)]);
+               &[a!(p:r2_holding <- p:table_holding), a!(p:table_holding = 0)]);
 
     m.add_delib("r2_take_buffer2", &p!([p:r2act == "r2buffer"] && [p:buffer2_holding != 0] && [p:r2_holding == 0]),
-               &[a!(p:r2_holding <- p:buffer2_holding), a!(p:buffer2_holding = 0), a!(p:attach_box_r2)]);
+               &[a!(p:r2_holding <- p:buffer2_holding), a!(p:buffer2_holding = 0)]);
 
     m.add_delib("r2_leave_table", &p!([p:r2act == "r2table"] && [p:r2_holding != 0] && [p:table_holding == 0]),
-               &[a!(p:table_holding <- p:r2_holding), a!(p:r2_holding = 0), a!(!p:attach_box_r2)]);
+               &[a!(p:table_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
 
     m.add_delib("r2_leave_buffer", &p!([p:r2act == "r2buffer"] && [p:r2_holding != 0] && [p:buffer2_holding == 0]),
-               &[a!(p:buffer2_holding <- p:r2_holding), a!(p:r2_holding = 0), a!(!p:attach_box_r2)]);
+               &[a!(p:buffer2_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
 
-    // not allowed to move the robot whilst interacting with scene manager
-    let r1_attach_exec = m.find("executing", &["sm", "attach_r1"]);
-    let r1_detach_exec = m.find("executing", &["sm", "detach_r1"]);
-    let r1_move_exec = m.find("executing", &["r1", "move_to"]);
-
-    let r2_attach_exec = m.find("executing", &["sm", "attach_r2"]);
-    let r2_detach_exec = m.find("executing", &["sm", "detach_r2"]);
-    let r2_move_exec = m.find("executing", &["r2", "move_to"]);
-
-    m.add_invar("mutex move attach",
-                &p!(!( [p:r1_attach_exec] && [p:r1_move_exec])));
-    m.add_invar("mutex move deattach",
-                &p!(!( [p:r1_detach_exec] && [p:r1_move_exec])));
-
-    m.add_invar("mutex move attach",
-                &p!(!( [p:r2_attach_exec] && [p:r2_move_exec])));
-    m.add_invar("mutex move deattach",
-                &p!(!( [p:r2_detach_exec] && [p:r2_move_exec])));
 
     // robots cannot both be at table
     m.add_invar("mutex table",
                 &p!(!( [p:r1act == "r1table"] && [p:r2act == "r2table"])));
+
+    // products can not be at the same place
+    // m.add_invar("unique_products",
+    //             &p!([p:r1_holding <!> p:r2_holding] && [p:r2_holding <!> p:table_holding]));
 
     // goal for testing
     //let g = p!([p:buffer1_holding == 1] && [p:r1act == "r1table"]);
@@ -264,12 +266,6 @@ pub fn cubes() -> (Model, SPState, Predicate) {
         (r2act, "r2buffer".to_spvalue()),
         (r1ref, "r1buffer".to_spvalue()),
         (r2ref, "r2buffer".to_spvalue()),
-
-        (attach_box_r1, false.to_spvalue()),
-        (attach_box_r2, false.to_spvalue()),
-        (attached_box_r1, false.to_spvalue()),
-        (attached_box_r2, false.to_spvalue()),
-
 
         (&r1_holding, 0.to_spvalue()),
         (&r2_holding, 0.to_spvalue()),
