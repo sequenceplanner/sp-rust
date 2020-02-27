@@ -478,7 +478,14 @@ impl fmt::Display for SPState {
         proj.sort();
         let mut buf = Vec::new();
         for (p, val) in proj.state {
-            buf.push(format!("{}: {:?}", p, val));
+
+            let current = val.current.to_string();
+            let next = val.next.as_ref()
+                .map_or("".to_string(), |x| format!("- n: {}", x));
+            let prev = val.prev.as_ref()
+                .map_or("".to_string(), |x| format!("- p: {}", x));
+
+            buf.push(format!("{}: {} {} {}", p, current, next, prev));
         }
         write!(f, "{}", buf.join("\n"))
     }
@@ -629,15 +636,15 @@ mod sp_value_test {
 
         println!("{}", s.difference(&new_s));
         println!("");
-        
+
         new_s.force(&ab, 2.to_spvalue());
-        
+
         println!("{}", s.difference(&new_s));
         println!("");
-        
+
         new_s.force(&ab, 4.to_spvalue());
         new_s.force(&ac, 2.to_spvalue());
-        
+
         println!("{}", s.difference(&new_s));
         println!("");
         println!("{}", new_s.difference(&s));

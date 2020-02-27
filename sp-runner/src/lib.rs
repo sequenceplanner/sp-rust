@@ -15,5 +15,7 @@ pub use planning::*;
 mod sp_node_handler;
 pub use sp_node_handler::*;
 
+mod formal_model;
+
 mod testing;
 pub use testing::*;

@@ -17,3 +17,7 @@ Cargo.lock
 **/build/
 **/install/
 **/log/
+
+# Python stuff
+**/__pycache__/
+**/*.py[cod]

@@ -156,6 +156,7 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)
 
 fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
+        // we didn't find a counter-example, which means we already fulfil the goal.
         return None;
     }
 
@@ -164,7 +165,6 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
         .rev()
         .take_while(|l| !l.contains("Trace Type: Counterexample"));
     let mut s: Vec<String> = s.map(|s| s.to_owned()).collect();
-    s.pop(); // skip first state label
     s.reverse();
 
     let mut trace = Vec::new();
@@ -173,9 +173,10 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
     for l in &s {
         if l.contains("  -- Loop starts here") {
             // when searching for infinite paths...
+            panic!("infinite paths not supported");
         }
         else if l.contains("  -> State: ") {
-            // ignore..
+            // ignore the difference between state and input.
         }
         else if l.contains("  -> Input: ") || l.contains("nuXmv >") {
             trace.push(last);
@@ -206,11 +207,9 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
 
                 let spval = spval_from_nuxvm(val, spt);
 
-                // temp test. for now we just keep "measured here" save all?
-                if let Some(v) = model.vars.iter().find(|v| v.path() == &sppath) {
-                    if v.variable_type() == VariableType::Measured {
-                        last.state.add_variable(sppath, spval);
-                    }
+                // only keep real variables, not state predicates.
+                if model.vars.iter().any(|v| v.path() == &sppath) {
+                    last.state.add_variable(sppath, spval);
                 }
             }
         }
@@ -219,46 +218,54 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
     Some(trace)
 }
 
-pub fn compute_plan(
-    model: &TransitionSystemModel,
-    goal_invs: &[(Predicate, Option<Predicate>)],
-    state: &SPState,
-    max_steps: u32,
-) -> PlanningResult {
-    let lines = create_nuxmv_problem(&model, &goal_invs, &state);
+pub struct NuXmvPlanner {}
 
-    let datetime: DateTime<Local> = SystemTime::now().into();
-    // todo: use non platform way of getting temporary folder
-    // or maybe just output to a subfolder 'plans'
-    let filename = &format!("/tmp/planner {}.bmc", datetime);
-    let mut f = File::create(filename).unwrap();
-    write!(f, "{}", lines).unwrap();
-    let mut f = File::create("/tmp/last_planning_request.bmc").unwrap();
-    write!(f, "{}", lines).unwrap();
+impl Planner for NuXmvPlanner {
+    fn plan(model: &TransitionSystemModel,
+            goals: &[(Predicate, Option<Predicate>)],
+            state: &SPState,
+            max_steps: u32) -> PlanningResult {
+        let lines = create_nuxmv_problem(&model, &goals, &state);
 
-    let start = Instant::now();
-    let result = call_nuxmv(max_steps, filename);
-    let duration = start.elapsed();
+        let datetime: DateTime<Local> = SystemTime::now().into();
+        // todo: use non platform way of getting temporary folder
+        // or maybe just output to a subfolder 'plans'
+        let filename = &format!("/tmp/planner {}.bmc", datetime);
+        let mut f = File::create(filename).unwrap();
+        write!(f, "{}", lines).unwrap();
+        let mut f = File::create("/tmp/last_planning_request.bmc").unwrap();
+        write!(f, "{}", lines).unwrap();
 
-    match result {
-        Ok((raw, raw_error)) => {
-            let trace = postprocess_nuxmv_problem(&model, &raw);
+        let start = Instant::now();
+        let result = call_nuxmv(max_steps, filename);
+        let duration = start.elapsed();
 
-            PlanningResult {
-                plan_found: trace.is_some(),
-                trace: trace.unwrap_or_default(),
-                time_to_solve: duration,
-                raw_output: raw.to_owned(),
-                raw_error_output: raw_error.to_owned(),
+        match result {
+            Ok((raw, raw_error)) => {
+                let plan = postprocess_nuxmv_problem(&model, &raw);
+                let plan_found = plan.is_some();
+                let trace = plan.unwrap_or_else(|| {
+                    vec![PlanningFrame { transition: SPPath::new(), state: state.clone() }]
+                });
+
+                PlanningResult {
+                    plan_found: plan_found,
+                    plan_length: trace.len() as u32 - 1, // hack :)
+                    trace: trace,
+                    time_to_solve: duration,
+                    raw_output: raw.to_owned(),
+                    raw_error_output: raw_error.to_owned(),
+                }
             }
-        }
-        Err(e) => {
-            PlanningResult {
-                plan_found: false,
-                trace: Vec::new(),
-                time_to_solve: duration,
-                raw_output: "".into(),
-                raw_error_output: e.to_string(),
+            Err(e) => {
+                PlanningResult {
+                    plan_found: false,
+                    plan_length: 0,
+                    trace: Vec::new(),
+                    time_to_solve: duration,
+                    raw_output: "".into(),
+                    raw_error_output: e.to_string(),
+                }
             }
         }
     }
@@ -301,7 +308,8 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     // for now, don't add this. taken care of by runner + guard extraction.
     // perhaps later we should have different kinds of specifications in the
     // model instead.
-    // add_global_specifications(&mut lines, &model.specs);
+    // for now we actually do this instead of GE.
+    add_global_specifications(&mut lines, &model.specs);
 
     return lines;
 }
@@ -494,11 +502,8 @@ fn add_current_valuations(lines: &mut String, vars: &[Variable], state: &SPState
 fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
     let goal_str: Vec<String> = goal_invs.iter().map(|(goal,inv)| {
         if let Some(inv) = inv {
-            // if we have an invariant for our goal,
-            // express it as  inv U (inv & goal)
-            // e.g. we make sure that the invariant also
-            // holds in the post state
-            format!("({inv} U ({inv} & {goal}))", goal = &NuXMVPredicate(goal), inv = &NuXMVPredicate(inv))
+            // invariant until goal
+            format!("({inv} U {goal})", goal = &NuXMVPredicate(goal), inv = &NuXMVPredicate(inv))
         } else {
             // no invariant, simple "exists" goal.
             format!("F ( {} )", &NuXMVPredicate(goal))
@@ -514,19 +519,24 @@ fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
 }
 
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
 
-#[test]
-fn test_post_process() {
-    use indoc::indoc;
-    let result = indoc!("
+    #[test]
+    #[serial]
+    fn test_post_process() {
+        use indoc::indoc;
+        let result = indoc!("
     <!-- ################### Trace number: 1 ################### -->
 Trace Description: BMC Counterexample
 Trace Type: Counterexample
   -> State: 1.1 <-
-    one_robot_model#r1#State#active = FALSE
-    one_robot_model#r1#Control#activate = FALSE
-    one_robot_model#r1#Control#ref_pos = unknown
-    one_robot_model#r1#State#act_pos = unknown
+    one_robot_model#r1#State#0#active = FALSE
+    one_robot_model#r1#Control#0#activate = FALSE
+    one_robot_model#r1#Control#0#ref_pos = unknown
+    one_robot_model#r1#State#0#act_pos = unknown
     one_robot_model#r1#deactivate#enabled = FALSE
     one_robot_model#r1#deactivate#executing = FALSE
     one_robot_model#r1#deactivate#finished = TRUE
@@ -549,10 +559,10 @@ Trace Type: Counterexample
     one_robot_model#r1#activate#finish = FALSE
     one_robot_model#r1#deactivate#finish = FALSE
   -> State: 1.2 <-
-    one_robot_model#r1#State#active = FALSE
-    one_robot_model#r1#Control#activate = TRUE
-    one_robot_model#r1#Control#ref_pos = unknown
-    one_robot_model#r1#State#act_pos = unknown
+    one_robot_model#r1#State#0#active = FALSE
+    one_robot_model#r1#Control#0#activate = TRUE
+    one_robot_model#r1#Control#0#ref_pos = unknown
+    one_robot_model#r1#State#0#act_pos = unknown
     one_robot_model#r1#deactivate#enabled = FALSE
     one_robot_model#r1#deactivate#executing = FALSE
     one_robot_model#r1#deactivate#finished = FALSE
@@ -575,10 +585,10 @@ Trace Type: Counterexample
     one_robot_model#r1#activate#finish = TRUE
     one_robot_model#r1#deactivate#finish = FALSE
   -> State: 1.3 <-
-    one_robot_model#r1#State#active = TRUE
-    one_robot_model#r1#Control#activate = TRUE
-    one_robot_model#r1#Control#ref_pos = unknown
-    one_robot_model#r1#State#act_pos = unknown
+    one_robot_model#r1#State#0#active = TRUE
+    one_robot_model#r1#Control#0#activate = TRUE
+    one_robot_model#r1#Control#0#ref_pos = unknown
+    one_robot_model#r1#State#0#act_pos = unknown
     one_robot_model#r1#deactivate#enabled = TRUE
     one_robot_model#r1#deactivate#executing = FALSE
     one_robot_model#r1#deactivate#finished = FALSE
@@ -594,13 +604,35 @@ Trace Type: Counterexample
 nuXmv >
 ");
 
-    let (model, state) = crate::testing::one_dummy_robot();
-    let ts_model = TransitionSystemModel::from(&model);
-    let trace = postprocess_nuxmv_problem(&ts_model, &result.to_string());
+        let (model, state) = crate::testing::one_dummy_robot();
+        let ts_model = TransitionSystemModel::from(&model);
+        let trace = postprocess_nuxmv_problem(&ts_model, &result.to_string());
+        let trace = trace.unwrap();
+        assert_eq!(trace[0].transition,
+                   SPPath::new());
+        assert_eq!(trace[1].transition,
+                   SPPath::from_string("one_robot_model/r1/activate/start"));
+        assert_eq!(trace[2].transition,
+                   SPPath::from_string("one_robot_model/r1/activate/finish"));
 
-    println!("{:#?}", trace);
+        let activate = SPPath::from_string("one_robot_model/r1/Control/0/activate");
+        let active = SPPath::from_string("one_robot_model/r1/State/0/active");
 
-    // assert!(false);
+        assert_eq!(trace[0].state.sp_value_from_path(&activate).unwrap(),
+                   &false.to_spvalue());
 
-    // todo: write the tests...
+        assert_eq!(trace[1].state.sp_value_from_path(&activate).unwrap(),
+                   &true.to_spvalue());
+
+        assert_eq!(trace[0].state.sp_value_from_path(&active).unwrap(),
+                   &false.to_spvalue());
+
+        assert_eq!(trace[1].state.sp_value_from_path(&active).unwrap(),
+                   &false.to_spvalue());
+
+        assert_eq!(trace[2].state.sp_value_from_path(&active).unwrap(),
+                   &true.to_spvalue());
+
+
+    }
 }

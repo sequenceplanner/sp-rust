@@ -7,14 +7,10 @@ package_name = 'ros2_mecademic_utilities'
 setup(
     name=package_name,
     version='0.0.1',
-    packages=[],
-    py_modules=[
-    	'src.ros2_mecademic_utilities',
-    ],
+    packages=[package_name],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-	(os.path.join('share', package_name), glob('launch/*.launch.py')),
         ('share/' + package_name, ['package.xml']),
 	('share/' + package_name + '/poses/', ['poses/joint_poses.csv']),
     ],
@@ -35,7 +31,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'ros2_mecademic_utilities = src.ros2_mecademic_utilities:main',
+            'ros2_mecademic_utilities = ros2_mecademic_utilities.ros2_mecademic_utilities:main',
         ],
     },
 )

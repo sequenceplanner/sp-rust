@@ -84,6 +84,25 @@ impl Noder for SPItem {
             SPItem::TransitionSpec(x) => x.find_item_among_children(name, path_sections),
         }
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        match self {
+            SPItem::Model(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Resource(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Message(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Topic(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Variable(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Operation(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Ability(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Transition(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::IfThen(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Spec(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::TransitionSpec(x) => x.find_item_mut_among_children(name, path_sections),
+        }
+    }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         match self {
             SPItem::Model(x) => x.update_path_children(path, changes),
@@ -129,6 +148,21 @@ impl Noder for SPItem {
             SPItem::TransitionSpec(x) => x.as_ref(),
         }
     }
+    fn as_mut_ref<'a>(&'a mut self) -> SPMutItemRef<'a> {
+        match self {
+            SPItem::Model(x) => x.as_mut_ref(),
+            SPItem::Resource(x) => x.as_mut_ref(),
+            SPItem::Message(x) => x.as_mut_ref(),
+            SPItem::Topic(x) => x.as_mut_ref(),
+            SPItem::Variable(x) => x.as_mut_ref(),
+            SPItem::Operation(x) => x.as_mut_ref(),
+            SPItem::Ability(x) => x.as_mut_ref(),
+            SPItem::Transition(x) => x.as_mut_ref(),
+            SPItem::IfThen(x) => x.as_mut_ref(),
+            SPItem::Spec(x) => x.as_mut_ref(),
+            SPItem::TransitionSpec(x) => x.as_mut_ref(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -144,6 +178,22 @@ pub enum SPItemRef<'a> {
     IfThen(&'a IfThen),
     TransitionSpec(&'a TransitionSpec),
     Spec(&'a Spec),
+    //SOP(SOP),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SPMutItemRef<'a> {
+    Model(&'a mut Model),
+    Resource(&'a mut Resource),
+    Message(&'a mut Message),
+    Topic(&'a mut Topic),
+    Variable(&'a mut Variable),
+    Operation(&'a mut Operation),
+    Ability(&'a mut Ability),
+    Transition(&'a mut Transition),
+    IfThen(&'a mut IfThen),
+    TransitionSpec(&'a mut TransitionSpec),
+    Spec(&'a mut Spec),
     //SOP(SOP),
 }
 
@@ -180,6 +230,37 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::IfThen(x) => SPItem::IfThen({ *x }.clone()),
             SPItemRef::Spec(x) => SPItem::Spec({ *x }.clone()),
             SPItemRef::TransitionSpec(x) => SPItem::TransitionSpec({ *x }.clone()),
+        }
+    }
+    pub fn name(&self) -> &str {
+        self.node().name()
+    }
+}
+
+impl<'a> SPMutItemRef<'a> {
+    pub fn path(&self) -> SPPath {
+        self.node().path().clone()
+    }
+
+    pub fn node(&self) -> &SPNode {
+        match self {
+            SPMutItemRef::Model(x) => &x.node,
+            SPMutItemRef::Resource(x) => &x.node,
+            SPMutItemRef::Message(x) => &x.node,
+            SPMutItemRef::Topic(x) => &x.node,
+            SPMutItemRef::Variable(x) => &x.node,
+            SPMutItemRef::Operation(x) => &x.node,
+            SPMutItemRef::Ability(x) => &x.node,
+            SPMutItemRef::Transition(x) => &x.node,
+            SPMutItemRef::IfThen(x) => &x.node,
+            SPMutItemRef::Spec(x) => &x.node,
+            SPMutItemRef::TransitionSpec(x) => &x.node,
+        }
+    }
+    pub fn as_variable(&'a mut self) -> &'a mut Variable {
+        match self {
+            SPMutItemRef::Variable(x) => x,
+            _ => panic!(format!("trying to unwrap variable but we have {:?}", self)),
         }
     }
     pub fn name(&self) -> &str {
@@ -257,6 +338,13 @@ impl Noder for Model {
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.items.as_slice(), name, path_sections)
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        find_item_mut_in_list(self.items.as_mut_slice(), name, path_sections)
+    }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.items.as_mut_slice(), path, changes);
     }
@@ -267,6 +355,9 @@ impl Noder for Model {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Model(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Model(self)
     }
 }
 
@@ -344,6 +435,21 @@ impl Noder for Resource {
             .or_else(|| find_item_in_list(self.sub_items.as_slice(), name, path_sections))
             .or_else(|| find_item_in_list(self.messages.as_slice(), name, path_sections))
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        if let Some(x) = find_item_mut_in_list(self.abilities.as_mut_slice(), name, path_sections) {
+            Some(x)
+        } else if let Some(x) = find_item_mut_in_list(self.parameters.as_mut_slice(), name, path_sections) {
+            Some(x)
+        } else if let Some(x) = find_item_mut_in_list(self.sub_items.as_mut_slice(), name, path_sections) {
+            Some(x)
+        } else {
+            find_item_mut_in_list(self.messages.as_mut_slice(), name, path_sections)
+        }
+    }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         // let mut local = SPPath::from(vec![self.node.name().to_string()]);
         // let path = self.node.path();
@@ -375,6 +481,9 @@ impl Noder for Resource {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Resource(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Resource(self)
     }
 }
 
@@ -536,6 +645,13 @@ impl Noder for Topic {
     ) -> Option<SPItemRef<'a>> {
         self.msg.find_item(name, path_sections)
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        self.msg.find_item_mut(name, path_sections)
+    }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         self.msg.update_path(path, changes);
     }
@@ -544,6 +660,9 @@ impl Noder for Topic {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Topic(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Topic(self)
     }
 }
 
@@ -602,6 +721,13 @@ impl Noder for Message {
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.fields.as_slice(), name, path_sections)
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        find_item_mut_in_list(self.fields.as_mut_slice(), name, path_sections)
+    }
     fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.fields.as_mut_slice(), path, changes);
     }
@@ -610,6 +736,9 @@ impl Noder for Message {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Message(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Message(self)
     }
 }
 
@@ -660,6 +789,16 @@ impl Noder for MessageField {
             MessageField::Var(ref x) => x.find_item(name, path_sections),
         }
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        match self {
+            MessageField::Msg(ref mut x) => x.find_item_mut(name, path_sections),
+            MessageField::Var(ref mut x) => x.find_item_mut(name, path_sections),
+        }
+    }
     fn update_path_children(&mut self, path:&SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         match self {
             MessageField::Msg(ref mut x) => x.update_path_children(path, changes),
@@ -673,6 +812,12 @@ impl Noder for MessageField {
         match self {
             MessageField::Msg(ref x) => x.as_ref(),
             MessageField::Var(ref x) => x.as_ref(),
+        }
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        match self {
+            MessageField::Msg(ref mut x) => x.as_mut_ref(),
+            MessageField::Var(ref mut x) => x.as_mut_ref(),
         }
     }
 }
@@ -710,6 +855,13 @@ impl Noder for Variable {
     ) -> Option<SPItemRef<'a>> {
         None
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        None
+    }
     fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         match &mut self.type_ {
@@ -719,6 +871,9 @@ impl Noder for Variable {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Variable(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Variable(self)
     }
 }
 
@@ -816,6 +971,13 @@ impl Noder for Transition {
     ) -> Option<SPItemRef<'a>> {
         None
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        None
+    }
     fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(mapping);
@@ -828,6 +990,9 @@ impl Noder for Transition {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Transition(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Transition(self)
     }
 }
 
@@ -925,6 +1090,17 @@ impl Noder for Ability {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| find_item_in_list(self.predicates.as_slice(), name, path_sections))
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections) {
+            Some(x)
+        } else {
+            find_item_mut_in_list(self.predicates.as_mut_slice(), name, path_sections)
+        }
+    }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         update_path_in_list(self.predicates.as_mut_slice(), path, changes);
@@ -940,6 +1116,9 @@ impl Noder for Ability {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Ability(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Ability(self)
     }
 }
 
@@ -994,6 +1173,21 @@ impl Noder for Operation {
                     .and_then(|x| x.find_item(name, path_sections))
             })
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections) {
+            Some(x)
+        } else if let Some(x) = self.state_variable.find_item_mut(name, path_sections) {
+            Some(x)
+        } else {
+            self.goal
+                .as_mut()
+                .and_then(|x| x.find_item_mut(name, path_sections))
+        }
+    }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
         update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         self.goal.as_mut().map(|mut x| x.update_path(path, changes));
@@ -1006,6 +1200,9 @@ impl Noder for Operation {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Operation(self)
     }
 }
 
@@ -1079,6 +1276,13 @@ impl Noder for IfThen {
     ) -> Option<SPItemRef<'a>> {
         None
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        None
+    }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.condition.replace_variable_path(mapping);
@@ -1089,6 +1293,9 @@ impl Noder for IfThen {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::IfThen(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::IfThen(self)
     }
 }
 
@@ -1141,12 +1348,22 @@ impl Noder for Spec {
     ) -> Option<SPItemRef<'a>> {
         None
     }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        None
+    }
     fn update_path_children(&mut self, _path:&SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.invariant.replace_variable_path(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Spec(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Spec(self)
     }
 }
 
@@ -1182,10 +1399,17 @@ impl Noder for TransitionSpec {
     }
     fn find_item_among_children<'a>(
         &'a self,
-        _name: &str,
-        _path_sections: &[&str],
+        name: &str,
+        path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        self.spec_transition.find_item(_name, _path_sections)
+        self.spec_transition.find_item(name, path_sections)
+    }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        self.spec_transition.find_item_mut(name, path_sections)
     }
     fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
         self.spec_transition.update_path(_path, _changes);
@@ -1200,6 +1424,9 @@ impl Noder for TransitionSpec {
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::TransitionSpec(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::TransitionSpec(self)
     }
 }
 

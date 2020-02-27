@@ -2,18 +2,18 @@
 
 use super::*;
 use std::ffi::{CStr, CString};
+use std::collections::HashMap;
 use z3_sys::*;
+use sp_domain::*;
+use sp_runner::*;
 
-// pub struct ComputePlanFiniteDomainZ3<'ctx, 'slv> {
-//     pub ctx: &'ctx ContextZ3,
-//     pub slv: &'slv SolverZ3<'ctx>,
-//     pub vars: Vec<Z3_ast>,
-//     pub init: Z3_ast,
-//     pub goal: Z3_ast, // for now... (add Vec<Z3_ast> later instead)
-//     pub trans: Vec<Z3_ast>,
-//     pub max_steps: u32,
-//     pub r: Z3_model
-// }
+pub struct ComputePlanSPModelZ3 {
+    pub mdoel: TransitionSystemModel,
+    pub state: SPState,
+    pub goals: Vec<(Predicate, Option<Predicate>)>,
+    pub max_steps: u32,
+    pub r: Z3_model
+}
 
 pub struct GetPlanningFramesZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
@@ -22,34 +22,53 @@ pub struct GetPlanningFramesZ3<'ctx> {
     pub frames: Vec<(i32, Vec<String>, String)> 
 }
 
-// impl <'ctx, 'slv> ComputePlanFiniteDomainZ3<'ctx, 'slv> {
-//     /// Get a plan from the initial to the goal state. 
-//     ///
-//     /// NOTE: See macro! `compute_plan_z3!`
-//     pub fn new(ctx: &'ctx ContextZ3, slv: &'slv SolverZ3<'ctx>, vars: Vec<Z3_ast>, init: Z3_ast, goal: Z3_ast, trans: Vec<Z3_ast>, max_steps: u32) -> (Z3_model, u32) {
-//         let mut step: u32 = 0;
+// impl Planner for ComputePlanSPModelZ3 {
+//     fn plan(model: &TransitionSystemModel,
+//             goals: &[(Predicate, Option<Predicate>)],
+//             state: &SPState,
+//             max_steps: u32) -> PlanningResult {
 
-//         SlvAssertZ3::new(&ctx, &slv, init);
+//         let cfg = ConfigZ3::new();
+//         let ctx = ContextZ3::new(&cfg);
+//         let slv = SolverZ3::new(&ctx);
 
-//         SlvPushZ3::new(&ctx, &slv);
-//         SlvAssertZ3::new(&ctx, &slv, goal);
+//         let v: Vec<_> = state.clone().extract().iter().map(|(path,value)|path.clone()).collect();
+//         let vs: Vec<_> = v.iter().map(|x|x.to_string()).collect();
+//         let init_name =  vs.join(",");
 
-//         while SlvCheckZ3::new(&ctx, &slv) != 1 && step < max_steps {
+//         let init_type: SPValueType = match state.sp_value_from_path(&SPPath::from_string(&init_name)) {
+//             Some(x) => x.has_type(),
+//             None    => SPValueType::Unknown,
+//         };
+    
+//         let init_value: String = match state.sp_value_from_path(&SPPath::from_string(&init_name)) {
+//             Some(x) => x.to_string(),
+//             None    => SPValue::Unknown.to_string(),
+//         };
 
-//             step = step + 1;
-//             SlvPopZ3::new(&ctx, &slv, 1);
-
-//             let current_step: &str = &format!("pose_s{}", step);
-//             let next_step: &str = &format!("pose_s{}", step + 1);
-
-//             for tran in trans {
-//                 SlvAssertZ3::new(&ctx, &slv, tran);
-
+//         let vars = model.vars;
+//         let mut init_domain = vec!();
+//         for var in vars {
+//             if init_name == var.path().to_string() {
+//                 for v in var.domain() {
+//                     init_domain.push(v.to_string());
+//                 }
 //             }
-
 //         }
 
-//         ComputePlanZ3 {ctx, slv, r: z3}.r
+//         if init_type == SPValueType::Bool {
+//             let bool_sort = BoolSortZ3::new(&ctx);
+//             let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name));
+//             if init_value == "false" {
+//                 SlvAssertZ3::new(&ctx, &slv, EQZ3::new(&ctx, init, BoolZ3::new(&ctx, false)));
+//             } else {
+//                 SlvAssertZ3::new(&ctx, &slv, EQZ3::new(&ctx, init, BoolZ3::new(&ctx, true)));
+//             }
+        
+//         } else {
+//             let enum_sort = EnumSortZ3::new(&ctx, &format!("{}_sort", init_name), init_domain);
+//             // let init = Enum
+//         }
 //     }
 // }
 

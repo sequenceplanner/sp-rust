@@ -7,10 +7,7 @@ package_name = 'cubes_1_scene_master'
 setup(
     name=package_name,
     version='0.0.1',
-    packages=[],
-    py_modules=[
-    	'src.cubes_1_scene_master',
-    ],
+    packages=[package_name],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -34,7 +31,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'cubes_1_scene_master = src.cubes_1_scene_master:main',
+        	'cubes_1_scene_master = cubes_1_scene_master.cubes_1_scene_master:main',
         ],
     },
 )
