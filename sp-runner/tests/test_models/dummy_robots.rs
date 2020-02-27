@@ -2,11 +2,36 @@ use sp_domain::*;
 use sp_runner::*;
 use super::*;
 
+fn initial_dummy_state(m: &Model) -> SPState {
+    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+    let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+    let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
+
+    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+    let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+    let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+
+    let state = state! {
+        r1a => "away",
+        r1r => "away",
+        r1active => false,
+        r1activate => false,
+        r2a => "away",
+        r2r => "away",
+        r2active => false,
+        r2activate => false
+    };
+
+    state
+}
+
 pub fn one_dummy_robot() -> (Model, SPState) {
     let r1 = make_dummy_robot("r1", &["at", "away"]);
     let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);
 
-    let s = make_initial_state(&m);
+    let s = initial_dummy_state(&m);
 
     (m, s)
 }
@@ -55,9 +80,8 @@ pub fn two_dummy_robots_online_specs_only() -> (Model, SPState) {
                               p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
                               vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
-    // Make it runnable
-    let mut s = make_initial_state(&m);
-    set_dummy_robots_initial_state(&m, &mut s);
+
+    let s = initial_dummy_state(&m);
 
     (m, s)
 }
@@ -92,9 +116,7 @@ pub fn two_dummy_robots_guard_extraction() -> (Model, SPState) {
                                p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
                                vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
-    // Make it runnable
-    let mut s = make_initial_state(&m);
-    set_dummy_robots_initial_state(&m, &mut s);
+    let s = initial_dummy_state(&m);
 
     (m, s)
 }
@@ -130,8 +152,7 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (Model, SPState) {
                                p!([p:r1_p_a == "away"] && [p:r2_p_a == "away"]),
                                vec![a!(p:r1_to_at = "i"), a!(p:r2_to_at = "i")], None);
 
-    let mut s = make_initial_state(&m);
-    set_dummy_robots_initial_state(&m, &mut s);
+    let s = initial_dummy_state(&m);
 
     (m, s)
 }
