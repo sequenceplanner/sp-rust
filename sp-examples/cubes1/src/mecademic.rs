@@ -1,8 +1,8 @@
 use sp_domain::*;
-use crate::modeling::*;
+use sp_runner::*;
 use std::collections::HashMap; // todo: macro depends on this...
 
-pub fn make_dummy_mecademic(name: &str, poses: &[&str]) -> Resource {
+pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
     // domain is a list of saved poses. add "unknown" to this list.
     let mut domain = vec!["unknown"];
     domain.extend(poses.iter());
