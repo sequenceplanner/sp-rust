@@ -2,13 +2,13 @@ use sp_domain::*;
 use sp_runner::*;
 use serial_test::serial;
 
-mod dummy_robot;
-use dummy_robot::*;
+mod test_models;
+use test_models::*;
 
 // ie guard extraction to satisfy global spec.
 fn basic_model() -> Model {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
     m
 }
 
@@ -84,8 +84,8 @@ fn model_with_global_spec() -> Model {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r2", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
     let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
@@ -103,8 +103,8 @@ fn model_without_spec() -> Model {
     let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r2", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // !
     // No specifications
@@ -247,8 +247,8 @@ fn planning_ge_len11() {
     let mut m = Model::new_root("test_sat_planning", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r2", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
     let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
@@ -298,8 +298,8 @@ fn planning_invar_len11() {
     let mut m = Model::new_root("tsi", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r2", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
     let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
@@ -352,8 +352,8 @@ fn planning_invar_len9() {
     let mut m = Model::new_root("tsi", Vec::new());
 
     // Make resoureces
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r1", &["at", "away"])));
-    m.add_item(SPItem::Resource(make_test_dummy_robot("r2", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
     let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();

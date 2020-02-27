@@ -49,7 +49,7 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
 
 #[test]
 fn test_mecademic() {
-    let r1 = make_dummy_mecademic("r1", &["at", "away"]);
+    let r1 = make_mecademic("r1", &["at", "away"]);
     println!("{:#?}", r1);
 
     let r1_p_a = r1.find_item("act_pos", &["r1"]).expect("check spelling").path();

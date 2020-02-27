@@ -1,5 +1,5 @@
 use sp_domain::*;
-use crate::modeling::*;
+use sp_runner::*;
 use std::collections::HashMap; // todo: macro depends on this...
 
 pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {

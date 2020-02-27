@@ -15,6 +15,3 @@ mod planning;
 pub use planning::*;
 
 mod formal_model;
-
-mod testing;
-pub use testing::*;

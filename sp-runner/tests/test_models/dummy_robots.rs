@@ -1,7 +1,6 @@
 use sp_domain::*;
-use crate::helpers::*;
-use crate::testing::*;
-use crate::modeling::*;
+use sp_runner::*;
+use super::*;
 
 pub fn one_dummy_robot() -> (Model, SPState) {
     let r1 = make_dummy_robot("r1", &["at", "away"]);

@@ -519,120 +519,120 @@ fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
 }
 
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use serial_test::serial;
 
-    #[test]
-    #[serial]
-    fn test_post_process() {
-        use indoc::indoc;
-        let result = indoc!("
-    <!-- ################### Trace number: 1 ################### -->
-Trace Description: BMC Counterexample
-Trace Type: Counterexample
-  -> State: 1.1 <-
-    one_robot_model#r1#State#0#active = FALSE
-    one_robot_model#r1#Control#0#activate = FALSE
-    one_robot_model#r1#Control#0#ref_pos = unknown
-    one_robot_model#r1#State#0#act_pos = unknown
-    one_robot_model#r1#deactivate#enabled = FALSE
-    one_robot_model#r1#deactivate#executing = FALSE
-    one_robot_model#r1#deactivate#finished = TRUE
-    one_robot_model#r1#activate#executing = FALSE
-    one_robot_model#r1#activate#finished = FALSE
-    one_robot_model#r1#activate#enabled = TRUE
-    one_robot_model#r1#to_away#enabled = FALSE
-    one_robot_model#r1#to_away#finished = FALSE
-    one_robot_model#r1#to_away#executing = FALSE
-    one_robot_model#r1#to_table#executing = FALSE
-    one_robot_model#r1#to_table#enabled = FALSE
-    one_robot_model#r1#to_table#finished = FALSE
-  -> Input: 1.2 <-
-    one_robot_model#r1#to_table#start = FALSE
-    one_robot_model#r1#to_away#start = FALSE
-    one_robot_model#r1#activate#start = TRUE
-    one_robot_model#r1#deactivate#start = FALSE
-    one_robot_model#r1#to_table#finish = FALSE
-    one_robot_model#r1#to_away#finish = FALSE
-    one_robot_model#r1#activate#finish = FALSE
-    one_robot_model#r1#deactivate#finish = FALSE
-  -> State: 1.2 <-
-    one_robot_model#r1#State#0#active = FALSE
-    one_robot_model#r1#Control#0#activate = TRUE
-    one_robot_model#r1#Control#0#ref_pos = unknown
-    one_robot_model#r1#State#0#act_pos = unknown
-    one_robot_model#r1#deactivate#enabled = FALSE
-    one_robot_model#r1#deactivate#executing = FALSE
-    one_robot_model#r1#deactivate#finished = FALSE
-    one_robot_model#r1#activate#executing = TRUE
-    one_robot_model#r1#activate#finished = FALSE
-    one_robot_model#r1#activate#enabled = FALSE
-    one_robot_model#r1#to_away#enabled = FALSE
-    one_robot_model#r1#to_away#finished = FALSE
-    one_robot_model#r1#to_away#executing = FALSE
-    one_robot_model#r1#to_table#executing = FALSE
-    one_robot_model#r1#to_table#enabled = FALSE
-    one_robot_model#r1#to_table#finished = FALSE
-  -> Input: 1.3 <-
-    one_robot_model#r1#to_table#start = FALSE
-    one_robot_model#r1#to_away#start = FALSE
-    one_robot_model#r1#activate#start = FALSE
-    one_robot_model#r1#deactivate#start = FALSE
-    one_robot_model#r1#to_table#finish = FALSE
-    one_robot_model#r1#to_away#finish = FALSE
-    one_robot_model#r1#activate#finish = TRUE
-    one_robot_model#r1#deactivate#finish = FALSE
-  -> State: 1.3 <-
-    one_robot_model#r1#State#0#active = TRUE
-    one_robot_model#r1#Control#0#activate = TRUE
-    one_robot_model#r1#Control#0#ref_pos = unknown
-    one_robot_model#r1#State#0#act_pos = unknown
-    one_robot_model#r1#deactivate#enabled = TRUE
-    one_robot_model#r1#deactivate#executing = FALSE
-    one_robot_model#r1#deactivate#finished = FALSE
-    one_robot_model#r1#activate#executing = FALSE
-    one_robot_model#r1#activate#finished = TRUE
-    one_robot_model#r1#activate#enabled = FALSE
-    one_robot_model#r1#to_away#enabled = TRUE
-    one_robot_model#r1#to_away#finished = FALSE
-    one_robot_model#r1#to_away#executing = FALSE
-    one_robot_model#r1#to_table#executing = FALSE
-    one_robot_model#r1#to_table#enabled = TRUE
-    one_robot_model#r1#to_table#finished = FALSE
-nuXmv >
-");
+//     #[test]
+//     #[serial]
+//     fn test_post_process() {
+//         use indoc::indoc;
+//         let result = indoc!("
+//     <!-- ################### Trace number: 1 ################### -->
+// Trace Description: BMC Counterexample
+// Trace Type: Counterexample
+//   -> State: 1.1 <-
+//     one_robot_model#r1#State#0#active = FALSE
+//     one_robot_model#r1#Control#0#activate = FALSE
+//     one_robot_model#r1#Control#0#ref_pos = unknown
+//     one_robot_model#r1#State#0#act_pos = unknown
+//     one_robot_model#r1#deactivate#enabled = FALSE
+//     one_robot_model#r1#deactivate#executing = FALSE
+//     one_robot_model#r1#deactivate#finished = TRUE
+//     one_robot_model#r1#activate#executing = FALSE
+//     one_robot_model#r1#activate#finished = FALSE
+//     one_robot_model#r1#activate#enabled = TRUE
+//     one_robot_model#r1#to_away#enabled = FALSE
+//     one_robot_model#r1#to_away#finished = FALSE
+//     one_robot_model#r1#to_away#executing = FALSE
+//     one_robot_model#r1#to_table#executing = FALSE
+//     one_robot_model#r1#to_table#enabled = FALSE
+//     one_robot_model#r1#to_table#finished = FALSE
+//   -> Input: 1.2 <-
+//     one_robot_model#r1#to_table#start = FALSE
+//     one_robot_model#r1#to_away#start = FALSE
+//     one_robot_model#r1#activate#start = TRUE
+//     one_robot_model#r1#deactivate#start = FALSE
+//     one_robot_model#r1#to_table#finish = FALSE
+//     one_robot_model#r1#to_away#finish = FALSE
+//     one_robot_model#r1#activate#finish = FALSE
+//     one_robot_model#r1#deactivate#finish = FALSE
+//   -> State: 1.2 <-
+//     one_robot_model#r1#State#0#active = FALSE
+//     one_robot_model#r1#Control#0#activate = TRUE
+//     one_robot_model#r1#Control#0#ref_pos = unknown
+//     one_robot_model#r1#State#0#act_pos = unknown
+//     one_robot_model#r1#deactivate#enabled = FALSE
+//     one_robot_model#r1#deactivate#executing = FALSE
+//     one_robot_model#r1#deactivate#finished = FALSE
+//     one_robot_model#r1#activate#executing = TRUE
+//     one_robot_model#r1#activate#finished = FALSE
+//     one_robot_model#r1#activate#enabled = FALSE
+//     one_robot_model#r1#to_away#enabled = FALSE
+//     one_robot_model#r1#to_away#finished = FALSE
+//     one_robot_model#r1#to_away#executing = FALSE
+//     one_robot_model#r1#to_table#executing = FALSE
+//     one_robot_model#r1#to_table#enabled = FALSE
+//     one_robot_model#r1#to_table#finished = FALSE
+//   -> Input: 1.3 <-
+//     one_robot_model#r1#to_table#start = FALSE
+//     one_robot_model#r1#to_away#start = FALSE
+//     one_robot_model#r1#activate#start = FALSE
+//     one_robot_model#r1#deactivate#start = FALSE
+//     one_robot_model#r1#to_table#finish = FALSE
+//     one_robot_model#r1#to_away#finish = FALSE
+//     one_robot_model#r1#activate#finish = TRUE
+//     one_robot_model#r1#deactivate#finish = FALSE
+//   -> State: 1.3 <-
+//     one_robot_model#r1#State#0#active = TRUE
+//     one_robot_model#r1#Control#0#activate = TRUE
+//     one_robot_model#r1#Control#0#ref_pos = unknown
+//     one_robot_model#r1#State#0#act_pos = unknown
+//     one_robot_model#r1#deactivate#enabled = TRUE
+//     one_robot_model#r1#deactivate#executing = FALSE
+//     one_robot_model#r1#deactivate#finished = FALSE
+//     one_robot_model#r1#activate#executing = FALSE
+//     one_robot_model#r1#activate#finished = TRUE
+//     one_robot_model#r1#activate#enabled = FALSE
+//     one_robot_model#r1#to_away#enabled = TRUE
+//     one_robot_model#r1#to_away#finished = FALSE
+//     one_robot_model#r1#to_away#executing = FALSE
+//     one_robot_model#r1#to_table#executing = FALSE
+//     one_robot_model#r1#to_table#enabled = TRUE
+//     one_robot_model#r1#to_table#finished = FALSE
+// nuXmv >
+// ");
 
-        let (model, state) = crate::testing::one_dummy_robot();
-        let ts_model = TransitionSystemModel::from(&model);
-        let trace = postprocess_nuxmv_problem(&ts_model, &result.to_string());
-        let trace = trace.unwrap();
-        assert_eq!(trace[0].transition,
-                   SPPath::new());
-        assert_eq!(trace[1].transition,
-                   SPPath::from_string("one_robot_model/r1/activate/start"));
-        assert_eq!(trace[2].transition,
-                   SPPath::from_string("one_robot_model/r1/activate/finish"));
+//         let (model, state) = crate::testing::one_dummy_robot();
+//         let ts_model = TransitionSystemModel::from(&model);
+//         let trace = postprocess_nuxmv_problem(&ts_model, &result.to_string());
+//         let trace = trace.unwrap();
+//         assert_eq!(trace[0].transition,
+//                    SPPath::new());
+//         assert_eq!(trace[1].transition,
+//                    SPPath::from_string("one_robot_model/r1/activate/start"));
+//         assert_eq!(trace[2].transition,
+//                    SPPath::from_string("one_robot_model/r1/activate/finish"));
 
-        let activate = SPPath::from_string("one_robot_model/r1/Control/0/activate");
-        let active = SPPath::from_string("one_robot_model/r1/State/0/active");
+//         let activate = SPPath::from_string("one_robot_model/r1/Control/0/activate");
+//         let active = SPPath::from_string("one_robot_model/r1/State/0/active");
 
-        assert_eq!(trace[0].state.sp_value_from_path(&activate).unwrap(),
-                   &false.to_spvalue());
+//         assert_eq!(trace[0].state.sp_value_from_path(&activate).unwrap(),
+//                    &false.to_spvalue());
 
-        assert_eq!(trace[1].state.sp_value_from_path(&activate).unwrap(),
-                   &true.to_spvalue());
+//         assert_eq!(trace[1].state.sp_value_from_path(&activate).unwrap(),
+//                    &true.to_spvalue());
 
-        assert_eq!(trace[0].state.sp_value_from_path(&active).unwrap(),
-                   &false.to_spvalue());
+//         assert_eq!(trace[0].state.sp_value_from_path(&active).unwrap(),
+//                    &false.to_spvalue());
 
-        assert_eq!(trace[1].state.sp_value_from_path(&active).unwrap(),
-                   &false.to_spvalue());
+//         assert_eq!(trace[1].state.sp_value_from_path(&active).unwrap(),
+//                    &false.to_spvalue());
 
-        assert_eq!(trace[2].state.sp_value_from_path(&active).unwrap(),
-                   &true.to_spvalue());
+//         assert_eq!(trace[2].state.sp_value_from_path(&active).unwrap(),
+//                    &true.to_spvalue());
 
 
-    }
-}
+//     }
+// }
