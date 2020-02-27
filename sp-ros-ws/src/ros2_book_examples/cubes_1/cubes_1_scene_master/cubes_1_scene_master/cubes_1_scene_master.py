@@ -9,6 +9,7 @@ from rclpy.node import Node
 from cubes_1_msgs.msg import SMCommand
 from cubes_1_msgs.msg import SMState
 from visualization_msgs.msg import Marker
+from std_msgs.msg import ColorRGBA
 from ros2_scene_manipulation_msgs.srv import ManipulateScene
 
 class Cubes1SceneMaster(Node):
@@ -28,37 +29,61 @@ class Cubes1SceneMaster(Node):
         self.sm_state_timer_period = 0.2
         self.marker_timer_period = 0.01
 
-        self.sm_command = SMCommand()
-        self.sm_command.attach_r1_box = False
-        self.sm_command.attach_r2_box = False
+        self.products = {
+            'robot1' : 0,
+            'robot2' : 0,
+            'buffer1' : 0,
+            'buffer2' : 0,
+            'table1' : 1,
+            'table2' : 0,
+        }
 
-        self.tick_inhibited = False
-        self.prev_sm_command = SMCommand()
-        self.prev_sm_command.attach_r1_box = False
-        self.prev_sm_command.attach_r2_box = False
+        self.product_to_frame = {
+            1: 'cubes/c1/cube',
+            2: 'cubes/c2/cube',
+            3: 'cubes/c3/cube',
+        }
 
-        self.viz_marker_publisher_ = self.create_publisher(
-            Marker,
-            "visualization_marker",
-            10)
+        red = ColorRGBA()
+        red.a = 1.0
+        red.r = 1.0
+        green = ColorRGBA()
+        green.a = 1.0
+        green.g = 1.0
+        blue = ColorRGBA()
+        blue.a = 1.0
+        blue.b = 1.0
+        self.product_colors = {
+            1: red,
+            2: green,
+            3: blue,
+        }
+
+        self.slot_to_frame = {
+            'robot1' : 'cubes/r1/meca_axis_6_link',
+            'robot2' : 'cubes/r2/meca_axis_6_link',
+            'buffer1' : 'cubes/buffer1',
+            'buffer2' : 'cubes/buffer2',
+            'table1' : 'cubes/table1',
+            'table2' : 'cubes/table2',
+        }
+
+        self.product_marker_publishers = {
+            1: self.create_publisher(Marker, "cubes/sm/cube1_marker", 20),
+            2: self.create_publisher(Marker, "cubes/sm/cube2_marker", 20),
+            3: self.create_publisher(Marker, "cubes/sm/cube3_marker", 20),
+        }
 
         self.sm_command_subscriber = self.create_subscription(
             SMCommand,
             "cubes/sm/command",
             self.sp_command_callback,
-            10)
-
-        time.sleep(2)
-
-        self.sm_state = SMState()
-        self.sm_state.attached_r1_box = False
-        self.sm_state.attached_r2_box = False
-        self.sm_state.echo = self.sm_command
+            20)
 
         self.sm_state_publisher_ = self.create_publisher(
             SMState,
             "cubes/sm/state",
-            10)
+            20)
 
         self.sm_state_timer = self.create_timer(
             self.sm_state_timer_period,
@@ -66,72 +91,58 @@ class Cubes1SceneMaster(Node):
 
         self.marker_timer = self.create_timer(
             self.marker_timer_period,
-            self.load_markers)
+            self.publish_markers)
 
-    def load_markers(self):
-        # clock = Clock()
-        self.marker = Marker()
-        self.marker.header.frame_id = "cubes/c1/cube"
-        self.marker.header.stamp = Time()
-        self.marker.ns = ""
-        self.marker.id = 0
-        self.marker.type = 1
-        self.marker.action = 0
-        self.marker.pose.position.x = 0.0
-        self.marker.pose.position.y = 0.0
-        self.marker.pose.position.z = 0.0
-        self.marker.pose.orientation.x = 0.0
-        self.marker.pose.orientation.y = 0.0
-        self.marker.pose.orientation.z = 0.0
-        self.marker.pose.orientation.w = 1.0
-        self.marker.scale.x = 0.1
-        self.marker.scale.y = 0.1
-        self.marker.scale.z = 0.1
-        self.marker.color.a = 1.0
-        self.marker.color.r = 0.0
-        self.marker.color.g = 1.0
-        self.marker.color.b = 0.0
-        self.viz_marker_publisher_.publish(self.marker);
+    def cube_marker(self, frame, color):
+        marker = Marker()
+        marker.header.frame_id = frame
+        marker.header.stamp = Time()
+        marker.ns = ""
+        marker.id = 0
+        marker.type = 1
+        marker.action = 0
+        marker.pose.position.x = 0.0
+        marker.pose.position.y = 0.0
+        marker.pose.position.z = 0.0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.05
+        marker.scale.y = 0.05
+        marker.scale.z = 0.05
+        marker.color = color
+
+        return marker
+
+    def publish_markers(self):
+        for key, frame in self.product_to_frame.items():
+            color = self.product_colors[key]
+            marker = self.cube_marker(frame, color)
+            self.product_marker_publishers[key].publish(marker)
 
     def sm_state_publisher_callback(self):
-        if time.time() < self.callback_timeout:
-            self.sm_state_publisher_.publish(self.sm_state)
-        else:
-            self.sm_state.echo.attach_r1_box = self.sm_state.attached_r1_box
-            self.sm_state.echo.attach_r2_box = self.sm_state.attached_r2_box
-            self.sm_state_publisher_.publish(self.sm_state)
+        # wanted to send an array but its too messy in sp...
+        state = SMState()
+        state.robot1 = self.products['robot1']
+        state.robot2 = self.products['robot2']
+        state.buffer1 = self.products['buffer1']
+        state.buffer2 = self.products['buffer2']
+        state.table1 = self.products['table1']
+        state.table2 = self.products['table2']
 
-    def inhibit_tick(self):
-        self.prev_sm_command.attach_r1_box = self.sm_command.attach_r1_box
-        self.prev_sm_command.attach_r2_box = self.sm_command.attach_r2_box
+        self.sm_state_publisher_.publish(state)
 
     def sp_command_callback(self, data):
-
-        self.callback_timeout = time.time() + self.timeout
-
-        self.sm_command.attach_r1_box = data.attach_r1_box
-        self.sm_command.attach_r2_box = data.attach_r2_box
-
-        # if self.sm_command.attach_r1_box == self.prev_sm_command.attach_r1_box and \
-        #    self.sm_command.attach_r1_box == self.prev_sm_command.attach_r1_box:
-        #     # print("NOT CHANGING STUFF")
-        #     self.tick_inhibited = True
-        # else:
-        #     # print("CHANGING STUFF")
-        #     self.tick_inhibited = False
-
-        # if self.tick_inhibited == False:
-            # self.inhibit_tick()
-        if self.sm_command.attach_r1_box == True:
-            self.fn_attach_r1_box()
-        elif self.sm_command.attach_r2_box == True:
-            self.fn_attach_r2_box()
-        elif self.sm_command.attach_r1_box == False and self.sm_command.attach_r2_box == False:
-            self.fn_detach_box()
-        else:
-            pass
-        # else:
-        #     pass
+        for key, value in self.products.items():
+            if value == data.value:
+                self.products[key] = 0  # "move" the item (it can only be in one slot)
+        self.products[data.slot_id] = data.value
+        # we never "detach" an item, just attach it to its new owner. (with teleport)
+        if data.value != 0:
+            child = self.product_to_frame[data.value]
+            parent = self.slot_to_frame[data.slot_id]
+            self.send_request(child, parent, False)
 
     def send_request(self, frame, parent, pos):
         self.req.frame_id = frame
@@ -145,21 +156,6 @@ class Cubes1SceneMaster(Node):
         self.req.transform.rotation.w = 1.0
         self.req.same_position_in_world = pos
         self.future = self.manipulate_scene_client.call_async(self.req)
-
-    def fn_attach_r1_box(self):
-        self.send_request("cubes/c1/cube", "cubes/r1/meca_axis_6_link", True)
-        self.sm_state.attached_r1_box = True
-        self.sm_state.attached_r2_box = False
-
-    def fn_attach_r2_box(self):
-        self.send_request("cubes/c1/cube", "cubes/r2/meca_axis_6_link", True)
-        self.sm_state.attached_r2_box = True
-        self.sm_state.attached_r1_box = False
-
-    def fn_detach_box(self):
-        self.send_request("cubes/c1/cube", "world", True)
-        self.sm_state.attached_r1_box = False
-        self.sm_state.attached_r2_box = False
 
 def main(args=None):
     rclpy.init(args=args)
