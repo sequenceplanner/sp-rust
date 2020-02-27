@@ -20,7 +20,7 @@ pub fn make_dummy_mecademic(name: &str, poses: &[&str]) -> Resource {
 
             act_pos : domain,
 
-            echo / ref_pos : domain,   // these are used for handshaking.
+            //echo / ref_pos : domain,   // these are used for handshaking.
         },
         estimated!{
             prev_pos: domain,

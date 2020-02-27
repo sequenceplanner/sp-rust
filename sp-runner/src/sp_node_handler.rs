@@ -36,9 +36,9 @@ impl NodeHandler {
         }
     }
 
-    pub fn newMessage(&mut self, mess: sp_ros::RosMessage, state: SPState) -> NodeHandlerResult {
+    // pub fn newMessage(&mut self, mess: sp_ros::RosMessage, state: SPState) -> NodeHandlerResult {
 
-    }
+    // }
 
     
 }
