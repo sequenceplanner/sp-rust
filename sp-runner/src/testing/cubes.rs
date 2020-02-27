@@ -199,7 +199,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     let r1_holding = m.add_estimated_domain("r1_holding", products);
     let r2_holding = m.add_estimated_domain("r2_holding", products);
-    let table_holding = m.add_estimated_domain("table_holding", products);
+    let table1_holding = m.add_estimated_domain("table1_holding", products);
+    let table2_holding = m.add_estimated_domain("table2_holding", products);
     let buffer1_holding = m.add_estimated_domain("buffer1_holding", products);
     let buffer2_holding = m.add_estimated_domain("buffer2_holding", products);
 
@@ -215,28 +216,40 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     // r1 take/leave products
 
-    m.add_delib("r1_take_table", &p!([p:r1act == "r1table"] && [p:table_holding != 0] && [p:r1_holding == 0]),
-               &[a!(p:r1_holding <- p:table_holding), a!(p:table_holding = 0)]);
+    m.add_delib("r1_take_table1", &p!([p:r1act == "r1table"] && [p:table1_holding != 0] && [p:r1_holding == 0]),
+                &[a!(p:r1_holding <- p:table1_holding), a!(p:table1_holding = 0)]);
+
+    m.add_delib("r1_take_table2", &p!([p:r1act == "r1table"] && [p:table2_holding != 0] && [p:r1_holding == 0]),
+               &[a!(p:r1_holding <- p:table2_holding), a!(p:table2_holding = 0)]);
 
     m.add_delib("r1_take_buffer1", &p!([p:r1act == "r1buffer"] && [p:buffer1_holding != 0] && [p:r1_holding == 0]),
                &[a!(p:r1_holding <- p:buffer1_holding), a!(p:buffer1_holding = 0)]);
 
-    m.add_delib("r1_leave_table", &p!([p:r1act == "r1table"] && [p:r1_holding != 0] && [p:table_holding == 0]),
-               &[a!(p:table_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
+    m.add_delib("r1_leave_table1", &p!([p:r1act == "r1table"] && [p:r1_holding != 0] && [p:table1_holding == 0]),
+                &[a!(p:table1_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
 
-    m.add_delib("r1_leave_buffer", &p!([p:r1act == "r1buffer"] && [p:r1_holding != 0] && [p:buffer1_holding == 0]),
+    m.add_delib("r1_leave_table2", &p!([p:r1act == "r1table"] && [p:r1_holding != 0] && [p:table2_holding == 0]),
+               &[a!(p:table2_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
+
+    m.add_delib("r1_leave_buffer1", &p!([p:r1act == "r1buffer"] && [p:r1_holding != 0] && [p:buffer1_holding == 0]),
                &[a!(p:buffer1_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
 
     // r2 take/leave products
 
-    m.add_delib("r2_take_table", &p!([p:r2act == "r2table"] && [p:table_holding != 0] && [p:r2_holding == 0]),
-               &[a!(p:r2_holding <- p:table_holding), a!(p:table_holding = 0)]);
+    m.add_delib("r2_take_table1", &p!([p:r2act == "r2table"] && [p:table1_holding != 0] && [p:r2_holding == 0]),
+                &[a!(p:r2_holding <- p:table1_holding), a!(p:table1_holding = 0)]);
+
+    m.add_delib("r2_take_table2", &p!([p:r2act == "r2table"] && [p:table2_holding != 0] && [p:r2_holding == 0]),
+               &[a!(p:r2_holding <- p:table2_holding), a!(p:table2_holding = 0)]);
 
     m.add_delib("r2_take_buffer2", &p!([p:r2act == "r2buffer"] && [p:buffer2_holding != 0] && [p:r2_holding == 0]),
                &[a!(p:r2_holding <- p:buffer2_holding), a!(p:buffer2_holding = 0)]);
 
-    m.add_delib("r2_leave_table", &p!([p:r2act == "r2table"] && [p:r2_holding != 0] && [p:table_holding == 0]),
-               &[a!(p:table_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
+    m.add_delib("r2_leave_table1", &p!([p:r2act == "r2table"] && [p:r2_holding != 0] && [p:table1_holding == 0]),
+                &[a!(p:table1_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
+
+    m.add_delib("r2_leave_table2", &p!([p:r2act == "r2table"] && [p:r2_holding != 0] && [p:table2_holding == 0]),
+               &[a!(p:table2_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
 
     m.add_delib("r2_leave_buffer", &p!([p:r2act == "r2buffer"] && [p:r2_holding != 0] && [p:buffer2_holding == 0]),
                &[a!(p:buffer2_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
@@ -248,16 +261,20 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     // products can not be at the same place
     // m.add_invar("unique_products",
-    //             &p!([p:r1_holding <!> p:r2_holding] && [p:r2_holding <!> p:table_holding]));
+    //             &p!([p:r1_holding <!> p:r2_holding] && [p:r2_holding <!> p:table1_holding]));
 
     // goal for testing
     //let g = p!([p:buffer1_holding == 1] && [p:r1act == "r1table"]);
     let g = p!(p:buffer2_holding == 1);
 
     // make an operation with that goal
-    m.add_op("take_part1", false, &p!(p:r1_holding == 0), &p!(p:buffer1_holding == 1), &[], None);
+    // m.add_op("take_part1", true, &p!(p:buffer1_holding == 0), &p!(p:buffer1_holding == 1), &[], None);
+    // m.add_op("take_part2", true, &p!(p:buffer2_holding == 0), &p!(p:buffer2_holding == 2), &[], None);
 
-    m.add_op("take_part2", false, &p!(p:buffer1_holding == 1), &p!(p:buffer2_holding == 1), &[], None);
+    m.add_op("swap_parts", true, &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
+             &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
+    m.add_op("swap_parts_again", true, &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
+             &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
 
     m.initial_state(&[
         (r1prev, "r1buffer".to_spvalue()),
@@ -269,9 +286,10 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
         (&r1_holding, 0.to_spvalue()),
         (&r2_holding, 0.to_spvalue()),
-        (&table_holding, 1.to_spvalue()),
-        (&buffer1_holding, 0.to_spvalue()),
-        (&buffer2_holding, 0.to_spvalue()),
+        (&table1_holding, 3.to_spvalue()),
+        (&table2_holding, 0.to_spvalue()),
+        (&buffer1_holding, 2.to_spvalue()),
+        (&buffer2_holding, 1.to_spvalue()),
     ]);
 
     println!("MAKING MODEL");

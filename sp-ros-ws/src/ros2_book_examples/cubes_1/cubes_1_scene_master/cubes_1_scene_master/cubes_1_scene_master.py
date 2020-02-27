@@ -37,7 +37,7 @@ class Cubes1SceneMaster(Node):
             'cubes/buffer2_holding': 'buffer2',
             'cubes/r1_holding': 'robot1',
             'cubes/r2_holding': 'robot2',
-            'cubes/table_holding': 'table1',
+            'cubes/table1_holding': 'table1',
             'cubes/table2_holding': 'table2',
         }
 
