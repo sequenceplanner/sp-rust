@@ -61,7 +61,7 @@ pub enum PlannerResult {
     OpPlan(Vec<SPPath>),
     AbPlan(Vec<SPPath>)
 }
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerInfo {
     pub state: SPState,
     pub ability_plan: Vec<SPPath>,

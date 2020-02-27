@@ -45,55 +45,41 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
 
     let mut tr = vec!();
     let mut i = 0;
-    let mut prev_ctrl: Option<&PlanningFrame> = None;
-    let mut prev_state: Option<&SPState> = None;
-    for pf in res.trace.iter() {
+
+    // trace[0] is always the initial state.
+    let mut prev_ctrl: Option<&PlanningFrame> = Some(&res.trace[0]);
+    let mut prev_state: Option<&SPState> = Some(&res.trace[0].state);
+    for pf in res.trace.iter().skip(1) {
         let pf: &PlanningFrame = pf;
         if ctrl.contains(&pf.transition){
-            if prev_ctrl.is_none() {
-                let t = Transition::new(
-                    &format!("step{:?}", i),
-                    p!(p:plan_p == i),
-                    vec!(a!(p:plan_p = {i+1})),
-                    vec!(),
-                    true,
-                );
-                println!("Adding {:?} for {:?}", t, pf.transition);
-                tr.push(TransitionSpec::new(
-                    &format!("spec{:?}", i),
-                    t,
-                    vec!(pf.transition.clone())
-                ));
+            let prev = prev_ctrl.unwrap();
+            let prev_tr_state = prev_state.unwrap_or(&pf.state);
+            let diff = prev.state.difference(prev_tr_state);
+            let mut pred: Vec<Predicate> = diff.projection().sorted().state.iter().map(|(p,v)| {
+                Predicate::EQ(
+                    PredicateValue::path((*p).clone()),
+                    PredicateValue::value(v.value().clone()))
+            }).collect();
+            pred.push(p!(p:plan_p == i));
+            println!("");
+            println!("Transition: {:?} {}", i, pf.transition);
+            let guard = Predicate::AND(pred);
+            println!("A new Guard: {}", guard);
+            println!("");
 
-            } else { // need to add guards
-                let prev = prev_ctrl.unwrap();
-                let prev_tr_state = prev_state.unwrap_or(&pf.state);
-                let diff = prev.state.difference(prev_tr_state);
-                let mut pred: Vec<Predicate> = diff.projection().sorted().state.iter().map(|(p,v)|
-                    Predicate::EQ(
-                        PredicateValue::path((*p).clone()),
-                        PredicateValue::value(v.value().clone()))
-                    ).collect();
-                pred.push(p!(p:plan_p == i));
-                println!("");
-                println!("Transition: {:?} {}", i, pf.transition);
-                let guard = Predicate::AND(pred);
-                println!("A new Guard: {}", guard);
-                println!("");
+            let t = Transition::new(
+                &format!("step{:?}", i),
+                guard,
+                vec!(a!(p:plan_p = {i+1})),
+                vec!(),
+                true,
+            );
+            tr.push(TransitionSpec::new(
+                &format!("spec{:?}", i),
+                t,
+                vec!(pf.transition.clone())
+            ));
 
-                let t = Transition::new(
-                    &format!("step{:?}", i),
-                    guard,
-                    vec!(a!(p:plan_p = {i+1})),
-                    vec!(),
-                    true,
-                );
-                tr.push(TransitionSpec::new(
-                    &format!("spec{:?}", i),
-                    t,
-                    vec!(pf.transition.clone())
-                ));
-            }
             prev_ctrl = Some(pf);
             prev_state = Some(&pf.state);
             i += 1;

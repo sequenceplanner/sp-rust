@@ -385,35 +385,40 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_ability(a);
     }
 
-    // add invariants to model
-    let mut to_add = Vec::new();
-    to_add.push(SPItem::Resource(r.clone()));
+    let mut supervisor = Predicate::AND(invariants.iter().map(|i|i.prop.clone()).collect());
+    if !r.abilities.is_empty() && !invariants.is_empty() {
+        // add invariants to model
+        let mut to_add = Vec::new();
+        to_add.push(SPItem::Resource(r.clone()));
 
-    for i in &invariants {
-        to_add.push(SPItem::Spec(Spec::new(&i.name, i.prop.clone())));
-    }
-
-    // lastly, we should preprocess the individual resource.
-    let temp_model = Model::new_no_root("temp", to_add);
-    let temp_ts_model = TransitionSystemModel::from(&temp_model);
-    let (new_guards, supervisor) = extract_guards(&temp_ts_model, &Predicate::TRUE);
-
-    for a in &mut r.abilities {
-        let mut to_remove = Vec::new();
-        for t in &mut a.transitions {
-            match new_guards.get(&t.path().to_string()) {
-                Some(Predicate::FALSE) => {
-                    println!("guard is FALSE for {}, removing transition", t.path());
-                    to_remove.push(t.path().clone());
-                }
-                Some(g) => {
-                    println!("adding guard for {}: {}", t.path(), g);
-                    *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
-                },
-                None => {},
-            }
+        for i in &invariants {
+            to_add.push(SPItem::Spec(Spec::new(&i.name, i.prop.clone())));
         }
-        a.transitions.retain(|t| !to_remove.contains(&t.path()));
+
+        // lastly, we should preprocess the individual resource.
+        let temp_model = Model::new_no_root("temp", to_add);
+        let temp_ts_model = TransitionSystemModel::from(&temp_model);
+        println!("GE FOR {}", r.name());
+        let (new_guards, sv) = extract_guards(&temp_ts_model, &Predicate::TRUE);
+        supervisor = sv;
+
+        for a in &mut r.abilities {
+            let mut to_remove = Vec::new();
+            for t in &mut a.transitions {
+                match new_guards.get(&t.path().to_string()) {
+                    Some(Predicate::FALSE) => {
+                        println!("guard is FALSE for {}, removing transition", t.path());
+                        to_remove.push(t.path().clone());
+                    }
+                    Some(g) => {
+                        println!("adding guard for {}: {}", t.path(), g);
+                        *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
+                    },
+                    None => {},
+                }
+            }
+            a.transitions.retain(|t| !to_remove.contains(&t.path()));
+        }
     }
 
     let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);

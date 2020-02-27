@@ -141,9 +141,17 @@ pub fn launch() -> Result<(), Error> {
                     runner.input(SPRunnerInput::AbilityPlan(plan));
 
                     tx_out.send(runner.state().clone()).unwrap();
-
                 }
             }
+
+
+            // send out runner info.
+            let runner_info = RunnerInfo {
+                state: runner.state().clone(),
+                .. RunnerInfo::default()
+            };
+
+            tx_out_misc.send(runner_info).unwrap();
 
 
             // let mess: Result<SPState, RecvError> = rx_in.recv();
