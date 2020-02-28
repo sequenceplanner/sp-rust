@@ -171,7 +171,8 @@ impl SPRunner {
             .fold(true, |x, s| x && s.invariant().eval(&self.ticker.state));
 
         if !good {
-            println!("\nDOING NOTHING: WE ARE IN A BAD STATE.\n");
+            println!("\nDOING NOTHING: WE ARE IN A BAD STATE:\n");
+            println!("{}", self.ticker.state);
             return;
         }
 

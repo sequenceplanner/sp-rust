@@ -20,14 +20,26 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     let r1act = &r1["act_pos"];
     let r2act = &r2["act_pos"];
+    let r1prev = &r1["prev_pos"];
+    let r2prev = &r2["prev_pos"];
+    let r1ref = &r1["ref_pos"];
+    let r2ref = &r2["ref_pos"];
+
 
     m.add_invar("table_zone", &p!(!([p:r1act == "table1"] && [p:r2act == "table1"])));
     m.add_invar("table_zone", &p!(!([p:r1act == "table2"] && [p:r2act == "table2"])));
 
-    // let r1prev = &r1["prev_pos"];
-    // let r2prev = &r2["prev_pos"];
-    let r1ref = &r1["ref_pos"];
-    let r2ref = &r2["ref_pos"];
+    // must go to table positions via the home pose
+    // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
+    m.add_invar("via_home", &p!(!([p:r1act == "table1"] && [!p:r1prev == "home"])));
+    m.add_invar("via_home", &p!(!([p:r1act == "table2"] && [!p:r1prev == "home"])));
+
+    m.add_invar("via_home", &p!(!([p:r2act == "table1"] && [!p:r2prev == "home"])));
+    m.add_invar("via_home", &p!(!([p:r2act == "table2"] && [!p:r2prev == "home"])));
+
+    // same for buffers
+    m.add_invar("via_home", &p!(!([p:r1act == "buffer1"] && [!p:r1prev == "home"])));
+    m.add_invar("via_home", &p!(!([p:r2act == "buffer2"] && [!p:r2prev == "home"])));
 
     // r1 take/leave products
 
@@ -71,6 +83,10 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
 
     // products can not be in two places at once
+    // this is actually true already given a good initial state as per the transitions above
+    // question is: do we also feed this info to the planner for faster solving?
+    // needs more testing.
+
     // let r1 = p!(p:r1_holding != 0);
     // let others = p!([p:r1_holding <!> p:r2_holding] && [p:r1_holding <!> p:table1_holding] &&
     //                 [p:r1_holding <!> p:table2_holding] && [p:r1_holding <!> p:buffer1_holding] &&
@@ -117,21 +133,39 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     //let g = p!([p:buffer1_holding == 1] && [p:r1act == "r1table"]);
     let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]);
 
-    m.add_op("swap_parts", true,
+    // m.add_op("swap_parts", true,
+    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
+    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
+
+    // m.add_op("swap_parts_again", true,
+    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
+    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
+
+
+    // same as above but broken to reduce plan lengths...
+    m.add_op("swap_parts_step_1", true,
              &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
+             &p!([p:table1_holding == 1] && [p:table2_holding == 2]), &[], None);
+
+    m.add_op("swap_parts_step_2", true,
+             &p!([p:table1_holding == 1] && [p:table2_holding == 2]),
              &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
 
-    m.add_op("swap_parts_again", true,
+    m.add_op("swap_parts_again_step_1", true,
              &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
+             &p!([p:table1_holding == 2] && [p:table2_holding == 1]), &[], None);
+
+    m.add_op("swap_parts_again_step_2", true,
+             &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
              &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
 
     m.initial_state(&[
-        // (r1prev, "r1buffer".to_spvalue()),
-        // (r2prev, "r2buffer".to_spvalue()),
-        (r1act, "r1buffer".to_spvalue()),
-        (r2act, "r2buffer".to_spvalue()),
-        (r1ref, "r1buffer".to_spvalue()),
-        (r2ref, "r2buffer".to_spvalue()),
+        (r1prev, "home".to_spvalue()),
+        (r2prev, "home".to_spvalue()),
+        (r1act, "home".to_spvalue()),
+        (r2act, "home".to_spvalue()),
+        (r1ref, "home".to_spvalue()),
+        (r2ref, "home".to_spvalue()),
 
         (&r1_holding, 3.to_spvalue()),
         (&r2_holding, 0.to_spvalue()),
