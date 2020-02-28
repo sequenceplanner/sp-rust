@@ -15,15 +15,29 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
     let mut ts_model = TransitionSystemModel::from(&model);
 
-    let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
+    // TODO:
+    // for now we actually comment out guard extraction because it appears we plan alot faster
+    // using just the invariants instead.
+
+    // let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
 
     // The specs are converted into guards + a global supervisor
-    ts_model.specs.clear();
-    ts_model.specs.push(Spec::new("global_supervisor", supervisor));
+    // ts_model.specs.clear();
+    // ts_model.specs.push(Spec::new("global_supervisor", supervisor));
 
     // TODO: right now its very cumbersome to update the original Model.
     // but it would be nice if we could.
-    update_guards(&mut ts_model, &new_guards);
+    // update_guards(&mut ts_model, &new_guards);
+
+
+
+    // TODO:
+    // so for now we just refine all invariants instead.
+    let mut new_specs = Vec::new();
+    for s in &ts_model.specs {
+        new_specs.push(Spec::new(s.name(), refine_invariant(&model, s.invariant())));
+    }
+    ts_model.specs = new_specs;
 
     // runner model has everything from planning model + operations and their global state
     let items = model.items();

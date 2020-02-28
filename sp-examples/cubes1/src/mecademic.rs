@@ -22,9 +22,9 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
 
             echo / ref_pos : domain,   // these are used for handshaking.
         },
-        estimated!{
-            prev_pos: domain,
-        },
+        // estimated!{
+        //     prev_pos: domain,
+        // },
 
         ability!{
             name: move_to,
@@ -36,7 +36,7 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
             *start : p!(enabled) => [ a!(ref_pos?) ] / [a!(act_pos = "unknown")],
             finish : p!(executing) => [] / [a!(act_pos <- ref_pos)],
 
-            sync_prev: p!([prev_pos <!> ref_pos] && [ref_pos <-> act_pos]) => [ a!(prev_pos <- ref_pos) ] / []
+//            sync_prev: p!([prev_pos <!> ref_pos] && [ref_pos <-> act_pos]) => [ a!(prev_pos <- ref_pos) ] / []
         },
 
         never!{

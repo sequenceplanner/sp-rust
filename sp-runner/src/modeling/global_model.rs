@@ -1,8 +1,5 @@
 use sp_domain::*;
-// use crate::helpers::*;
-// use crate::modeling::*;
 use std::ops::Index;
-
 
 // helpers for creating the "global" model
 
