@@ -13,7 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         
-	('share/' + package_name + '/poses/', glob('poses/*')),
+	('share/' + package_name + '/poses/cubes/', glob('poses/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
