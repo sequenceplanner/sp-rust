@@ -1,8 +1,7 @@
 use sp_domain::*;
 use std::collections::HashMap;
 use std::iter::FromIterator;
-
-use crate::helpers::*;
+use crate::formal_model::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Domain {

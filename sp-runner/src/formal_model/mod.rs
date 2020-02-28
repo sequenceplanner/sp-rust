@@ -227,3 +227,49 @@ impl FormalContext {
         state
     }
 }
+
+
+pub fn extract_guards(model: &TransitionSystemModel, initial: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
+    let c = FormalContext::from(model);
+
+    // pull out all specs.
+    let forbidden =  Ex::OR(model.specs.iter().map(|s| {
+        // forbidden = not always
+        Ex::NOT(Box::new(c.sp_pred_to_ex(s.invariant())))
+    }).collect());
+
+    let initial = c.sp_pred_to_ex(&initial);
+
+    let (ng, supervisor) = c.context.compute_guards(&initial, &forbidden);
+
+    let ng = ng.into_iter().map(|(n,e)| (n, c.ex_to_sp_pred(&e))).collect();
+    let supervisor = c.ex_to_sp_pred(&supervisor);
+    (ng, supervisor)
+}
+
+pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
+    let model = TransitionSystemModel::from(&model);
+    let c = FormalContext::from(&model);
+
+    // forbidden = all states NOT conforming to the invariant
+    let forbidden = Ex::NOT(Box::new(c.sp_pred_to_ex(&invariant)));
+
+    let forbidden = c.context.extend_forbidden(&forbidden);
+
+    let new_invariant = Ex::NOT(Box::new(forbidden));
+
+    c.ex_to_sp_pred(&new_invariant)
+}
+
+pub fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
+    ts_model.transitions.iter_mut().for_each(|ot| {
+        match ng.get(&ot.path().to_string()) {
+            Some(nt) => {
+                println!("UPDATING GUARD FOR TRANS {}:", ot.path());
+                println!("{}", nt);
+                *ot.mut_guard() = Predicate::AND(vec![ot.guard().clone(), nt.clone()]);
+            },
+            None => {},
+        }
+    });
+}
