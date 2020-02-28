@@ -31,15 +31,15 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     // must go to table positions via the home pose
     // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
-    m.add_invar("via_home", &p!(!([p:r1act == "table1"] && [!p:r1prev == "home"])));
-    m.add_invar("via_home", &p!(!([p:r1act == "table2"] && [!p:r1prev == "home"])));
+    m.add_invar("via_home_r1_table1", &p!(!([p:r1act == "table1"] && [!p:r1prev == "home"])));
+    m.add_invar("via_home_r1_table2", &p!(!([p:r1act == "table2"] && [!p:r1prev == "home"])));
 
-    m.add_invar("via_home", &p!(!([p:r2act == "table1"] && [!p:r2prev == "home"])));
-    m.add_invar("via_home", &p!(!([p:r2act == "table2"] && [!p:r2prev == "home"])));
+    m.add_invar("via_home_r2_table1", &p!(!([p:r2act == "table1"] && [!p:r2prev == "home"])));
+    m.add_invar("via_home_r2_table2", &p!(!([p:r2act == "table2"] && [!p:r2prev == "home"])));
 
     // same for buffers
-    m.add_invar("via_home", &p!(!([p:r1act == "buffer1"] && [!p:r1prev == "home"])));
-    m.add_invar("via_home", &p!(!([p:r2act == "buffer2"] && [!p:r2prev == "home"])));
+    m.add_invar("via_home_buffer1", &p!(!([p:r1act == "buffer1"] && [!p:r1prev == "home"])));
+    m.add_invar("via_home_buffer2", &p!(!([p:r2act == "buffer2"] && [!p:r2prev == "home"])));
 
     // r1 take/leave products
 
@@ -159,14 +159,11 @@ pub fn cubes() -> (Model, SPState, Predicate) {
              &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
              &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
 
+    // setup initial state of our estimated variables.
+    // todo: do this interactively in some UI
     m.initial_state(&[
         (r1prev, "home".to_spvalue()),
         (r2prev, "home".to_spvalue()),
-        (r1act, "home".to_spvalue()),
-        (r2act, "home".to_spvalue()),
-        (r1ref, "home".to_spvalue()),
-        (r2ref, "home".to_spvalue()),
-
         (&r1_holding, 3.to_spvalue()),
         (&r2_holding, 0.to_spvalue()),
         (&table1_holding, 0.to_spvalue()),
@@ -211,7 +208,7 @@ fn test_cubes() {
 
     let mut new_specs = Vec::new();
     for s in &ts_model.specs {
-        new_specs.push(Spec::new(s.name(), refine_invariant(&ts_model, s.invariant())));
+        new_specs.push(Spec::new(s.name(), refine_invariant(&m, s.invariant())));
     }
     ts_model.specs = new_specs;
 
