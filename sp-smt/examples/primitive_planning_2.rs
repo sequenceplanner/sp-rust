@@ -29,8 +29,7 @@ fn main() {
     // let pose = EnumVarZ3::new(&ctx, pose_sort.r, "pose");
     let pose = "pose";
 
-    let transitions = vec!();
-    let t1 = 
+    // let transitions = vec!();
 
     let mut step: u32 = 0;
     let mut path: u32 = 0;

@@ -22,7 +22,7 @@ fn main() {
             ability!{
                 name: ability_x,
     
-                change_x: p!(!x) => [ a!(x) ] / []
+                change_x: p!([!x] && [y == "a"]) => [ a!(x) ] / [a!(y = "c")]
             }
         }
     }
@@ -40,6 +40,8 @@ fn main() {
 
     let ts_model = TransitionSystemModel::from(&m);
 
+    println!("{:#?}", ts_model);
+
     let cfg = ConfigZ3::new();
     let ctx = ContextZ3::new(&cfg);
     let slv = SolverZ3::new(&ctx);
@@ -50,19 +52,19 @@ fn main() {
     for v1 in &v {
         
         let init_name = v1.to_string();
-        // println!("{}", init_name);
+        println!("{}", init_name);
 
         let init_type: SPValueType = match state.sp_value_from_path(v1) {
             Some(x) => x.has_type(),
             None    => SPValueType::Unknown,
         };
-        // println!("{:?}", init_type);
+        println!("{:?}", init_type);
         
         let init_value: String = match state.sp_value_from_path(v1) {
             Some(x) => x.to_string(),
             None    => SPValue::Unknown.to_string(),
         };
-        // println!("{}", init_value);
+        println!("{}", init_value);
 
         let vars = &ts_model.vars;
         let mut init_domain_strings = vec!();
@@ -73,7 +75,7 @@ fn main() {
                 }
             }
         }
-        // println!("{:?}", init_domain_strings);
+        println!("{:?}", init_domain_strings);
 
         let mut init_domain = vec!();
         for i in &init_domain_strings {
@@ -97,8 +99,59 @@ fn main() {
             let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
             init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
         }
-    }    
-    for i in &init_assert_vec {
-        println!("{}", ast_to_string_z3!(&ctx, *i));
-    }   
+    }
+
+    let init_state = ANDZ3::new(&ctx, init_assert_vec);
+    slv_assert_z3!(&ctx, &slv, init_state);
+    println!("Added initial state to context");
+    println!("{}", slv_to_string_z3!(&ctx, &slv));
+
+    // trans = Vec(trans_name, Vec(var, var_type, var_value))
+    let mut trans: Vec<(String, Vec<(String, SPValueType, String)>)> = vec!();
+    for t in &ts_model.transitions {
+
+        // println!("GUARD : {}", t.guard());
+        // match t.guard() {
+        //     Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
+        //     Predicate::AND(x) => {
+        //         let children: Vec<_> = x
+        //             .iter()
+        //             .map(|p| format!("{}", NuXMVPredicate(&p)))
+        //             .collect();
+        //         format!("( {} )", children.join("&"))
+        //     }
+        // }
+
+        let trans_node = t.node().to_string();
+        let trans_vec: Vec<&str> = trans_node.rsplit(':').collect();
+        let trans_name: String = trans_vec[0].to_string();
+
+        let mut updates: Vec<(String, SPValueType, String)> = vec!();
+        let mut act_and_eff = vec!();
+        act_and_eff.extend(t.actions());
+        act_and_eff.extend(t.effects());
+
+        for a in act_and_eff {
+            let v: Vec<_> = a.var.path.clone().iter().map(|path|path.clone()).collect();
+            let var_name = v.join("/").to_string();
+
+            let var_type = ts_model.vars.iter()
+                .find_map(|x| if x.path() == &a.var { Some(x.value_type()) } else {None} )
+                .expect("could not find variable");
+            // println!("{}", var_type);
+
+            let var_value: String = match &a.value {
+                Compute::PredicateValue(pv) => match pv {
+                    PredicateValue::SPValue(spval) => format!("{}", spval),
+                    _ => panic!("TODO: handle assign"),
+                    // PredicateValue::SPPath(path, _) => Some(println!("{}", format!("{:?}", path))),
+                },
+                _ => panic!("TODO: handle predicate for action"),
+                // Compute::Predicate(p) => None,
+                // _ => None,
+            };
+            updates.push((var_name, var_type, var_value));
+        }
+        println!("updates: {:?}", updates);
+    }
 }

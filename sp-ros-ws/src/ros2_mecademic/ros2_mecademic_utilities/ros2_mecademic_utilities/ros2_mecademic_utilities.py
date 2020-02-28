@@ -54,11 +54,11 @@ class Ros2MecademicUtilities(Node):
                                 "meca_axis_6_joint"]
 
         self.joints_input = os.path.join(get_package_share_directory('ros2_mecademic_utilities'),
-            'poses', 'joint_poses.csv')
+            'poses', self.namespace, 'joint_poses.csv')
         self.joints_oldposes = os.path.join(get_package_share_directory('ros2_mecademic_utilities'),
-            'poses', 'joint_oldposes.csv')
+            'poses', self.namespace, 'joint_oldposes.csv')
         self.joints_newposes = os.path.join(get_package_share_directory('ros2_mecademic_utilities'),
-            'poses', 'joint_newposes.csv')
+            'poses', self.namespace, 'joint_newposes.csv')
 
         self.joint_state_subscriber = self.create_subscription(
             JointState, 

@@ -31,44 +31,65 @@ pub struct GetPlanningFramesZ3<'ctx> {
 //         let cfg = ConfigZ3::new();
 //         let ctx = ContextZ3::new(&cfg);
 //         let slv = SolverZ3::new(&ctx);
-
+            
 //         let v: Vec<_> = state.clone().extract().iter().map(|(path,value)|path.clone()).collect();
-//         let vs: Vec<_> = v.iter().map(|x|x.to_string()).collect();
-//         let init_name =  vs.join(",");
+             
+//         let mut init_assert_vec = vec!();
 
-//         let init_type: SPValueType = match state.sp_value_from_path(&SPPath::from_string(&init_name)) {
-//             Some(x) => x.has_type(),
-//             None    => SPValueType::Unknown,
-//         };
-    
-//         let init_value: String = match state.sp_value_from_path(&SPPath::from_string(&init_name)) {
-//             Some(x) => x.to_string(),
-//             None    => SPValue::Unknown.to_string(),
-//         };
-
-//         let vars = model.vars;
-//         let mut init_domain = vec!();
-//         for var in vars {
-//             if init_name == var.path().to_string() {
-//                 for v in var.domain() {
-//                     init_domain.push(v.to_string());
+//         for v1 in &v {
+//             let init_name = v1.to_string();
+//             // println!("{}", init_name);
+            
+//             let init_type: SPValueType = match state.sp_value_from_path(v1) {
+//                 Some(x) => x.has_type(),
+//                 None    => SPValueType::Unknown,
+//             };
+//             // println!("{:?}", init_type);
+            
+//             let init_value: String = match state.sp_value_from_path(v1) {
+//                 Some(x) => x.to_string(),
+//                 None    => SPValue::Unknown.to_string(),
+//             };
+//             // println!("{}", init_value);
+            
+//             let vars = &model.vars;
+//             let mut init_domain_strings = vec!();
+//             for var in vars {
+//                 if init_name == var.path().to_string() {
+//                     for v in var.domain() {
+//                         init_domain_strings.push(v.to_string());
+//                     }
 //                 }
 //             }
-//         }
-
-//         if init_type == SPValueType::Bool {
-//             let bool_sort = BoolSortZ3::new(&ctx);
-//             let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name));
-//             if init_value == "false" {
-//                 SlvAssertZ3::new(&ctx, &slv, EQZ3::new(&ctx, init, BoolZ3::new(&ctx, false)));
-//             } else {
-//                 SlvAssertZ3::new(&ctx, &slv, EQZ3::new(&ctx, init, BoolZ3::new(&ctx, true)));
+//             // println!("{:?}", init_domain_strings);
+            
+//             let mut init_domain = vec!();
+//             for i in &init_domain_strings {
+//                 init_domain.push(i.as_str())
 //             }
-        
-//         } else {
-//             let enum_sort = EnumSortZ3::new(&ctx, &format!("{}_sort", init_name), init_domain);
-//             // let init = Enum
+            
+//             if init_type == SPValueType::Bool {
+//                 let bool_sort = BoolSortZ3::new(&ctx);
+//                 let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", init_name.as_str()));
+//                 if init_value == "false" {
+//                     init_assert_vec.push(EQZ3::new(&ctx, init, BoolZ3::new(&ctx, false)));
+//                 } else {
+//                     init_assert_vec.push(EQZ3::new(&ctx, init, BoolZ3::new(&ctx, true)));
+//                 }
+            
+//             } else {
+//                 let slice =  &format!("{}_sort", init_name);
+//                 let enum_sort = EnumSortZ3::new(&ctx, slice, init_domain);
+//                 let enum_domain = &enum_sort.enum_asts;
+//                 let index = enum_domain.iter().position(|ast| init_value == ast_to_string_z3!(&ctx, *ast)).unwrap();
+//                 let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
+//                 init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
+//             }
 //         }
+            
+//         let init_state = ANDZ3::new(&ctx, init_assert_vec);
+//         slv_assert_z3!(&ctx, &slv, init_state);
+//         println!("{}", slv_to_string_z3!(&ctx, &slv)); 
 //     }
 // }
 

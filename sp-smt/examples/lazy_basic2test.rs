@@ -19,39 +19,26 @@ fn main() {
     let fruit_1 = EnumVarZ3::new(&ctx, fruit_sort.r, "fruit_1");
     let fruit_2 = EnumVarZ3::new(&ctx, fruit_sort.r, "fruit_2");
 
-    // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, fruit_0, fruits[0]));
-    // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, fruit_1, fruits[1]));
-    // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, fruit_2, fruits[2]));
-    slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, not_z3!(&ctx, eq_z3!(&ctx, fruit_0, fruit_1)), eq_z3!(&ctx, fruit_1, fruit_2)));
-    // slv_assert_z3!(&ctx, &slv, distinct_z3!(&ctx, fruit_0, fruit_1, fruit_2));
+    slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, fruit_0, fruits[0]));
+    slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, fruit_1, fruits[1]));
+    slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, fruit_2, fruits[2]));
+    // slv_assert_z3!(&ctx, &slv, and_z3!(&ctx, not_z3!(&ctx, eq_z3!(&ctx, fruit_0, fruit_1)), eq_z3!(&ctx, fruit_1, fruit_2)));
+    slv_assert_z3!(&ctx, &slv, distinct_z3!(&ctx, fruit_0, fruit_1, fruit_2));
 
     let cls_ast_vec = SlvGetAssertsZ3::new(&ctx, &slv);
     let cls = Z3AstVectorToVectorAstZ3::new(&ctx, cls_ast_vec);
-    let cnf = GetCnfVectorZ3::new(&ctx, cls.clone());
 
     // fn lazy_basic(clauses: Vec<Z3_ast>) -> String {
-    //     for c in clauses {
-
-    //     }
+    //     for 
     //     let prop_formula = 
     // }
-
-    let units = unsafe {
-        Z3_solver_get_units(ctx.r, slv.r)
-    };
-
-    let units2 = Z3AstVectorToVectorAstZ3::new(&ctx, units);
-
-    for i in 0..units2.len() {
-        println!("{:?} : {}", i, AstToStringZ3::new(&ctx, units2[i]));
-    }   
 
     for i in 0..cls.len() {
         println!("{:?} : {}", i, AstToStringZ3::new(&ctx, cls[i]));
     }   
     println!("====================");
 
-    // let cnf = GetCnfVectorZ3::new(&ctx, cls);
+    let cnf = GetCnfVectorZ3::new(&ctx, cls);
     for i in 0..cnf.len() {
         println!("{:?} : {}", i, AstToStringZ3::new(&ctx, cnf[i]));
     }  
