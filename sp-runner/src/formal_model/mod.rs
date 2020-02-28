@@ -273,3 +273,6 @@ pub fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, 
         }
     });
 }
+
+#[cfg(test)]
+mod tests;

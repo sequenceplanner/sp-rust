@@ -15,3 +15,4 @@ mod planning;
 pub use planning::*;
 
 mod formal_model;
+pub use formal_model::*;
