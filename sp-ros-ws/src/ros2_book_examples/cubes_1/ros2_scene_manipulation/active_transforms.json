@@ -16,6 +16,40 @@
                     "w": 1.0
                 }
             }
+        },
+        {
+            "frame_id": "cubes/c2/cube",
+            "parent_id": "world",
+            "transform": {
+                "Vector3": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                }
+            }
+        },
+        {
+            "frame_id": "cubes/c3/cube",
+            "parent_id": "world",
+            "transform": {
+                "Vector3": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "Quaternion": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                }
+            }
         }
     ]
 }

@@ -4,5 +4,6 @@ members = [
     "sp-runner",
     "sp-ros",
     "sp-smt",
+    "sp-examples/cubes1",
     #"sp-codegen"
 ]

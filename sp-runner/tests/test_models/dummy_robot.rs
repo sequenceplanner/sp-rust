@@ -1,5 +1,6 @@
+use serial_test::serial;
 use sp_domain::*;
-use crate::modeling::*;
+use sp_runner::*;
 use std::collections::HashMap; // todo: macro depends on this...
 
 pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
@@ -73,7 +74,8 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 }
 
 #[test]
-fn xx_test_dummy() {
+#[serial]
+fn test_dummy() {
     let r1 = make_dummy_robot("r1", &["at", "away"]);
 //    println!("{:#?}", r1);
 
@@ -86,5 +88,5 @@ fn xx_test_dummy() {
     println!("path: {}", r1_p_a);
 
     // println!("{:#?}", rm);
-    assert!(false);
+    // assert!(false);
 }

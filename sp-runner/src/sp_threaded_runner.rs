@@ -8,10 +8,7 @@ use crossbeam::channel;
 use std::collections::{HashSet,HashMap};
 use std::time::{Instant, Duration};
 
-
-pub fn launch() -> Result<(), Error> {
-    //let (model, initial_state) = crate::testing::two_dummy_robots();
-    let (model, initial_state, _) = crate::testing::cubes();
+pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let runner_model = crate::helpers::make_runner_model(&model);
 
     // start ros node
@@ -29,7 +26,7 @@ pub fn launch() -> Result<(), Error> {
     // setup ros pub/subs. tx_out to send out to network
     let tx_out_misc = sp_ros::roscomm_setup_misc(&mut node, tx_in_misc)?;
 
-    let mut runner = make_dummy_robot_runner(runner_model, initial_state);
+    let mut runner = make_new_runner(runner_model, initial_state);
 
     // "runner"
     thread::spawn(move || {
@@ -131,7 +128,7 @@ pub fn launch() -> Result<(), Error> {
                     println!("NEW GOALS");
                     println!("*********");
 
-                    let max_steps = 30; // arbitrary decision
+                    let max_steps = 40; // arbitrary decision
                     let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state(), max_steps);
                     assert!(planner_result.plan_found);
                     println!("new plan is");
@@ -141,9 +138,17 @@ pub fn launch() -> Result<(), Error> {
                     runner.input(SPRunnerInput::AbilityPlan(plan));
 
                     tx_out.send(runner.state().clone()).unwrap();
-
                 }
             }
+
+
+            // send out runner info.
+            let runner_info = RunnerInfo {
+                state: runner.state().clone(),
+                .. RunnerInfo::default()
+            };
+
+            tx_out_misc.send(runner_info).unwrap();
 
 
             // let mess: Result<SPState, RecvError> = rx_in.recv();
@@ -166,18 +171,13 @@ pub fn launch() -> Result<(), Error> {
 
 
 
-fn make_dummy_robot_runner(m: RunnerModel, mut initial_state: SPState) -> SPRunner {
-    //println!("{:?}", m);
+// TODO: do we keep the old RunnerModel?
+fn make_new_runner(m: RunnerModel, initial_state: SPState) -> SPRunner {
     let mut trans = vec!();
     let mut restrict_controllable = vec!();
     let false_trans = Transition::new("empty", Predicate::FALSE, vec!(), vec!(), true);
     m.op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
-        // restrict_controllable.push(TransitionSpec::new(
-        //     &format!("s_{}_false", t.name()),
-        //     false_trans.clone(),
-        //     vec!(t.path().clone())
-        // ))
     });
     m.op_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
@@ -206,26 +206,7 @@ fn make_dummy_robot_runner(m: RunnerModel, mut initial_state: SPState) -> SPRunn
         plan: restrict_controllable,
         state_change: SPState::new(),
     }));
-    // let the_upd_state = state!(
-    //     ["dummy_robot_model", "r1", "State", "act_pos"] => "away",
-    //     ["dummy_robot_model", "r1", "Control", "ref_pos"] => "away",
-    //     ["dummy_robot_model", "r2", "State", "act_pos"] => "away",
-    //     ["dummy_robot_model", "r2", "Control", "ref_pos"] => "away"
-    // );
-    // initial_state.extend(the_upd_state);
     runner.update_state_variables(initial_state);
 
     runner
-}
-
-
-#[cfg(test)]
-mod launch_new_runner {
-    use super::*;
-    use crate::planning::*;
-
-    #[test]
-    fn go() {
-        super::launch();
-    }
 }

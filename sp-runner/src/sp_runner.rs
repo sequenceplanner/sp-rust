@@ -209,132 +209,132 @@ impl SPRunner {
 }
 
 
-#[cfg(test)]
-mod test_new_runner {
-    use super::*;
-    use crate::planning::*;
+// #[cfg(test)]
+// mod test_new_runner {
+//     use super::*;
+//     use crate::planning::*;
 
-    #[test]
-    fn testing_me() {
-        let mut runner = make_dummy_robot_runner();
-
-
-        println!{""};
-        println!("Initial goal: {:?}", runner.goal());
-        println!{""};
-        println!("Initial State: {}", runner.state());
-        println!{""};
-        println!("Initial plan");
-        runner.ability_plan.plan.iter().for_each(|x| println!("{:?}", x));
-        println!{""};
-        println!("Transitions plan");
-        runner.ticker.transitions.iter().for_each(|x| println!("{:?}", x));
-        println!{""};
-        runner.input(SPRunnerInput::Tick);
-        println!("fired:");
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!("fired:");
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//     #[test]
+//     fn testing_me() {
+//         let mut runner = make_dummy_robot_runner();
 
 
-        let planner_result = crate::planning::plan(&runner.transition_system_model, &runner.goal(), &runner.state(), 20);
-        let (tr, s) = convert_planning_result(&runner.transition_system_model, planner_result);
-        let plan = SPPlan{plan: tr, state_change: s};
-        runner.input(SPRunnerInput::AbilityPlan(plan));
+//         println!{""};
+//         println!("Initial goal: {:?}", runner.goal());
+//         println!{""};
+//         println!("Initial State: {}", runner.state());
+//         println!{""};
+//         println!("Initial plan");
+//         runner.ability_plan.plan.iter().for_each(|x| println!("{:?}", x));
+//         println!{""};
+//         println!("Transitions plan");
+//         runner.ticker.transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!{""};
+//         runner.input(SPRunnerInput::Tick);
+//         println!("fired:");
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!("fired:");
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+
+
+//         let planner_result = crate::planning::plan(&runner.transition_system_model, &runner.goal(), &runner.state(), 20);
+//         let (tr, s) = convert_planning_result(&runner.transition_system_model, planner_result);
+//         let plan = SPPlan{plan: tr, state_change: s};
+//         runner.input(SPRunnerInput::AbilityPlan(plan));
 
 
 
-        runner.input(SPRunnerInput::Tick);
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!("fired:");
-        runner.input(SPRunnerInput::Tick);
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!("fired:");
-        runner.input(SPRunnerInput::Tick);
-        println!("fired:");
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!{""};
-        println!("State: {}", runner.state());
-        println!{""};
-        println!("goal:{:?}", runner.goal());
-        runner.input(SPRunnerInput::Tick);
-        println!("fired:");
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!{""};
-        println!("State: {}", runner.state());
-        println!{""};
-        runner.input(SPRunnerInput::Tick);
-        println!("fired:");
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!{""};
-        println!("State: {}", runner.state());
-        println!{""};
-        runner.input(SPRunnerInput::Tick);
-        runner.input(SPRunnerInput::Tick);
-        runner.input(SPRunnerInput::Tick);
-        runner.input(SPRunnerInput::Tick);
-        println!("fired:");
-        runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-        println!{""};
-        println!("State: {}", runner.state());
-        println!{""};
-        runner.input(SPRunnerInput::Tick);
-    }
+//         runner.input(SPRunnerInput::Tick);
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!("fired:");
+//         runner.input(SPRunnerInput::Tick);
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!("fired:");
+//         runner.input(SPRunnerInput::Tick);
+//         println!("fired:");
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!{""};
+//         println!("State: {}", runner.state());
+//         println!{""};
+//         println!("goal:{:?}", runner.goal());
+//         runner.input(SPRunnerInput::Tick);
+//         println!("fired:");
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!{""};
+//         println!("State: {}", runner.state());
+//         println!{""};
+//         runner.input(SPRunnerInput::Tick);
+//         println!("fired:");
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!{""};
+//         println!("State: {}", runner.state());
+//         println!{""};
+//         runner.input(SPRunnerInput::Tick);
+//         runner.input(SPRunnerInput::Tick);
+//         runner.input(SPRunnerInput::Tick);
+//         runner.input(SPRunnerInput::Tick);
+//         println!("fired:");
+//         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
+//         println!{""};
+//         println!("State: {}", runner.state());
+//         println!{""};
+//         runner.input(SPRunnerInput::Tick);
+//     }
 
-    fn make_dummy_robot_runner() -> SPRunner {
-        let (model, mut initial_state) = crate::testing::two_dummy_robots();
-        let ts_model = TransitionSystemModel::from(&model);
-        let m: RunnerModel = crate::helpers::make_runner_model(&model);
-        //println!("{:?}", m);
-        let mut trans = vec!();
-        let mut restrict_controllable = vec!();
-        let false_trans = Transition::new("empty", Predicate::FALSE, vec!(), vec!(), true);
-        m.op_transitions.ctrl.iter().for_each(|t| {
-            trans.push(t.clone());
-            // restrict_controllable.push(TransitionSpec::new(
-            //     &format!("s_{}_false", t.name()),
-            //     false_trans.clone(),
-            //     vec!(t.path().clone())
-            // ))
-        });
-        m.op_transitions.un_ctrl.iter().for_each(|t| {
-            trans.push(t.clone());
-        });
-        m.ab_transitions.ctrl.iter().for_each(|t| {
-            trans.push(t.clone());
-            restrict_controllable.push(TransitionSpec::new(
-                &format!("s_{}_false", t.path()),
-                false_trans.clone(),
-                vec!(t.path().clone())
-            ))
-        });
-        m.ab_transitions.un_ctrl.iter().for_each(|t| {
-            trans.push(t.clone());
-        });
-        let mut runner = SPRunner::new(
-            "test",
-            trans,
-            m.state_predicates.clone(),
-            m.goals.clone(),
-            vec!(),
-            vec!(),
-            ts_model
-        );
-        runner.input(SPRunnerInput::AbilityPlan(SPPlan{
-            plan: restrict_controllable,
-            state_change: SPState::new(),
-        }));
-        let the_upd_state = state!(
-            ["dummy_robot_model", "r1", "State", "act_pos"] => "away",
-            ["dummy_robot_model", "r1", "Control", "ref_pos"] => "away",
-            ["dummy_robot_model", "r2", "State", "act_pos"] => "away",
-            ["dummy_robot_model", "r2", "Control", "ref_pos"] => "away"
-        );
-        initial_state.extend(the_upd_state);
-        runner.update_state_variables(initial_state);
-        runner
-    }
-}
+//     fn make_dummy_robot_runner() -> SPRunner {
+//         let (model, mut initial_state) = crate::testing::two_dummy_robots();
+//         let ts_model = TransitionSystemModel::from(&model);
+//         let m: RunnerModel = crate::helpers::make_runner_model(&model);
+//         //println!("{:?}", m);
+//         let mut trans = vec!();
+//         let mut restrict_controllable = vec!();
+//         let false_trans = Transition::new("empty", Predicate::FALSE, vec!(), vec!(), true);
+//         m.op_transitions.ctrl.iter().for_each(|t| {
+//             trans.push(t.clone());
+//             // restrict_controllable.push(TransitionSpec::new(
+//             //     &format!("s_{}_false", t.name()),
+//             //     false_trans.clone(),
+//             //     vec!(t.path().clone())
+//             // ))
+//         });
+//         m.op_transitions.un_ctrl.iter().for_each(|t| {
+//             trans.push(t.clone());
+//         });
+//         m.ab_transitions.ctrl.iter().for_each(|t| {
+//             trans.push(t.clone());
+//             restrict_controllable.push(TransitionSpec::new(
+//                 &format!("s_{}_false", t.path()),
+//                 false_trans.clone(),
+//                 vec!(t.path().clone())
+//             ))
+//         });
+//         m.ab_transitions.un_ctrl.iter().for_each(|t| {
+//             trans.push(t.clone());
+//         });
+//         let mut runner = SPRunner::new(
+//             "test",
+//             trans,
+//             m.state_predicates.clone(),
+//             m.goals.clone(),
+//             vec!(),
+//             vec!(),
+//             ts_model
+//         );
+//         runner.input(SPRunnerInput::AbilityPlan(SPPlan{
+//             plan: restrict_controllable,
+//             state_change: SPState::new(),
+//         }));
+//         let the_upd_state = state!(
+//             ["dummy_robot_model", "r1", "State", "act_pos"] => "away",
+//             ["dummy_robot_model", "r1", "Control", "ref_pos"] => "away",
+//             ["dummy_robot_model", "r2", "State", "act_pos"] => "away",
+//             ["dummy_robot_model", "r2", "Control", "ref_pos"] => "away"
+//         );
+//         initial_state.extend(the_upd_state);
+//         runner.update_state_variables(initial_state);
+//         runner
+//     }
+// }
 
 // name: &str,
 //         transitions: Vec<Transition>,

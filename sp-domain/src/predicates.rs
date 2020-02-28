@@ -423,6 +423,15 @@ macro_rules! p {
         )
     }};
 
+    // introduce <!> for inequality between variables....
+    (p:$path:ident <!> p:$other:ident) => {{
+        Predicate::NEQ(
+            PredicateValue::SPPath($path.clone(), None),
+            PredicateValue::SPPath($other.clone(), None),
+        )
+    }};
+
+
     ($path:tt != $value:tt) => {{
         // println!("matched !=");
         let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
