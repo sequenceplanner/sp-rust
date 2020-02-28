@@ -1,3 +1,4 @@
+use serial_test::serial;
 use sp_domain::*;
 use sp_runner::*;
 use super::*;
@@ -158,11 +159,12 @@ pub fn two_dummy_robots_global_but_no_guard_extraction() -> (Model, SPState) {
 }
 
 #[test]
+#[serial]
 fn test_two_dummy_robots() {
     let (m, s) = two_dummy_robots();
 
 //    println!("{:#?}", rm);
     println!("=================================");
 //    println!("{:#?}", s);
-    assert!(false);
+//    assert!(false);
 }

@@ -728,7 +728,6 @@ fn resource_test() {
         }
     };
 
-    println!("resource: {:#?}", resource);
-
-    assert!(false);
+    // println!("resource: {:#?}", resource);
+    //assert!(false);
 }
