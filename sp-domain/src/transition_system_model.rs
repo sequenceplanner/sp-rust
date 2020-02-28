@@ -96,11 +96,6 @@ impl TransitionSystemModel {
             _ => None,
         }).collect();
         specs.extend(resource_sub_item_specs.iter().cloned());
-        let model_item_specs: Vec<Spec> = model.items().iter().flat_map(|i| match i {
-            SPItem::Spec(s) => Some(s.clone()),
-            _ => None,
-        }).collect();
-        specs.extend(model_item_specs.iter().cloned());
 
         TransitionSystemModel {
             name: model.name().into(),
