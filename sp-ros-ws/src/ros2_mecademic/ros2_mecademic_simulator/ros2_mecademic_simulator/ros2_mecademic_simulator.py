@@ -42,7 +42,7 @@ class Ros2MecademicSimulator(Node):
         self.joint_tolerance = 0.01
 
         self.joints_input = os.path.join(get_package_share_directory('ros2_mecademic_utilities'),
-            'poses', 'joint_poses.csv')
+            'poses/', self.namespace + 'joint_poses.csv')
 
         # gui to esd:
         self.gui_to_esd_msg = MecademicGuiToEsd()
@@ -222,6 +222,7 @@ class Ros2MecademicSimulator(Node):
     def joint_state_publisher_callback(self):        
         if self.gui_to_esd_msg.gui_control_enabled == True:
             if self.gui_to_esd_msg.gui_joint_control != None:
+                self.joint_ref_pos = self.gui_to_esd_msg.gui_joint_control
             
                 for i in range(0, 6):
                     self.sync_speed_scale[i] = abs(self.gui_to_esd_msg.gui_joint_control[i] - self.act_pos[i])

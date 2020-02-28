@@ -115,7 +115,7 @@ class Window(QWidget, CommVariables):
                                 "meca_axis_6_joint"]
 
         self.joints_input = os.path.join(get_package_share_directory('ros2_mecademic_utilities'),
-            'poses', 'joint_poses.csv')
+            'poses/', self.namespace + 'joint_poses.csv')
 
         minimum = -180
         maximum = 180
