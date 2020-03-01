@@ -33,10 +33,8 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
             executing : p!(ref_pos <!> act_pos),
             finished : p!(ref_pos <-> act_pos),
 
-            *start : p!(enabled) => [ a!(ref_pos?) ] / [a!(act_pos = "unknown")],
+            *start : p!(enabled) => [ a!(prev_pos <- act_pos), a!(ref_pos?) ] / [a!(act_pos = "unknown")],
             finish : p!(executing) => [] / [a!(act_pos <- ref_pos)],
-
-            sync_prev: p!([prev_pos <!> ref_pos] && [ref_pos <-> act_pos]) => [ a!(prev_pos <- ref_pos) ] / []
         },
 
         never!{

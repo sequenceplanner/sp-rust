@@ -551,36 +551,6 @@ impl Resource {
         &self.command_mirrors_rev
     }
 
-    pub fn make_initial_state(&self) -> SPState {
-        fn r(m: &MessageField, acum: &mut SPState) {
-            match m {
-                MessageField::Msg(msg) => {
-                    for f in &msg.fields {
-                        r(f, acum);
-                    }
-                }
-                MessageField::Var(var) => {
-                    let _res = acum.add_variable(var.path().clone(), var.initial_value.clone());
-                }
-            }
-        }
-
-        let mut s = SPState::default();
-        for t in &self.messages {
-            r(&t.msg, &mut s);
-        }
-
-        for a in &self.abilities {
-            for v in &a.predicates {
-                let _res = s.next_from_path(&v.path(), v.initial_value.clone());
-            }
-        }
-
-        println!("runner intial state: {:?}", s);
-
-        return s;
-    }
-
     pub fn get_variables(&self) -> Vec<Variable> {
         fn r(m: &MessageField, acum: &mut Vec<Variable>, command_mirrors_rev: &HashMap<SPPath, SPPath>) {
             match m {
@@ -834,7 +804,6 @@ pub struct Variable {
     node: SPNode,
     type_: VariableType,
     value_type: SPValueType,
-    initial_value: SPValue,
     domain: Vec<SPValue>,
 }
 
@@ -882,7 +851,6 @@ impl Variable {
         name: &str,
         type_: VariableType,
         value_type: SPValueType,
-        initial_value: SPValue,
         domain: Vec<SPValue>,
     ) -> Variable {
         let node = SPNode::new(name);
@@ -890,7 +858,6 @@ impl Variable {
             node,
             type_,
             value_type,
-            initial_value,
             domain,
         }
     }
@@ -899,7 +866,6 @@ impl Variable {
             name,
             type_,
             SPValueType::Bool,
-            false.to_spvalue(),
             vec![false.to_spvalue(), true.to_spvalue()],
         )
     }
@@ -909,7 +875,6 @@ impl Variable {
             name,
             VariableType::Predicate(p),
             SPValueType::Bool,
-            false.to_spvalue(),
             vec![false.to_spvalue(), true.to_spvalue()],
         )
     }
@@ -919,9 +884,6 @@ impl Variable {
     }
     pub fn value_type(&self) -> SPValueType {
         self.value_type.clone()
-    }
-    pub fn initial_value(&self) -> SPValue {
-        self.initial_value.clone()
     }
     pub fn domain(&self) -> &[SPValue] {
         self.domain.as_slice()
@@ -1218,7 +1180,6 @@ impl Operation {
             "state",
             VariableType::Estimated,
             SPValueType::String,
-            "i".to_spvalue(),
             vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
         );
 

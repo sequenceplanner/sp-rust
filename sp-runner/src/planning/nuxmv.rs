@@ -47,6 +47,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                     .iter()
                     .map(|p| format!("{}", NuXMVPredicate(&p)))
                     .collect();
+                assert!(!children.is_empty());
                 format!("( {} )", children.join("&"))
             }
             Predicate::OR(x) => {
@@ -54,6 +55,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                     .iter()
                     .map(|p| format!("{}", NuXMVPredicate(&p)))
                     .collect();
+                assert!(!children.is_empty());
                 format!("( {} )", children.join("|"))
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?

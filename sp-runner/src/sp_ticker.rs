@@ -69,6 +69,8 @@ impl SPTicker {
             ));
             x.0 = sp;
         }
+        // also update any new predicates with values their correct assignments
+        SPTicker::upd_preds(&mut self.state, &self.predicates);
     }
 
     /// This function takes the specs and create a transition map so that the specs are syncronized

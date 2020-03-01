@@ -18,17 +18,35 @@ pub enum Predicate {
     // INDOMAIN(PredicateValue, Vec<PredicateValue>),
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Action {
     pub var: SPPath,
     pub value: Compute,
     state_path: Option<StatePath>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PredicateValue {
     SPValue(SPValue),
     SPPath(SPPath, Option<StatePath>),
+}
+
+impl PartialEq for Action {
+    fn eq(&self, other: &Self) -> bool {
+        self.var == other.var && self.value == other.value
+    }
+}
+
+impl PartialEq for PredicateValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PredicateValue::SPValue(a),
+             PredicateValue::SPValue(b)) => a == b,
+            (PredicateValue::SPPath(a, _),
+             PredicateValue::SPPath(b, _)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 /// Used in actions to compute a new SPValue.
@@ -349,14 +367,19 @@ macro_rules! p {
         // println!("matched parens: {}", stringify!($($inner)+));
         p! ( $($inner)+ )
     }};
+    ([$($inner:tt)+] ) => {{
+        // println!("matched square parens: {}", stringify!($($inner)+));
+        p! ( $($inner)+ )
+    }};
 
     // AND: the brackets are needed because "tt" includes && which
     // leads to ambiguity without an additional delimeter
-    ([$($first:tt)+] && $([$($rest:tt)+] $(&&)?)+) => {{
+    ([$($first:tt)+] $(&& [$($rest:tt)+])+) => {{
         // println!("matched &&: {}", stringify!($($first)+));
         let first = p! ( $($first)+ );
         let mut v = vec![first];
         $(
+            // println!(" && ...: {}", stringify!($($rest)+));
             let r = p!($($rest)+);
             v.push(r);
         )*
@@ -364,8 +387,8 @@ macro_rules! p {
     }};
 
     // OR: same as and.
-    ([$($first:tt)+] || $([$($rest:tt)+] $(||)?)+) => {{
-        // println!("matched &&: {}", stringify!($($first)+));
+    ([$($first:tt)+] $(|| [$($rest:tt)+])+) => {{
+        // println!("matched ||: {}", stringify!($($first)+));
         let first = p! ( $($first)+ );
         let mut v = vec![first];
         $(
@@ -375,6 +398,13 @@ macro_rules! p {
         Predicate::OR(v)
     }};
 
+    // implication
+    ([$($x:tt)+] => [$($y:tt)+]) => {{
+        // println!("matched implication: {} => {}", stringify!($($x)+), stringify!($($y)+));
+        let x = p! ( $($x)+ );
+        let y = p! ( $($y)+ );
+        Predicate::OR(vec![Predicate::NOT(Box::new(x)), y])
+    }};
 
     // equals is very limited. can only match on the form path == spvalue
     (p:$path:ident == $value:tt) => {{

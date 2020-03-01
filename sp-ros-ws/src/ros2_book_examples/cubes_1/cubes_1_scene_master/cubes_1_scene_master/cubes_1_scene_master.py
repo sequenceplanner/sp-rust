@@ -30,7 +30,7 @@ class Cubes1SceneMaster(Node):
         self.timeout = 5
 
         self.sm_state_timer_period = 0.2
-        self.marker_timer_period = 0.3
+        self.marker_timer_period = 0.03
 
         self.sp_path_to_product_name = {
             'cubes/buffer1_holding': 'buffer1',

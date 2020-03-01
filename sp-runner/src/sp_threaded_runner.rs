@@ -118,44 +118,46 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
                 }
 
-                // println!{""};
-                // println!("The State: {}", runner.state());
-                // println!{""};
+                println!{""};
+                println!("The State: {}", runner.state());
+                println!{""};
 
                 tx_out.send(runner.state().clone()).unwrap();
+                // send out runner info.
+                let runner_info = RunnerInfo {
+                    state: runner.state().clone(),
+                    .. RunnerInfo::default()
+                };
+
+                tx_out_misc.send(runner_info).unwrap();
+
 
                 if old_g != new_g {
                     println!("NEW GOALS");
                     println!("*********");
 
-                    let max_steps = 40; // arbitrary decision
+                    let max_steps = 100; // arbitrary decision
                     let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state(), max_steps);
                     assert!(planner_result.plan_found);
-                    println!("new plan is");
-                    planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
+                    //println!("new plan is");
+                    //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
                     let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result);
                     let plan = SPPlan{plan: tr, state_change: s};
                     runner.input(SPRunnerInput::AbilityPlan(plan));
 
                     tx_out.send(runner.state().clone()).unwrap();
+
+                    // send out runner info.
+                    let runner_info = RunnerInfo {
+                        state: runner.state().clone(),
+                        .. RunnerInfo::default()
+                    };
+                    tx_out_misc.send(runner_info).unwrap();
                 }
             }
 
-
-            // send out runner info.
-            let runner_info = RunnerInfo {
-                state: runner.state().clone(),
-                .. RunnerInfo::default()
-            };
-
-            tx_out_misc.send(runner_info).unwrap();
-
-
             // let mess: Result<SPState, RecvError> = rx_in.recv();
             // if let Ok(s) = mess {
-
-
-
 
             // }
 

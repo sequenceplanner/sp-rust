@@ -1,8 +1,5 @@
 use sp_domain::*;
-// use crate::helpers::*;
-// use crate::modeling::*;
 use std::ops::Index;
-
 
 // helpers for creating the "global" model
 
@@ -52,14 +49,12 @@ impl GModel {
     }
 
     pub fn add_estimated_domain(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
-        let v = Variable::new(name, VariableType::Estimated, SPValueType::String, domain[0].clone(),
-                              domain.to_vec());
+        let v = Variable::new(name, VariableType::Estimated, SPValueType::String, domain.to_vec());
         self.model.add_item(SPItem::Variable(v))
     }
 
     pub fn add_predicate_variable(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
-        let v = Variable::new(name, VariableType::Estimated, SPValueType::String, domain[0].clone(),
-                              domain.to_vec());
+        let v = Variable::new(name, VariableType::Estimated, SPValueType::String, domain.to_vec());
         self.model.add_item(SPItem::Variable(v))
     }
 
@@ -175,7 +170,7 @@ impl GModel {
             .collect();
         let global_ops_vars = global_ops.iter().map(|o|o.state_variable());
 
-        let state: Vec<_> = global_ops_vars.map(|v| (v.node().path().clone(), v.initial_value())).collect();
+        let state: Vec<_> = global_ops_vars.map(|v| (v.node().path().clone(), "i".to_spvalue())).collect();
         s.extend(SPState::new_from_values(&state[..]));
 
 

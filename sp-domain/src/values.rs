@@ -97,7 +97,7 @@ impl SPValue {
             SPValueType::Float32 => (json.as_f64().expect(&tm("float")) as f32).to_spvalue(),
             SPValueType::String => json.as_str().expect(&tm("string")).to_spvalue(),
             // todo: check is_array
-            _ => unimplemented!("TODO"),
+            _ => unimplemented!("TODO {:?}", spv_t),
         }
     }
 
@@ -111,7 +111,7 @@ impl SPValue {
                 let v: Vec<serde_json::Value> = x.iter().map(|spval| spval.to_json()).collect();
                 serde_json::json!(v)
             }
-            _ => unimplemented!("TODO"),
+            _ => unimplemented!("TODO: {}", self),
         }
     }
 }

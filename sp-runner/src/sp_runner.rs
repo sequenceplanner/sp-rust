@@ -70,8 +70,7 @@ impl SPRunner {
         let mut initial_state_map = vec!();
 
         variables.into_iter().for_each(|v| {
-            let v: Variable = v;
-            initial_state_map.push((v.path().clone(), v.initial_value().clone()));
+            initial_state_map.push((v.path().clone(), SPValue::Unknown));
             match v.variable_type() {
                 VariableType::Predicate(_) => preds.push(v),
                 _ => vars.push(v),
@@ -167,11 +166,14 @@ impl SPRunner {
 
         // do nothing if we are in a (globally) bad state.
         // these exprs can be pretty big. do some benchmark here.
-        let good = self.transition_system_model.specs.iter()
-            .fold(true, |x, s| x && s.invariant().eval(&self.ticker.state));
+        let bad: Vec<_> = self.transition_system_model.specs.iter()
+            .filter(|s| !s.invariant().eval(&self.ticker.state)).collect();
 
-        if !good {
-            println!("\nDOING NOTHING: WE ARE IN A BAD STATE.\n");
+        if !bad.is_empty() {
+            println!("\nDOING NOTHING: WE ARE IN A BAD STATE:\n");
+            println!("{}", self.ticker.state);
+            println!("because of the following invariant(s):\n{}",
+                     bad.iter().map(|s| s.name()).collect::<Vec<_>>().join(","));
             return;
         }
 
