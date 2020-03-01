@@ -31,15 +31,14 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     // must go to table positions via the home pose
     // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
-    m.add_invar("via_home_r1_table1", &p!(!([p:r1act == "table1"] && [!p:r1prev == "home"])));
-    m.add_invar("via_home_r1_table2", &p!(!([p:r1act == "table2"] && [!p:r1prev == "home"])));
-
-    m.add_invar("via_home_r2_table1", &p!(!([p:r2act == "table1"] && [!p:r2prev == "home"])));
-    m.add_invar("via_home_r2_table2", &p!(!([p:r2act == "table2"] && [!p:r2prev == "home"])));
+    m.add_invar("via_home_r1_table1", &p!([p:r1act == "table1"] => [[p:r1prev == "table1"] || [p:r1prev == "home"]]));
+    m.add_invar("via_home_r1_table2", &p!([p:r1act == "table2"] => [[p:r1prev == "table2"] || [p:r1prev == "home"]]));
+    m.add_invar("via_home_r2_table1", &p!([p:r2act == "table1"] => [[p:r2prev == "table1"] || [p:r2prev == "home"]]));
+    m.add_invar("via_home_r2_table2", &p!([p:r2act == "table2"] => [[p:r2prev == "table2"] || [p:r2prev == "home"]]));
 
     // same for buffers
-    m.add_invar("via_home_buffer1", &p!(!([p:r1act == "buffer1"] && [!p:r1prev == "home"])));
-    m.add_invar("via_home_buffer2", &p!(!([p:r2act == "buffer2"] && [!p:r2prev == "home"])));
+    m.add_invar("via_home_buffer1", &p!([p:r1act == "buffer1"] => [[p:r1prev == "buffer1"] || [p:r1prev == "home"]]));
+    m.add_invar("via_home_buffer2", &p!([p:r2act == "buffer2"] => [[p:r2prev == "buffer2"] || [p:r2prev == "home"]]));
 
     // r1 take/leave products
 
