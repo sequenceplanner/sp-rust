@@ -70,8 +70,7 @@ impl SPRunner {
         let mut initial_state_map = vec!();
 
         variables.into_iter().for_each(|v| {
-            let v: Variable = v;
-            initial_state_map.push((v.path().clone(), v.initial_value().clone()));
+            initial_state_map.push((v.path().clone(), SPValue::Unknown));
             match v.variable_type() {
                 VariableType::Predicate(_) => preds.push(v),
                 _ => vars.push(v),

@@ -26,9 +26,11 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
     // assert_eq!(result.plan_found, result2.plan_found);
     // assert_eq!(result.plan_length, result2.plan_length);
 
-    println!("we have a plan? {}", result.plan_found);
-    println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
-    // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
+    if result.plan_found {
+        println!("we have a plan of length {}", result.plan_length);
+        println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+        // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
+    }
 
     result
 }

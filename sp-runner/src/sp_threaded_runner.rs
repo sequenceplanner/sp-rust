@@ -131,8 +131,8 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     let max_steps = 100; // arbitrary decision
                     let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state(), max_steps);
                     assert!(planner_result.plan_found);
-                    println!("new plan is");
-                    planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
+                    //println!("new plan is");
+                    //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
                     let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result);
                     let plan = SPPlan{plan: tr, state_change: s};
                     runner.input(SPRunnerInput::AbilityPlan(plan));

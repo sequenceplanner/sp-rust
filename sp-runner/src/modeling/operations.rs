@@ -5,7 +5,6 @@ pub fn add_op(m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Pre
         name,
         VariableType::Estimated,
         SPValueType::String,
-        "i".to_spvalue(),
         vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
     );
     let op_state = m.add_item(SPItem::Variable(op_state));

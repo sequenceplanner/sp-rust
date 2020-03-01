@@ -174,16 +174,13 @@ pub fn build_resource(r: &MResource) -> Resource {
                     MessageField::Var(Variable::new(name,
                                                     VariableType::Command,
                                                     SPValueType::Bool,
-                                                    SPValue::Bool(false), // replace with initial_values
                                                     vec![]))
                 } else {
                     let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
                     let sp_val_type = dom[0].has_type();
-                    let initial = dom[0].clone(); // replace with initial_values
                     MessageField::Var(Variable::new(name,
                                                     VariableType::Command,
                                                     sp_val_type,
-                                                    initial,
                                                     dom))
                 };
                 var
@@ -224,16 +221,13 @@ pub fn build_resource(r: &MResource) -> Resource {
                         MessageField::Var(Variable::new(&name,
                                                         VariableType::Measured,
                                                         SPValueType::Bool,
-                                                        SPValue::Bool(false), // replace with initial_values
                                                         vec![]))
                     } else {
                         let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
                         let sp_val_type = dom[0].has_type();
-                        let initial = dom[0].clone(); // replace with initial_values
                         MessageField::Var(Variable::new(&name,
                                                         VariableType::Measured,
                                                         sp_val_type,
-                                                        initial,
                                                         dom))
                     };
                     Some((name.clone(), var))
@@ -308,16 +302,13 @@ pub fn build_resource(r: &MResource) -> Resource {
                 Variable::new(name,
                               VariableType::Estimated,
                               SPValueType::Bool,
-                              SPValue::Bool(false), // replace with initial_values
                               vec![])
             } else {
                 let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
                 let sp_val_type = dom[0].has_type();
-                let initial = dom[0].clone(); // replace with initial_values
                 Variable::new(name,
                               VariableType::Estimated,
                               sp_val_type,
-                              initial,
                               dom)
             };
             r.add_sub_item(SPItem::Variable(var));
