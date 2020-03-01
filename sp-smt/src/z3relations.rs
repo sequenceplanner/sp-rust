@@ -11,6 +11,13 @@ pub struct EQZ3<'ctx> {
     pub r: Z3_ast
 }
 
+pub struct NEQZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub left: Z3_ast,
+    pub right: Z3_ast,
+    pub r: Z3_ast
+}
+
 pub struct LEZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub left: Z3_ast,
@@ -50,6 +57,20 @@ impl <'ctx> EQZ3<'ctx> {
             Z3_mk_eq(ctx.r, left, right)
         };
         EQZ3 {ctx, left, right, r: z3}.r
+    }
+}
+
+impl <'ctx> NEQZ3<'ctx> {
+    /// Create an AST node representing `left != right`.
+    ///
+    /// NOTE: The nodes `left` and `right` must have the same type.
+    /// 
+    /// NOTE: See macro! `neq_z3!`
+    pub fn new(ctx: &'ctx ContextZ3, left: Z3_ast, right: Z3_ast) -> Z3_ast {
+        let z3 = unsafe {
+            Z3_mk_not(ctx.r, Z3_mk_eq(ctx.r, left, right)) 
+        };
+        NEQZ3 {ctx, left, right, r: z3}.r
     }
 }
 
@@ -220,6 +241,29 @@ fn test_new_eq_1(){
     assert_eq!("(= y (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(&ctx, rel2));
     assert_eq!("(= y (to_real x))", ast_to_string_z3!(&ctx, rel3));
     assert_eq!("(= (to_real 7) (- (/ 271549371.0 500000.0)))", ast_to_string_z3!(&ctx, rel4));
+}
+
+#[test]
+fn test_new_neq_1(){
+    let conf = ConfigZ3::new();
+    let ctx = ContextZ3::new(&conf);
+    let intsort = IntSortZ3::new(&ctx);
+    let realsort = RealSortZ3::new(&ctx);
+
+    let x = IntVarZ3::new(&ctx, &intsort, "x");
+    let y = RealVarZ3::new(&ctx, &realsort, "y");
+    let int1 = IntZ3::new(&ctx, &intsort, 7);
+    let real1 = RealZ3::new(&ctx, &realsort, -543.098742);
+
+    let rel1 = NEQZ3::new(&ctx, x, int1);
+    let rel2 = NEQZ3::new(&ctx, y, real1);
+    let rel3 = NEQZ3::new(&ctx, y, x);
+    let rel4 = NEQZ3::new(&ctx, int1, real1);
+
+    assert_eq!("(not (= x 7))", ast_to_string_z3!(&ctx, rel1));
+    assert_eq!("(not (= y (- (/ 271549371.0 500000.0))))", ast_to_string_z3!(&ctx, rel2));
+    assert_eq!("(not (= y (to_real x)))", ast_to_string_z3!(&ctx, rel3));
+    assert_eq!("(not (= (to_real 7) (- (/ 271549371.0 500000.0))))", ast_to_string_z3!(&ctx, rel4));
 }
 
 

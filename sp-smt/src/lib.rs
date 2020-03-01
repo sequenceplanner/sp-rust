@@ -29,7 +29,7 @@ pub mod z3variables;
 pub use crate::z3variables::{BoolVarZ3, IntVarZ3, RealVarZ3, StringVarZ3, EnumVarZ3};
 
 pub mod z3relations;
-pub use crate::z3relations::{EQZ3, LEZ3, LTZ3, GEZ3, GTZ3};
+pub use crate::z3relations::{EQZ3, NEQZ3, LEZ3, LTZ3, GEZ3, GTZ3};
 
 pub mod z3operations;
 pub use crate::z3operations::{MULZ3, DIVZ3, MODZ3, REMZ3, ADDZ3, SUBZ3, NEGZ3, POWZ3};
