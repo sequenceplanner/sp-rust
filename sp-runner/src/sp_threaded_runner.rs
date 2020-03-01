@@ -118,11 +118,19 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
                 }
 
-                // println!{""};
-                // println!("The State: {}", runner.state());
-                // println!{""};
+                println!{""};
+                println!("The State: {}", runner.state());
+                println!{""};
 
                 tx_out.send(runner.state().clone()).unwrap();
+                // send out runner info.
+                let runner_info = RunnerInfo {
+                    state: runner.state().clone(),
+                    .. RunnerInfo::default()
+                };
+
+                tx_out_misc.send(runner_info).unwrap();
+
 
                 if old_g != new_g {
                     println!("NEW GOALS");
@@ -138,24 +146,18 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     runner.input(SPRunnerInput::AbilityPlan(plan));
 
                     tx_out.send(runner.state().clone()).unwrap();
+
+                    // send out runner info.
+                    let runner_info = RunnerInfo {
+                        state: runner.state().clone(),
+                        .. RunnerInfo::default()
+                    };
+                    tx_out_misc.send(runner_info).unwrap();
                 }
             }
 
-
-            // send out runner info.
-            let runner_info = RunnerInfo {
-                state: runner.state().clone(),
-                .. RunnerInfo::default()
-            };
-
-            tx_out_misc.send(runner_info).unwrap();
-
-
             // let mess: Result<SPState, RecvError> = rx_in.recv();
             // if let Ok(s) = mess {
-
-
-
 
             // }
 
