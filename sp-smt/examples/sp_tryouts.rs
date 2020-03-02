@@ -23,7 +23,7 @@ fn main() {
             ability!{
                 name: ability_x,
     
-                change_x: p!([!x] && [y == "a"]) => [ a!(x), a!(z <- y) ] / [a!(y = "c")]
+                change_x: p!([[!x] && [y != "a"]] || [y != "b"] || [x == false]) => [ a!(x), a!(z <- y) ] / [a!(y = "c")]
             }
         }
     }
@@ -95,7 +95,6 @@ fn main() {
     let mut init_assert_vec = vec!();
 
     for i in &initial_state {
-
         if i.1 == SPValueType::Bool {
             let bool_sort = BoolSortZ3::new(&ctx);
             let init = BoolVarZ3::new(&ctx, &bool_sort, &format!("{}_s0", i.0.as_str()));
@@ -121,111 +120,167 @@ fn main() {
     println!("Added initial state to context");
     println!("{}", slv_to_string_z3!(&ctx, &slv));
 
-    // trans = Vec(trans_name, Vec(var, var_type, var_value))
-    let mut trans: Vec<(String, Vec<(String, String, String)>)> = vec!();
-    for t in &ts_model.transitions {
+    pub fn guard_to_z3(ctx: &ContextZ3, ts_model: &TransitionSystemModel, step: u32, p: &Predicate) -> Z3_ast {
+        let res_main: Z3_ast = match p {
+            Predicate::TRUE => BoolZ3::new(&ctx, true),
+            Predicate::FALSE => BoolZ3::new(&ctx, false),
+            Predicate::NOT(p) => {
+                let v = guard_to_z3(&ctx, &ts_model, step, p);
+                NOTZ3::new(&ctx, v)
+            },
+            Predicate::AND(p) => {
+                let v: Vec<_> = p.iter().map(|x| guard_to_z3(&ctx, &ts_model, step, x)).collect();
+                ANDZ3::new(&ctx, v)
+                },
+            Predicate::OR(p) => {
+                let v: Vec<_> = p.iter().map(|x| guard_to_z3(&ctx, &ts_model, step, x)).collect();
+                ORZ3::new(&ctx, v)
+                },
+            Predicate::XOR(p) => panic!("TODO: Implement XOR"),
+            Predicate::EQ(PredicateValue::SPPath(var, _),
+                          PredicateValue::SPValue(value)) => {
+                let init_var_type = &ts_model.vars.iter()
+                    .find_map(|x| if x.path() == var { Some(x.value_type()) } else {None} )
+                    .expect("could not find variable");
+                let res: Z3_ast = match init_var_type {
+                    // let var_name = format!("{}_s{}", var.to_string(), step);
+                    SPValueType::Bool => EQZ3::new(&ctx, 
+                        BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
+                        BoolZ3::new(&ctx, false)),
+                    _ => panic!("implement stuff")
+                };
+                res
+            },
 
-        // fn guard_into_z3(p: Predicate) -> String {
-        //     let s: String = match t.guard() {
-        //         // Predicate::AND(p) => println!("{:?}", format!("{:?}", p)),
-        //         Predicate::OR(p) => format!("{:?}", p),
-        //         Predicate::TRUE => "TRUE",
-        //         Predicate::FALSE => "FALSE",
-        //         Predicate::NOT(p) => format!("NOOOOOOOOOT {:?}", p),
-        //         Predicate::XOR(_) => println!("TODO"),
-        //         Predicate::EQ(x, y) => println!("{:?}", format!("{:?} {:?}", x, y)),
-        //         Predicate::NEQ(x, y) => println!("{:?}", format!("{:?}  {:?}", x, y)),
+            Predicate::NEQ(PredicateValue::SPPath(var, _),
+                          PredicateValue::SPValue(value)) => {
+                let init_var_type = &ts_model.vars.iter()
+                    .find_map(|x| if x.path() == var { Some(x.value_type()) } else {None} )
+                    .expect("could not find variable");
+
+                let res: Z3_ast = match init_var_type {
+                    // let var_name = format!("{}_s{}", var.to_string(), step);
+                    SPValueType::Bool => NEQZ3::new(&ctx, 
+                        BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
+                        BoolZ3::new(&ctx, false)),
+                    SPValueType::String => {
+
+                        let var_vec: Vec<_> = var.path.clone().iter().map(|path|path.clone()).collect();
+                        let var_name = var_vec.join("/").to_string();
+
+                        let mut init_domain_strings = vec!();
+                        for ts_var in &ts_model.vars {
+                            if var_name == ts_var.path().to_string() {
+                                for v in ts_var.domain() {
+                                    init_domain_strings.push(v.to_string());
+                                }
+                            }
+                        }                   
+                       
+                        let val_index = init_domain_strings.iter().position(|r| *r == value.to_string()).unwrap();
+                        let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index])
+                    },
+                    _ => panic!("implement stuff")
+                };
+                res
+            },
+            x => panic!("NO X {:?}", x)
+        };
+        res_main
+    }
     
-        //         Predicate::AND(x) => {
-        //             let children: Vec<_> = x
-        //                 .iter()
-        //                 .map(|p| format!("{}", &p))
-        //                 .collect();
-        //             println!("{:?}", format!("( {} )", children.join("&")));
-        //             for c in &children {
-        //                 guard_into_z3(c);
-        //             }
-        //         }
-        //     };
-        // }
+    let mut step: u32 = 0;
+    let max_steps: u32 = 10;
+    // while SlvCheckZ3::new(&ctx, &slv) != 1 && step < max_steps {
+    while step < max_steps {
+        step = step + 1;
+        // SlvPopZ3::new(&ctx, &slv, 1);
+    // trans = Vec(trans_name, Vec(var, var_type, var_value))
+        let mut trans: Vec<(String, Z3_ast, Vec<(String, String, String)>)> = vec!();
+        for t in &ts_model.transitions {
+            let mut tr: (Z3_ast, Z3_ast, Vec<(Z3_ast)>);
+            println!("{:?}", ast_to_string_z3!(&ctx, guard_to_z3(&ctx, &ts_model, step, t.guard())));
 
-        // println!("GUARD : {}", t.guard());
-        // match t.guard() {
-        //     // Predicate::AND(p) => println!("{:?}", format!("{:?}", p)),
-        //     Predicate::OR(p) => println!("{:?}", format!("{:?}", p)),
-        //     Predicate::TRUE => println!("TRUE"),
-        //     Predicate::FALSE => println!("FALSE"),
-        //     Predicate::NOT(p) => println!("NOOOOOOOOOT {:?}", p),
-        //     Predicate::XOR(_) => println!("TODO"),
-        //     Predicate::EQ(x, y) => println!("{:?}", format!("{:?} {:?}", x, y)),
-        //     Predicate::NEQ(x, y) => println!("{:?}", format!("{:?}  {:?}", x, y)),
+            // get action and effects:
+            let trans_node = t.node().to_string();
+            let trans_vec: Vec<&str> = trans_node.rsplit(':').collect();
+            let trans_name: String = format!("{}_t{}", trans_vec[0].to_string(), step);
+            let trans_name_assert: Z3_ast = EQZ3::new(&ctx, 
+                BoolZ3::new(&ctx, true), 
+                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()));
 
-        //     Predicate::AND(x) => {
-        //             let children: Vec<_> = x
-        //                 .iter()
-        //                 .map(|p| format!("{}", &p))
-        //                 .collect();
-        //                 println!("{:?}", format!("( {} )", children.join("&")));
-        //     }
+            // tr.0 = trans_name_assert;
             
-            // Predicate::NOT(p) => println!("{}", format!("{}", p)),
-            // Predicate::NOT(p) => println!("{}", format!("{}", p)),
-            // Predicate::NOT(p) => println!("{}", format!("{}", p)),
-            // Predicate::NOT(p) => println!("{}", format!("{}", p)),
-            // // Predicate::AND(x) => {
-            //     let children: Vec<_> = x
-            //         .iter()
-            //         .map(|p| format!("{}", NuXMVPredicate(&p)))
-            //         .collect();
-            //     format!("( {} )", children.join("&"))
+            // get guard:
+            let guard = guard_to_z3(&ctx, &ts_model, step, t.guard());
+            // tr.1 = guard;
 
-        let trans_node = t.node().to_string();
-        let trans_vec: Vec<&str> = trans_node.rsplit(':').collect();
-        let trans_name: String = trans_vec[0].to_string();
+            let mut updates = vec!();
+            let mut act_and_eff = vec!();
+            act_and_eff.extend(t.actions());
+            act_and_eff.extend(t.effects());
 
-        let mut updates: Vec<(String, String, String)> = vec!();
-        let mut act_and_eff = vec!();
-        act_and_eff.extend(t.actions());
-        act_and_eff.extend(t.effects());
+            for a in act_and_eff {
+                let v: Vec<_> = a.var.path.clone().iter().map(|path|path.clone()).collect();
+                let var_name = v.join("/").to_string();
 
-        for a in act_and_eff {
-            let v: Vec<_> = a.var.path.clone().iter().map(|path|path.clone()).collect();
-            let var_name = v.join("/").to_string();
+                let init_var_type = ts_model.vars.iter()
+                    .find_map(|x| if x.path() == &a.var { Some(x.value_type()) } else {None} )
+                    .expect("could not find variable");
 
-            let init_var_type = ts_model.vars.iter()
-                .find_map(|x| if x.path() == &a.var { Some(x.value_type()) } else {None} )
-                .expect("could not find variable");
-
-            let vars = &ts_model.vars;
-            let mut init_domain_strings = vec!();
-            for var in vars {
-                if var_name == var.path().to_string() {
-                    for v in var.domain() {
-                        init_domain_strings.push(v.to_string());
+                let vars = &ts_model.vars;
+                let mut vars_string = vec!();
+                let mut init_domain_strings = vec!();
+                for var in vars {
+                    vars_string.push(var.path().to_string());
+                    if var_name == var.path().to_string() {
+                        for v in var.domain() {
+                            init_domain_strings.push(v.to_string());
+                        }
                     }
                 }
+
+                let var_value: String = match &a.value {
+                    Compute::PredicateValue(pv) => match pv {
+                        PredicateValue::SPValue(spval) => format!("{}", spval),
+                        PredicateValue::SPPath(path, _) => format!("{}", path),
+                    },
+                    Compute::Predicate(p) => panic!("Predicate for action?"), // format!("{}", p), // still not sure how this works
+                    _ => panic!("What else?")
+                };
+
+                let mut astr: Z3_ast = EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), "FAULT"), BoolZ3::new(&ctx, true));
+                let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());      
+                if var_value == "false" {
+                    astr = EQZ3::new(&ctx, 
+                        BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                        BoolZ3::new(&ctx, false));
+                } else if var_value == "true" {
+                    astr = EQZ3::new(&ctx, 
+                        BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                        BoolZ3::new(&ctx, true));
+                } else {
+                    if init_domain_strings.contains(&var_value) {
+                        let val_index = init_domain_strings.iter().position(|r| *r == var_value.to_string()).unwrap();
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        astr = EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index]);
+                    } else if vars_string.contains(&var_value) {
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        astr = EQZ3::new(&ctx, 
+                            EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                            EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_value.to_string(), step).as_str()));
+                    }
+                }
+                updates.push(ast_to_string_z3!(&ctx, astr));
             }
-
-            let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());            
-            let var_type: String = match init_var_type {
-                SPValueType::Array => "array".to_string(),
-                SPValueType::Bool => "bool".to_string(),
-                SPValueType::Int32 => "int32".to_string(),
-                SPValueType::Float32 => "float32".to_string(),
-                SPValueType::String => domain_name,
-                _ => "TODO: Other SP value types to Z3".to_string(),
-            };
-
-            let var_value: String = match &a.value {
-                Compute::PredicateValue(pv) => match pv {
-                    PredicateValue::SPValue(spval) => format!("{}", spval),
-                    PredicateValue::SPPath(path, _) => format!("{}", path),
-                },
-                Compute::Predicate(p) => format!("{}", p),
-                _ => format!("{}", "blah"),
-            };
-            updates.push((var_name, var_type, var_value));
+            println!("updates: {:?}", updates);
         }
-        println!("updates: {:?}", updates);
+
+        // let goal = guard_to_z3(&ctx, &ts_model, step: u32, p: &Predicate); 
     }
 }

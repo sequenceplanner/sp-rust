@@ -55,27 +55,31 @@ fn main() {
             let next_step: &str = &format!("pose_s{}", step);
 
             let home_via1 = and_z3!(&ctx,
+                eq_z3!(&ctx, bool_z3!(&ctx, true), bool_var_z3!(&ctx, &format!("home_via1_t{}", step))),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[0]),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[1]));          
 
             let home_via2 = and_z3!(&ctx, 
+                eq_z3!(&ctx, bool_z3!(&ctx, true), bool_var_z3!(&ctx, &format!("home_via2_t{}", step))),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[0]),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[2]));
 
             let via1_table = and_z3!(&ctx, 
+                eq_z3!(&ctx, bool_z3!(&ctx, true), bool_var_z3!(&ctx, &format!("via1_table_t{}", step))),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[1]),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[3]));
 
             let via2_table = and_z3!(&ctx,
+                eq_z3!(&ctx, bool_z3!(&ctx, true), bool_var_z3!(&ctx, &format!("via2_table_t{}", step))),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, current_step), poses[2]),
                 eq_z3!(&ctx, EnumVarZ3::new(&ctx, pose_sort.r, next_step), poses[3]));
 
             slv_assert_z3!(&ctx, &slv, or_z3!(&ctx, home_via1, home_via2, via1_table, via2_table));
             
-            slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via1, bool_var_z3!(&ctx, &format!("home_via1_t{}", step))));
-            slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_table, bool_var_z3!(&ctx, &format!("via1_table_t{}", step))));
-            slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via2, bool_var_z3!(&ctx, &format!("home_via2_t{}", step))));
-            slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_table, bool_var_z3!(&ctx, &format!("via2_table_t{}", step))));
+            // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via1, bool_var_z3!(&ctx, &format!("home_via1_t{}", step))));
+            // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via1_table, bool_var_z3!(&ctx, &format!("via1_table_t{}", step))));
+            // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, home_via2, bool_var_z3!(&ctx, &format!("home_via2_t{}", step))));
+            // slv_assert_z3!(&ctx, &slv, eq_z3!(&ctx, via2_table, bool_var_z3!(&ctx, &format!("via2_table_t{}", step))));
 
             SlvPushZ3::new(&ctx, &slv);
             
