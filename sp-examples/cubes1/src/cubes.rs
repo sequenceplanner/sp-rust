@@ -25,9 +25,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r1ref = &r1["ref_pos"];
     let r2ref = &r2["ref_pos"];
 
-
-    m.add_invar("table_zone", &p!(!([p:r1act == "table1"] && [p:r2act == "table1"])));
-    m.add_invar("table_zone", &p!(!([p:r1act == "table2"] && [p:r2act == "table2"])));
+    m.add_invar("table_zone_1", &p!(!([p:r1act == "table1"] && [p:r2act == "table1"])));
+    m.add_invar("table_zone_2", &p!(!([p:r1act == "table2"] && [p:r2act == "table2"])));
 
     // must go to table positions via the home pose
     // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
@@ -139,7 +138,6 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     // m.add_op("swap_parts_again", true,
     //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
     //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
-
 
     // same as above but broken to reduce plan lengths...
     m.add_op("swap_parts_step_1", true,

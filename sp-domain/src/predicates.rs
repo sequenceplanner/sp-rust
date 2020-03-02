@@ -223,6 +223,42 @@ impl Predicate {
             }
         }
     }
+
+    /// Return the supporting variables of this expression
+    pub fn support(&self) -> Vec<SPPath> {
+        let mut s = Vec::new();
+        match &self {
+            Predicate::AND(x) => s.extend(x.iter().flat_map(|p|p.support())),
+            Predicate::OR(x) => s.extend(x.iter().flat_map(|p|p.support())),
+            Predicate::XOR(x) => s.extend(x.iter().flat_map(|p|p.support())),
+            Predicate::NOT(x) => s.extend(x.support()),
+            Predicate::TRUE => {},
+            Predicate::FALSE => {},
+            Predicate::EQ(x, y) => {
+                match x {
+                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPPath(p, _) => s.push(p.clone()),
+                };
+                match y {
+                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPPath(p, _) => s.push(p.clone()),
+                };
+            }
+            Predicate::NEQ(x, y) => {
+                match x {
+                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPPath(p, _) => s.push(p.clone()),
+                };
+                match y {
+                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPPath(p, _) => s.push(p.clone()),
+                };
+            }
+        };
+        s.sort();
+        s.dedup();
+        s
+    }
 }
 
 impl Action {
@@ -646,6 +682,31 @@ mod sp_value_test {
         assert!(eq.eval(&s));
         assert!(!eq2.eval(&s));
     }
+
+    #[test]
+    fn support_pred() {
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let ac = SPPath::from_slice(&["a", "c"]);
+        let kl = SPPath::from_slice(&["k", "l"]);
+
+        let mut eq = Predicate::EQ(
+            PredicateValue::SPValue(2.to_spvalue()),
+            PredicateValue::SPPath(ac.clone(), None),
+        );
+        let mut eq2 = Predicate::EQ(
+            PredicateValue::SPValue(3.to_spvalue()),
+            PredicateValue::SPPath(kl.clone(), None),
+        );
+        let mut eq3 = Predicate::EQ(
+            PredicateValue::SPValue(3.to_spvalue()),
+            PredicateValue::SPPath(ab.clone(), None),
+        );
+        let x = Predicate::AND(vec![eq, eq2]);
+        let x = Predicate::OR(vec![x, eq3]);
+
+        assert_eq!(x.support(), vec![ab.clone(), ac.clone(), kl.clone()]);
+    }
+
     #[test]
     fn next_pred() {
         let ab = SPPath::from_slice(&["a", "b"]);
