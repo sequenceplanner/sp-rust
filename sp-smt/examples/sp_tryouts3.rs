@@ -20,11 +20,11 @@ fn main() {
     
             ability!{
                 name: movement,
-                home_via_1: p!([pose == "home"]) => [pose = "via1"],
-                home_via_2: p!([pose == "home"]) => [pose = "via2"],
-                via_1_table: p!([pose == "via1"]) => [pose = "table"],
-                via_2_table: p!([pose == "via2"]) => [pose = "table"],
-                // home_to_via_1: p!([[!x] && [y != "a"]] || [y != "b"] || [x == false]) => [ a!(x), a!(z <- y) ] / [a!(y = "c")]
+
+                home_via_1: p!([pose == "home"]) => [a!(pose = "via1")] / [],
+                home_via_2: p!([pose == "home"]) => [a!(pose = "via2")] / [],
+                via_1_table: p!([pose == "via1"]) => [a!(pose = "table")] / [],
+                via_2_table: p!([pose == "via2"]) => [a!(pose = "table")] / [],
             }
         }
     }
@@ -34,12 +34,18 @@ fn main() {
 
     let pose = m.find_item("pose", &[]).expect("check spelling1").path();
 
-    let state = SPState::new_from_values(&[
+    let init_state = SPState::new_from_values(&[
         (pose.clone(), "home".to_spvalue()),
     ]);
 
+    // let goal_state = SPState::new_from_values(&[
+    //     (pose.clone(), "table".to_spvalue()),
+    // ]);
+
     let ts_model = TransitionSystemModel::from(&m);
 
-    let plan = ComputePlanSPModelZ3::new(&ts_model, &[(p!([pose = "table"]), None)]);
-
+    let plan = ComputePlanSPModelZ3::plan(&ts_model, &[(p!([p:pose == "table"]), None)], &init_state, 10);
+    for l in plan {
+        println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
+    }
 }

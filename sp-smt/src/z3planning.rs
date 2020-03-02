@@ -137,12 +137,32 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                           PredicateValue::SPValue(value)) => {
                 let init_var_type = &ts_model.vars.iter()
                     .find_map(|x| if x.path() == var { Some(x.value_type()) } else {None} )
-                    .expect("could not find variable");
+                    .expect(&format!("3: could not find variable: {:?}", ts_model.vars));
                 let res: Z3_ast = match init_var_type {
                     // let var_name = format!("{}_s{}", var.to_string(), step);
                     SPValueType::Bool => EQZ3::new(&ctx, 
                         BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
                         BoolZ3::new(&ctx, false)),
+                    SPValueType::String => {
+
+                        let var_vec: Vec<_> = var.path.clone().iter().map(|path|path.clone()).collect();
+                        let var_name = var_vec.join("/").to_string();
+    
+                        let mut init_domain_strings = vec!();
+                        for ts_var in &ts_model.vars {
+                            if var_name == ts_var.path().to_string() {
+                                for v in ts_var.domain() {
+                                    init_domain_strings.push(v.to_string());
+                                }
+                            }
+                        }                   
+                           
+                        let val_index = init_domain_strings.iter().position(|r| *r == value.to_string()).unwrap();
+                        let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index])
+                    },
                     _ => panic!("implement stuff")
                 };
                 res
@@ -152,7 +172,7 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                           PredicateValue::SPValue(value)) => {
                 let init_var_type = &ts_model.vars.iter()
                     .find_map(|x| if x.path() == var { Some(x.value_type()) } else {None} )
-                    .expect("could not find variable");
+                    .expect(&format!("2: could not find variable: {:?}", ts_model.vars));
 
                 let res: Z3_ast = match init_var_type {
                     // let var_name = format!("{}_s{}", var.to_string(), step);
@@ -210,7 +230,7 @@ impl <'ctx> GetSPUpdatesZ3<'ctx> {
 
             let init_var_type = ts_model.vars.iter()
                 .find_map(|x| if x.path() == &a.var { Some(x.value_type()) } else {None} )
-                .expect("could not find variable");
+                .expect(&format!("1: could not find variable: {:?}", ts_model.vars));
 
             let vars = &ts_model.vars;
             let mut vars_string = vec!();
@@ -263,11 +283,14 @@ impl <'ctx> GetSPUpdatesZ3<'ctx> {
     }
 }
 
-impl Planner for ComputePlanSPModelZ3 {
-    fn plan(model: &TransitionSystemModel,
+// impl Planner for ComputePlanSPModelZ3 {
+impl ComputePlanSPModelZ3 {
+    pub fn plan(model: &TransitionSystemModel,
             goals: &[(Predicate, Option<Predicate>)],
             state: &SPState,
             max_steps: u32) -> Vec<(u32, Vec<String>, String)> {
+
+        let mut step: u32 = 0;
 
         let cfg = ConfigZ3::new();
         let ctx = ContextZ3::new(&cfg);
@@ -276,9 +299,9 @@ impl Planner for ComputePlanSPModelZ3 {
         slv_assert_z3!(&ctx, &slv, GetInitialStateZ3::new(&ctx, &model, &state));
 
         SlvPushZ3::new(&ctx, &slv);
-        for g in &goals {
-            slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &ts_model, 0, g.0));
-        }
+        // for g in &goals.iter() {
+        slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &goals[0].0));
+        // }
         
         while SlvCheckZ3::new(&ctx, &slv) != 1 && step < max_steps {
             step = step + 1;
@@ -289,23 +312,25 @@ impl Planner for ComputePlanSPModelZ3 {
                 let trans_node = t.node().to_string();
                 let trans_vec: Vec<&str> = trans_node.rsplit(':').collect();
                 let trans_name: String = format!("{}_t{}", trans_vec[0].to_string(), step);
-                let guard = GetSPPredicateZ3::new(&ctx, &ts_model, step - 1, t.guard());
-                let updates = GetSPUpdatesZ3::new(&ctx, &ts_model, &t, step));
+                let guard = GetSPPredicateZ3::new(&ctx, &model, step - 1, t.guard());
+                let updates = GetSPUpdatesZ3::new(&ctx, &model, &t, step);
                 all_trans.push(ANDZ3::new(&ctx, vec!(
                     EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()), BoolZ3::new(&ctx, true)),
                     guard,
                     updates
                 )));
+            }
 
             slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
 
             SlvPushZ3::new(&ctx, &slv);
-            for g in &goals {
-                slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &ts_model, step, g.0));
-            }
+            // for g in &goals {
+            slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, step, &goals[0].0));
+            // }
         }
         let model = SlvGetModelAndForbidZ3::new(&ctx, &slv);
-        let frames = GetPlanningFramesZ3::new(&ctx, model, step)
+        let frames = GetPlanningFramesZ3::new(&ctx, model, step);
+        frames
     }
 }
 
