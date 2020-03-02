@@ -5,6 +5,7 @@ use crate::formal_model::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Domain {
+    // pub name: String, // would it be possible to add this? z3 needs it
     pub domain: Option<Vec<SPValue>>, // none=domain is boolean
 }
 
