@@ -372,54 +372,16 @@ impl <'ctx> GetSPUpdatesZ3<'ctx> {
                 },
                 _ => panic!("Implement")
             };
-
-        //     let var_value: String = match &a.value {
-        //         Compute::PredicateValue(pv) => match pv {
-        //             PredicateValue::SPValue(spval) => format!("{}", spval),
-        //             PredicateValue::SPPath(path, _) => format!("{}", path),
-        //         },
-        //         Compute::Predicate(p) => panic!("Predicate for action?"), // format!("{}", p), // still not sure how this works
-        //         _ => panic!("What else?")
-        //     };
-
-        //     let mut astr: Z3_ast = EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), "FAULT"), BoolZ3::new(&ctx, true));
-        //     let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());      
-        //     if var_value == "false" {
-        //         astr = EQZ3::new(&ctx, 
-        //             BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
-        //             BoolZ3::new(&ctx, false));
-        //     } else if var_value == "true" {
-        //         astr = EQZ3::new(&ctx, 
-        //             BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
-        //             BoolZ3::new(&ctx, true));
-        //     } else {
-        //         if init_domain_strings.contains(&var_value) {
-        //             let val_index = init_domain_strings.iter().position(|r| *r == var_value.to_string()).unwrap();
-        //             let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
-        //             let elements = &enum_sort.enum_asts;
-        //             astr = EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index]);
-        //         } else if vars_string.contains(&var_value) {
-        //             let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
-        //             let elements = &enum_sort.enum_asts;
-        //             astr = EQZ3::new(&ctx, 
-        //                 EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
-        //                 EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_value.to_string(), step).as_str()));
-        //         }
-        //     }
-        //     updates.push(astr);
         }
         ANDZ3::new(&ctx, updates)
     }
 }
 
 impl ComputePlanSPModelZ3 {
-    // impl ComputePlanSPModelZ3 {
-    // pub fn plan(model: &TransitionSystemModel,
     pub fn plan(model: &TransitionSystemModel,
             goals: &[(Predicate, Option<Predicate>)],
             state: &SPState,
             max_steps: u32) -> PlanningResultZ3 {
-            // max_steps: u32) -> Vec<(u32, Vec<String>, String)> {
     
         let mut step: u32 = 0;
     
@@ -457,8 +419,7 @@ impl ComputePlanSPModelZ3 {
                     let trans_name: String = format!("{}_t{}", trans_vec[0].to_string(), step);
                     let guard = GetSPPredicateZ3::new(&ctx, &model, step - 1, t.guard());
                     let updates = GetSPUpdatesZ3::new(&ctx, &model, &t, step);
-                    // model.vars.push(Variable::new(name: trans_name.as_str(), type_: Estimated, value_type: bool, domain: vec!(true, false)));
-                    // model.add_variable(SPPath::from_string(trans_name.as_str()), true.to_spvalue());
+                    
                     all_trans.push(ANDZ3::new(&ctx, vec!(
                         EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()), BoolZ3::new(&ctx, true)),
                         guard,
@@ -478,10 +439,16 @@ impl ComputePlanSPModelZ3 {
         }
     
         let planning_time = now.elapsed();
-    
-        let model = SlvGetModelZ3::new(&ctx, &slv);
-        let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-        result
+        
+        if plan_found == true {
+            let model = SlvGetModelZ3::new(&ctx, &slv);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        } else {
+            let model = FreshModelZ3::new(&ctx);
+            let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
+            result
+        }        
     }   
 }
 

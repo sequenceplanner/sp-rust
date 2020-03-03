@@ -40,7 +40,7 @@ pub use crate::z3logics::{ANDZ3, ORZ3, DISTINCTZ3, NOTZ3, ITEZ3, IFFZ3, IMPZ3, X
 pub mod z3utils;
 pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3, ModelGetNumConstsZ3, ModelGetConstDeclZ3, 
     GetDeclNameZ3, ModelGetConstInterpZ3, GetSymbolStringZ3, GetCnfVectorZ3, Z3StringToStringZ3,
-    AstVectorToStringZ3, Z3AstVectorToVectorAstZ3};
+    AstVectorToStringZ3, Z3AstVectorToVectorAstZ3, FreshModelZ3};
 
 pub mod z3planning;
 pub use crate::z3planning::{GetPlanningFramesZ3, GetInitialStateZ3, GetSPPredicateZ3, GetSPUpdatesZ3, ComputePlanSPModelZ3,

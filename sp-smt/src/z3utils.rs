@@ -71,6 +71,21 @@ pub struct GetCnfVectorZ3<'ctx> {
     pub cnf: Vec<Z3_ast>
 }
 
+pub struct FreshModelZ3<'ctx> {
+    pub ctx: &'ctx ContextZ3,
+    pub model: Z3_model
+
+}
+
+impl<'ctx> FreshModelZ3<'ctx> {
+    /// New empty model
+    pub fn new(ctx: &'ctx ContextZ3) -> Z3_model {
+        unsafe {
+            Z3_mk_model(ctx.r)
+        }
+    }
+}
+
 impl<'ctx> AstToStringZ3<'ctx> {
     /// AST to readable string
     /// 
