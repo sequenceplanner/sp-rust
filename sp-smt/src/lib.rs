@@ -44,4 +44,4 @@ pub use crate::z3utils::{AstToStringZ3, ModelToStringZ3, ModelGetNumConstsZ3, Mo
 
 pub mod z3planning;
 pub use crate::z3planning::{GetPlanningFramesZ3, GetInitialStateZ3, GetSPPredicateZ3, GetSPUpdatesZ3, ComputePlanSPModelZ3,
-    PlanningFrameZ3, PlanningResultZ3};
+    PlanningFrameZ3, PlanningResultZ3, GetSPVarDomain};

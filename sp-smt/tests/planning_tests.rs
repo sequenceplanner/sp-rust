@@ -92,9 +92,6 @@ fn basic_planning_request(model: &Model, n: u32) -> PlanningResultZ3 {
 
     // requires at least step = 2 to find a plan
     let ts_model = TransitionSystemModel::from(&model);
-    for t in &ts_model.vars {
-        println!("path: {:?}", t.path());
-    }
     ComputePlanSPModelZ3::plan(&ts_model, &vec![(goal,None)], &state, n)
 }
 
