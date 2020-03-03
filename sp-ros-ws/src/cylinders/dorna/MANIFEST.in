@@ -1,0 +1,7 @@
+include README.md
+include setup.py
+include LICENSE
+
+recursive-include dorna/resources *	
+include dorna/*.yaml
+include dorna/*.py

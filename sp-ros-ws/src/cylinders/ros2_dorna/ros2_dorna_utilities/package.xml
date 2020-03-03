@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="2">
+  <name>ros2_dorna_utilities</name>
+  <version>0.0.1</version>
+  <description>Utilities for the ROS2 Dorna robot suite.</description>
+
+  <maintainer email="endree@chalmers.se">endre_eros</maintainer>
+  <license>no_license</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export>
+
+    <build_type>ament_python</build_type>
+  </export>
+</package>

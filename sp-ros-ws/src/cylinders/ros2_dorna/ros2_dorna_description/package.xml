@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="2">
+  <name>ros2_dorna_description</name>
+  <version>0.0.1</version>
+  <description>Robot description package for the ROS2 Dorna robot suite</description>
+  <maintainer email="endree@chalmers.se">endre_eros</maintainer>
+  <license>no_licence</license>
+  <author>endree</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>urdf</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

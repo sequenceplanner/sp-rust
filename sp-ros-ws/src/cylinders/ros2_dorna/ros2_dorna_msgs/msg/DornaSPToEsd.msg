@@ -1,0 +1,2 @@
+string reference_pose
+uint8 reference_joint_speed
