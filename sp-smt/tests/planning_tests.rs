@@ -83,7 +83,7 @@ fn basic_planning_request(model: &Model, n: u32) -> PlanningResultZ3 {
     let active = model.find_item("active", &["State"]).expect("check spelling").path();
     let activate = model.find_item("activate", &["Control"]).expect("check spelling").path();
     let goal = p!(p:active);
-    println!("goal: {:?}", goal);
+    // println!("goal: {:?}", goal);
 
     let state = SPState::new_from_values(&[
         (active.clone(), false.to_spvalue()),
@@ -112,4 +112,76 @@ fn planning_fail_1_step() {
             .and_then(|f| f.state.sp_value_from_path(&active)),
         Some(&true.to_spvalue())
     );
+}
+
+#[test]
+// #[serial]
+fn planning_success_2_steps() {
+    let model = basic_model();
+
+    let result = basic_planning_request(&model, 2);
+    assert!(result.plan_found);
+
+    let active = model.find_item("active", &[]).expect("check spelling").path();
+
+    // println!("{:?}", result);
+
+    assert_eq!(result.plan_length, 2);
+    assert_eq!(result.trace.len(), 3);
+
+    for f in &result.trace {
+        println!("==========================");
+        println!("{}", f.transition);
+        println!("==========================");
+        println!("{}", f.state);
+
+    }
+
+    assert_eq!(
+        result
+            .trace
+            .last()
+            .and_then(|f| f.state.sp_value_from_path(&active)),
+        Some(&true.to_spvalue())
+    );
+}
+
+fn model_without_spec() -> Model {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
+
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+    // !
+    // No specifications
+    // !
+
+    m
+}
+
+#[test]
+// #[serial]
+fn planning_fail_due_to_conflicting_online_spec_and_goal() {
+    let model = model_without_spec();
+
+    let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+
+    let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
+
+    let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
+    let invar = p!(!([p:r1a == "at"] && [p:r2a == "at"]));
+
+    let state = SPState::new_from_values(&[
+        (r1a.clone(), "away".to_spvalue()),
+        (r2a.clone(), "away".to_spvalue()),
+        (r1r.clone(), "away".to_spvalue()),
+        (r2r.clone(), "away".to_spvalue()),
+    ]);
+
+    let ts_model = TransitionSystemModel::from(&model);
+    let result = plan(&ts_model, &[(goal,Some(invar))], &state, 20);
+    assert!(!result.plan_found);
 }

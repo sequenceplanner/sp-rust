@@ -508,7 +508,13 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
                 let sep: Vec<&str> = j.split(" -> ").collect();
                 if sep[0].ends_with(&format!("_s{}", i)){
                     let trimmed_state = sep[0].trim_end_matches(&format!("_s{}", i));
-                    frame.state.add_variable(SPPath::from_string(trimmed_state), sep[1].to_spvalue());
+                    if sep[1] == "false" {
+                        frame.state.add_variable(SPPath::from_string(trimmed_state), false.to_spvalue());
+                    } else if sep[1] == "true" {
+                        frame.state.add_variable(SPPath::from_string(trimmed_state), true.to_spvalue());
+                    } else {
+                        frame.state.add_variable(SPPath::from_string(trimmed_state), sep[1].to_spvalue());
+                    }
                     // frame.state.values.
                     // frame.1.push(sep[1].to_string());
                 } else if sep[0].ends_with(&format!("_t{}", i)) && sep[1] == "true" {
@@ -521,7 +527,7 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
         }
         PlanningResultZ3 {
             plan_found: plan_found,
-            plan_length: nr_steps,
+            plan_length: nr_steps + 1,
             trace: trace,
             time_to_solve: planning_time,
             raw_output: "".to_string(),
