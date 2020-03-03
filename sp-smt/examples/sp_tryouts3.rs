@@ -45,7 +45,7 @@ fn main() {
     let ts_model = TransitionSystemModel::from(&m);
 
     let plan = ComputePlanSPModelZ3::plan(&ts_model, &[(p!([p:pose == "table"]), None)], &init_state, 10);
-    for l in plan {
-        println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
-    }
+    // for l in plan {
+    //     println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
+    // }
 }
