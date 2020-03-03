@@ -10,9 +10,7 @@ use std::time::{Duration, Instant};
 
 #[derive(Default, Debug)]
 pub struct PlanningFrameZ3 {
-    // The state (for debug)
     pub state: SPState,
-    // The transition taken this frame
     pub transition: SPPath,
 }
 
@@ -26,7 +24,6 @@ pub struct PlanningResultZ3 {
     pub raw_error_output: String,
 }
 
-// #[derive(Debug)]
 pub struct ComputePlanSPModelZ3 {
     pub model: TransitionSystemModel,
     pub state: SPState,
@@ -281,9 +278,9 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                 let vds = GetSPVarDomain::new(&ts_model, &var_name);
                 let ods = GetSPVarDomain::new(&ts_model, &other_name);
 
-                let res: Z3_ast = match init_var_type == init_other_type {
+                let sub_res: Z3_ast = match init_var_type == init_other_type {
                     true => {
-                        let sub_res: Z3_ast = match vds.iter().zip(&ods).filter(|&(a, b)| a == b).count() == vds.len() {
+                        let sub_sub_res: Z3_ast = match vds.iter().zip(&ods).filter(|&(a, b)| a == b).count() == vds.len() {
                             true => {
                                 let domain_name = format!("{}_sort", vds.join(".").to_string());
                                 let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
@@ -294,16 +291,17 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                             },
                             false => panic!("Not same domain size"),
                         };
-                        sub_res
+                        sub_sub_res
                     },
                     false => panic!("Trying to assign with different types"),
                 };
-                res
+                sub_res
             },
-            _ => panic!("Implement")
+            _ => panic!("Implement"),
         };
         res
     }
+
 }
 
 impl <'ctx> GetSPUpdatesZ3<'ctx> {
@@ -336,40 +334,79 @@ impl <'ctx> GetSPUpdatesZ3<'ctx> {
                 vars_string.push(var.path().to_string());
             }
             
-            let var_value: String = match &a.value {
+            match &a.value {
                 Compute::PredicateValue(pv) => match pv {
-                    PredicateValue::SPValue(spval) => format!("{}", spval),
-                    PredicateValue::SPPath(path, _) => format!("{}", path),
+                    PredicateValue::SPValue(spval) => match spval.has_type() {
+                        SPValueType::Bool => match spval {
+                            SPValue::Bool(false) => updates.push(EQZ3::new(&ctx,
+                                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                                BoolZ3::new(&ctx, false))),
+                            SPValue::Bool(true) => updates.push(EQZ3::new(&ctx,
+                                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                                BoolZ3::new(&ctx, true))),
+                            _ => panic!("Impossible"),
+                        },
+                        SPValueType::String => {    
+                            let val_index = init_domain_strings.iter().position(|r| *r == spval.to_string()).unwrap();
+                            let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                            let elements = &enum_sort.enum_asts;
+                            updates.push(EQZ3::new(&ctx,
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                elements[val_index]));
+                        },
+                        _ => panic!("Implement"),
+                    },
+                    PredicateValue::SPPath(path, _) => {
+                        let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        updates.push(EQZ3::new(&ctx, 
+                            EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                            EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", path.to_string(), step).as_str())));
+                    },
+                    _ => panic!("Implement"),
                 },
-                Compute::Predicate(p) => panic!("Predicate for action?"), // format!("{}", p), // still not sure how this works
-                _ => panic!("What else?")
+                Compute::Predicate(p) => {
+                    updates.push(GetSPPredicateZ3::new(&ctx, &ts_model, step, &p));
+                },
+                _ => panic!("Implement")
             };
 
-            let mut astr: Z3_ast = EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), "FAULT"), BoolZ3::new(&ctx, true));
-            let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());      
-            if var_value == "false" {
-                astr = EQZ3::new(&ctx, 
-                    BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
-                    BoolZ3::new(&ctx, false));
-            } else if var_value == "true" {
-                astr = EQZ3::new(&ctx, 
-                    BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
-                    BoolZ3::new(&ctx, true));
-            } else {
-                if init_domain_strings.contains(&var_value) {
-                    let val_index = init_domain_strings.iter().position(|r| *r == var_value.to_string()).unwrap();
-                    let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
-                    let elements = &enum_sort.enum_asts;
-                    astr = EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index]);
-                } else if vars_string.contains(&var_value) {
-                    let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
-                    let elements = &enum_sort.enum_asts;
-                    astr = EQZ3::new(&ctx, 
-                        EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
-                        EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_value.to_string(), step).as_str()));
-                }
-            }
-            updates.push(astr);
+        //     let var_value: String = match &a.value {
+        //         Compute::PredicateValue(pv) => match pv {
+        //             PredicateValue::SPValue(spval) => format!("{}", spval),
+        //             PredicateValue::SPPath(path, _) => format!("{}", path),
+        //         },
+        //         Compute::Predicate(p) => panic!("Predicate for action?"), // format!("{}", p), // still not sure how this works
+        //         _ => panic!("What else?")
+        //     };
+
+        //     let mut astr: Z3_ast = EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), "FAULT"), BoolZ3::new(&ctx, true));
+        //     let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());      
+        //     if var_value == "false" {
+        //         astr = EQZ3::new(&ctx, 
+        //             BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+        //             BoolZ3::new(&ctx, false));
+        //     } else if var_value == "true" {
+        //         astr = EQZ3::new(&ctx, 
+        //             BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+        //             BoolZ3::new(&ctx, true));
+        //     } else {
+        //         if init_domain_strings.contains(&var_value) {
+        //             let val_index = init_domain_strings.iter().position(|r| *r == var_value.to_string()).unwrap();
+        //             let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+        //             let elements = &enum_sort.enum_asts;
+        //             astr = EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index]);
+        //         } else if vars_string.contains(&var_value) {
+        //             let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+        //             let elements = &enum_sort.enum_asts;
+        //             astr = EQZ3::new(&ctx, 
+        //                 EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+        //                 EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_value.to_string(), step).as_str()));
+        //         }
+        //     }
+        //     updates.push(astr);
         }
         ANDZ3::new(&ctx, updates)
     }

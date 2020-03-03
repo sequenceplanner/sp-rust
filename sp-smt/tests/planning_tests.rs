@@ -1,7 +1,7 @@
 use sp_smt::*;
 use sp_domain::*;
 use sp_runner::*;
-// use serial_test::serial;
+use serial_test::serial;
 use std::collections::HashMap;
 
 pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
@@ -96,7 +96,7 @@ fn basic_planning_request(model: &Model, n: u32) -> PlanningResultZ3 {
 }
 
 #[test]
-// #[serial]
+#[serial]
 fn planning_fail_1_step() {
     let model = basic_model();
 
@@ -115,7 +115,7 @@ fn planning_fail_1_step() {
 }
 
 #[test]
-// #[serial]
+#[serial]
 fn planning_success_2_steps() {
     let model = basic_model();
 
@@ -161,7 +161,7 @@ fn model_without_spec() -> Model {
 }
 
 #[test]
-// #[serial]
+#[serial]
 fn planning_fail_due_to_conflicting_online_spec_and_goal() {
     let model = model_without_spec();
 
