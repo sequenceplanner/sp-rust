@@ -288,8 +288,37 @@ pub fn extract_guards(
     (ng, supervisor)
 }
 
+use std::collections::HashSet;
+fn modified_by(t: &Transition) -> HashSet<SPPath> {
+    let mut r = HashSet::new();
+
+    r.extend(t.actions().iter().map(|a| a.var.clone()));
+    r.extend(t.effects().iter().map(|a| a.var.clone()));
+
+    r
+}
+
 pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
-    let model = TransitionSystemModel::from(&model);
+    let mut model = TransitionSystemModel::from(&model);
+
+    // only look at the uncontrollable transitions.
+    model.transitions.retain(|t| !t.controlled());
+
+    // check if there are no unc transitions that can modify the state defined
+    // by the invariants.
+    let mut support: HashSet<SPPath> = HashSet::new();
+    support.extend(invariant.support().into_iter());
+    if model.transitions.iter().all(|t| {
+        let modifies = modified_by(t);
+        let intersection: HashSet<_> = support.intersection(&modifies).collect();
+        intersection.is_empty()
+    }) {
+        // nothing to process! invariant is safe to use as is.
+        return invariant.clone();
+    }
+
+    // TODO: also filter out all variables and state predicates which
+    // are not included in any of our transitions/invariants
     let c = FormalContext::from(&model);
 
     // forbidden = all states NOT conforming to the invariant

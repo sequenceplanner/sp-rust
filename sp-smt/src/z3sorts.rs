@@ -105,7 +105,7 @@ impl <'ctx, 'a> EnumSortZ3<'ctx, 'a> {
     /// Create an enumeration type.
     ///
     /// NOTE: See macro! `enum_sort_z3!`
-    pub fn new(ctx: &'ctx ContextZ3, name: &'a str, enum_elements: Vec<&'a str>) -> EnumSortZ3<'ctx, 'a> {
+    pub fn new(ctx: &'ctx ContextZ3, name: &'a str, enum_elements: Vec<&str>) -> EnumSortZ3<'ctx, 'a> {
         
         let z3 = unsafe {
             let len = enum_elements.len() as u32;
