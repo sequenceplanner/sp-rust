@@ -140,21 +140,183 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
 
     // same as above but broken to reduce plan lengths...
-    m.add_op("swap_parts_step_1", true,
-             &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
-             &p!([p:table1_holding == 1] && [p:table2_holding == 2]), &[], None);
+    // m.add_op("swap_parts_step_1", true,
+    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
+    //          &p!([p:table1_holding == 1] && [p:table2_holding == 2]),
 
-    m.add_op("swap_parts_step_2", true,
-             &p!([p:table1_holding == 1] && [p:table2_holding == 2]),
-             &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
+    //          &[a!(p:table1_holding = 1), a!(p:table2_holding = 2)],
+    //          None);
 
-    m.add_op("swap_parts_again_step_1", true,
-             &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
-             &p!([p:table1_holding == 2] && [p:table2_holding == 1]), &[], None);
+    // m.add_op("swap_parts_step_2", true,
+    //          &p!([p:table1_holding == 1] && [p:table2_holding == 2]),
+    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
 
-    m.add_op("swap_parts_again_step_2", true,
-             &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
-             &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
+    //          &[a!(p:buffer1_holding = 1), a!(p:buffer2_holding = 2)],
+    //          None);
+
+    // m.add_op("swap_parts_again_step_1", true,
+    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
+    //          &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
+
+    //          &[a!(p:table1_holding = 2), a!(p:table2_holding = 1)],
+    //          None);
+
+    // m.add_op("swap_parts_again_step_2", true,
+    //          &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
+    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
+
+    //          &[a!(p:buffer1_holding = 2), a!(p:buffer2_holding = 1)],
+    //          None);
+
+
+    // instead of the above operations, we "generate" (by copy paste
+    // for now), all valid product movements.
+    //
+    // we let the high level planner (will later be an optimizer?)
+    // decide how to run all operations.
+
+    m.add_op("p1_buffer1_to_table1", true,
+             &p!([p:buffer1_holding == 1]),
+             &p!([p:table1_holding == 1]),
+
+             &[a!(p:table1_holding = 1), a!(p:buffer1_holding = 0)],
+             None);
+
+    m.add_op("p1_buffer1_to_table2", true,
+             &p!([p:buffer1_holding == 1]),
+             &p!([p:table2_holding == 1]),
+
+             &[a!(p:table2_holding = 1), a!(p:buffer1_holding = 0)],
+             None);
+
+    m.add_op("p1_buffer2_to_table1", true,
+             &p!([p:buffer2_holding == 1]),
+             &p!([p:table1_holding == 1]),
+
+             &[a!(p:table1_holding = 1), a!(p:buffer2_holding = 0)],
+             None);
+
+    m.add_op("p1_buffer2_to_table2", true,
+             &p!([p:buffer2_holding == 1]),
+             &p!([p:table2_holding == 1]),
+
+             &[a!(p:table2_holding = 1), a!(p:buffer2_holding = 0)],
+             None);
+
+
+    m.add_op("p1_table1_to_buffer1", true,
+             &p!([p:table1_holding == 1]),
+             &p!([p:buffer1_holding == 1]),
+
+             &[a!(p:buffer1_holding = 1), a!(p:table1_holding = 0)],
+             None);
+
+    m.add_op("p1_table2_to_buffer1", true,
+             &p!([p:table2_holding == 1]),
+             &p!([p:buffer1_holding == 1]),
+
+             &[a!(p:buffer1_holding = 1), a!(p:table2_holding = 0)],
+             None);
+
+    m.add_op("p1_table1_to_buffer2", true,
+             &p!([p:table1_holding == 1]),
+             &p!([p:buffer2_holding == 1]),
+
+             &[a!(p:buffer2_holding = 1), a!(p:table1_holding = 0)],
+             None);
+
+    m.add_op("p1_table2_to_buffer2", true,
+             &p!([p:table2_holding == 1]),
+             &p!([p:buffer2_holding == 1]),
+
+             &[a!(p:buffer2_holding = 1), a!(p:table2_holding = 0)],
+             None);
+
+
+    m.add_op("p1_table1_to_table2", true,
+             &p!([p:table2_holding == 1]),
+             &p!([p:table1_holding == 1]),
+
+             &[a!(p:table1_holding = 1), a!(p:table2_holding = 0)],
+             None);
+
+    m.add_op("p1_table2_to_table1", true,
+             &p!([p:table1_holding == 1]),
+             &p!([p:table2_holding == 1]),
+
+             &[a!(p:table2_holding = 1), a!(p:table1_holding = 0)],
+             None);
+
+    m.add_op("p2_buffer1_to_table1", true,
+             &p!([p:buffer1_holding == 2]),
+             &p!([p:table1_holding == 2]),
+
+             &[a!(p:table1_holding = 2), a!(p:buffer1_holding = 0)],
+             None);
+
+    m.add_op("p2_buffer1_to_table2", true,
+             &p!([p:buffer1_holding == 2]),
+             &p!([p:table2_holding == 2]),
+
+             &[a!(p:table2_holding = 2), a!(p:buffer1_holding = 0)],
+             None);
+
+    m.add_op("p2_buffer2_to_table1", true,
+             &p!([p:buffer2_holding == 2]),
+             &p!([p:table1_holding == 2]),
+
+             &[a!(p:table1_holding = 2), a!(p:buffer2_holding = 0)],
+             None);
+
+    m.add_op("p2_buffer2_to_table2", true,
+             &p!([p:buffer2_holding == 2]),
+             &p!([p:table2_holding == 2]),
+
+             &[a!(p:table2_holding = 2), a!(p:buffer2_holding = 0)],
+             None);
+
+    m.add_op("p2_table1_to_buffer1", true,
+             &p!([p:table1_holding == 2]),
+             &p!([p:buffer1_holding == 2]),
+
+             &[a!(p:buffer1_holding = 2), a!(p:table1_holding = 0)],
+             None);
+
+    m.add_op("p2_table2_to_buffer1", true,
+             &p!([p:table2_holding == 2]),
+             &p!([p:buffer1_holding == 2]),
+
+             &[a!(p:buffer1_holding = 2), a!(p:table2_holding = 0)],
+             None);
+
+    m.add_op("p2_table1_to_buffer2", true,
+             &p!([p:table1_holding == 2]),
+             &p!([p:buffer2_holding == 2]),
+
+             &[a!(p:buffer2_holding = 2), a!(p:table1_holding = 0)],
+             None);
+
+    m.add_op("p2_table2_to_buffer2", true,
+             &p!([p:table2_holding == 2]),
+             &p!([p:buffer2_holding == 2]),
+
+             &[a!(p:buffer2_holding = 2), a!(p:table2_holding = 0)],
+             None);
+
+
+    m.add_op("p2_table1_to_table2", true,
+             &p!([p:table2_holding == 2]),
+             &p!([p:table1_holding == 2]),
+
+             &[a!(p:table1_holding = 2), a!(p:table2_holding = 0)],
+             None);
+
+    m.add_op("p2_table2_to_table1", true,
+             &p!([p:table1_holding == 2]),
+             &p!([p:table2_holding == 2]),
+
+             &[a!(p:table2_holding = 2), a!(p:table1_holding = 0)],
+             None);
 
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI

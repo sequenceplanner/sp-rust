@@ -19,6 +19,7 @@ pub struct SPRunner {
     pub operation_plan: SPPlan,
     pub last_fired_transitions: Vec<SPPath>,
     pub transition_system_model: TransitionSystemModel,
+    pub operation_planning_model: TransitionSystemModel,
     pub in_sync: bool,
 }
 
@@ -64,6 +65,7 @@ impl SPRunner {
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
         transition_system_model: TransitionSystemModel,
+        operation_planning_model: TransitionSystemModel,
     ) -> Self {
         let mut vars = vec!();
         let mut preds = vec!();
@@ -100,6 +102,7 @@ impl SPRunner {
             operation_plan: SPPlan::default(),
             last_fired_transitions: vec!(),
             transition_system_model,
+            operation_planning_model,
             in_sync: false,
         }
     }
@@ -184,7 +187,7 @@ impl SPRunner {
     fn load_plans(&mut self) {
         self.reload_state_paths_plans();
         self.ticker.specs = self.ability_plan.plan.clone();
-        self.ticker.specs.extend(self.ability_plan.plan.clone());
+        self.ticker.specs.extend(self.operation_plan.plan.clone());
         self.ticker.specs.extend(self.global_transition_specs.clone());
     }
 

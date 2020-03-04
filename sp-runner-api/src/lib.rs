@@ -11,6 +11,8 @@ pub struct RunnerModel {
     pub goals: Vec<IfThen>,
     // temporary!
     pub model: TransitionSystemModel,
+    pub op_model: TransitionSystemModel,
+
 }
 
 impl RunnerModel {

@@ -35,7 +35,7 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
     result
 }
 
-pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResult) -> (Vec<TransitionSpec>, SPState) {
+pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResult, op: bool) -> (Vec<TransitionSpec>, SPState) {
     let ctrl: Vec<SPPath> = model.transitions.iter().filter_map(|t: &Transition| {
         if t.controlled() {
             Some(t.path().clone())
@@ -43,7 +43,11 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
     }).collect();
     let in_plan: Vec<SPPath> = res.trace.iter()
         .map(|x| x.transition.clone()).collect();
-    let plan_p = SPPath::from_slice(&["runner","ability_plan"]);
+    let plan_p = if op {
+        SPPath::from_slice(&["runner","operation_plan"])
+    } else {
+        SPPath::from_slice(&["runner","ability_plan"])
+    };
 
     let mut tr = vec!();
     let mut i = 0;
@@ -62,8 +66,25 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
                     PredicateValue::path((*p).clone()),
                     PredicateValue::value(v.value().clone()))
             }).collect();
+            if op {
+                // terrible hacks to get at previous transitions POST (e.i. goal)
+                pred.clear();
+
+                let parent = prev.transition.parent();
+                if parent != SPPath::new() {
+                    let prev_start = parent.add_child("start");
+                    println!("PREV start: {}", prev_start);
+                    let prev_trans = model.transitions.iter().find(|t| t.path() == &prev_start).unwrap();
+                    let mut prev_guard = prev_trans.guard().clone();
+                    if let Predicate::AND(v) = &mut prev_guard {
+                        let prev_guard = Predicate::AND(vec![v[0].clone()]); // state == i ,,, e.g. must finish
+                        println!("ADDING GUARD {} ", prev_guard);
+                        pred.push(prev_guard);
+                    }
+
+                }
+            }
             pred.push(p!(p:plan_p == i));
-            println!("");
             println!("Transition: {:?} {}", i, pf.transition);
             let guard = Predicate::AND(pred);
             println!("A new Guard: {}", guard);

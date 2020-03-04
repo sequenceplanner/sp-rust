@@ -105,6 +105,37 @@ impl TransitionSystemModel {
             specs,
         }
     }
+
+    pub fn from_op(model: &Model) -> Self {
+        let mut vars: Vec<Variable> = Vec::new();
+
+        let model_item_vars: Vec<Variable> = model.items().iter().flat_map(|i| match i {
+            SPItem::Variable(s) => Some(s.clone()),
+            _ => None,
+        }).collect();
+        vars.extend(model_item_vars.iter().cloned());
+
+        let global_ops: Vec<Operation> = model.items()
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Operation(o) => Some(o.clone()),
+                _ => None,
+            })
+            .collect();
+
+
+        vars.extend(global_ops.iter().map(|o|o.state_variable().clone()));
+
+        let mut transitions: Vec<_> = global_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
+
+        TransitionSystemModel {
+            name: format!("op_model_{}", model.name()),
+            vars,
+            state_predicates: vec![],
+            transitions,
+            specs: vec![],
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]

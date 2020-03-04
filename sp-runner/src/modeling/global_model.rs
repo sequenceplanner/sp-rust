@@ -108,7 +108,7 @@ impl GModel {
     }
 
     pub fn add_op(&mut self, name: &str, resets: bool, pre: &Predicate,
-                  post: &Predicate, post_actions: &[Action],
+                  post: &Predicate, effects: &[Action],
                   invariant: Option<Predicate>) -> SPPath {
 
         let state = SPPath::from_slice(&[self.model.name(), name, "state"]);
@@ -120,13 +120,22 @@ impl GModel {
             vec![],
             true,
         );
-        let mut f_actions =
+
+        // effect for planning
+        let op_effect = Transition::new(
+            "executing",
+            Predicate::AND(vec![p!(p:state == "e")]),
+            vec![],
+            effects.to_vec(),
+            false,
+        );
+
+        let f_actions =
             if resets {
                 vec![a!(p:state = "i")]
             } else {
                 vec![a!(p:state = "f")]
             };
-        f_actions.extend(post_actions.iter().cloned());
         let op_finish = Transition::new(
             "finish",
             Predicate::AND(vec![p!(p:state == "e"), post.clone()]),
@@ -138,7 +147,7 @@ impl GModel {
 
         let op = Operation::new(
             name,
-            &[op_start, op_finish],
+            &[op_start, op_effect, op_finish],
             Some(op_goal),
         );
 

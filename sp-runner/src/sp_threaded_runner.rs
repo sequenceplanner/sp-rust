@@ -50,6 +50,10 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 
         let mut resource_map = HashMap::new();
         let ticker = Instant::now();
+
+        let mut hack = 0;
+        let mut prev_state = SPState::new();
+
         loop {
             // println!("STARTING");
 
@@ -105,6 +109,43 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                 }
             }
 
+            // simulate the operation planning/scheduling layer
+            let buffer1 = SPPath::from_string("cubes/buffer1_holding");
+            let buffer2 = SPPath::from_string("cubes/buffer2_holding");
+            // two configurations to plan between
+            let c1 = p!([ p:buffer1 == 2] && [ p:buffer2 == 1 ]);
+            let c2 = p!([ p:buffer1 == 1] && [ p:buffer2 == 2 ]);
+
+            // meta operations...
+            if hack == 0 && c1.eval(&runner.state()) {
+                hack = 1;
+                println!("in configuration 1, start op planning");
+
+                let max_steps = 20;
+                let planner_result = crate::planning::plan(&runner.operation_planning_model,
+                                                           &[(c2,None)], &runner.state(), max_steps);
+                println!("operation plan is");
+                planner_result.trace.iter().for_each(|f| { println!("Transition: {}", f.transition); });
+
+                let (tr, s) = crate::planning::convert_planning_result(&runner.operation_planning_model, planner_result, true);
+                let plan = SPPlan{plan: tr, state_change: s};
+                runner.input(SPRunnerInput::OperationPlan(plan));
+
+            } else if hack == 1 && c2.eval(&runner.state()) {
+                println!("in configuration 1, start op planning");
+                hack = 0;
+
+                let max_steps = 20;
+                let planner_result = crate::planning::plan(&runner.operation_planning_model,
+                                                           &[(c1,None)], &runner.state(), max_steps);
+                println!("operation plan is");
+                planner_result.trace.iter().for_each(|f| { println!("Transition: {}", f.transition); });
+
+                let (tr, s) = crate::planning::convert_planning_result(&runner.operation_planning_model, planner_result, true);
+                let plan = SPPlan{plan: tr, state_change: s};
+                runner.input(SPRunnerInput::OperationPlan(plan));
+            }
+
             //println!("WE GOT:\n{}", &s);
             let old_g = runner.goal();
             //if runner.state().are_new_values_the_same(&s)
@@ -118,9 +159,12 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
                 }
 
-                println!{""};
-                println!("The State: {}", runner.state());
-                println!{""};
+                if prev_state.clone().extract() != runner.state().clone().extract() {
+                    println!{""};
+                    println!("The State:\n{}", runner.state());
+                    println!{""};
+                    prev_state = runner.state().clone();
+                }
 
                 tx_out.send(runner.state().clone()).unwrap();
                 // send out runner info.
@@ -141,7 +185,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     assert!(planner_result.plan_found);
                     //println!("new plan is");
                     //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-                    let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result);
+                    let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result, false);
                     let plan = SPPlan{plan: tr, state_change: s};
                     runner.input(SPRunnerInput::AbilityPlan(plan));
 
@@ -203,6 +247,7 @@ fn make_new_runner(m: RunnerModel, initial_state: SPState) -> SPRunner {
         vec!(),
         vec!(),
         m.model.clone(),
+        m.op_model.clone(),
     );
     runner.input(SPRunnerInput::AbilityPlan(SPPlan{
         plan: restrict_controllable,
