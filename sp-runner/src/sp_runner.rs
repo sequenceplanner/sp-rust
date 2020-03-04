@@ -19,7 +19,7 @@ pub struct SPRunner {
     pub operation_plan: SPPlan,
     pub last_fired_transitions: Vec<SPPath>,
     pub transition_system_model: TransitionSystemModel,
-    pub in_sync: bool,
+    pub resources: Vec<SPPath>,
 }
 
 /// The input to the runner.
@@ -42,6 +42,7 @@ pub struct SPRunner {
 pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
+    NodeChange(SPState),
     Settings, // Will come later
     AbilityPlan(SPPlan),
     OperationPlan(SPPlan),
@@ -64,6 +65,7 @@ impl SPRunner {
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
         transition_system_model: TransitionSystemModel,
+        resources: Vec<SPPath>,
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -108,7 +110,7 @@ impl SPRunner {
             operation_plan: SPPlan::default(),
             last_fired_transitions: vec![],
             transition_system_model,
-            in_sync: false,
+            resources,
         }
     }
 
@@ -117,10 +119,13 @@ impl SPRunner {
     pub fn input(&mut self, input: SPRunnerInput) {
         match input {
             SPRunnerInput::Tick => {
-                self.take_a_tick(SPState::new());
+                self.take_a_tick(SPState::new(), false);
             }
             SPRunnerInput::StateChange(s) => {
-                self.take_a_tick(s);
+                self.take_a_tick(s, false);
+            }
+            SPRunnerInput::NodeChange(s) => {
+                self.take_a_tick(s, true);
             }
             SPRunnerInput::Settings => {} // Will come later
             SPRunnerInput::AbilityPlan(plan) => {
@@ -170,8 +175,11 @@ impl SPRunner {
         self.reload_state_paths();
     }
 
-    fn take_a_tick(&mut self, state: SPState) {
+    fn take_a_tick(&mut self, state: SPState, check_resources: bool) {
         self.update_state_variables(state);
+        if check_resources {
+            self.check_resources();
+        }
 
         // do nothing if we are in a (globally) bad state.
         // these exprs can be pretty big. do some benchmark here.
@@ -223,6 +231,14 @@ impl SPRunner {
         for x in self.operation_plan.plan.iter_mut() {
             x.spec_transition.upd_state_path(&self.ticker.state)
         }
+    }
+
+    fn check_resources(&mut self) {
+        // TODO: Maybe not clone these, but probably ok since not many resources. 
+        let missing_resources: Vec<SPPath> = self.resources.iter().filter(|r| {
+            self.state().sp_value_from_path(r).map(|v| v != &true.to_spvalue()).unwrap_or(true)
+        }).cloned().collect();
+        self.ticker.disabled_paths = missing_resources;
     }
 }
 

@@ -62,8 +62,12 @@ impl SPPath {
     }
 
     pub fn is_child_of(&self, other: &SPPath) -> bool {
-        (self.path.len() > other.path.len())
+        (self.path.len() >= other.path.len())
             && other.path.iter().zip(self.path.iter()).all(|(a, b)| a == b)
+    }
+
+    pub fn is_child_of_any(&self, others: &[SPPath]) -> bool {
+        others.iter().find(|o| self.is_child_of(o)).is_some()
     }
 
     pub fn parent(&self) -> SPPath {

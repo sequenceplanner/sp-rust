@@ -21,6 +21,7 @@ pub struct SPTicker {
     pub specs: Vec<TransitionSpec>,
     pub forbidden: Vec<IfThen>,
     pub predicates: Vec<RunnerPredicate>,
+    pub disabled_paths: Vec<SPPath>,
 }
 
 impl SPTicker {
@@ -31,6 +32,7 @@ impl SPTicker {
             specs: vec![],
             forbidden: vec![],
             predicates: vec![],
+            disabled_paths: vec![],
         }
     }
 
@@ -38,7 +40,7 @@ impl SPTicker {
     /// The functions returns the updated state and the fired transitions
     ///
     pub fn tick_transitions(&mut self) -> (&SPState, Vec<SPPath>) {
-        let temp_transition_map = SPTicker::create_transition_map(&self.transitions, &self.specs);
+        let temp_transition_map = SPTicker::create_transition_map(&self.transitions, &self.specs, &self.disabled_paths);
         let fired = SPTicker::tick(
             &mut self.state,
             &temp_transition_map,
@@ -79,6 +81,7 @@ impl SPTicker {
     fn create_transition_map<'a>(
         ts: &'a [Transition],
         specs: &'a [TransitionSpec],
+        disabled_paths: &[SPPath],
     ) -> Vec<Vec<&'a Transition>> {
         let mut temp_xs: Vec<(Vec<&SPPath>, Vec<&Transition>)> = specs
             .iter()
@@ -87,7 +90,7 @@ impl SPTicker {
                 (x, vec![&s.spec_transition])
             })
             .collect();
-        for t in ts.iter() {
+        for t in ts.iter().filter(|t| !t.path().is_child_of_any(disabled_paths)) {
             let mut found = false;
             // let t: &Transition = t;  // Keeping these to show how to help the rust-analyzer find the types
             for (paths, ref mut transitions) in temp_xs.iter_mut() {
@@ -235,7 +238,8 @@ mod test_new_ticker {
             TransitionSpec::new("s4", Transition::new_empty("s4"), vec![]),
         ];
 
-        let res = SPTicker::create_transition_map(&ts, &specs);
+        let res = SPTicker::create_transition_map(&ts, &specs, &vec!());
+        println!("t1: {}", t1.path());
         println!("Creating ts map:");
         for xs in res.iter() {
             println!("{:?}", xs);

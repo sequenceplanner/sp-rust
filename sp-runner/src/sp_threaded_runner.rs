@@ -11,10 +11,8 @@ use std::time::{Duration, Instant};
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (mut node, comm) = set_up_ros_comm(&model)?;
 
-    let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
-        channel::bounded(3); // The runner should backpressure
-    let (tx_planner, rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) =
-        channel::bounded(3); // The runner should backpressure
+    let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) = channel::bounded(3); 
+    let (tx_planner, rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) = channel::unbounded(); 
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(500), tx_runner.clone());
@@ -27,6 +25,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
         comm.tx_node_cmd.clone(),
         tx_runner.clone(),
     );
+    runner(&model, initial_state, rx_runner, comm.tx_state_out, comm.tx_runner_info, tx_planner);
 
     loop {
         // blocking ros spinning
@@ -34,7 +33,6 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     }
 }
 
-struct RunnerComm {}
 
 fn runner(
     model: &Model,
@@ -47,14 +45,8 @@ fn runner(
     let model = model.clone();
     thread::spawn(move || {
         let runner_model = crate::helpers::make_runner_model(&model);
-        let mut runner = make_new_runner(runner_model, initial_state);
+        let mut runner = make_new_runner(&model, runner_model, initial_state);
         let resources: Vec<SPPath> = model.resources().iter().map(|r| r.path().clone()).collect();
-
-        // hack to check that all resources are running
-        // soon, we should add predicate to each transition so we can plan even if not all resources are running
-        let resource_pred = Predicate::AND(resources.iter().map(|path| {
-            p!([p:path == true])
-        }).collect());
 
         loop {
             let mut tick = false;
@@ -64,6 +56,11 @@ fn runner(
                     SPRunnerInput::StateChange(s) => {
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::StateChange(s));
+                        }
+                    },
+                    SPRunnerInput::NodeChange(s) => {
+                        if !runner.state().are_new_values_the_same(&s) {
+                            runner.input(SPRunnerInput::NodeChange(s));
                         }
                     },
                     SPRunnerInput::Tick => {
@@ -374,6 +371,7 @@ fn node_handler(
     ) -> bool {
         match time {
             Ok(time) => {
+                let mut resource_state: Vec<(SPPath, SPValue)> = vec!();
                 for (r, n) in nodes {
                     // TODO: Handle handshake with SP and node and change cmd when echo is written
 
@@ -391,7 +389,12 @@ fn node_handler(
                         time_stamp: time.clone(),
                     };
                     tx_node.send(cmd); //.unwrap();
+
+                    let enabled = n.cmd == "run".to_string() && (!n.mode.is_empty() || n.mode != "init".to_string());
+                    resource_state.push((r.clone(), enabled.to_spvalue()));
                 }
+
+                tx_runner.send(SPRunnerInput::NodeChange(SPState::new_from_values(&resource_state)));
 
                 true
             }
@@ -415,17 +418,17 @@ fn node_handler(
 }
 
 // TODO: do we keep the old RunnerModel?
-fn make_new_runner(m: RunnerModel, initial_state: SPState) -> SPRunner {
+fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SPRunner {
     let mut trans = vec![];
     let mut restrict_controllable = vec![];
     let false_trans = Transition::new("empty", Predicate::FALSE, vec![], vec![], true);
-    m.op_transitions.ctrl.iter().for_each(|t| {
+    rm.op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
-    m.op_transitions.un_ctrl.iter().for_each(|t| {
+    rm.op_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
-    m.ab_transitions.ctrl.iter().for_each(|t| {
+    rm.ab_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_controllable.push(TransitionSpec::new(
             &format!("s_{}_false", t.path()),
@@ -433,17 +436,18 @@ fn make_new_runner(m: RunnerModel, initial_state: SPState) -> SPRunner {
             vec![t.path().clone()],
         ))
     });
-    m.ab_transitions.un_ctrl.iter().for_each(|t| {
+    rm.ab_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
     let mut runner = SPRunner::new(
         "test",
         trans,
-        m.state_predicates.clone(),
-        m.goals.clone(),
+        rm.state_predicates.clone(),
+        rm.goals.clone(),
         vec![],
         vec![],
-        m.model.clone(),
+        rm.model.clone(),
+        model.resources().iter().map(|r| r.path().clone()).collect()
     );
     runner.input(SPRunnerInput::AbilityPlan(SPPlan {
         plan: restrict_controllable,
