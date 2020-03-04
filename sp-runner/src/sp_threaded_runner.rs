@@ -44,167 +44,79 @@ fn runner(
     tx_runner_info: Sender<RunnerInfo>,
     tx_planner: Sender<PlannerTask>,
 ) {
+    let model = model.clone();
     thread::spawn(move || {
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(runner_model, initial_state);
+        let resources: Vec<SPPath> = model.resources().iter().map(|r| r.path().clone()).collect();
 
-        // hack to wait for all measured to show at least once.
-        let mut measured_states: HashSet<SPPath> = runner
-            .transition_system_model
-            .vars
-            .iter()
-            .filter_map(|v| {
-                if v.variable_type() == VariableType::Measured {
-                    Some(v.path().clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let mut first_complete_state = SPState::new();
-        let mut waiting = true;
+        // hack to check that all resources are running
+        // soon, we should add predicate to each transition so we can plan even if not all resources are running
+        let resource_pred = Predicate::AND(resources.iter().map(|path| {
+            p!([p:path == true])
+        }).collect());
 
-        // we extend the hack to also first listen to initial states for our command variables.
-        let cm: HashMap<_, _> = model
-            .resources()
-            .iter()
-            .flat_map(|r| r.get_command_mirrors())
-            .collect();
-        let cm_rev: HashMap<_, _> = model
-            .resources()
-            .iter()
-            .flat_map(|r| r.get_command_mirrors_rev())
-            .collect();
-
-        let mut command_with_echoes: HashSet<SPPath> = runner
-            .transition_system_model
-            .vars
-            .iter()
-            .filter_map(|v| {
-                if v.variable_type() == VariableType::Command && cm.contains_key(v.path()) {
-                    Some(v.path().clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let mut resource_map = HashMap::new();
-        let ticker = Instant::now();
         loop {
-            // hack to wait for resources initially
-            if waiting {
-                if !measured_states.is_empty() || !command_with_echoes.is_empty() {
-                    println!(
-                        "Waiting for measured... {}",
-                        measured_states
-                            .iter()
-                            .map(|x| x.to_string())
-                            .collect::<Vec<String>>()
-                            .join(", ")
-                    );
-                    println!(
-                        "Waiting for command... {}",
-                        command_with_echoes
-                            .iter()
-                            .map(|x| x.to_string())
-                            .collect::<Vec<String>>()
-                            .join(", ")
-                    );
-
-                    let s = s.extract();
-                    for (p, v) in &s {
-                        if let Some(&command) = cm_rev.get(p) {
-                            if command_with_echoes.remove(command) {
-                                first_complete_state.add_state_variable(command.clone(), v.clone());
-                            }
-                        } else {
-                            if measured_states.remove(p) {
-                                first_complete_state.add_state_variable(p.clone(), v.clone());
-                            }
+            let mut tick = false;
+            let input = rx_input.recv();
+            if let Ok(msg) = input {
+                match msg {
+                    SPRunnerInput::StateChange(s) => {
+                        if !runner.state().are_new_values_the_same(&s) {
+                            runner.input(SPRunnerInput::StateChange(s));
                         }
-                    }
-                    continue;
-                } else {
-                    waiting = false;
-                    s = first_complete_state.clone();
-
-                    // s.add_variable(SPPath::from_string("cubes/r1/command/0/ref_pos"),
-                    //                "r1buffer".to_spvalue());
-                    // s.add_variable(SPPath::from_string("cubes/r2/command/0/ref_pos"),
-                    //                "r2table".to_spvalue());
-                    println!("FIRST COMPLETE INITIAL STATE:\n{}", &s);
+                    },
+                    SPRunnerInput::Tick => {
+                        runner.input(SPRunnerInput::Tick);
+                        tick = true;
+                    },
+                    SPRunnerInput::AbilityPlan(plan) => {
+                        runner.input(SPRunnerInput::AbilityPlan(plan));
+                        runner.input(SPRunnerInput::Tick);
+                    },
+                    SPRunnerInput::OperationPlan(plan) => {
+                        runner.input(SPRunnerInput::OperationPlan(plan));
+                        runner.input(SPRunnerInput::Tick);
+                    },
+                    SPRunnerInput::Settings => {}// TODO},
                 }
+
+            } else {
+                println!("The runner channel broke? - {:?}", input);
+                break;
             }
 
-            //println!("WE GOT:\n{}", &s);
-            let old_g = runner.goal();
-            //if runner.state().are_new_values_the_same(&s)
-            {
-                runner.input(SPRunnerInput::StateChange(s));
-                let new_g = runner.goal();
-                // println!("GOALS");
-                // new_g.iter().for_each(|x| println!("{:?}", x));
-                if !runner.last_fired_transitions.is_empty() {
-                    println!("fired:");
-                    runner
-                        .last_fired_transitions
-                        .iter()
-                        .for_each(|x| println!("{:?}", x));
-                }
 
-                println! {""};
-                println!("The State: {}", runner.state());
-                println! {""};
-
-                comm.tx_state_out.send(runner.state().clone()).unwrap();
-                // send out runner info.
-                let runner_info = RunnerInfo {
-                    state: runner.state().clone(),
-                    ..RunnerInfo::default()
-                };
-
-                comm.tx_runner_info.send(runner_info).unwrap();
-
-                if old_g != new_g {
-                    println!("NEW GOALS");
-                    println!("*********");
-
-                    let max_steps = 100; // arbitrary decision
-                    let planner_result = crate::planning::plan(
-                        &runner.transition_system_model,
-                        &new_g,
-                        &runner.state(),
-                        max_steps,
-                    );
-                    assert!(planner_result.plan_found);
-                    //println!("new plan is");
-                    //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-                    let (tr, s) = crate::planning::convert_planning_result(
-                        &runner.transition_system_model,
-                        planner_result,
-                    );
-                    let plan = SPPlan {
-                        plan: tr,
-                        state_change: s,
-                    };
-                    runner.input(SPRunnerInput::AbilityPlan(plan));
-
-                    comm.tx_state_out.send(runner.state().clone()).unwrap();
-
-                    // send out runner info.
-                    let runner_info = RunnerInfo {
-                        state: runner.state().clone(),
-                        ..RunnerInfo::default()
-                    };
-                    comm.tx_runner_info.send(runner_info).unwrap();
-                }
+            if !runner.last_fired_transitions.is_empty() {
+                println!("fired:");
+                runner
+                    .last_fired_transitions
+                    .iter()
+                    .for_each(|x| println!("{:?}", x));
             }
 
-            // let mess: Result<SPState, RecvError> = rx_input.recv();
-            // if let Ok(s) = mess {
+            println! {""};
+            println!("The State: {}", runner.state());
+            println! {""};
 
-            // }
+            // For now, we will send out all the time, but soon we should check this
+            tx_state_out.send(runner.state().clone()).unwrap();
+            // send out runner info.
+            let runner_info = RunnerInfo {
+                state: runner.state().clone(),
+                ..RunnerInfo::default()
+            };
+
+            tx_runner_info.send(runner_info).unwrap();
+
+            let planning = PlannerTask{
+                ts: runner.transition_system_model.clone(),
+                state: runner.state().clone(),
+                goal: runner.goal(),
+            };
+            tx_planner.send(planning);
+
+  
         }
     });
 }
@@ -398,7 +310,7 @@ fn node_handler(
     tx_node: Sender<NodeCmd>,
     tx_runner: Sender<SPRunnerInput>,
 ) {
-    let resources: Vec<SPPath> = model.resources().map(|r| r.path().clone()).collect();
+    let resources: Vec<SPPath> = model.resources().iter().map(|r| r.path().clone()).collect();
     let mut nodes: HashMap<SPPath, NodeState> = resources
         .into_iter()
         .map(|r| {
