@@ -1,13 +1,13 @@
+use crate::planning::*;
 use chrono::offset::Local;
 use chrono::DateTime;
 use sp_domain::*;
-use crate::planning::*;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, Instant};
+use std::time::{Instant, SystemTime};
 
 fn indent(n: u32) -> String {
     (0..n).map(|_| " ").collect::<Vec<&str>>().concat()
@@ -129,7 +129,7 @@ fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
     }
 }
 
-fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)> {
+fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String, String)> {
     let mut process = Command::new("nuXmv")
         .arg("-int")
         .arg(filename)
@@ -153,10 +153,13 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String,String)
     let raw = String::from_utf8(result.stdout).expect("Check character encoding");
     let raw_error = String::from_utf8(result.stderr).expect("Check character encoding");
 
-    Ok((raw,raw_error))
+    Ok((raw, raw_error))
 }
 
-fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Option<Vec<PlanningFrame>> {
+fn postprocess_nuxmv_problem(
+    model: &TransitionSystemModel,
+    raw: &String,
+) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
         // we didn't find a counter-example, which means we already fulfil the goal.
         return None;
@@ -176,36 +179,43 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
         if l.contains("  -- Loop starts here") {
             // when searching for infinite paths...
             panic!("infinite paths not supported");
-        }
-        else if l.contains("  -> State: ") {
+        } else if l.contains("  -> State: ") {
             // ignore the difference between state and input.
-        }
-        else if l.contains("  -> Input: ") || l.contains("nuXmv >") {
+        } else if l.contains("  -> Input: ") || l.contains("nuXmv >") {
             trace.push(last);
             last = PlanningFrame::default();
         } else {
             let path_val: Vec<_> = l.split("=").map(|s| s.trim()).collect();
-            let path = SPPath::from(path_val[0].split("#").map(|s|s.to_owned()).collect());
+            let path = SPPath::from(path_val[0].split("#").map(|s| s.to_owned()).collect());
             let sppath = path.clone();
             let val = path_val.get(1).expect("no value!");
 
-            if model.transitions.iter().find(|t| (t.node().path()) == &path).is_some() {
+            if model
+                .transitions
+                .iter()
+                .find(|t| (t.node().path()) == &path)
+                .is_some()
+            {
                 if val == &"TRUE" {
                     assert!(last.transition == SPPath::default());
                     last.transition = sppath.clone();
                 }
             } else {
                 // get SP type from path
-                let spt = if model.state_predicates.iter().
-                    find(|p| (p.node().path()) == &path).is_some() {
-                        SPValueType::Bool
+                let spt = if model
+                    .state_predicates
+                    .iter()
+                    .find(|p| (p.node().path()) == &path)
+                    .is_some()
+                {
+                    SPValueType::Bool
+                } else {
+                    if let Some(v) = model.vars.iter().find(|v| v.path() == &sppath) {
+                        v.value_type()
                     } else {
-                        if let Some(v) = model.vars.iter().find(|v| v.path() == &sppath) {
-                            v.value_type()
-                        } else {
-                            SPValueType::Bool   // this is a spec
-                        }
-                    };
+                        SPValueType::Bool // this is a spec
+                    }
+                };
 
                 let spval = spval_from_nuxvm(val, spt);
 
@@ -223,10 +233,12 @@ fn postprocess_nuxmv_problem(model: &TransitionSystemModel, raw: &String) -> Opt
 pub struct NuXmvPlanner {}
 
 impl Planner for NuXmvPlanner {
-    fn plan(model: &TransitionSystemModel,
-            goals: &[(Predicate, Option<Predicate>)],
-            state: &SPState,
-            max_steps: u32) -> PlanningResult {
+    fn plan(
+        model: &TransitionSystemModel,
+        goals: &[(Predicate, Option<Predicate>)],
+        state: &SPState,
+        max_steps: u32,
+    ) -> PlanningResult {
         let lines = create_nuxmv_problem(&model, &goals, &state);
 
         let datetime: DateTime<Local> = SystemTime::now().into();
@@ -247,7 +259,10 @@ impl Planner for NuXmvPlanner {
                 let plan = postprocess_nuxmv_problem(&model, &raw);
                 let plan_found = plan.is_some();
                 let trace = plan.unwrap_or_else(|| {
-                    vec![PlanningFrame { transition: SPPath::new(), state: state.clone() }]
+                    vec![PlanningFrame {
+                        transition: SPPath::new(),
+                        state: state.clone(),
+                    }]
                 });
 
                 PlanningResult {
@@ -259,16 +274,14 @@ impl Planner for NuXmvPlanner {
                     raw_error_output: raw_error.to_owned(),
                 }
             }
-            Err(e) => {
-                PlanningResult {
-                    plan_found: false,
-                    plan_length: 0,
-                    trace: Vec::new(),
-                    time_to_solve: duration,
-                    raw_output: "".into(),
-                    raw_error_output: e.to_string(),
-                }
-            }
+            Err(e) => PlanningResult {
+                plan_found: false,
+                plan_length: 0,
+                trace: Vec::new(),
+                time_to_solve: duration,
+                raw_output: "".into(),
+                raw_error_output: e.to_string(),
+            },
         }
     }
 }
@@ -281,7 +294,11 @@ fn create_offline_nuxmv_problem(model: &TransitionSystemModel, initial: &Predica
     lines
 }
 
-fn create_nuxmv_problem(model: &TransitionSystemModel, goal_invs: &[(Predicate, Option<Predicate>)], state: &SPState) -> String {
+fn create_nuxmv_problem(
+    model: &TransitionSystemModel,
+    goal_invs: &[(Predicate, Option<Predicate>)],
+    state: &SPState,
+) -> String {
     let mut lines = make_base_problem(model);
 
     add_current_valuations(&mut lines, &model.vars, state);
@@ -303,7 +320,7 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     add_statepreds(&mut lines, &model.state_predicates);
 
     let mut var_set: HashSet<SPPath> = HashSet::new();
-    var_set.extend(model.vars.iter().map(|v|v.path()).cloned());
+    var_set.extend(model.vars.iter().map(|v| v.path()).cloned());
 
     add_transitions(&mut lines, &var_set, &model.transitions);
 
@@ -315,7 +332,6 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
 
     return lines;
 }
-
 
 pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
     let lines = create_offline_nuxmv_problem(&model, initial);
@@ -331,7 +347,6 @@ pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate
     let mut f = File::create(filename).unwrap();
     write!(f, "{}", lines).unwrap();
 }
-
 
 fn add_preamble(lines: &mut String, module_name: &str) {
     lines.push_str(&format!("-- MODULE: {}\n", module_name));
@@ -371,7 +386,6 @@ fn add_ivars(lines: &mut String, transitions: &[Transition]) {
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
     lines.push_str("\n\n");
-
 }
 
 fn add_statepreds(lines: &mut String, predicates: &[Variable]) {
@@ -383,16 +397,9 @@ fn add_statepreds(lines: &mut String, predicates: &[Variable]) {
         match sp.variable_type() {
             VariableType::Predicate(p) => {
                 let p = NuXMVPredicate(&p);
-                lines.push_str(&format!(
-                    "{i}{v} := {p};\n",
-                    i = indent(2),
-                    v = path,
-                    p = p,
-                ));
-            },
-            _ => {
-                panic!("model error")
+                lines.push_str(&format!("{i}{v} := {p};\n", i = indent(2), v = path, p = p,));
             }
+            _ => panic!("model error"),
         }
     }
 
@@ -417,20 +424,26 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
         let modified = modified_by(t);
         let untouched = all_vars.difference(&modified);
 
-        let keep: Vec<_> = untouched.map(|path| {
-            let path = NuXMVPath(path);
-            format!("( next({v}) = {v} )", v = path)
-        }).collect();
+        let keep: Vec<_> = untouched
+            .map(|path| {
+                let path = NuXMVPath(path);
+                format!("( next({v}) = {v} )", v = path)
+            })
+            .collect();
 
         let assign = |a: &Action| {
-                let path = NuXMVPath(&a.var);
-                let value = action_to_string(&a).expect(&format!("model too complicated {:?}", a));
-                format!("next({}) = {}", path, value)
-            };
-        let upd: Vec<_> = t.actions().iter().flat_map(|a| match a.value {
-            Compute::Any => None,
-            _ => Some(a.clone())
-        }).collect();
+            let path = NuXMVPath(&a.var);
+            let value = action_to_string(&a).expect(&format!("model too complicated {:?}", a));
+            format!("next({}) = {}", path, value)
+        };
+        let upd: Vec<_> = t
+            .actions()
+            .iter()
+            .flat_map(|a| match a.value {
+                Compute::Any => None,
+                _ => Some(a.clone()),
+            })
+            .collect();
         let mut updates: Vec<_> = upd.iter().map(assign).collect();
         updates.extend(t.effects().iter().map(assign));
         updates.extend(keep);
@@ -441,7 +454,7 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
         // tracking variable
         let ivar = NuXMVPath(t.node().path());
 
-        trans.push(format!("{i} & {g} & {u}", i=ivar, g=g, u=updates_s));
+        trans.push(format!("{i} & {g} & {u}", i = ivar, g = g, u = updates_s));
     }
 
     let trans_s = trans.join(" |\n\n");
@@ -453,11 +466,7 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
 fn add_initial_states(lines: &mut String, initial: &Predicate) {
     lines.push_str("INIT\n\n");
     let ip = NuXMVPredicate(&initial);
-    lines.push_str(&format!(
-        "{i}{e}\n;\n",
-        i = indent(2),
-        e = ip
-    ));
+    lines.push_str(&format!("{i}{e}\n;\n", i = indent(2), e = ip));
     lines.push_str("\n\n");
 }
 
@@ -472,8 +481,11 @@ fn add_global_specifications(lines: &mut String, specs: &[Spec]) {
     for s in specs {
         global.push(format!("{}", NuXMVPredicate(s.invariant())));
     }
-    let invars = if global.is_empty() {"TRUE".to_string()} else{
-        global.join("&\n")};
+    let invars = if global.is_empty() {
+        "TRUE".to_string()
+    } else {
+        global.join("&\n")
+    };
     let invars = format!("{}\n;\n", invars);
 
     lines.push_str(&invars);
@@ -501,17 +513,25 @@ fn add_current_valuations(lines: &mut String, vars: &[Variable], state: &SPState
     lines.push_str("\n\n");
 }
 
-fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
-    let goal_str: Vec<String> = goal_invs.iter().map(|(goal,inv)| {
-        if let Some(inv) = inv {
-            // invariant until goal
-            format!("({inv} U {goal})", goal = &NuXMVPredicate(goal), inv = &NuXMVPredicate(inv))
-        } else {
-            // no invariant, simple "exists" goal.
-            format!("F ( {} )", &NuXMVPredicate(goal))
-        }
-    }).collect();
-    let goals = if goal_str.is_empty() { // TODO: check this before doing everything else....
+fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
+    let goal_str: Vec<String> = goal_invs
+        .iter()
+        .map(|(goal, inv)| {
+            if let Some(inv) = inv {
+                // invariant until goal
+                format!(
+                    "({inv} U {goal})",
+                    goal = &NuXMVPredicate(goal),
+                    inv = &NuXMVPredicate(inv)
+                )
+            } else {
+                // no invariant, simple "exists" goal.
+                format!("F ( {} )", &NuXMVPredicate(goal))
+            }
+        })
+        .collect();
+    let goals = if goal_str.is_empty() {
+        // TODO: check this before doing everything else....
         "TRUE".to_string()
     } else {
         goal_str.join("&")
@@ -519,7 +539,6 @@ fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
 
     lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
 }
-
 
 // #[cfg(test)]
 // mod tests {
@@ -634,7 +653,6 @@ fn add_goals(lines:& mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
 
 //         assert_eq!(trace[2].state.sp_value_from_path(&active).unwrap(),
 //                    &true.to_spvalue());
-
 
 //     }
 // }

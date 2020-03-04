@@ -120,7 +120,11 @@ pub trait Noder {
         self.find_item_among_children(name, path_sections)
     }
     /// Finds the first item with a specific name and that includes all path sections (in any order).
-    fn find_item_mut<'a>(&'a mut self, name: &str, path_sections: &[&str]) -> Option<SPMutItemRef<'a>> {
+    fn find_item_mut<'a>(
+        &'a mut self,
+        name: &str,
+        path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
         if self.node().name() == name {
             let found_it = path_sections
                 .iter()

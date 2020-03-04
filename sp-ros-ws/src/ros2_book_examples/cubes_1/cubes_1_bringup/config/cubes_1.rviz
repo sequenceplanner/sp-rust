@@ -185,7 +185,6 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /cubes/sm/cube1_marker
       Value: true
     - Class: rviz_default_plugins/Marker
       Enabled: true
@@ -197,7 +196,6 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /cubes/sm/cube2_marker
       Value: true
     - Class: rviz_default_plugins/Marker
       Enabled: true
@@ -209,7 +207,6 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /cubes/sm/cube3_marker
       Value: true
   Enabled: true
   Global Options:

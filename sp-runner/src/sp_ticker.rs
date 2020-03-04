@@ -173,9 +173,9 @@ impl SPTicker {
 
     /// Are we in a forbidden state?
     fn check_forbidden(state: &mut SPState, forbidden_states: &[IfThen]) -> bool {
-        forbidden_states
-            .iter()
-            .any(|f| f.condition.eval(state) && f.invariant.as_ref().map(|x| x.eval(state)).unwrap_or(false))
+        forbidden_states.iter().any(|f| {
+            f.condition.eval(state) && f.invariant.as_ref().map(|x| x.eval(state)).unwrap_or(false)
+        })
     }
 }
 
@@ -192,9 +192,9 @@ mod test_new_ticker {
         let pred = SPPath::from_slice(&["pred"]);
 
         let mut s = state!(ab => 2, ac => true, kl => 3, xy => false, pred => false);
-        let p = p!{[!p:ac] && [!p:xy]};
+        let p = p! {[!p:ac] && [!p:xy]};
 
-        let a = a!(p:ac = false);
+        let a = a!(p: ac = false);
         let b = a!(p:ab <- p:kl);
         let c = a!(p:xy ? p);
 

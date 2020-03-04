@@ -1,13 +1,27 @@
-
 #[cfg(not(feature = "ros"))]
 mod ros {
     // empty when no ros support compiled in.
     pub struct RosNode {}
+    #[derive(Debug, PartialEq, Clone)]
     pub struct RosMessage {
         pub state: SPState,
         pub resource: SPPath,
         pub time_stamp: std::time::Instant,
     }
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct NodeCmd {
+        pub resource: SPPath,
+        pub mode: String,
+        pub time_stamp: std::time::Instant,
+    }
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct NodeMode {
+        pub resource: SPPath,
+        pub mode: String,
+        pub time_stamp: std::time::Instant,
+        pub echo: serde_json::Value,
+    }
+
     use crossbeam::channel;
     use failure::*;
     use sp_domain::*;
@@ -46,17 +60,28 @@ mod ros {
     use std::thread;
 
     pub struct RosNode(r2r::Node);
-
-    pub struct RosMessage{
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct RosMessage {
         pub state: SPState,
         pub resource: SPPath,
         pub time_stamp: std::time::Instant,
     }
 
-    pub fn json_to_state(
-        json: &serde_json::Value,
-        md: &MessageField,
-    ) -> SPState {
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct NodeCmd {
+        pub resource: SPPath,
+        pub mode: String,
+        pub time_stamp: std::time::Instant,
+    }
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct NodeMode {
+        pub resource: SPPath,
+        pub mode: String,
+        pub time_stamp: std::time::Instant,
+        pub echo: serde_json::Value,
+    }
+
+    pub fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
         fn json_to_state_<'a>(
             json: &serde_json::Value,
             md: &'a MessageField,
@@ -86,15 +111,14 @@ mod ros {
         let mut p = Vec::new();
         let mut a = Vec::new();
         json_to_state_(json, md, &mut p, &mut a);
-        let res: Vec<(SPPath, SPValue)> = a.iter().map(|(path, spval)| (SPPath::from_slice(path), spval.clone())).collect();
+        let res: Vec<(SPPath, SPValue)> = a
+            .iter()
+            .map(|(path, spval)| (SPPath::from_slice(path), spval.clone()))
+            .collect();
         SPState::new_from_values(&res)
     }
 
-
-    pub fn state_to_json(
-        state: &SPState,
-        md: &MessageField,
-    ) -> serde_json::Value {
+    pub fn state_to_json(state: &SPState, md: &MessageField) -> serde_json::Value {
         fn state_to_json_<'a>(
             state: &SPState,
             md: &'a MessageField,
@@ -147,14 +171,7 @@ mod ros {
     ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
-        let rcs: Vec<_> = model
-            .items()
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Resource(r) => Some(r),
-                _ => None,
-            })
-            .collect();
+        let rcs = model.resources();
 
         for r in rcs {
             for t in r.messages() {
@@ -162,7 +179,7 @@ mod ros {
                     if t.is_subscriber() {
                         let topic = t.path();
                         let topic_str = topic.to_string();
-                        
+
                         let tx = tx_in.clone();
                         let msg_cb = t.msg().clone();
                         let r_path = r.path().clone();
@@ -180,10 +197,10 @@ mod ros {
                             tx.send(m).unwrap();
                         };
                         println!("setting up subscription to topic: {}", topic);
-                        let _subref = node.0.subscribe_untyped(&topic_str, &m.type_, Box::new(cb))?;
-                    }
-
-                    else if t.is_publisher() {
+                        let _subref =
+                            node.0
+                                .subscribe_untyped(&topic_str, &m.type_, Box::new(cb))?;
+                    } else if t.is_publisher() {
                         let topic = t.path();
                         let topic_str = topic.to_string();
                         println!("setting up publishing to topic: {}", topic);
@@ -197,12 +214,12 @@ mod ros {
                             rp.publish(to_send).unwrap();
                         };
                         ros_pubs.push(cb);
-                    }
-                    else {
+                    } else {
                         panic!("topic is neither publisher nor subscriber. check variable types");
                     }
-
-                } else { panic!("must have a message under a topic"); }
+                } else {
+                    panic!("must have a message under a topic");
+                }
             }
         }
 
@@ -217,7 +234,6 @@ mod ros {
         Ok(tx_out)
     }
 
-
     pub fn roscomm_setup_misc(
         node: &mut RosNode,
         tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
@@ -227,14 +243,22 @@ mod ros {
         let cb = {
             let tx_in = tx_in.clone();
             move |msg: r2r::sp_messages::msg::RunnerCommand| {
-                let oat = msg.override_ability_transitions.iter().map(|s| {
-                    let path = format!("G:{}", s);
-                    SPPath::from_string(&path)
-                }).collect();
-                let oot = msg.override_operation_transitions.iter().map(|s| {
-                    let path = format!("G:{}", s);
-                    SPPath::from_string(&path)
-                }).collect();
+                let oat = msg
+                    .override_ability_transitions
+                    .iter()
+                    .map(|s| {
+                        let path = format!("G:{}", s);
+                        SPPath::from_string(&path)
+                    })
+                    .collect();
+                let oot = msg
+                    .override_operation_transitions
+                    .iter()
+                    .map(|s| {
+                        let path = format!("G:{}", s);
+                        SPPath::from_string(&path)
+                    })
+                    .collect();
                 let rc = RunnerCommand {
                     pause: msg.pause,
                     override_ability_transitions: oat,
@@ -247,26 +271,39 @@ mod ros {
         println!("setting up subscription to topic: {}", runner_cmd_topic);
         let _subref = node.0.subscribe(runner_cmd_topic, Box::new(cb))?;
 
-
         let runner_info_topic = "sp/runner/info";
         println!("setting up publishing to topic: {}", runner_info_topic);
-        let rp = node.0.create_publisher::<r2r::sp_messages::msg::RunnerInfo>(runner_info_topic)?;
+        let rp = node
+            .0
+            .create_publisher::<r2r::sp_messages::msg::RunnerInfo>(runner_info_topic)?;
         let info_cb = move |info: sp_runner_api::RunnerInfo| {
             let mut sorted_state = info.state.projection();
             sorted_state.sort();
             let ri = r2r::sp_messages::msg::RunnerInfo {
-                state: sorted_state.clone_vec_value().into_iter().map(|(k,v)| {
-                    let s = k.to_string();
-                    let val = v.to_json().to_string();
-                    r2r::sp_messages::msg::State {
-                        path: s,
-                        value_as_json: val,
-                    }
-                }).collect(),
-                ability_plan: info.ability_plan.iter().map(|p|p.to_string()).collect(),
-                enabled_ability_transitions: info.enabled_ability_transitions.iter().map(|p|p.to_string()).collect(),
-                operation_plan: info.operation_plan.iter().map(|p|p.to_string()).collect(),
-                enabled_operation_transitions: info.enabled_operation_transitions.iter().map(|p|p.to_string()).collect(),
+                state: sorted_state
+                    .clone_vec_value()
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let s = k.to_string();
+                        let val = v.to_json().to_string();
+                        r2r::sp_messages::msg::State {
+                            path: s,
+                            value_as_json: val,
+                        }
+                    })
+                    .collect(),
+                ability_plan: info.ability_plan.iter().map(|p| p.to_string()).collect(),
+                enabled_ability_transitions: info
+                    .enabled_ability_transitions
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect(),
+                operation_plan: info.operation_plan.iter().map(|p| p.to_string()).collect(),
+                enabled_operation_transitions: info
+                    .enabled_operation_transitions
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect(),
             };
             rp.publish(&ri).unwrap();
         };
@@ -280,6 +317,74 @@ mod ros {
         Ok(tx_out)
     }
 
+    pub fn ros_node_comm_setup(
+        node: &mut RosNode,
+        model: &Model,
+        tx_in: channel::Sender<NodeMode>,
+    ) -> Result<channel::Sender<NodeCmd>, Error> {
+        let mut ros_pubs = Vec::new();
+
+        let rcs = model.resources();
+
+        for r in rcs {
+            let name = r.name();
+            let tx = tx_in.clone();
+            let r_path = r.path().clone();
+
+            let cb = move |msg: r2r::Result<serde_json::Value>| {
+                let json = msg.unwrap();
+                let mode = json.get("mode");
+                let r_mode = mode
+                    .cloned()
+                    .unwrap_or(serde_json::Value::String("NO".to_string()));
+                println!("json:{:#?}, mode:{:#?}", json, mode);
+
+                let time_stamp = std::time::Instant::now();
+                let m = NodeMode {
+                    mode: r_mode.to_string(),
+                    resource: r_path.clone(),
+                    time_stamp,
+                    echo: json,
+                };
+
+                tx.send(m).unwrap();
+            };
+            let topic = format!("sp/{}/{}/echo", model.name(), name);
+            println!("setting up subscription to resource on topic: {}", topic);
+            let _subref =
+                node.0
+                    .subscribe_untyped(&topic, "sp_messages/msg/NodeMode", Box::new(cb))?;
+
+            // Outgoing
+            let topic = format!("sp/{}/{}/node_cmd", model.name(), name);
+            let msg_type = "sp_messages/msg/NodeCmd";
+            let r_path = r.path().clone();
+            let rp = node.0.create_publisher_untyped(&topic, msg_type)?;
+            let cb = move |cmd: &NodeCmd| {
+                if cmd.resource == r_path.clone() {
+                    let mut map = serde_json::Map::new();
+                    map.insert(
+                        "mode".to_string(),
+                        serde_json::Value::String(cmd.mode.clone()),
+                    );
+                    let to_send = serde_json::Value::Object(map);
+                    rp.publish(to_send).unwrap();
+                }
+            };
+            ros_pubs.push(cb);
+        }
+
+        let (tx_out, rx_out) = channel::unbounded();
+        thread::spawn(move || loop {
+            let state = rx_out.recv().unwrap();
+            for rp in &ros_pubs {
+                (rp)(&state);
+            }
+        });
+
+        Ok(tx_out)
+    }
+
     #[cfg(test)]
     mod ros_tests {
         use super::*;
@@ -287,11 +392,12 @@ mod ros {
         use sp_domain::*;
         use sp_runner_api::*;
 
-
         #[test]
         fn test_json_to_state() {
             let payload = "hej".to_string();
-            let msg = r2r::std_msgs::msg::String { data: payload.clone() };
+            let msg = r2r::std_msgs::msg::String {
+                data: payload.clone(),
+            };
             let json = serde_json::to_value(msg).unwrap();
 
             let data = json.get("data");
@@ -301,7 +407,6 @@ mod ros {
                 "data",
                 VariableType::Measured,
                 SPValueType::String,
-                "".to_spvalue(),
                 Vec::new(),
             );
 
@@ -314,7 +419,10 @@ mod ros {
             let msg = MessageField::Msg(msg);
 
             let s = json_to_state(&json, &msg);
-            assert_eq!(s.sp_value_from_path(&SPPath::from_slice(&["data"])), Some(&SPValue::String(payload.clone())));
+            assert_eq!(
+                s.sp_value_from_path(&SPPath::from_slice(&["data"])),
+                Some(&SPValue::String(payload.clone()))
+            );
         }
 
         #[test]
@@ -322,21 +430,22 @@ mod ros {
             let payload = "hej".to_string();
 
             let mut state = SPState::default();
-            state.add_variable(SPPath::from_slice(&["data"]),
-                               SPValue::String(payload.clone()));
+            state.add_variable(
+                SPPath::from_slice(&["data"]),
+                SPValue::String(payload.clone()),
+            );
 
             let v = Variable::new(
                 "data",
                 VariableType::Measured,
                 SPValueType::String,
-                "".to_spvalue(),
                 Vec::new(),
             );
 
             let msg = Message::new(
                 "str".into(),
                 "std_msgs/msg/String".into(),
-                &[MessageField::Var(v)]
+                &[MessageField::Var(v)],
             );
 
             let msg = MessageField::Msg(msg);
@@ -352,7 +461,6 @@ mod ros {
             assert_eq!(data, Some(&serde_json::Value::String(payload.clone())));
         }
     }
-
 }
 
 pub use ros::*;

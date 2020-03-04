@@ -1,44 +1,57 @@
-use sp_domain::*;
-use crate::planning::*;
 use crate::formal_model::*;
-use guard_extraction::*;
+use crate::planning::*;
 use cryptominisat::*;
+use guard_extraction::*;
+use sp_domain::*;
 
 pub struct SatPlanner {}
 
 // make a conjunction out of a state
 fn state_to_predicate(vars: &[Variable], state: &SPState) -> Predicate {
     let s = state.projection();
-    let eqs = s.state
+    let eqs = s
+        .state
         .into_iter()
-        .filter(|(p,_v)| vars.iter().any(|x| &x.path() == p))
-        .map(|(p,v)|
-             Predicate::EQ(PredicateValue::SPPath(p.clone(), None),
-                           PredicateValue::SPValue(v.value().clone())))
+        .filter(|(p, _v)| vars.iter().any(|x| &x.path() == p))
+        .map(|(p, v)| {
+            Predicate::EQ(
+                PredicateValue::SPPath(p.clone(), None),
+                PredicateValue::SPValue(v.value().clone()),
+            )
+        })
         .collect();
 
     Predicate::AND(eqs)
 }
 
 impl Planner for SatPlanner {
-    fn plan(model: &TransitionSystemModel,
-            goals: &[(Predicate, Option<Predicate>)],
-            state: &SPState,
-            max_steps: u32) -> PlanningResult {
+    fn plan(
+        model: &TransitionSystemModel,
+        goals: &[(Predicate, Option<Predicate>)],
+        state: &SPState,
+        max_steps: u32,
+    ) -> PlanningResult {
         let c = FormalContext::from(&model);
 
         let initial = state_to_predicate(&model.vars, state);
         let initial = c.sp_pred_to_ex(&initial);
         // goals are (invar,goal)
-        let goals: Vec<(Ex,Ex)> = goals
+        let goals: Vec<(Ex, Ex)> = goals
             .iter()
-            .map(|(g,i)|
-                 (c.sp_pred_to_ex(&i.as_ref().unwrap_or(&Predicate::TRUE)),
-                  c.sp_pred_to_ex(&g))
-            ).collect();
+            .map(|(g, i)| {
+                (
+                    c.sp_pred_to_ex(&i.as_ref().unwrap_or(&Predicate::TRUE)),
+                    c.sp_pred_to_ex(&g),
+                )
+            })
+            .collect();
 
         // pull out all invariants from model
-        let invariants: Vec<_> = model.specs.iter().map(|s| c.sp_pred_to_ex(s.invariant())).collect();
+        let invariants: Vec<_> = model
+            .specs
+            .iter()
+            .map(|s| c.sp_pred_to_ex(s.invariant()))
+            .collect();
 
         let sat_model = c.context.model_as_sat_model(&initial, &goals, &invariants);
 
@@ -51,14 +64,13 @@ impl Planner for SatPlanner {
 
         // s.set_num_threads(1); // play with this some day
 
-        let vars_per_step = sat_model.num_aux_vars
-            + sat_model.norm_vars.len()
-            + sat_model.trans_map.len()
-            + 1; // goal activation literal
+        let vars_per_step =
+            sat_model.num_aux_vars + sat_model.norm_vars.len() + sat_model.trans_map.len() + 1; // goal activation literal
 
-        let mut vars: Vec<CLit> = (0 .. vars_per_step).map(|_v| s.new_var()).collect();
+        let mut vars: Vec<CLit> = (0..vars_per_step).map(|_v| s.new_var()).collect();
 
-        let pairing: Vec<_> = sat_model.norm_vars
+        let pairing: Vec<_> = sat_model
+            .norm_vars
             .iter()
             .zip(sat_model.next_vars.iter())
             .map(|(x, y)| (*x, *y))
@@ -66,7 +78,11 @@ impl Planner for SatPlanner {
 
         let map_lit = |l: &GLit| {
             if sat_model.norm_vars.contains(&l.var) {
-                sat_model.norm_vars.iter().position(|&r| r == l.var).unwrap()
+                sat_model
+                    .norm_vars
+                    .iter()
+                    .position(|&r| r == l.var)
+                    .unwrap()
             } else if sat_model.next_vars.contains(&l.var) {
                 panic!("dont use");
             } else if sat_model.trans_map.values().any(|&val| val == l.var as i32) {
@@ -77,50 +93,51 @@ impl Planner for SatPlanner {
         };
 
         let map_at_step = |vars: &Vec<CLit>, l: &GLit, step: u32| {
-            let lit = vars[map_lit(l) + (step as usize)*vars_per_step];
-            if l.neg { !lit } else { lit }
+            let lit = vars[map_lit(l) + (step as usize) * vars_per_step];
+            if l.neg {
+                !lit
+            } else {
+                lit
+            }
         };
 
-        let is_next = |l: &GLit| {
-            sat_model.next_vars.contains(&l.var)
-        };
+        let is_next = |l: &GLit| sat_model.next_vars.contains(&l.var);
 
         // add clauses for the initial state
         for c in &sat_model.init_clauses {
-            let clause: Vec<CLit> = c.0.iter().map(|l| {
-                map_at_step(&vars, l, 0)
-            }
-            ).collect();
+            let clause: Vec<CLit> = c.0.iter().map(|l| map_at_step(&vars, l, 0)).collect();
             s.add_clause(&clause);
         }
 
         // unroll transitions, goals, and invariants up to n steps
-        for step in 0..(max_steps+1) {
+        for step in 0..(max_steps + 1) {
             let step_now = std::time::Instant::now();
 
-            let goal_active = vars[vars.len()-1];
+            let goal_active = vars[vars.len() - 1];
 
             // in all steps, add all global invariants.
             for c in &sat_model.global_invariants {
-                let clause: Vec<CLit> = c.0.iter().map(|l| {
-                    map_at_step(&vars, l, step)
-                }).collect();
+                let clause: Vec<CLit> = c.0.iter().map(|l| map_at_step(&vars, l, step)).collect();
                 s.add_clause(&clause);
             }
 
             if step > 0 {
                 for c in &sat_model.trans_clauses {
                     // transition relation clauses has cur and next. let cur refer to previous step.
-                    let clause: Vec<CLit> = c.0.iter().map(|l| {
-                        if is_next(&l) {
-                            let mut l = l.clone();
-                            let i = pairing.iter().find(|(_idx,jdx)| &l.var == jdx).unwrap().0;
-                            l.var = i;
-                            map_at_step(&vars, &l, step)
-                        } else {
-                            map_at_step(&vars, l, step - 1)
-                        }
-                    }).collect();
+                    let clause: Vec<CLit> = c
+                        .0
+                        .iter()
+                        .map(|l| {
+                            if is_next(&l) {
+                                let mut l = l.clone();
+                                let i = pairing.iter().find(|(_idx, jdx)| &l.var == jdx).unwrap().0;
+                                l.var = i;
+                                map_at_step(&vars, &l, step)
+                            } else {
+                                map_at_step(&vars, l, step - 1)
+                            }
+                        })
+                        .collect();
                     s.add_clause(&clause);
                 }
 
@@ -143,18 +160,14 @@ impl Planner for SatPlanner {
 
             // add new goals
             for c in &sat_model.goal_clauses {
-                let clause: Vec<CLit> = c.0.iter().map(|l| {
-                    map_at_step(&vars, l,step)
-                }).collect();
+                let clause: Vec<CLit> = c.0.iter().map(|l| map_at_step(&vars, l, step)).collect();
 
                 s.add_clause(&clause);
             }
 
             // add all invar clauses
             for c in &sat_model.invar_clauses {
-                let clause: Vec<CLit> = c.0.iter().map(|l| {
-                    map_at_step(&vars, l,step)
-                }).collect();
+                let clause: Vec<CLit> = c.0.iter().map(|l| map_at_step(&vars, l, step)).collect();
 
                 s.add_clause(&clause);
             }
@@ -163,7 +176,7 @@ impl Planner for SatPlanner {
             // (so we can finish one goal early but then keep going)
             for (invar, top) in sat_model.invar_tops.iter().zip(sat_model.goal_tops.iter()) {
                 let mut clause: Vec<CLit> = Vec::new();
-                for i in 0..(step+1) {
+                for i in 0..(step + 1) {
                     let l = map_at_step(&vars, top, i);
                     clause.push(l);
                 }
@@ -184,7 +197,7 @@ impl Planner for SatPlanner {
                     let l = map_at_step(&vars, invar, i);
                     clause.push(l);
 
-                    for j in 0..(i+1) {
+                    for j in 0..(i + 1) {
                         let l = map_at_step(&vars, top, j);
                         clause.push(l);
                     }
@@ -196,7 +209,11 @@ impl Planner for SatPlanner {
             let ga = !goal_active;
             let reached_goal = s.solve_with_assumptions(&[ga]) == Lbool::True;
 
-            println!("Step {} computed in: {}ms\n", step, step_now.elapsed().as_millis());
+            println!(
+                "Step {} computed in: {}ms\n",
+                step,
+                step_now.elapsed().as_millis()
+            );
             if reached_goal {
                 println!("Found plan after {} steps", step);
 
@@ -206,13 +223,20 @@ impl Planner for SatPlanner {
                 result.time_to_solve = total_now.elapsed();
 
                 // print all transition names.
-                for i in 0..(step+1) {
+                for i in 0..(step + 1) {
                     let mut frame = PlanningFrame::default();
 
                     if i > 0 {
                         // transitions are added
                         for (n, l) in &sat_model.trans_map {
-                            let v = map_at_step(&vars, &GLit { var: *l as usize, neg: false }, i - 1);
+                            let v = map_at_step(
+                                &vars,
+                                &GLit {
+                                    var: *l as usize,
+                                    neg: false,
+                                },
+                                i - 1,
+                            );
                             if s.is_true(v) {
                                 println!("{}: {}", i, n);
                                 frame.transition = SPPath::from_string(n);
@@ -223,11 +247,24 @@ impl Planner for SatPlanner {
 
                     let mut clause = Vec::new();
                     for v in &sat_model.norm_vars {
-                        let mv = map_at_step(&vars, &GLit { var: *v as usize, neg: false }, i);
+                        let mv = map_at_step(
+                            &vars,
+                            &GLit {
+                                var: *v as usize,
+                                neg: false,
+                            },
+                            i,
+                        );
                         if s.is_true(mv) {
-                            clause.push(GLit { var: *v as usize, neg: false });
+                            clause.push(GLit {
+                                var: *v as usize,
+                                neg: false,
+                            });
                         } else {
-                            clause.push(GLit { var: *v as usize, neg: true });
+                            clause.push(GLit {
+                                var: *v as usize,
+                                neg: true,
+                            });
                         }
                     }
                     let vals = c.context.sat_result_to_values(&Clause(clause));
@@ -242,14 +279,16 @@ impl Planner for SatPlanner {
 
                 return result;
             } else {
-                let new_vars: Vec<CLit> = (0 .. vars_per_step).map(|_v| s.new_var()).collect();
+                let new_vars: Vec<CLit> = (0..vars_per_step).map(|_v| s.new_var()).collect();
                 vars.extend(new_vars.iter());
             }
         }
 
-        let fail = PlanningResult { plan_found: false,
-                                    time_to_solve: total_now.elapsed(),
-                                    .. PlanningResult::default() };
+        let fail = PlanningResult {
+            plan_found: false,
+            time_to_solve: total_now.elapsed(),
+            ..PlanningResult::default()
+        };
         return fail;
     }
 }
