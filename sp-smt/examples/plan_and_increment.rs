@@ -123,12 +123,12 @@ fn main() {
 
     println!("\nPath: {:?}", path);
     let model = SlvGetModelAndForbidZ3::new(&ctx, &slv);
-    let frames = GetPlanningFramesZ3::new(&ctx, model, step);
+    // let frames = GetPlanningFramesZ3::new(&ctx, model, step);
     
-    println!("Solving time: {} milliseconds", now.elapsed().as_millis());
+    // println!("Solving time: {} milliseconds", now.elapsed().as_millis());
 
-    for l in frames {
-        println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
-        }
+    // for l in frames {
+    //     println!("{:?} : {:?} : {:?}", l.0, l.1, l.2);
+    //     }
     }
 }
