@@ -156,6 +156,16 @@ class Window(QWidget, CommVariables):
             slider.setSingleStep(step)
             slider.setMinimumWidth(300)
 
+        # values copied from dorna cfg file
+        self.slider_1.setMinimum(-175)
+        self.slider_1.setMaximum(175)
+
+        self.slider_2.setMinimum(-175)
+        self.slider_2.setMaximum(160)
+
+        self.slider_3.setMinimum(-130)
+        self.slider_3.setMaximum(130)
+
         self.slider_box_1_layout.addWidget(self.slider_1)
         self.slider_box_2_layout.addWidget(self.slider_2)
         self.slider_box_3_layout.addWidget(self.slider_3)
@@ -432,6 +442,25 @@ class Window(QWidget, CommVariables):
 
         self.radio_1.toggled.connect(radio_state)
 
+
+        self.stop_box = QGroupBox("emergency_stop")
+        self.stop_box_layout = QHBoxLayout()
+        self.stop_button = QPushButton("STOP")
+        self.stop_button.setMaximumWidth(80)
+        self.stop_box_layout.addWidget(self.stop_button)
+        self.stop_box.setLayout(self.stop_box_layout)
+
+        def stop_button_clicked():
+            print('EMERGENCY STOP')
+            self.radio_1.setChecked(True)
+            self.slider_1.setValue(180*CommVariables.actual_joint_pose[0]/math.pi)
+            self.slider_2.setValue(180*CommVariables.actual_joint_pose[1]/math.pi)
+            self.slider_3.setValue(180*CommVariables.actual_joint_pose[2]/math.pi)
+            self.slider_4.setValue(180*CommVariables.actual_joint_pose[3]/math.pi)
+            self.slider_5.setValue(180*CommVariables.actual_joint_pose[4]/math.pi)
+
+        self.stop_button.clicked.connect(stop_button_clicked)
+
         def slider_1_change():
             self.label_1.setText('{}'.format(round(self.slider_1.value() * math.pi / 180, 5)))
             self.label_12.setNum(self.slider_1.value())
@@ -681,8 +710,9 @@ class Window(QWidget, CommVariables):
         grid.addWidget(self.speed_box, 6, 0, 1, 4)
         grid.addWidget(self.pose_saver_box, 7, 0, 1, 4)
         grid.addWidget(self.combo_box_box, 8, 0, 1, 4)
-        grid.addWidget(self.current_pose_box, 9, 0, 1, 1)
-        grid.addWidget(self.radio_1_box, 9, 1, 1, 3)
+        grid.addWidget(self.current_pose_box, 9, 0, 1, 2)
+        grid.addWidget(self.stop_box, 9, 2, 1, 1)
+        grid.addWidget(self.radio_1_box, 9, 3, 1, 1)
 
         self.setLayout(grid)
 
@@ -710,13 +740,13 @@ class Ros2DornaGui(Node, CommVariables):
 
         self.gui_to_esd_msg.gui_control_enabled = False
         self.gui_to_esd_msg.gui_speed_control = 0
-        self.gui_to_esd_msg.gui_joint_control = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.gui_to_esd_msg.gui_joint_control = [0.0, 0.0, 0.0, 0.0, 0.0]
 
         self.actual_pose = ""
-        self.actual_joint_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.actual_joint_pose = [0.0, 0.0, 0.0, 0.0, 0.0]
         self.saved_poses = []
 
-        self.gui_to_esd_timer_period = 0.5
+        self.gui_to_esd_timer_period = 0.2
         self.gui_to_utils_timer_period = 0.2
 
         if self.namespace != "":
@@ -783,7 +813,6 @@ class Ros2DornaGui(Node, CommVariables):
         self.gui_to_esd_msg.gui_joint_control[2] = CommVariables.slider_3_value * math.pi / 180
         self.gui_to_esd_msg.gui_joint_control[3] = CommVariables.slider_4_value * math.pi / 180
         self.gui_to_esd_msg.gui_joint_control[4] = CommVariables.slider_5_value * math.pi / 180
-        # self.gui_to_esd_msg.gui_joint_control[5] = CommVariables.slider_6_value * math.pi / 180
 
         self.gui_to_esd_publisher_.publish(self.gui_to_esd_msg)
 

@@ -34,7 +34,7 @@ class Ros2DornaUtilities(Node):
         # self.utils_to__msg.echo_utility_action = ""
         # self.utils_to_esd_msg.echo_utility_pose_name = ""
 
-        self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0]
         self.prev_action = ""
         self.prev_pose_name = ""
 
@@ -219,7 +219,7 @@ class Ros2DornaUtilities(Node):
         self.act_pos[2] = data.position[2]
         self.act_pos[3] = data.position[3]
         self.act_pos[4] = data.position[4]
-        # self.act_pos[5] = data.position[5]
+
 
     def gui_to_utils_callback(self, data):
         '''

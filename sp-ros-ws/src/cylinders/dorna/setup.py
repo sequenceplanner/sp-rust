@@ -33,14 +33,14 @@ setuptools.setup(
     ],
     license="MIT",
     data_files=[
-        ('share/ament_index/resource_index/packages',
-         ['resource/' + package_name]),
+        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['README.md']),
         ('share/' + package_name, ['LICENSE']),
         ('share/' + package_name + '/resources/firmware', glob('dorna/resources/firmware/*')),
         ('share/' + package_name + '/resources/mac', glob('dorna/resources/mac/*')),
         ('share/' + package_name + '/resources/windows', glob('dorna/resources/windows/*')),
         ('share/' + package_name + '/', glob('dorna/*.yaml')),
+        ('share/' + package_name, ['package.xml']),
     ],
 
     zip_safe = False,
