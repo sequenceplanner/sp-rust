@@ -118,9 +118,9 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
                     runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
                 }
 
-                println!{""};
-                println!("The State: {}", runner.state());
-                println!{""};
+                // println!{""};
+                // println!("The State: {}", runner.state());
+                // println!{""};
 
                 tx_out.send(runner.state().clone()).unwrap();
                 // send out runner info.
