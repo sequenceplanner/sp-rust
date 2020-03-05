@@ -27,6 +27,8 @@ def generate_launch_description():
      mecademic_utils_to_gui = LaunchConfiguration('mecademic_utils_to_gui', default='')
      command1 = LaunchConfiguration('command', default='')
      state1 = LaunchConfiguration('state', default='')
+     node_cmd1 = LaunchConfiguration('node_cmd', default='')
+     mode1 = LaunchConfiguration('mode', default='')
      
      return LaunchDescription([
 
@@ -46,20 +48,22 @@ def generate_launch_description():
                            ('/mecademic_sp_to_esd', mecademic_sp_to_esd),
                            ('/mecademic_esd_to_sp', mecademic_esd_to_sp),
                            ('/state', state1),
-                           ('/command', command1)],
+                           ('/command', command1),
+                           ('/mode', mode1),
+                           ('/node_cmd', node_cmd1)],
                arguments=[namespace]),
                
 
-          # Node(package='ros2_mecademic_gui',
-          #      node_executable='ros2_mecademic_gui', 
-          #      node_namespace=namespace,
-          #      output='screen', 
-          #      remappings=[('/mecademic_joint_states', mecademic_joint_states),
-          #                  ('/mecademic_esd_to_gui', mecademic_esd_to_gui), 
-          #                  ('/mecademic_gui_to_esd', mecademic_gui_to_esd),
-          #                  ('/mecademic_utils_to_gui', mecademic_utils_to_gui),
-          #                  ('/mecademic_gui_to_utils', mecademic_gui_to_utils)],
-          #      arguments=[namespace]),
+          Node(package='ros2_mecademic_gui',
+               node_executable='ros2_mecademic_gui', 
+               node_namespace=namespace,
+               output='screen', 
+               remappings=[('/mecademic_joint_states', mecademic_joint_states),
+                           ('/mecademic_esd_to_gui', mecademic_esd_to_gui), 
+                           ('/mecademic_gui_to_esd', mecademic_gui_to_esd),
+                           ('/mecademic_utils_to_gui', mecademic_utils_to_gui),
+                           ('/mecademic_gui_to_utils', mecademic_gui_to_utils)],
+               arguments=[namespace]),
 
           Node(package='ros2_mecademic_utilities', 
                node_executable='ros2_mecademic_utilities', 

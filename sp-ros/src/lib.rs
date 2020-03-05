@@ -372,7 +372,7 @@ mod ros {
 
                 tx.send(m).unwrap();
             };
-            let topic = format!("{}/{}/echo", model.name(), name);
+            let topic = format!("{}/{}/mode", model.name(), name);
             println!("setting up subscription to resource on topic: {}", topic);
             let _subref =
                 node.0

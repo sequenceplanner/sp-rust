@@ -80,7 +80,7 @@ class Ros2MecademicSimulator(Node):
         # sp node to esd:
         self.sp_node_cmd = NodeCmd()
         self.mode = NodeMode()
-        self.mode.mode = "running"
+        self.mode.mode = "init"
 
         self.sp_node_cmd_subscriber = self.create_subscription(
             NodeCmd, 
@@ -148,7 +148,7 @@ class Ros2MecademicSimulator(Node):
 
         self.esd_sp_mode_pub = self.create_publisher(
             NodeMode,
-            "echo",
+            "mode",
             10)
 
     def get_pose_from_pose_name(self, name):
@@ -232,8 +232,12 @@ class Ros2MecademicSimulator(Node):
         self.get_logger().info('"%s"' % data)
         #print(json.dumps(data))
         self.node_cmd = data
+        if self.node_cmd.mode == "run":
+            self.mode.mode = "running"
+        else:
+            self.mode.mode = "init"
+
         self.esd_sp_mode_pub.publish(self.mode)
-        
         
 
     def gui_to_esd_callback(self, data):
