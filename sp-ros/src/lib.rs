@@ -162,7 +162,7 @@ mod ros {
                     if t.is_subscriber() {
                         let topic = t.path();
                         let topic_str = topic.to_string();
-                        
+
                         let tx = tx_in.clone();
                         let msg_cb = t.msg().clone();
                         let r_path = r.path().clone();
@@ -301,7 +301,6 @@ mod ros {
                 "data",
                 VariableType::Measured,
                 SPValueType::String,
-                "".to_spvalue(),
                 Vec::new(),
             );
 
@@ -329,7 +328,6 @@ mod ros {
                 "data",
                 VariableType::Measured,
                 SPValueType::String,
-                "".to_spvalue(),
                 Vec::new(),
             );
 
