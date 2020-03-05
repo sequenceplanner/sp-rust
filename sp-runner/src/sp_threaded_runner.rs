@@ -116,6 +116,7 @@ fn runner(
                 ts: runner.transition_system_model.clone(),
                 state: runner.state().clone(),
                 goal: runner.goal(),
+                disabled_paths: runner.disabled_paths(),
             };
             tx_planner.send(planning);
 
@@ -241,6 +242,7 @@ struct PlannerTask {
     ts: TransitionSystemModel,
     state: SPState,
     goal: Vec<(Predicate, Option<Predicate>)>,
+    disabled_paths: Vec<SPPath>,
 }
 
 fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
@@ -268,7 +270,7 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
                 xs.remove(xs.len() - 1)
             };
 
-            if prev_goal != pt.goal {
+            if prev_goal != pt.goal && pt.disabled_paths.is_empty() {
                 println!("NEW GOALS");
                 println!("*********");
 
@@ -351,12 +353,12 @@ fn node_handler(
                 x.echo = Some(n.echo);
                 x.cmd = "run".to_string();
 
-                println!(
-                    "Node mode: {}, since: {}, node_mode: {:?}",
-                    x.resource.clone(),
-                    x.time.elapsed().as_millis(),
-                    x.mode.clone()
-                );
+                // println!(
+                //     "Node mode: {}, since: {}, node_mode: {:?}",
+                //     x.resource.clone(),
+                //     x.time.elapsed().as_millis(),
+                //     x.mode.clone()
+                // );
 
                 true
             }

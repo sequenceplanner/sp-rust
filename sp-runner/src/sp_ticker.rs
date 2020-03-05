@@ -22,6 +22,7 @@ pub struct SPTicker {
     pub forbidden: Vec<IfThen>,
     pub predicates: Vec<RunnerPredicate>,
     pub disabled_paths: Vec<SPPath>,
+    c: usize
 }
 
 impl SPTicker {
@@ -33,6 +34,7 @@ impl SPTicker {
             forbidden: vec![],
             predicates: vec![],
             disabled_paths: vec![],
+            c: 0
         }
     }
 
@@ -48,6 +50,27 @@ impl SPTicker {
             &self.forbidden,
         );
         self.state.take_transition();
+        self.c += 1;
+
+        if self.c > 10 {
+            println!("");
+            println!("GOO");
+            
+            println!("State: {}", &self.state);
+            println!("");
+            println!("Transitions:");
+            temp_transition_map.iter().for_each(|xs| {
+                println!("vvvvvv");
+                xs.iter().for_each(|t| {
+                    println!("{}", t);
+                });
+                println!("^^^^^^");
+            });
+
+            self.c = 0;
+        }
+
+       
 
         (&self.state, fired)
     }

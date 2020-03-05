@@ -98,6 +98,7 @@ impl SPRunner {
         ticker.forbidden = forbidden;
         ticker.predicates = runner_predicates;
         ticker.reload_state_paths();
+        ticker.disabled_paths = resources.clone();
 
         SPRunner {
             name: name.to_string(),
@@ -173,6 +174,10 @@ impl SPRunner {
     pub fn force_new_state(&mut self, update: SPState) {
         self.ticker.state = update;
         self.reload_state_paths();
+    }
+
+    pub fn disabled_paths(&self) -> Vec<SPPath> {
+        self.ticker.disabled_paths.clone()
     }
 
     fn take_a_tick(&mut self, state: SPState, check_resources: bool) {

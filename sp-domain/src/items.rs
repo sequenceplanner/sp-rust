@@ -1044,6 +1044,21 @@ impl Transition {
     }
 }
 
+impl fmt::Display for Transition {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let c = if self.controlled {
+            "c"
+        } else {""};
+
+
+        let s = format!("t_{}:{} {}/{:?} e:{:?}", c, self.path(), self.guard, self.actions, self.effects);
+        //let s = format!("t_{}:{}", c, self.path());
+
+        write!(fmtr, "{}", &s)
+    }
+}
+
+
 impl EvaluatePredicate for Transition {
     fn eval(&self, state: &SPState) -> bool {
         self.guard.eval(state) && self.actions.iter().all(|a| a.eval(state))
