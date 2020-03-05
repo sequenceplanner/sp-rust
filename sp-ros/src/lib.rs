@@ -354,13 +354,13 @@ mod ros {
             let r_path = r.path().clone();
 
             let cb = move |msg: r2r::Result<serde_json::Value>| {
-                    println!("msg in ros_node_comm: {:?}", msg);
+                    //println!("msg in ros_node_comm: {:?}", msg);
                 let json = msg.unwrap();
                 let mode = json.get("mode");
                 let r_mode = mode
                     .cloned()
                     .unwrap_or(serde_json::Value::String("NO".to_string()));
-                println!("json:{:#?}, mode:{:#?}", json, mode);
+                //println!("json:{:#?}, mode:{:#?}", json, mode);
 
                 let time_stamp = std::time::Instant::now();
                 let m = NodeMode {
@@ -372,14 +372,14 @@ mod ros {
 
                 tx.send(m).unwrap();
             };
-            let topic = format!("sp/{}/{}/echo", model.name(), name);
+            let topic = format!("{}/{}/echo", model.name(), name);
             println!("setting up subscription to resource on topic: {}", topic);
             let _subref =
                 node.0
                     .subscribe_untyped(&topic, "sp_messages/msg/NodeMode", Box::new(cb))?;
 
             // Outgoing
-            let topic = format!("sp/{}/{}/node_cmd", model.name(), name);
+            let topic = format!("{}/{}/node_cmd", model.name(), name);
             let msg_type = "sp_messages/msg/NodeCmd";
             let r_path = r.path().clone();
             let rp = node.0.create_publisher_untyped(&topic, msg_type)?;

@@ -239,6 +239,7 @@ impl SPRunner {
             self.state().sp_value_from_path(r).map(|v| v != &true.to_spvalue()).unwrap_or(true)
         }).cloned().collect();
         self.ticker.disabled_paths = missing_resources;
+        println!("Disabled paths: {:?}", self.ticker.disabled_paths);
     }
 }
 

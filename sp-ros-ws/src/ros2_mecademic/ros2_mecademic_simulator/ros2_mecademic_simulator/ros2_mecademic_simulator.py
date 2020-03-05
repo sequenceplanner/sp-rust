@@ -6,12 +6,15 @@ import os
 import math
 import numpy
 import ast
+import json
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from ros2_mecademic_msgs.msg import MecademicGuiToEsd
 from ros2_mecademic_msgs.msg import MecademicEsdToGui
 from cubes_1_msgs.msg import RCommand
 from cubes_1_msgs.msg import RState
+from sp_messages.msg import NodeCmd
+from sp_messages.msg import NodeMode
 # from ros2_mecademic_msgs.msg import MecademicSPToEsd
 # from ros2_mecademic_msgs.msg import MecademicEsdToSP
 from ament_index_python.packages import get_package_share_directory
@@ -74,6 +77,17 @@ class Ros2MecademicSimulator(Node):
             self.sp_to_esd_callback,
             10)
 
+        # sp node to esd:
+        self.sp_node_cmd = NodeCmd()
+        self.mode = NodeMode()
+        self.mode.mode = "running"
+
+        self.sp_node_cmd_subscriber = self.create_subscription(
+            NodeCmd, 
+            "node_cmd",
+            self.sp_node_cmd_callback,
+            10)
+
         time.sleep(2)
 
         # esd to gui:
@@ -131,6 +145,11 @@ class Ros2MecademicSimulator(Node):
         self.esd_to_sp_publisher_timer = self.create_timer(
             self.esd_to_sp_timer_period, 
             self.esd_to_sp_callback)
+
+        self.esd_sp_mode_pub = self.create_publisher(
+            NodeMode,
+            "echo",
+            10)
 
     def get_pose_from_pose_name(self, name):
         '''
@@ -208,6 +227,14 @@ class Ros2MecademicSimulator(Node):
             self.joint_ref_pos = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
         else:
             pass
+
+    def sp_node_cmd_callback(self, data):
+        self.get_logger().info('"%s"' % data)
+        #print(json.dumps(data))
+        self.node_cmd = data
+        self.esd_sp_mode_pub.publish(self.mode)
+        
+        
 
     def gui_to_esd_callback(self, data):
         self.gui_to_esd_msg.gui_control_enabled = data.gui_control_enabled

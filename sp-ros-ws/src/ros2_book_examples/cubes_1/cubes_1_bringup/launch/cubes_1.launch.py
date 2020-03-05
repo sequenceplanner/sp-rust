@@ -109,7 +109,7 @@ def generate_launch_description():
           #     launch_arguments = {'namespace': namespace_3}.items()
           # ),
 
-          Node(package='rviz2', node_executable='rviz2', output='screen', arguments=['-d', rviz_config_file]),
+          #Node(package='rviz2', node_executable='rviz2', output='screen', arguments=['-d', rviz_config_file]),
           Node(package='ros2_scene_manipulation', node_executable='service_main', output='screen'),
           Node(package='cubes_1_scene_master', node_executable='cubes_1_scene_master', output='screen'),
      ])

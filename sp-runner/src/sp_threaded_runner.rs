@@ -345,17 +345,18 @@ fn node_handler(
                     echo: Some(n.echo.clone()),
                 });
 
-                println!(
-                    "Node mode: {}, since: {}, node_mode: {:?}",
-                    n.resource.clone(),
-                    n.time_stamp.elapsed().as_millis(),
-                    n.clone()
-                );
-
                 // TODO: Handle handshake with SP and node and upd using echo if needed
                 x.mode = n.mode;
                 x.time = n.time_stamp;
                 x.echo = Some(n.echo);
+                x.cmd = "run".to_string();
+
+                println!(
+                    "Node mode: {}, since: {}, node_mode: {:?}",
+                    x.resource.clone(),
+                    x.time.elapsed().as_millis(),
+                    x.mode.clone()
+                );
 
                 true
             }
@@ -394,13 +395,14 @@ fn node_handler(
                         mode: n.cmd.clone(),
                         time_stamp: time.clone(),
                     };
+                    
                     tx_node.send(cmd); //.unwrap();
 
                     let enabled = n.cmd == "run".to_string() && (!n.mode.is_empty() || n.mode != "init".to_string());
                     resource_state.push((r.clone(), enabled.to_spvalue()));
                 }
-
-                tx_runner.send(SPRunnerInput::NodeChange(SPState::new_from_values(&resource_state)));
+                let rs = SPState::new_from_values(&resource_state);
+                tx_runner.send(SPRunnerInput::NodeChange(rs));
 
                 true
             }
