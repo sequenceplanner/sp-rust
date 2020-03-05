@@ -50,17 +50,20 @@ fn runner(
 
         loop {
             let mut tick = false;
+            let mut state_has_probably_changed = false;
             let input = rx_input.recv();
             if let Ok(msg) = input {
                 match msg {
                     SPRunnerInput::StateChange(s) => {
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::StateChange(s));
+                            state_has_probably_changed = true;
                         }
                     },
                     SPRunnerInput::NodeChange(s) => {
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::NodeChange(s));
+                            state_has_probably_changed = true;
                         }
                     },
                     SPRunnerInput::Tick => {
@@ -92,19 +95,22 @@ fn runner(
                     .for_each(|x| println!("{:?}", x));
             }
 
-            println! {""};
-            println!("The State: {}", runner.state());
-            println! {""};
+            if state_has_probably_changed || !runner.last_fired_transitions.is_empty() {
+                println! {""};
+                println!("The State: {}", runner.state());
+                println! {""};
+            }
 
+            
             // For now, we will send out all the time, but soon we should check this
-            tx_state_out.send(runner.state().clone()).unwrap();
+            tx_state_out.send(runner.state().clone()).expect("tx_state:out");
             // send out runner info.
             let runner_info = RunnerInfo {
                 state: runner.state().clone(),
                 ..RunnerInfo::default()
             };
 
-            tx_runner_info.send(runner_info).unwrap();
+            tx_runner_info.send(runner_info).expect("tx_runner_info");
 
             let planning = PlannerTask{
                 ts: runner.transition_system_model.clone(),

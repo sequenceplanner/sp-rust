@@ -159,6 +159,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
+        (r1ref, "home".to_spvalue()),
+        (r2ref, "home".to_spvalue()),
         (r1prev, "home".to_spvalue()),
         (r2prev, "home".to_spvalue()),
         (&r1_holding, 3.to_spvalue()),

@@ -211,7 +211,13 @@ mod ros {
                             let mut dropped_local_state = local_state.clone_state();
                             dropped_local_state.unprefix_paths(&msg_cb.path());
                             let to_send = state_to_json(&dropped_local_state, &msg_cb);
-                            rp.publish(to_send).unwrap();
+                            let res = rp.publish(to_send.clone());
+                            if res.is_err() {
+                                println!("RosComm not working for {}, error: {:?}", &msg_cb.path(), res);
+                                println!("RosComm, local state: {}", dropped_local_state);
+                                println!("RosComm, to_send: {:?}", to_send);
+                                println!("");
+                            }
                         };
                         ros_pubs.push(cb);
                     } else {
@@ -225,10 +231,18 @@ mod ros {
 
         let (tx_out, rx_out) = channel::unbounded();
         thread::spawn(move || loop {
-            let state = rx_out.recv().unwrap();
-            for rp in &ros_pubs {
-                (rp)(&state);
+            match rx_out.recv() {
+                Ok(state) => {
+                    for rp in &ros_pubs {
+                        (rp)(&state);
+                    }
+                },
+                Err(e) => {
+                    println!("RosComm out did not work: {:?}", e);
+                    break;
+                }
             }
+            
         });
 
         Ok(tx_out)
@@ -310,8 +324,16 @@ mod ros {
 
         let (tx_out, rx_out) = channel::unbounded();
         thread::spawn(move || loop {
-            let info = rx_out.recv().unwrap();
-            (info_cb)(info)
+            match rx_out.recv() {
+                Ok(x) => {
+                    (info_cb)(x)
+                },
+                Err(e) => {
+                    println!("RosMisc out did not work: {:?}", e);
+                    break;
+                }
+            }
+            
         });
 
         Ok(tx_out)
@@ -332,6 +354,7 @@ mod ros {
             let r_path = r.path().clone();
 
             let cb = move |msg: r2r::Result<serde_json::Value>| {
+                    println!("msg in ros_node_comm: {:?}", msg);
                 let json = msg.unwrap();
                 let mode = json.get("mode");
                 let r_mode = mode
@@ -376,10 +399,18 @@ mod ros {
 
         let (tx_out, rx_out) = channel::unbounded();
         thread::spawn(move || loop {
-            let state = rx_out.recv().unwrap();
-            for rp in &ros_pubs {
-                (rp)(&state);
+            match rx_out.recv() {
+                Ok(state) => {
+                    for rp in &ros_pubs {
+                        (rp)(&state);
+                    }
+                },
+                Err(e) => {
+                    println!("RosNodeComm out did not work: {:?}", e);
+                    break;
+                }
             }
+            
         });
 
         Ok(tx_out)
