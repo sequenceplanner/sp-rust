@@ -146,38 +146,38 @@ fn planning_success_2_steps() {
     );
 }
 
-// fn model_without_spec() -> Model {
-//     let mut m = Model::new_root("dummy_robot_model", Vec::new());
+fn model_without_spec() -> Model {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
-//     // Make resoureces
-//     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-//     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
-//     // !
-//     // No specifications
-//     // !
+    // !
+    // No specifications
+    // !
 
-//     m
-// }
+    m
+}
 
-// // ie guard extraction to satisfy global spec.
-// fn model_with_global_spec() -> Model {
-//     let mut m = Model::new_root("dummy_robot_model", Vec::new());
+// ie guard extraction to satisfy global spec.
+fn model_with_global_spec() -> Model {
+    let mut m = Model::new_root("dummy_robot_model", Vec::new());
 
-//     // Make resoureces
-//     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-//     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
-//     // Make some global stuff
-//     let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-//     let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    // Make some global stuff
+    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-//     // (global offline) Specifications
-//     let table_zone = p!(!([p:r1a == "at"] && [p:r2a == "at"]));
-//     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
+    // (global offline) Specifications
+    let table_zone = p!(!([p:r1a == "at"] && [p:r2a == "at"]));
+    m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
-//     m
-// }
+    m
+}
 
 // // #[test]
 // // #[serial]
@@ -205,30 +205,30 @@ fn planning_success_2_steps() {
 // //     assert!(!result.plan_found);
 // // }
 
-// #[test]
-// #[serial]
-// fn planning_fail_when_goal_is_false() {
-//     let model = model_without_spec();
+#[test]
+#[serial]
+fn planning_fail_when_goal_is_false() {
+    let model = model_without_spec();
 
-//     let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-//     let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-//     let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
-//     let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
+    let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
 
-//     let goal = Predicate::FALSE;
+    let goal = Predicate::FALSE;
 
-//     let state = SPState::new_from_values(&[
-//         (r1a.clone(), "away".to_spvalue()),
-//         (r2a.clone(), "away".to_spvalue()),
-//         (r1r.clone(), "away".to_spvalue()),
-//         (r2r.clone(), "away".to_spvalue()),
-//     ]);
+    let state = SPState::new_from_values(&[
+        (r1a.clone(), "away".to_spvalue()),
+        (r2a.clone(), "away".to_spvalue()),
+        (r1r.clone(), "away".to_spvalue()),
+        (r2r.clone(), "away".to_spvalue()),
+    ]);
 
-//     let ts_model = TransitionSystemModel::from(&model);
-//     let result = ComputePlanSPModelZ3::plan(&ts_model, &[(goal,None)], &state, 20);
-//     assert!(!result.plan_found);
-// }
+    let ts_model = TransitionSystemModel::from(&model);
+    let result = ComputePlanSPModelZ3::plan(&ts_model, &[(goal,None)], &state, 20);
+    assert!(!result.plan_found);
+}
 
 // // #[test]
 // // #[serial]
@@ -256,27 +256,27 @@ fn planning_success_2_steps() {
 // //     assert!(!result.plan_found);
 // // }
 
-// #[test]
-// #[serial]
-// fn planning_fail_due_to_conflicting_offline_spec_and_goal() {
-//     let model = model_with_global_spec();
+#[test]
+#[serial]
+fn planning_fail_due_to_conflicting_offline_spec_and_goal() {
+    let model = model_with_global_spec();
 
-//     let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
-//     let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
+    let r1a = model.find_item("act_pos", &["r1"]).expect("check spelling1").path();
+    let r2a = model.find_item("act_pos", &["r2"]).expect("check spelling2").path();
 
-//     let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
-//     let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
+    let r1r = model.find_item("ref_pos", &["r1"]).expect("check spelling1").path();
+    let r2r = model.find_item("ref_pos", &["r2"]).expect("check spelling2").path();
 
-//     let state = SPState::new_from_values(&[
-//         (r1a.clone(), "away".to_spvalue()),
-//         (r2a.clone(), "away".to_spvalue()),
-//         (r1r.clone(), "away".to_spvalue()),
-//         (r2r.clone(), "away".to_spvalue()),
-//     ]);
+    let state = SPState::new_from_values(&[
+        (r1a.clone(), "away".to_spvalue()),
+        (r2a.clone(), "away".to_spvalue()),
+        (r1r.clone(), "away".to_spvalue()),
+        (r2r.clone(), "away".to_spvalue()),
+    ]);
 
-//     let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
+    let goal = p!([p:r1a == "at"] && [p:r2a == "at"]);
 
-//     let model = TransitionSystemModel::from(&model);
-//     let result = ComputePlanSPModelZ3::plan(&model, &[(goal,None)], &state, 20);
-//     assert!(!result.plan_found);
-// }
+    let model = TransitionSystemModel::from(&model);
+    let result = ComputePlanSPModelZ3::plan(&model, &[(goal,None)], &state, 20);
+    assert!(!result.plan_found);
+}

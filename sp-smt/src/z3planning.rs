@@ -126,7 +126,7 @@ impl GetSPKeepValueUpdatesZ3 {
                                 BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step).as_str()), 
                                 BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step - 1).as_str())));
                         },
-                        _=>panic!("Implement"),
+                        _=> panic!("Implement"),
                     }
                 },
                 None => panic!("there has to be a variable"),
@@ -458,9 +458,9 @@ impl ComputePlanSPModelZ3 {
         let cls_ast_vec = SlvGetAssertsZ3::new(&ctx, &slv);
         let cls = Z3AstVectorToVectorAstZ3::new(&ctx, cls_ast_vec); 
 
-        for i in 0..cls.len() {
-            println!("assertion: {:?} : {}", i, AstToStringZ3::new(&ctx, cls[i]));
-        }  
+        // for i in 0..cls.len() {
+        //     println!("assertion: {:?} : {}", i, AstToStringZ3::new(&ctx, cls[i]));
+        // }  
 
         let now = Instant::now();
         let mut plan_found: bool = false;
@@ -479,7 +479,6 @@ impl ComputePlanSPModelZ3 {
                     let guard = GetSPPredicateZ3::new(&ctx, &model, step - 1, t.guard());
                     let updates = GetSPUpdatesZ3::new(&ctx, &model, &t, step);
                     let keep_updates = GetSPKeepValueUpdatesZ3::new(&ctx, &model, &t, step);
-                    println!("GUARD: {}", ast_to_string_z3!(&ctx, guard));
 
                     all_trans.push(ANDZ3::new(&ctx, 
                         vec!(EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()), BoolZ3::new(&ctx, true)),
@@ -489,11 +488,11 @@ impl ComputePlanSPModelZ3 {
                 slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
 
                 // offline specs for all steps:
-                // let invariants: Vec<_> = model.specs.iter().map(|s| GetSPPredicateZ3::new(&ctx, &model, step, &s.invariant())).collect();
-                // for i in invariants {
-                //     slv_assert_z3!(&ctx, &slv, i);
-                // }
-                // 
+                let invariants: Vec<_> = model.specs.iter().map(|s| GetSPPredicateZ3::new(&ctx, &model, step, &s.invariant())).collect();
+                for i in invariants {
+                    slv_assert_z3!(&ctx, &slv, i);
+                }
+                
                 
                 SlvPushZ3::new(&ctx, &slv);
                 slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, step, &goals[0].0));
@@ -533,7 +532,7 @@ impl <'ctx> GetPlanningFramesZ3<'ctx> {
             model_vec.push(lines.next().unwrap_or(""));
             i = i + 1;
         }
-        println!("{:#?}", model_vec);
+        // println!("{:#?}", model_vec);
 
         for i in 0..nr_steps + 2 {
             let mut frame: (u32, Vec<String>, String) = (0, vec!(), "".to_string());
