@@ -114,37 +114,37 @@ fn planning_fail_1_step() {
     );
 }
 
-// #[test]
-// #[serial]
-// fn planning_success_2_steps() {
-//     let model = basic_model();
+#[test]
+#[serial]
+fn planning_success_2_steps() {
+    let model = basic_model();
 
-//     let result = basic_planning_request(&model, 2);
-//     assert!(result.plan_found);
+    let result = basic_planning_request(&model, 2);
+    assert!(result.plan_found);
 
-//     let active = model.find_item("active", &[]).expect("check spelling").path();
+    let active = model.find_item("active", &[]).expect("check spelling").path();
 
-//     // println!("{:?}", result);
+    // println!("{:?}", result);
 
-//     assert_eq!(result.plan_length, 2);
-//     assert_eq!(result.trace.len(), 3);
+    assert_eq!(result.plan_length, 2);
+    assert_eq!(result.trace.len(), 3);
 
-//     for f in &result.trace {
-//         println!("==========================");
-//         println!("{}", f.transition);
-//         println!("==========================");
-//         println!("{}", f.state);
+    for f in &result.trace {
+        println!("==========================");
+        println!("{}", f.transition);
+        println!("==========================");
+        println!("{}", f.state);
 
-//     }
+    }
 
-//     assert_eq!(
-//         result
-//             .trace
-//             .last()
-//             .and_then(|f| f.state.sp_value_from_path(&active)),
-//         Some(&true.to_spvalue())
-//     );
-// }
+    assert_eq!(
+        result
+            .trace
+            .last()
+            .and_then(|f| f.state.sp_value_from_path(&active)),
+        Some(&true.to_spvalue())
+    );
+}
 
 // fn model_without_spec() -> Model {
 //     let mut m = Model::new_root("dummy_robot_model", Vec::new());
