@@ -27,6 +27,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     m.add_invar("table_zone_1", &p!(!([p:r1act == "table1"] && [p:r2act == "table1"])));
     m.add_invar("table_zone_2", &p!(!([p:r1act == "table2"] && [p:r2act == "table2"])));
+    m.add_invar("table_zone_3", &p!(!([p:r1act == "table1"] && [p:r2act == "table2"])));
+    m.add_invar("table_zone_4", &p!(!([p:r1act == "table2"] && [p:r2act == "table1"])));
 
     // special case at table 2
     m.add_invar("table_zone_2_2", &p!(!([p:r1prev == "table2"] && [p:r1ref != "table2"] && [p:r2ref == "table2"])));
