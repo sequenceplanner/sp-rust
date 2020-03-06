@@ -21,6 +21,8 @@ pub struct SPTicker {
     pub specs: Vec<TransitionSpec>,
     pub forbidden: Vec<IfThen>,
     pub predicates: Vec<RunnerPredicate>,
+    pub disabled_paths: Vec<SPPath>,
+    c: usize
 }
 
 impl SPTicker {
@@ -31,6 +33,8 @@ impl SPTicker {
             specs: vec![],
             forbidden: vec![],
             predicates: vec![],
+            disabled_paths: vec![],
+            c: 0
         }
     }
 
@@ -38,7 +42,7 @@ impl SPTicker {
     /// The functions returns the updated state and the fired transitions
     ///
     pub fn tick_transitions(&mut self) -> (&SPState, Vec<SPPath>) {
-        let temp_transition_map = SPTicker::create_transition_map(&self.transitions, &self.specs);
+        let temp_transition_map = SPTicker::create_transition_map(&self.transitions, &self.specs, &self.disabled_paths);
         let fired = SPTicker::tick(
             &mut self.state,
             &temp_transition_map,
@@ -46,6 +50,27 @@ impl SPTicker {
             &self.forbidden,
         );
         self.state.take_transition();
+        // self.c += 1;
+
+        // if self.c > 10 {
+        //     println!("");
+        //     println!("GOO");
+
+        //     println!("State: {}", &self.state);
+        //     println!("");
+        //     println!("Transitions:");
+        //     temp_transition_map.iter().for_each(|xs| {
+        //         println!("vvvvvv");
+        //         xs.iter().for_each(|t| {
+        //             println!("{}", t);
+        //         });
+        //         println!("^^^^^^");
+        //     });
+
+        //     self.c = 0;
+        // }
+
+
 
         (&self.state, fired)
     }
@@ -79,6 +104,7 @@ impl SPTicker {
     fn create_transition_map<'a>(
         ts: &'a [Transition],
         specs: &'a [TransitionSpec],
+        disabled_paths: &[SPPath],
     ) -> Vec<Vec<&'a Transition>> {
         let mut temp_xs: Vec<(Vec<&SPPath>, Vec<&Transition>)> = specs
             .iter()
@@ -87,7 +113,7 @@ impl SPTicker {
                 (x, vec![&s.spec_transition])
             })
             .collect();
-        for t in ts.iter() {
+        for t in ts.iter().filter(|t| !t.path().is_child_of_any(disabled_paths)) {
             let mut found = false;
             // let t: &Transition = t;  // Keeping these to show how to help the rust-analyzer find the types
             for (paths, ref mut transitions) in temp_xs.iter_mut() {
@@ -173,9 +199,9 @@ impl SPTicker {
 
     /// Are we in a forbidden state?
     fn check_forbidden(state: &mut SPState, forbidden_states: &[IfThen]) -> bool {
-        forbidden_states
-            .iter()
-            .any(|f| f.condition.eval(state) && f.invariant.as_ref().map(|x| x.eval(state)).unwrap_or(false))
+        forbidden_states.iter().any(|f| {
+            f.condition.eval(state) && f.invariant.as_ref().map(|x| x.eval(state)).unwrap_or(false)
+        })
     }
 }
 
@@ -192,9 +218,9 @@ mod test_new_ticker {
         let pred = SPPath::from_slice(&["pred"]);
 
         let mut s = state!(ab => 2, ac => true, kl => 3, xy => false, pred => false);
-        let p = p!{[!p:ac] && [!p:xy]};
+        let p = p! {[!p:ac] && [!p:xy]};
 
-        let a = a!(p:ac = false);
+        let a = a!(p: ac = false);
         let b = a!(p:ab <- p:kl);
         let c = a!(p:xy ? p);
 
@@ -235,7 +261,8 @@ mod test_new_ticker {
             TransitionSpec::new("s4", Transition::new_empty("s4"), vec![]),
         ];
 
-        let res = SPTicker::create_transition_map(&ts, &specs);
+        let res = SPTicker::create_transition_map(&ts, &specs, &vec!());
+        println!("t1: {}", t1.path());
         println!("Creating ts map:");
         for xs in res.iter() {
             println!("{:?}", xs);

@@ -1,11 +1,10 @@
+use crate::formal_model::*;
 use sp_domain::*;
 use std::collections::HashMap;
 use std::iter::FromIterator;
-use crate::formal_model::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Domain {
-    // pub name: String, // would it be possible to add this? z3 needs it
     pub domain: Option<Vec<SPValue>>, // none=domain is boolean
 }
 
@@ -47,13 +46,13 @@ pub struct MAbility {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MInvariant {
     pub name: String,
-    pub prop: Predicate
+    pub prop: Predicate,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MResource {
     pub name: String,
-    pub items: Vec<ModelItem>
+    pub items: Vec<ModelItem>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -66,20 +65,60 @@ pub enum ModelItem {
 }
 
 pub fn build_resource(r: &MResource) -> Resource {
-    let mut abilities: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MAbility(a) => Some(a.clone()), _ => None }).collect();
-    let out_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::CommandTopic(ct) => Some(ct.clone()), _ => None }).collect();
-    let in_topics: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MeasuredTopic(mt) => Some(mt.clone()), _ => None }).collect();
-    let estimated_vars: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::EstimatedVars(dv) => Some(dv.clone()), _ => None }).collect();
-    let mut invariants: Vec<_> = r.items.iter().flat_map(|i| match i { ModelItem::MInvariant(i) => Some(i.clone()), _ => None }).collect();
+    let mut abilities: Vec<_> = r
+        .items
+        .iter()
+        .flat_map(|i| match i {
+            ModelItem::MAbility(a) => Some(a.clone()),
+            _ => None,
+        })
+        .collect();
+    let out_topics: Vec<_> = r
+        .items
+        .iter()
+        .flat_map(|i| match i {
+            ModelItem::CommandTopic(ct) => Some(ct.clone()),
+            _ => None,
+        })
+        .collect();
+    let in_topics: Vec<_> = r
+        .items
+        .iter()
+        .flat_map(|i| match i {
+            ModelItem::MeasuredTopic(mt) => Some(mt.clone()),
+            _ => None,
+        })
+        .collect();
+    let estimated_vars: Vec<_> = r
+        .items
+        .iter()
+        .flat_map(|i| match i {
+            ModelItem::EstimatedVars(dv) => Some(dv.clone()),
+            _ => None,
+        })
+        .collect();
+    let mut invariants: Vec<_> = r
+        .items
+        .iter()
+        .flat_map(|i| match i {
+            ModelItem::MInvariant(i) => Some(i.clone()),
+            _ => None,
+        })
+        .collect();
 
     let mut valid_remaps = Vec::new();
     let mut echos = Vec::new();
 
     for (mt, t) in out_topics.iter().enumerate() {
         for name in t.vars.keys() {
-            let path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), mt.to_string(), name.clone()]);
+            let path = SPPath::from_slice(&[
+                r.name.clone(),
+                t.topic.clone(),
+                mt.to_string(),
+                name.clone(),
+            ]);
             let op = SPPath::from_string(name);
-            valid_remaps.push((op,path));
+            valid_remaps.push((op, path));
         }
     }
 
@@ -90,12 +129,12 @@ pub fn build_resource(r: &MResource) -> Resource {
             let op = SPPath::from_string(name);
             let mut path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), mt.to_string()]);
             path.add_child_path(&op);
-            let is_echo = op.path.iter().nth(0).map(|s| s=="echo").unwrap_or(false);
+            let is_echo = op.path.iter().nth(0).map(|s| s == "echo").unwrap_or(false);
             if is_echo {
                 println!("ECHO {}", path);
                 echos.push(path);
             } else {
-                valid_remaps.push((op,path));
+                valid_remaps.push((op, path));
             }
         }
     }
@@ -104,7 +143,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         for name in t.vars.keys() {
             let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
             let op = SPPath::from_string(name);
-            valid_remaps.push((op,path));
+            valid_remaps.push((op, path));
         }
     }
 
@@ -121,7 +160,6 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     // fix ability paths
     for a in &mut abilities {
-
         // first try to find a local remap (e.g. to our own predicates).
         let mut local_remaps = Vec::new();
         for (name, _pred) in &mut a.predicates {
@@ -131,7 +169,6 @@ pub fn build_resource(r: &MResource) -> Resource {
         }
 
         let local_remaps = HashMap::from_iter(local_remaps.into_iter());
-
 
         for (_name, pred) in &mut a.predicates {
             // println!("original predicate: {:?}", pred);
@@ -146,11 +183,17 @@ pub fn build_resource(r: &MResource) -> Resource {
             // println!("new guard: {:?}", trans.guard);
 
             // println!("original actions: {:?}", trans.actions);
-            trans.actions.iter_mut().for_each(|a| a.replace_variable_path(&valid_remaps));
+            trans
+                .actions
+                .iter_mut()
+                .for_each(|a| a.replace_variable_path(&valid_remaps));
             // println!("new actions: {:?}", trans.actions);
 
             // println!("original effects: {:?}", trans.effects);
-            trans.effects.iter_mut().for_each(|a| a.replace_variable_path(&valid_remaps));
+            trans
+                .effects
+                .iter_mut()
+                .for_each(|a| a.replace_variable_path(&valid_remaps));
             // println!("new effects: {:?}", trans.effects);
         }
     }
@@ -168,38 +211,49 @@ pub fn build_resource(r: &MResource) -> Resource {
         let msg = Message::new(
             &mt.to_string(),
             &t.ros_type,
-            t.vars.iter().map(|(name, d)| {
-
-                let is_bool = d.domain.is_none();
-                let var = if is_bool {
-                    MessageField::Var(Variable::new(name,
-                                                    VariableType::Command,
-                                                    SPValueType::Bool,
-                                                    vec![]))
-                } else {
-                    let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
-                    let sp_val_type = dom[0].has_type();
-                    MessageField::Var(Variable::new(name,
-                                                    VariableType::Command,
-                                                    sp_val_type,
-                                                    dom))
-                };
-                var
-            }).collect::<Vec<_>>().as_slice());
+            t.vars
+                .iter()
+                .map(|(name, d)| {
+                    let is_bool = d.domain.is_none();
+                    let var = if is_bool {
+                        MessageField::Var(Variable::new(
+                            name,
+                            VariableType::Command,
+                            SPValueType::Bool,
+                            vec![],
+                        ))
+                    } else {
+                        let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
+                        let sp_val_type = dom[0].has_type();
+                        MessageField::Var(Variable::new(
+                            name,
+                            VariableType::Command,
+                            sp_val_type,
+                            dom,
+                        ))
+                    };
+                    var
+                })
+                .collect::<Vec<_>>()
+                .as_slice(),
+        );
 
         let topic = Topic::new(&t.topic, MessageField::Msg(msg));
         r.add_message(topic);
     }
 
     for (mt, t) in in_topics.iter().enumerate() {
-
         // collect all different set of subtopics
-        let mut subs: Vec<_> = t.vars.iter().map(|(name, _d)| {
-            let op = SPPath::from_string(name);
-            op.parent()
-        }).collect();
+        let mut subs: Vec<_> = t
+            .vars
+            .iter()
+            .map(|(name, _d)| {
+                let op = SPPath::from_string(name);
+                op.parent()
+            })
+            .collect();
 
-        subs.sort_by(|l,r| {
+        subs.sort_by(|l, r| {
             if l.path.len() < r.path.len() {
                 std::cmp::Ordering::Less
             } else if l.path.len() > r.path.len() {
@@ -212,33 +266,47 @@ pub fn build_resource(r: &MResource) -> Resource {
 
         // let mut belongs_to: HashMap<SPPath, Vec<SPPath>> = t.vars
 
-        let sub_leafs: HashMap<SPPath, HashMap<String, MessageField>> = subs.iter().map(|s| {
-            let msg = t.vars.iter().flat_map(|(name, d)| { // not on this "level"
-                let op = SPPath::from_string(name);
-                let name = op.leaf();
-                if &op.parent() != s { None } else {
-                    let is_bool = d.domain.is_none();
-                    let var = if is_bool {
-                        MessageField::Var(Variable::new(&name,
-                                                        VariableType::Measured,
-                                                        SPValueType::Bool,
-                                                        vec![]))
-                    } else {
-                        let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
-                        let sp_val_type = dom[0].has_type();
-                        MessageField::Var(Variable::new(&name,
-                                                        VariableType::Measured,
-                                                        sp_val_type,
-                                                        dom))
-                    };
-                    Some((name.clone(), var))
-                }
-            }).collect();
-            (s.clone(), msg)
-        }).collect();
+        let sub_leafs: HashMap<SPPath, HashMap<String, MessageField>> = subs
+            .iter()
+            .map(|s| {
+                let msg = t
+                    .vars
+                    .iter()
+                    .flat_map(|(name, d)| {
+                        // not on this "level"
+                        let op = SPPath::from_string(name);
+                        let name = op.leaf();
+                        if &op.parent() != s {
+                            None
+                        } else {
+                            let is_bool = d.domain.is_none();
+                            let var = if is_bool {
+                                MessageField::Var(Variable::new(
+                                    &name,
+                                    VariableType::Measured,
+                                    SPValueType::Bool,
+                                    vec![],
+                                ))
+                            } else {
+                                let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
+                                let sp_val_type = dom[0].has_type();
+                                MessageField::Var(Variable::new(
+                                    &name,
+                                    VariableType::Measured,
+                                    sp_val_type,
+                                    dom,
+                                ))
+                            };
+                            Some((name.clone(), var))
+                        }
+                    })
+                    .collect();
+                (s.clone(), msg)
+            })
+            .collect();
 
         // start from the top, recurse down.
-        let mut children: HashMap<SPPath, HashMap<String,MessageField>> = HashMap::new();
+        let mut children: HashMap<SPPath, HashMap<String, MessageField>> = HashMap::new();
         while !subs.is_empty() {
             let current = subs.pop().unwrap();
             let mut leafs = sub_leafs.get(&current).unwrap_or(&HashMap::new()).clone();
@@ -247,7 +315,7 @@ pub fn build_resource(r: &MResource) -> Resource {
             let children_to_add = children.get(&current).unwrap_or(&HashMap::new()).clone();
 
             for (k, v) in children_to_add {
-                leafs.insert(k.clone(),v.clone());
+                leafs.insert(k.clone(), v.clone());
             }
 
             let node = current.leaf();
@@ -256,16 +324,13 @@ pub fn build_resource(r: &MResource) -> Resource {
             } else {
                 "anonymous".to_string()
             };
-            let leafs: Vec<_> = leafs.into_iter().map(|(_k,v)|v).collect();
+            let leafs: Vec<_> = leafs.into_iter().map(|(_k, v)| v).collect();
             let nn = if node == "" {
                 mt.to_string()
             } else {
                 node.clone()
             };
-            let msg = Message::new(
-                &nn,
-                &tt,
-                leafs.as_slice());
+            let msg = Message::new(&nn, &tt, leafs.as_slice());
 
             let parent = current.parent();
 
@@ -300,17 +365,11 @@ pub fn build_resource(r: &MResource) -> Resource {
         t.vars.iter().for_each(|(name, d)| {
             let is_bool = d.domain.is_none();
             let var = if is_bool {
-                Variable::new(name,
-                              VariableType::Estimated,
-                              SPValueType::Bool,
-                              vec![])
+                Variable::new(name, VariableType::Estimated, SPValueType::Bool, vec![])
             } else {
                 let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
                 let sp_val_type = dom[0].has_type();
-                Variable::new(name,
-                              VariableType::Estimated,
-                              sp_val_type,
-                              dom)
+                Variable::new(name, VariableType::Estimated, sp_val_type, dom)
             };
             r.add_sub_item(SPItem::Variable(var));
         });
@@ -318,7 +377,11 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     // fix ability paths
     for a in &abilities {
-        let p = a.predicates.iter().map(|(n,p)| Variable::new_predicate(n, p.clone())).collect();
+        let p = a
+            .predicates
+            .iter()
+            .map(|(n, p)| Variable::new_predicate(n, p.clone()))
+            .collect();
 
         // below is how I would like to do it => just keep the "Any"
         // vals. works great for planning and we can still spit out
@@ -334,49 +397,78 @@ pub fn build_resource(r: &MResource) -> Resource {
         // below is how I have to do it for guard extraction to work,
         // flattening the "Any"s into new transitions.
 
-        let t = a.transitions.iter().flat_map(|(n, t)| {
-            let anys: Vec<_> = t.actions.iter().flat_map(|a| match a.value {
-                Compute::Any => Some(a.clone()),
-                _ => None
-            }).collect();
-
-            let not_anys: Vec<Action> = t.actions.iter().flat_map(|a| match a.value {
-                Compute::Any => None,
-                _ => Some(a.clone())
-            }).collect();
-
-            if anys.len() == 1 {
-                // hack to expand into multiple trans
-                let any_var = r.get(&anys[0].var).expect("variable not found");
-                let new_actions: Vec<_> = any_var.as_variable()
-                    .expect("error2")
-                    .domain()
+        let t = a
+            .transitions
+            .iter()
+            .flat_map(|(n, t)| {
+                let anys: Vec<_> = t
+                    .actions
                     .iter()
-                    .map(|d|
-                         (Action::new(anys[0].var.clone(),
-                                     Compute::PredicateValue(
-                                         PredicateValue::SPValue(d.clone()))), d.to_string())).collect();
+                    .flat_map(|a| match a.value {
+                        Compute::Any => Some(a.clone()),
+                        _ => None,
+                    })
+                    .collect();
 
-                new_actions.iter().map(|(a,v)| {
-                    let name = format!("{}_with_{}", n, v);
-                    let mut a = vec![a.clone()];
-                    a.extend(not_anys.iter().cloned());
-                    Transition::new(&name, t.guard.clone(),
-                                    a, t.effects.clone(),
-                                    t.controlled)
-                }).collect()
+                let not_anys: Vec<Action> = t
+                    .actions
+                    .iter()
+                    .flat_map(|a| match a.value {
+                        Compute::Any => None,
+                        _ => Some(a.clone()),
+                    })
+                    .collect();
 
-            } else {
-                vec![Transition::new(n, t.guard.clone(),
-                                t.actions.clone(), t.effects.clone(),
-                                t.controlled)]
-            }
-        }).collect();
+                if anys.len() == 1 {
+                    // hack to expand into multiple trans
+                    let any_var = r.get(&anys[0].var).expect("variable not found");
+                    let new_actions: Vec<_> = any_var
+                        .as_variable()
+                        .expect("error2")
+                        .domain()
+                        .iter()
+                        .map(|d| {
+                            (
+                                Action::new(
+                                    anys[0].var.clone(),
+                                    Compute::PredicateValue(PredicateValue::SPValue(d.clone())),
+                                ),
+                                d.to_string(),
+                            )
+                        })
+                        .collect();
+
+                    new_actions
+                        .iter()
+                        .map(|(a, v)| {
+                            let name = format!("{}_with_{}", n, v);
+                            let mut a = vec![a.clone()];
+                            a.extend(not_anys.iter().cloned());
+                            Transition::new(
+                                &name,
+                                t.guard.clone(),
+                                a,
+                                t.effects.clone(),
+                                t.controlled,
+                            )
+                        })
+                        .collect()
+                } else {
+                    vec![Transition::new(
+                        n,
+                        t.guard.clone(),
+                        t.actions.clone(),
+                        t.effects.clone(),
+                        t.controlled,
+                    )]
+                }
+            })
+            .collect();
         let a = Ability::new(&a.name, t, p);
         r.add_ability(a);
     }
 
-    let mut supervisor = Predicate::AND(invariants.iter().map(|i|i.prop.clone()).collect());
+    let mut supervisor = Predicate::AND(invariants.iter().map(|i| i.prop.clone()).collect());
     if !r.abilities.is_empty() && !invariants.is_empty() {
         // add invariants to model
         let mut to_add = Vec::new();
@@ -404,8 +496,8 @@ pub fn build_resource(r: &MResource) -> Resource {
                     Some(g) => {
                         println!("adding guard for {}: {}", t.path(), g);
                         *t.mut_guard() = Predicate::AND(vec![t.guard().clone(), g.clone()]);
-                    },
-                    None => {},
+                    }
+                    None => {}
                 }
             }
             a.transitions.retain(|t| !to_remove.contains(&t.path()));
@@ -677,7 +769,6 @@ macro_rules! resource {
     }};
 }
 
-
 #[test]
 fn resource_test() {
     let rp_c = SPPath::from_string("ref_pos");
@@ -688,8 +779,7 @@ fn resource_test() {
     let executing = SPPath::from_string("executing");
     let finished = SPPath::from_string("finished");
 
-
-    let resource = resource!{
+    let resource = resource! {
         name: "dummy_robot",
         command!{
             topic: "/hej",

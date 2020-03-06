@@ -3,8 +3,14 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription, actions
 from launch_ros.actions import Node
 from launch.substitutions import LaunchConfiguration
+from launch.actions import DeclareLaunchArgument
+from launch.actions import SetEnvironmentVariable
+from launch import LaunchContext
 
 def generate_launch_description():
+
+     lc = LaunchContext()
+     SetEnvironmentVariable('PYTHONUNBUFFERED', '1').visit(lc)
 
      urdf = os.path.join(get_package_share_directory('cubes_1_bringup'),
                         'urdf', 'meca_1.urdf')
@@ -21,6 +27,8 @@ def generate_launch_description():
      mecademic_utils_to_gui = LaunchConfiguration('mecademic_utils_to_gui', default='')
      command1 = LaunchConfiguration('command', default='')
      state1 = LaunchConfiguration('state', default='')
+     node_cmd1 = LaunchConfiguration('node_cmd', default='')
+     mode1 = LaunchConfiguration('mode', default='')
      
      return LaunchDescription([
 
@@ -40,7 +48,9 @@ def generate_launch_description():
                            ('/mecademic_sp_to_esd', mecademic_sp_to_esd),
                            ('/mecademic_esd_to_sp', mecademic_esd_to_sp),
                            ('/state', state1),
-                           ('/command', command1)],
+                           ('/command', command1),
+                           ('/mode', mode1),
+                           ('/node_cmd', node_cmd1)],
                arguments=[namespace]),
                
 

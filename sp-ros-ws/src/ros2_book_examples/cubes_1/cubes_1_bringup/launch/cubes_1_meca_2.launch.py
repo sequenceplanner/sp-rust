@@ -21,6 +21,8 @@ def generate_launch_description():
      mecademic_utils_to_gui = LaunchConfiguration('mecademic_utils_to_gui', default='')
      command2 = LaunchConfiguration('command', default='')
      state2 = LaunchConfiguration('state', default='')
+     node_cmd2 = LaunchConfiguration('node_cmd', default='')
+     mode2 = LaunchConfiguration('mode', default='')
      
      return LaunchDescription([
 
@@ -40,7 +42,9 @@ def generate_launch_description():
                            ('/mecademic_sp_to_esd', mecademic_sp_to_esd),
                            ('/mecademic_esd_to_sp', mecademic_esd_to_sp),
                            ('/state', state2),
-                           ('/command', command2)],
+                           ('/command', command2),
+                           ('/mode', mode2),
+                           ('/node_cmd', node_cmd2)],
                arguments=[namespace]),
                
 

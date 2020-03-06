@@ -21,6 +21,7 @@ pub struct SPRunner {
     pub transition_system_model: TransitionSystemModel,
     pub operation_planning_model: TransitionSystemModel,
     pub in_sync: bool,
+    pub resources: Vec<SPPath>,
 }
 
 /// The input to the runner.
@@ -43,6 +44,7 @@ pub struct SPRunner {
 pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
+    NodeChange(SPState),
     Settings, // Will come later
     AbilityPlan(SPPlan),
     OperationPlan(SPPlan),
@@ -51,8 +53,8 @@ pub enum SPRunnerInput {
 pub struct SPPlan {
     //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
-    pub state_change: SPState,  // for setting variables use in the plans
-    //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
+    pub state_change: SPState,     // for setting variables use in the plans
+                                   //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
 }
 
 impl SPRunner {
@@ -66,10 +68,11 @@ impl SPRunner {
         forbidden: Vec<IfThen>,
         transition_system_model: TransitionSystemModel,
         operation_planning_model: TransitionSystemModel,
+        resources: Vec<SPPath>,
     ) -> Self {
-        let mut vars = vec!();
-        let mut preds = vec!();
-        let mut initial_state_map = vec!();
+        let mut vars = vec![];
+        let mut preds = vec![];
+        let mut initial_state_map = vec![];
 
         variables.into_iter().for_each(|v| {
             initial_state_map.push((v.path().clone(), SPValue::Unknown));
@@ -77,19 +80,28 @@ impl SPRunner {
                 VariableType::Predicate(_) => preds.push(v),
                 _ => vars.push(v),
             }
-
         });
 
         let mut state = SPState::new_from_values(&initial_state_map);
-        state.add_variable(SPPath::from_slice(&["runner","ability_plan"]), 0.to_spvalue());
-        state.add_variable(SPPath::from_slice(&["runner", "operation_plan"]), 0.to_spvalue());
-        let runner_predicates: Vec<RunnerPredicate> = preds.iter().flat_map(|p| RunnerPredicate::new(p, &state)).collect();
+        state.add_variable(
+            SPPath::from_slice(&["runner", "ability_plan"]),
+            0.to_spvalue(),
+        );
+        state.add_variable(
+            SPPath::from_slice(&["runner", "operation_plan"]),
+            0.to_spvalue(),
+        );
+        let runner_predicates: Vec<RunnerPredicate> = preds
+            .iter()
+            .flat_map(|p| RunnerPredicate::new(p, &state))
+            .collect();
         let mut ticker = SPTicker::new();
         ticker.state = state;
         ticker.transitions = transitions;
         ticker.forbidden = forbidden;
         ticker.predicates = runner_predicates;
         ticker.reload_state_paths();
+        ticker.disabled_paths = resources.clone();
 
         SPRunner {
             name: name.to_string(),
@@ -100,10 +112,11 @@ impl SPRunner {
             global_transition_specs,
             ability_plan: SPPlan::default(),
             operation_plan: SPPlan::default(),
-            last_fired_transitions: vec!(),
+            last_fired_transitions: vec![],
             transition_system_model,
             operation_planning_model,
             in_sync: false,
+            resources,
         }
     }
 
@@ -112,22 +125,25 @@ impl SPRunner {
     pub fn input(&mut self, input: SPRunnerInput) {
         match input {
             SPRunnerInput::Tick => {
-                self.take_a_tick(SPState::new());
-            },
+                self.take_a_tick(SPState::new(), false);
+            }
             SPRunnerInput::StateChange(s) => {
-                self.take_a_tick(s);
-            },
-            SPRunnerInput::Settings => {}, // Will come later
+                self.take_a_tick(s, false);
+            }
+            SPRunnerInput::NodeChange(s) => {
+                self.take_a_tick(s, true);
+            }
+            SPRunnerInput::Settings => {} // Will come later
             SPRunnerInput::AbilityPlan(plan) => {
                 self.ability_plan = plan;
                 self.update_state_variables(self.ability_plan.state_change.clone());
                 self.load_plans();
-            },
+            }
             SPRunnerInput::OperationPlan(plan) => {
                 self.operation_plan = plan;
                 self.update_state_variables(self.operation_plan.state_change.clone());
                 self.load_plans();
-            },
+            }
         }
     }
 
@@ -139,9 +155,11 @@ impl SPRunner {
     /// Get the current goal and respective invariant that runner
     /// tries to reach.
     pub fn goal(&self) -> Vec<(Predicate, Option<Predicate>)> {
-        self.goals.iter().filter(|g| {
-            g.condition.eval(&self.ticker.state)
-        }).map(|x| (x.goal.clone(), x.invariant.clone())).collect()
+        self.goals
+            .iter()
+            .filter(|g| g.condition.eval(&self.ticker.state))
+            .map(|x| (x.goal.clone(), x.invariant.clone()))
+            .collect()
     }
 
     /// A special function that the owner of the runner can use to
@@ -163,20 +181,32 @@ impl SPRunner {
         self.reload_state_paths();
     }
 
+    pub fn disabled_paths(&self) -> Vec<SPPath> {
+        self.ticker.disabled_paths.clone()
+    }
 
-    fn take_a_tick(&mut self, state: SPState) {
+    fn take_a_tick(&mut self, state: SPState, check_resources: bool) {
         self.update_state_variables(state);
+        if check_resources {
+            self.check_resources();
+        }
 
         // do nothing if we are in a (globally) bad state.
         // these exprs can be pretty big. do some benchmark here.
-        let bad: Vec<_> = self.transition_system_model.specs.iter()
-            .filter(|s| !s.invariant().eval(&self.ticker.state)).collect();
+        let bad: Vec<_> = self
+            .transition_system_model
+            .specs
+            .iter()
+            .filter(|s| !s.invariant().eval(&self.ticker.state))
+            .collect();
 
         if !bad.is_empty() {
             println!("\nDOING NOTHING: WE ARE IN A BAD STATE:\n");
             println!("{}", self.ticker.state);
-            println!("because of the following invariant(s):\n{}",
-                     bad.iter().map(|s| s.name()).collect::<Vec<_>>().join(","));
+            println!(
+                "because of the following invariant(s):\n{}",
+                bad.iter().map(|s| s.name()).collect::<Vec<_>>().join(",")
+            );
             return;
         }
 
@@ -211,8 +241,15 @@ impl SPRunner {
         }
     }
 
+    fn check_resources(&mut self) {
+        // TODO: Maybe not clone these, but probably ok since not many resources.
+        let missing_resources: Vec<SPPath> = self.resources.iter().filter(|r| {
+            self.state().sp_value_from_path(r).map(|v| v != &true.to_spvalue()).unwrap_or(true)
+        }).cloned().collect();
+        self.ticker.disabled_paths = missing_resources;
+        println!("Disabled paths: {:?}", self.ticker.disabled_paths);
+    }
 }
-
 
 // #[cfg(test)]
 // mod test_new_runner {
@@ -222,7 +259,6 @@ impl SPRunner {
 //     #[test]
 //     fn testing_me() {
 //         let mut runner = make_dummy_robot_runner();
-
 
 //         println!{""};
 //         println!("Initial goal: {:?}", runner.goal());
@@ -241,13 +277,10 @@ impl SPRunner {
 //         println!("fired:");
 //         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
 
-
 //         let planner_result = crate::planning::plan(&runner.transition_system_model, &runner.goal(), &runner.state(), 20);
 //         let (tr, s) = convert_planning_result(&runner.transition_system_model, planner_result);
 //         let plan = SPPlan{plan: tr, state_change: s};
 //         runner.input(SPRunnerInput::AbilityPlan(plan));
-
-
 
 //         runner.input(SPRunnerInput::Tick);
 //         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));

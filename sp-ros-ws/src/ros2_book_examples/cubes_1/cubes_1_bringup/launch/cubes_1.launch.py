@@ -24,6 +24,8 @@ def generate_launch_description():
      mecademic_utils_to_gui_1 = 'mecademic_utils_to_gui'
      state1 = 'state'
      command1 = 'command'
+     node_cmd1 = 'node_cmd'
+     mode1 = 'mode'
 
      mecademic_joint_states_2 = 'mecademic_joint_states'
      mecademic_esd_to_gui_2 = 'mecademic_esd_to_gui'
@@ -36,6 +38,8 @@ def generate_launch_description():
      mecademic_utils_to_gui_2 = 'mecademic_utils_to_gui'
      state2 = 'state'
      command2 = 'command'
+     node_cmd2 = 'node_cmd'
+     mode2 = 'mode'
 
      rviz_config_file = os.path.join(get_package_share_directory('cubes_1_bringup'),
                         'config', 'cubes_1.rviz')
@@ -55,6 +59,8 @@ def generate_launch_description():
           DeclareLaunchArgument('mecademic_utils_to_gui', default_value = mecademic_utils_to_gui_1, description = 'mecademic_utils_to_gui'),
           DeclareLaunchArgument('state', default_value = state1, description = 'state'),
           DeclareLaunchArgument('command', default_value = command1, description = 'command'),
+          DeclareLaunchArgument('node_cmd', default_value = node_cmd1, description = 'node_cmd'),
+          DeclareLaunchArgument('mode', default_value = mode1, description = 'mode'),
 
           DeclareLaunchArgument('namespace', default_value = namespace_2, description = 'namespace'),
           DeclareLaunchArgument('mecademic_joint_states', default_value = mecademic_joint_states_2, description = 'mecademic_joint_states'),
@@ -68,6 +74,8 @@ def generate_launch_description():
           DeclareLaunchArgument('mecademic_utils_to_gui', default_value = mecademic_utils_to_gui_2, description = 'mecademic_utils_to_gui'),
           DeclareLaunchArgument('state', default_value = state2, description = 'state'),
           DeclareLaunchArgument('command', default_value = command2, description = 'command'),
+          DeclareLaunchArgument('node_cmd', default_value = node_cmd2, description = 'node_cmd'),
+          DeclareLaunchArgument('mode', default_value = mode2, description = 'mode'),
 
           # robot1
           IncludeLaunchDescription(
@@ -83,7 +91,9 @@ def generate_launch_description():
                                    'mecademic_gui_to_utils': mecademic_gui_to_utils_1,
                                    'mecademic_utils_to_gui': mecademic_utils_to_gui_1,
                                    'command': command1,
-                                   'state': state1}.items()
+                                   'state': state1,
+                                   'node_cmd': node_cmd1,
+                                   'mode': mode1}.items()
           ),
 
           # robot2
@@ -100,7 +110,9 @@ def generate_launch_description():
                                    'mecademic_gui_to_utils': mecademic_gui_to_utils_2,
                                    'mecademic_utils_to_gui': mecademic_utils_to_gui_2,
                                    'command': command2,
-                                   'state': state2}.items()
+                                   'state': state2,
+                                   'node_cmd': node_cmd2,
+                                   'mode': mode2}.items()
           ),
 
           # #cube1

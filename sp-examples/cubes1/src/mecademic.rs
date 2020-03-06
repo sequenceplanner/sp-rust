@@ -6,7 +6,7 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
     // domain is a list of saved poses. add "unknown" to this list.
     let mut domain = vec!["unknown"];
     domain.extend(poses.iter());
-    resource!{
+    resource! {
         name: name,
         command!{
             topic: "command",
@@ -50,7 +50,10 @@ fn test_mecademic() {
     let r1 = make_mecademic("r1", &["at", "away"]);
     println!("{:#?}", r1);
 
-    let r1_p_a = r1.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r1_p_a = r1
+        .find_item("act_pos", &["r1"])
+        .expect("check spelling")
+        .path();
     println!("path: {}", r1_p_a);
 
     let m = Model::new_root("one_mecademic_model", vec![SPItem::Resource(r1)]);
