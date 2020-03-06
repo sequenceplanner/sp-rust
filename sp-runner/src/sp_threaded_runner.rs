@@ -97,7 +97,7 @@ fn runner(
 
             if state_has_probably_changed || !runner.last_fired_transitions.is_empty() {
                 println! {""};
-                println!("The State: {}", runner.state());
+                println!("The State:\n{}", runner.state());
                 println! {""};
             }
 
@@ -113,13 +113,12 @@ fn runner(
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
             let planning = PlannerTask{
-                ts: runner.transition_system_model.clone(),
-                ots: runner.operation_planning_model.clone(),
+                ts: runner.transition_system_models.clone(),
                 state: runner.state().clone(),
-                goal: runner.goal(),
+                goals: runner.goal(),
                 disabled_paths: runner.disabled_paths(),
             };
-            tx_planner.send(planning);
+            tx_planner.send(planning).unwrap();
 
 
         }
@@ -168,9 +167,6 @@ fn set_up_ros_comm(model: &Model) -> Result<(sp_ros::RosNode, RosCommSetup), Err
 
 fn merger(rx_mess: Receiver<sp_ros::RosMessage>, tx_runner: Sender<SPRunnerInput>) {
     thread::spawn(move || {
-        let mut hack = 0;
-        let mut prev_state = SPState::new();
-
         let mut s: SPState = SPState::new();
         let mut temp_q: Option<SPState> = None;
         let mut resource_map: HashMap<SPPath, Instant> = HashMap::new();
@@ -242,101 +238,18 @@ fn ticker(freq: Duration, tx_runner: Sender<SPRunnerInput>) {
         }
     });
 }
+
 #[derive(Debug)]
 struct PlannerTask {
-    ts: TransitionSystemModel,
-    ots: TransitionSystemModel,
+    ts: Vec<TransitionSystemModel>,
     state: SPState,
-    goal: Vec<(Predicate, Option<Predicate>)>,
+    goals: Vec<Vec<(Predicate, Option<Predicate>)>>,
     disabled_paths: Vec<SPPath>,
 }
 
-
-            // // simulate the operation planning/scheduling layer
-            // let buffer1 = SPPath::from_string("cubes/buffer1_holding");
-            // let buffer2 = SPPath::from_string("cubes/buffer2_holding");
-            // // two configurations to plan between
-            // let c1 = p!([ p:buffer1 == 2] && [ p:buffer2 == 1 ]);
-            // let c2 = p!([ p:buffer1 == 1] && [ p:buffer2 == 2 ]);
-
-            // // meta operations...
-            // if hack == 0 && c1.eval(&runner.state()) {
-            //     hack = 1;
-            //     println!("in configuration 1, start op planning");
-
-            //     let max_steps = 20;
-            //     let planner_result = crate::planning::plan(&runner.operation_planning_model,
-            //                                                &[(c2,None)], &runner.state(), max_steps);
-            //     println!("operation plan is");
-            //     planner_result.trace.iter().for_each(|f| { println!("Transition: {}", f.transition); });
-
-            //     let (tr, s) = crate::planning::convert_planning_result(&runner.operation_planning_model, planner_result, true);
-            //     let plan = SPPlan{plan: tr, state_change: s};
-            //     runner.input(SPRunnerInput::OperationPlan(plan));
-
-            // } else if hack == 1 && c2.eval(&runner.state()) {
-            //     println!("in configuration 1, start op planning");
-            //     hack = 0;
-
-            //     let max_steps = 20;
-            //     let planner_result = crate::planning::plan(&runner.operation_planning_model,
-            //                                                &[(c1,None)], &runner.state(), max_steps);
-            //     println!("operation plan is");
-            //     planner_result.trace.iter().for_each(|f| { println!("Transition: {}", f.transition); });
-
-            //     let (tr, s) = crate::planning::convert_planning_result(&runner.operation_planning_model, planner_result, true);
-            //     let plan = SPPlan{plan: tr, state_change: s};
-            //     runner.input(SPRunnerInput::OperationPlan(plan));
-            // }
-
-            // //println!("WE GOT:\n{}", &s);
-            // let old_g = runner.goal();
-            // //if runner.state().are_new_values_the_same(&s)
-            // {
-            //     runner.input(SPRunnerInput::StateChange(s));
-            //     let new_g = runner.goal();
-            //     // println!("GOALS");
-            //     // new_g.iter().for_each(|x| println!("{:?}", x));
-            //     if !runner.last_fired_transitions.is_empty() {
-            //         println!("fired:");
-            //         runner.last_fired_transitions.iter().for_each(|x| println!("{:?}", x));
-            //     }
-
-            //     if prev_state.clone().extract() != runner.state().clone().extract() {
-            //         println!{""};
-            //         println!("The State:\n{}", runner.state());
-            //         println!{""};
-            //         prev_state = runner.state().clone();
-            //     }
-
-            //     tx_out.send(runner.state().clone()).unwrap();
-            //     // send out runner info.
-            //     let runner_info = RunnerInfo {
-            //         state: runner.state().clone(),
-            //         .. RunnerInfo::default()
-            //     };
-
-            //     tx_out_misc.send(runner_info).unwrap();
-
-
-            //     if old_g != new_g {
-            //         println!("NEW GOALS");
-            //         println!("*********");
-
-            //         let max_steps = 100; // arbitrary decision
-            //         let planner_result = crate::planning::plan(&runner.transition_system_model, &new_g, &runner.state(), max_steps);
-            //         assert!(planner_result.plan_found);
-            //         //println!("new plan is");
-            //         //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-            //         let (tr, s) = crate::planning::convert_planning_result(&runner.transition_system_model, planner_result, false);
-            //         let plan = SPPlan{plan: tr, state_change: s};
-            //         runner.input(SPRunnerInput::AbilityPlan(plan));
-
 fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
     thread::spawn(move || {
-        let mut prev_state = SPState::new();
-        let mut prev_goal: Vec<(Predicate, Option<Predicate>)> = vec![];
-        let mut hack = 0;
+        let mut prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
         loop {
             let pt: PlannerTask = if rx_planner.is_empty() {
                 match rx_planner.recv() {
@@ -358,69 +271,40 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
                 xs.remove(xs.len() - 1)
             };
 
+            // for now, do all planning here. so loop over each namespace
+            for (i, (ts,goal)) in pt.ts.iter().zip(pt.goals.iter()).enumerate() {
+                let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
 
+                if &prev_goal != goal && pt.disabled_paths.is_empty() {
+                    println!("NEW GOALS FOR NAMESPACE {}", i);
+                    println!("*********");
 
-            // simulate the operation planning/scheduling layer
-            let buffer1 = SPPath::from_string("cubes/buffer1_holding");
-            let buffer2 = SPPath::from_string("cubes/buffer2_holding");
-            // two configurations to plan between
-            let c1 = p!([ p:buffer1 == 2] && [ p:buffer2 == 1 ]);
-            let c2 = p!([ p:buffer1 == 1] && [ p:buffer2 == 2 ]);
+                    let max_steps = 100; // arbitrary decision
+                    let planner_result = crate::planning::plan(&ts, &goal, &pt.state, max_steps);
+                    assert!(planner_result.plan_found);
+                    //println!("new plan is");
+                    //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
+                    let (tr, s) = if i == 0 { // ability level
+                        crate::planning::convert_planning_result(&ts, planner_result, false)
+                    } else { // op level
+                        crate::planning::convert_planning_result(&ts, planner_result, true)
+                    };
+                    let plan = SPPlan {
+                        plan: tr,
+                        state_change: s,
+                    };
 
-            // meta operations...
-            if hack == 0 && c1.eval(&pt.state) && pt.disabled_paths.is_empty() {
-                hack = 1;
-                println!("in configuration 1, start op planning");
-
-                let max_steps = 20;
-                let planner_result = crate::planning::plan(&pt.ots,
-                                                           &[(c2,None)], &pt.state, max_steps);
-                println!("operation plan is");
-                planner_result.trace.iter().for_each(|f| { println!("Transition: {}", f.transition); });
-
-                let (tr, s) = crate::planning::convert_planning_result(&pt.ots, planner_result, true);
-                let plan = SPPlan{plan: tr, state_change: s};
-                tx_runner.send(SPRunnerInput::OperationPlan(plan)).unwrap();
-            } else if hack == 1 && c2.eval(&pt.state) && pt.disabled_paths.is_empty() {
-                println!("in configuration 1, start op planning");
-                hack = 0;
-
-                let max_steps = 20;
-                let planner_result = crate::planning::plan(&pt.ots,
-                                                           &[(c1,None)], &pt.state, max_steps);
-                println!("operation plan is");
-                planner_result.trace.iter().for_each(|f| { println!("Transition: {}", f.transition); });
-
-                let (tr, s) = crate::planning::convert_planning_result(&pt.ots, planner_result, true);
-                let plan = SPPlan{plan: tr, state_change: s};
-                tx_runner.send(SPRunnerInput::OperationPlan(plan)).unwrap();
-            }
-
-
-
-
-            if prev_goal != pt.goal && pt.disabled_paths.is_empty() {
-                println!("NEW GOALS");
-                println!("*********");
-
-                let max_steps = 100; // arbitrary decision
-                let planner_result = crate::planning::plan(&pt.ts, &pt.goal, &pt.state, max_steps);
-                assert!(planner_result.plan_found);
-                //println!("new plan is");
-                //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-                let (tr, s) = crate::planning::convert_planning_result(&pt.ts, planner_result, false);
-                let plan = SPPlan {
-                    plan: tr,
-                    state_change: s,
-                };
-
-                let res = tx_runner.send(SPRunnerInput::AbilityPlan(plan));
-                if res.is_err() {
-                    println!("The runner channel is dead (in the planner)!: {:?}", res);
-                    break;
+                    let res = if i == 0 {
+                        tx_runner.send(SPRunnerInput::AbilityPlan(plan))
+                    } else {
+                        tx_runner.send(SPRunnerInput::OperationPlan(plan))
+                    };
+                    if res.is_err() {
+                        println!("The runner channel is dead (in the planner)!: {:?}", res);
+                        break;
+                    }
+                    prev_goals.insert(i, goal.clone());
                 }
-                prev_goal = pt.goal;
-                prev_state = pt.state;
             }
         }
     });
@@ -573,6 +457,16 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
     rm.op_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
+
+    // high level ops are never restricted
+    rm.hl_op_transitions.ctrl.iter().for_each(|t| {
+        trans.push(t.clone());
+    });
+    rm.hl_op_transitions.un_ctrl.iter().for_each(|t| {
+        trans.push(t.clone());
+    });
+
+
     rm.ab_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_controllable.push(TransitionSpec::new(
@@ -588,11 +482,10 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         "test",
         trans,
         rm.state_predicates.clone(),
-        rm.goals.clone(),
-        vec!(),
-        vec!(),
-        rm.model.clone(),
-        rm.op_model.clone(),
+        vec![rm.goals.clone(), rm.hl_goals.clone()],
+        vec![],
+        vec![],
+        vec![rm.model.clone(), rm.op_model.clone()],
         model.resources().iter().map(|r| r.path().clone()).collect()
     );
 

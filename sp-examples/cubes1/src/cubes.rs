@@ -79,101 +79,21 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     m.add_delib("r2_leave_buffer", &p!([p:r2act == "buffer2"] && [p:r2_holding != 0] && [p:buffer2_holding == 0]),
                &[a!(p:buffer2_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
 
-
-    // products can not be in two places at once
-    // this is actually true already given a good initial state as per the transitions above
-    // question is: do we also feed this info to the planner for faster solving?
-    // needs more testing.
-
-    // let r1 = p!(p:r1_holding != 0);
-    // let others = p!([p:r1_holding <!> p:r2_holding] && [p:r1_holding <!> p:table1_holding] &&
-    //                 [p:r1_holding <!> p:table2_holding] && [p:r1_holding <!> p:buffer1_holding] &&
-    //                 [p:r1_holding <!> p:buffer2_holding]);
-    // let p = Predicate::OR(vec![Predicate::NOT(Box::new(r1)), others]);
-    // m.add_invar("r1 imples others", &p);
-
-    // let r2 = p!(p:r2_holding != 0);
-    // let others = p!([p:r2_holding <!> p:r1_holding] && [p:r2_holding <!> p:table1_holding] &&
-    //                 [p:r2_holding <!> p:table2_holding] && [p:r2_holding <!> p:buffer1_holding] &&
-    //                 [p:r2_holding <!> p:buffer2_holding]);
-    // let p = Predicate::OR(vec![Predicate::NOT(Box::new(r2)), others]);
-    // m.add_invar("r2 imples others", &p);
-
-    // let t1 = p!(p:table1_holding != 0);
-    // let others = p!([p:table1_holding <!> p:r1_holding] && [p:table1_holding <!> p:r2_holding] &&
-    //                 [p:table1_holding <!> p:table2_holding] && [p:table1_holding <!> p:buffer1_holding] &&
-    //                 [p:table1_holding <!> p:buffer2_holding]);
-    // let p = Predicate::OR(vec![Predicate::NOT(Box::new(t1)), others]);
-    // m.add_invar("table1 imples others", &p);
-
-    // let t2 = p!(p:table2_holding != 0);
-    // let others = p!([p:table2_holding <!> p:r1_holding] && [p:table2_holding <!> p:r2_holding] &&
-    //                 [p:table2_holding <!> p:table1_holding] && [p:table2_holding <!> p:buffer1_holding] &&
-    //                 [p:table2_holding <!> p:buffer2_holding]);
-    // let p = Predicate::OR(vec![Predicate::NOT(Box::new(t2)), others]);
-    // m.add_invar("table2 imples others", &p);
-
-    // let b1 = p!(p:buffer1_holding != 0);
-    // let others = p!([p:buffer1_holding <!> p:r1_holding] && [p:buffer1_holding <!> p:r2_holding] &&
-    //                 [p:buffer1_holding <!> p:table1_holding] && [p:buffer1_holding <!> p:table2_holding] &&
-    //                 [p:buffer1_holding <!> p:buffer2_holding]);
-    // let p = Predicate::OR(vec![Predicate::NOT(Box::new(b1)), others]);
-    // m.add_invar("buffer1 imples others", &p);
-
-    // let b2 = p!(p:buffer2_holding != 0);
-    // let others = p!([p:buffer2_holding <!> p:r1_holding] && [p:buffer2_holding <!> p:r2_holding] &&
-    //                 [p:buffer2_holding <!> p:table1_holding] && [p:buffer2_holding <!> p:table2_holding] &&
-    //                 [p:buffer2_holding <!> p:buffer1_holding]);
-    // let p = Predicate::OR(vec![Predicate::NOT(Box::new(b2)), others]);
-    // m.add_invar("buffer2 imples others", &p);
-
-    // goal for testing
-    //let g = p!([p:buffer1_holding == 1] && [p:r1act == "r1table"]);
     let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]);
 
-    // m.add_op("swap_parts", true,
-    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
-    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
 
-    // m.add_op("swap_parts_again", true,
-    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
-    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
+    // HIGH LEVEL OPS
 
-    // same as above but broken to reduce plan lengths...
-    // m.add_op("swap_parts_step_1", true,
-    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
-    //          &p!([p:table1_holding == 1] && [p:table2_holding == 2]),
+    m.add_hl_op("swap_parts", true,
+                &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
+                &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
 
-    //          &[a!(p:table1_holding = 1), a!(p:table2_holding = 2)],
-    //          None);
-
-    // m.add_op("swap_parts_step_2", true,
-    //          &p!([p:table1_holding == 1] && [p:table2_holding == 2]),
-    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
-
-    //          &[a!(p:buffer1_holding = 1), a!(p:buffer2_holding = 2)],
-    //          None);
-
-    // m.add_op("swap_parts_again_step_1", true,
-    //          &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
-    //          &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
-
-    //          &[a!(p:table1_holding = 2), a!(p:table2_holding = 1)],
-    //          None);
-
-    // m.add_op("swap_parts_again_step_2", true,
-    //          &p!([p:table1_holding == 2] && [p:table2_holding == 1]),
-    //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
-
-    //          &[a!(p:buffer1_holding = 2), a!(p:buffer2_holding = 1)],
-    //          None);
+    m.add_hl_op("swap_parts_again", true,
+                &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
+                &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
 
 
-    // instead of the above operations, we "generate" (by copy paste
-    // for now), all valid product movements.
-    //
-    // we let the high level planner (will later be an optimizer?)
-    // decide how to run all operations.
+    // OPERATIONS
 
     m.add_op("p1_buffer1_to_table1", true,
              &p!([p:buffer1_holding == 1]),

@@ -49,7 +49,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     let global_ops: Vec<&Operation> = items
         .iter()
         .flat_map(|i| match i {
-            SPItem::Operation(o) => Some(o),
+            SPItem::Operation(o) if !o.high_level => Some(o),
             _ => None,
         })
         .collect();
@@ -71,10 +71,27 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     let global_ops_un_ctrl: Vec<_> = global_ops_trans.iter().filter(|o|!o.controlled).cloned().collect();
     let global_goals: Vec<IfThen> = global_ops.iter().flat_map(|o|o.goal().as_ref()).cloned().collect();
 
+    let global_hl_ops: Vec<&Operation> = items
+        .iter()
+        .flat_map(|i| match i {
+            SPItem::Operation(o) if o.high_level => Some(o),
+            _ => None,
+        })
+        .collect();
+
+    let global_hl_ops_trans:Vec<_> = global_hl_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
+    let mut global_hl_ops_ctrl: Vec<_> = global_hl_ops_trans.iter().filter(|o|o.controlled).cloned().collect();
+    let global_hl_ops_un_ctrl: Vec<_> = global_hl_ops_trans.iter().filter(|o|!o.controlled).cloned().collect();
+    let global_hl_goals: Vec<IfThen> = global_hl_ops.iter().flat_map(|o|o.goal().as_ref()).cloned().collect();
+
     let ts_model_op = TransitionSystemModel::from_op(&model);
     crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
 
     let rm = RunnerModel {
+        hl_op_transitions: RunnerTransitions {
+            ctrl: global_hl_ops_ctrl,
+            un_ctrl: global_hl_ops_un_ctrl,
+        },
         op_transitions: RunnerTransitions {
             ctrl: global_ops_ctrl,
             un_ctrl: global_ops_un_ctrl,
@@ -96,6 +113,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         plans: RunnerPlans::default(),
         state_predicates: ts_model.state_predicates.clone(),
         goals: global_goals,
+        hl_goals: global_hl_goals,
         model: ts_model.clone(),
         op_model: ts_model_op.clone(),
     };

@@ -1156,6 +1156,8 @@ pub struct Operation {
     transitions: Vec<Transition>,
     goal: Option<IfThen>,
     state_variable: Variable,
+    // temporary
+    pub high_level: bool,
 }
 
 impl Noder for Operation {
@@ -1237,6 +1239,30 @@ impl Operation {
             transitions: trans.to_vec(),
             state_variable: op_state,
             goal,
+            high_level: false,
+        }
+    }
+
+    pub fn new_hl(
+        name: &str,
+        trans: &[Transition],
+        goal: Option<IfThen>,
+    ) -> Operation {
+        let node = SPNode::new(name);
+
+        let op_state = Variable::new(
+            "state",
+            VariableType::Estimated,
+            SPValueType::String,
+            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+        );
+
+        Operation {
+            node,
+            transitions: trans.to_vec(),
+            state_variable: op_state,
+            goal,
+            high_level: true,
         }
     }
 

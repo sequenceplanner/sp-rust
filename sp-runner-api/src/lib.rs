@@ -4,11 +4,18 @@ use sp_domain::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerModel {
+    // temporary!
+    pub hl_op_transitions: RunnerTransitions,
+
     pub op_transitions: RunnerTransitions,
     pub ab_transitions: RunnerTransitions,
     pub plans: RunnerPlans,
     pub state_predicates: Vec<Variable>,
+
+    // temporary!
     pub goals: Vec<IfThen>,
+    pub hl_goals: Vec<IfThen>,
+
     // temporary!
     pub model: TransitionSystemModel,
     pub op_model: TransitionSystemModel,

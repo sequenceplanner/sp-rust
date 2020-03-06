@@ -13,13 +13,12 @@ pub struct SPRunner {
     ticker: SPTicker,
     pub variables: Vec<Variable>,
     pub predicates: Vec<Variable>,
-    pub goals: Vec<IfThen>,
+    pub goals: Vec<Vec<IfThen>>,
     pub global_transition_specs: Vec<TransitionSpec>,
     pub ability_plan: SPPlan,
     pub operation_plan: SPPlan,
     pub last_fired_transitions: Vec<SPPath>,
-    pub transition_system_model: TransitionSystemModel,
-    pub operation_planning_model: TransitionSystemModel,
+    pub transition_system_models: Vec<TransitionSystemModel>,
     pub in_sync: bool,
     pub resources: Vec<SPPath>,
 }
@@ -63,11 +62,10 @@ impl SPRunner {
         name: &str,
         transitions: Vec<Transition>,
         variables: Vec<Variable>,
-        goals: Vec<IfThen>,
+        goals: Vec<Vec<IfThen>>,  // for now its just a list
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
-        transition_system_model: TransitionSystemModel,
-        operation_planning_model: TransitionSystemModel,
+        transition_system_models: Vec<TransitionSystemModel>,
         resources: Vec<SPPath>,
     ) -> Self {
         let mut vars = vec![];
@@ -113,8 +111,7 @@ impl SPRunner {
             ability_plan: SPPlan::default(),
             operation_plan: SPPlan::default(),
             last_fired_transitions: vec![],
-            transition_system_model,
-            operation_planning_model,
+            transition_system_models,
             in_sync: false,
             resources,
         }
@@ -152,13 +149,16 @@ impl SPRunner {
         &self.ticker.state
     }
 
-    /// Get the current goal and respective invariant that runner
-    /// tries to reach.
-    pub fn goal(&self) -> Vec<(Predicate, Option<Predicate>)> {
+    /// For each "level", get the current goal and respective invariant
+    /// that runner tries to reach.
+    pub fn goal(&self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
         self.goals
             .iter()
-            .filter(|g| g.condition.eval(&self.ticker.state))
-            .map(|x| (x.goal.clone(), x.invariant.clone()))
+            .map(|list| list
+                 .iter()
+                 .filter(|g| g.condition.eval(&self.ticker.state))
+                 .map(|x| (x.goal.clone(), x.invariant.clone()))
+                 .collect())
             .collect()
     }
 
@@ -194,10 +194,10 @@ impl SPRunner {
         // do nothing if we are in a (globally) bad state.
         // these exprs can be pretty big. do some benchmark here.
         let bad: Vec<_> = self
-            .transition_system_model
+            .transition_system_models.iter().flat_map(|ts| ts
             .specs
             .iter()
-            .filter(|s| !s.invariant().eval(&self.ticker.state))
+            .filter(|s| !s.invariant().eval(&self.ticker.state)))
             .collect();
 
         if !bad.is_empty() {
@@ -226,7 +226,9 @@ impl SPRunner {
         self.ticker.reload_state_paths();
         self.reload_state_paths_plans();
         for x in self.goals.iter_mut() {
-            x.upd_state_path(&self.ticker.state)
+            for y in x {
+                y.upd_state_path(&self.ticker.state)
+            }
         }
         for x in self.global_transition_specs.iter_mut() {
             x.spec_transition.upd_state_path(&self.ticker.state)

@@ -158,6 +158,45 @@ impl GModel {
         self.model.add_item(SPItem::Operation(op))
     }
 
+    pub fn add_hl_op(&mut self, name: &str, resets: bool, pre: &Predicate,
+                     post: &Predicate, post_actions: &[Action],
+                     invariant: Option<Predicate>) -> SPPath {
+
+        let state = SPPath::from_slice(&[self.model.name(), name, "state"]);
+
+        let op_start = Transition::new(
+            "start",
+            Predicate::AND(vec![p!(p:state == "i"), pre.clone()]),
+            vec![a!(p:state = "e")],
+            vec![],
+            true,
+        );
+        let mut f_actions =
+            if resets {
+                vec![a!(p:state = "i")]
+            } else {
+                vec![a!(p:state = "f")]
+            };
+        f_actions.extend(post_actions.iter().cloned());
+        let op_finish = Transition::new(
+            "finish",
+            Predicate::AND(vec![p!(p:state == "e"), post.clone()]),
+            f_actions,
+            vec![],
+            false,
+        );
+        let op_goal = IfThen::new("goal", p!(p:state == "e"), post.clone(), invariant);
+
+        let op = Operation::new_hl(
+            name,
+            &[op_start, op_finish],
+            Some(op_goal),
+        );
+
+        self.model.add_item(SPItem::Operation(op))
+    }
+
+
     pub fn add_invar(&mut self, name: &str, invariant: &Predicate) {
         self.model
             .add_item(SPItem::Spec(Spec::new(name, invariant.clone())));

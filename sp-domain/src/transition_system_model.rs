@@ -140,7 +140,7 @@ impl TransitionSystemModel {
         let global_ops: Vec<Operation> = model.items()
             .iter()
             .flat_map(|i| match i {
-                SPItem::Operation(o) => Some(o.clone()),
+                SPItem::Operation(o) if !o.high_level => Some(o.clone()),
                 _ => None,
             })
             .collect();
