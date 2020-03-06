@@ -28,6 +28,11 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     m.add_invar("table_zone_1", &p!(!([p:r1act == "table1"] && [p:r2act == "table1"])));
     m.add_invar("table_zone_2", &p!(!([p:r1act == "table2"] && [p:r2act == "table2"])));
 
+    // special case at table 2
+    m.add_invar("table_zone_2_2", &p!(!([p:r1prev == "table2"] && [p:r1ref != "table2"] && [p:r2ref == "table2"])));
+    m.add_invar("table_zone_2_2", &p!(!([p:r2prev == "table2"] && [p:r2ref != "table2"] && [p:r1ref == "table2"])));
+
+
     // must go to table positions via the home pose
     // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
     m.add_invar("via_home_r1_table1", &p!([p:r1act == "table1"] => [[p:r1prev == "table1"] || [p:r1prev == "home"]]));
