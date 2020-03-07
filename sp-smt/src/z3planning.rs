@@ -55,13 +55,6 @@ pub struct GetInitialStateZ3<'ctx>{
     pub init: Z3_ast
 }
 
-pub struct GetPlanningFramesZ3<'ctx> {
-    pub ctx: &'ctx ContextZ3,
-    pub model: Z3_model,
-    pub nr_steps: u32,
-    pub frames: Vec<(i32, Vec<String>, String)> 
-}
-
 pub struct GetSPPlanningResultZ3<'ctx> {
     pub ctx: &'ctx ContextZ3,
     pub model: Z3_model,
@@ -441,7 +434,6 @@ impl ComputePlanSPModelZ3 {
         let ctx = ContextZ3::new(&cfg);
         let slv = SolverZ3::new(&ctx);
     
-        // offline specs for initial step:
         let invariants: Vec<_> = model.specs.iter()
             .map(|s| GetSPPredicateZ3::new(&ctx, &model, 0, s.invariant())).collect();
         for i in invariants {
@@ -472,6 +464,7 @@ impl ComputePlanSPModelZ3 {
             if SlvCheckZ3::new(&ctx, &slv) != 1 {
                 SlvPopZ3::new(&ctx, &slv, 1);
                 
+                let now2 = Instant::now();
                 
                 let mut all_trans = vec!();
                 for t in &model.transitions {
@@ -512,6 +505,10 @@ impl ComputePlanSPModelZ3 {
                         },
                     }
                 }     
+
+                let internal_stuff_time = now2.elapsed();
+                println!("INTERNAL TIME: {:?}", internal_stuff_time);
+
             } else {
                 plan_found = true;
                 break;
@@ -532,44 +529,6 @@ impl ComputePlanSPModelZ3 {
     }   
 }
 
-impl <'ctx> GetPlanningFramesZ3<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
-    planning_time: std::time::Duration, plan_found: bool) -> Vec<(u32, Vec<String>, String)> {
-        let model_str = ModelToStringZ3::new(&ctx, model);
-        let mut model_vec = vec!();
-
-        let num = ModelGetNumConstsZ3::new(&ctx, model);
-        let mut lines = model_str.lines();
-        let mut i: u32 = 0;
-        let mut frames: Vec<(u32, Vec<String>, String)> = vec!();
-
-        while i < num {
-            model_vec.push(lines.next().unwrap_or(""));
-            i = i + 1;
-        }
-        // println!("{:#?}", model_vec);
-
-        for i in 0..nr_steps + 2 {
-            let mut frame: (u32, Vec<String>, String) = (0, vec!(), "".to_string());
-            for j in &model_vec {
-                let sep: Vec<&str> = j.split(" -> ").collect();
-                frame.0 = i;
-                if sep[0].ends_with(&format!("_s{}", i)){
-                    frame.1.push(sep[1].to_string());
-                } else if sep[0].ends_with(&format!("_t{}", i)) && sep[1] == "true" {
-                    let trimmed = sep[0].trim_end_matches(&format!("_t{}", i));
-                    frame.2 = trimmed.to_string();
-                }
-            }
-            if frame.1.len() != 0 {
-                frames.push(frame);
-            } 
-        }
-        frames
-    }
-}
-
-// rewrite this mess...
 impl <'ctx> GetSPPlanningResultZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
     planning_time: std::time::Duration, plan_found: bool) -> PlanningResultZ3 {
@@ -585,8 +544,6 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
             i = i + 1;
         }
 
-        println!("MODEL {:#?}", model_vec);
-
         let mut trace: Vec<PlanningFrameZ3> = vec!();
         
         for i in 0..nr_steps {
@@ -595,12 +552,13 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
                 let sep: Vec<&str> = j.split(" -> ").collect();
                 if sep[0].ends_with(&format!("_s{}", i)){
                     let trimmed_state = sep[0].trim_end_matches(&format!("_s{}", i));
-                    if sep[1] == "false" {
-                        frame.state.add_variable(SPPath::from_string(trimmed_state), false.to_spvalue());
-                    } else if sep[1] == "true" {
-                        frame.state.add_variable(SPPath::from_string(trimmed_state), true.to_spvalue());
-                    } else {
-                        frame.state.add_variable(SPPath::from_string(trimmed_state), sep[1].to_spvalue());
+                    match sep[1] {
+                        "false" => frame.state
+                            .add_variable(SPPath::from_string(trimmed_state), false.to_spvalue()),
+                        "true" => frame.state
+                            .add_variable(SPPath::from_string(trimmed_state), true.to_spvalue()),
+                        _ => frame.state
+                            .add_variable(SPPath::from_string(trimmed_state), sep[1].to_spvalue()),
                     }
                 } else if sep[0].ends_with(&format!("_t{}", i)) && sep[1] == "true" {
                     let trimmed_trans = sep[0].trim_end_matches(&format!("_t{}", i));
@@ -608,7 +566,6 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
                 }
             }
             trace.push(frame);
-        
         }
 
         PlanningResultZ3 {
