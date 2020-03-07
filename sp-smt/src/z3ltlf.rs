@@ -78,12 +78,17 @@ impl <'ctx> UntilAndInvarZ3<'ctx> {
 }
 
 // In a finite length trace, property has to hold at least in one step (a disjunction basically)
+// property defined as a conjunction of predicates
 impl <'ctx> AtLeastOnceZ3<'ctx> {
     pub fn new(ctx: &ContextZ3, ts_model: &TransitionSystemModel, 
-        x: &Predicate, from_step: u32, until_step: u32) -> Z3_ast {
+        x: Vec<&Predicate>, from_step: u32, until_step: u32) -> Z3_ast {
         let mut disj: Vec<Z3_ast> = vec!();
         for step in from_step..until_step + 1 {
-            disj.push(GetSPPredicateZ3::new(&ctx, ts_model, step, x));
+            let mut conj: Vec<Z3_ast> = vec!();
+            for pred in &x {
+                conj.push(GetSPPredicateZ3::new(&ctx, ts_model, step, pred));
+            }
+            disj.push(ANDZ3::new(&ctx, conj));
         }
         ORZ3::new(&ctx, disj)
     }

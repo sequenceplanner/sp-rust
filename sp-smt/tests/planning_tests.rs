@@ -204,6 +204,7 @@ fn planning_fail_due_to_conflicting_online_spec_and_goal() {
 
     let ts_model = TransitionSystemModel::from(&model);
     let result = ComputePlanSPModelZ3::plan(&ts_model, &[(goal,Some(invar))], &state, 20);
+
     assert!(!result.plan_found);
 }
 
@@ -255,6 +256,7 @@ fn planning_fail_when_invar_is_false() {
 
     let ts_model = TransitionSystemModel::from(&model);
     let result = ComputePlanSPModelZ3::plan(&ts_model, &[(goal,Some(invar))], &state, 20);
+    println!("{:?}", result.trace);
     assert!(!result.plan_found);
 }
 
@@ -409,6 +411,62 @@ fn planning_invar_len11() {
 
     let result = ComputePlanSPModelZ3::plan(&ts_model, goals.as_slice(), &state, 20);
     assert!(result.plan_found);
+    println!("Z3 TIME: {:?}", result.time_to_solve);
+    assert_eq!(result.trace.len(), 11);
+    assert_eq!(result.plan_length, 10);
+}
+
+#[test]
+#[serial]
+fn planning_invar_len11_nuxmv() {
+    // Make model
+    let mut m = Model::new_root("tsi", Vec::new());
+
+    // Make resoureces
+    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+    m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
+
+    let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+    let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+    let r1activate = m.find_item("activate", &["r1", "Control"]).expect("check spelling").path();
+
+    let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+    let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+    let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+
+
+    let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
+    let new_table_zone = refine_invariant(&m, &table_zone);
+
+    // no guard extr.
+    let ts_model = TransitionSystemModel::from(&m);
+
+    let state = state! {
+        r1a => "away",
+        r1r => "away",
+        r1active => false,
+        r1activate => false,
+        r2a => "away",
+        r2r => "away",
+        r2active => false,
+        r2activate => false
+    };
+
+    // start planning test
+
+    let i1 = new_table_zone.clone();
+    let g1 = p!(p:r1a == "at");
+
+    let i2 = new_table_zone.clone();
+    let g2 = p!(p:r2a == "at");
+
+    let goals = vec![(g1, Some(i1)), (g2, Some(i2))];
+
+    let result = plan(&ts_model, goals.as_slice(), &state, 20);
+    assert!(result.plan_found);
+    println!("NUXMV TIME: {:?}", result.time_to_solve);
     assert_eq!(result.trace.len(), 11);
     assert_eq!(result.plan_length, 10);
 }

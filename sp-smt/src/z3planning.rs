@@ -455,7 +455,7 @@ impl ComputePlanSPModelZ3 {
         for g in goals {
             match &g.1 {
                 Some(x) => {
-                    slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &g.0));
+                    slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(x, &g.0), 0, 0));
                     slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &g.0, 0, 0));
                 }
                 None => {
@@ -483,14 +483,17 @@ impl ComputePlanSPModelZ3 {
                     let keep_updates = GetSPKeepValueUpdatesZ3::new(&ctx, &model, &t, step);
 
                     all_trans.push(ANDZ3::new(&ctx, 
-                        vec!(EQZ3::new(&ctx, BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()), BoolZ3::new(&ctx, true)),
-                            guard, keep_updates, updates)));
+                        vec!(EQZ3::new(&ctx, 
+                            BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()), 
+                            BoolZ3::new(&ctx, true)),
+                        guard, keep_updates, updates)));
                     }
 
                 slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
 
                 // offline specs for all steps:
-                let invariants: Vec<_> = model.specs.iter().map(|s| GetSPPredicateZ3::new(&ctx, &model, step, &s.invariant())).collect();
+                let invariants: Vec<_> = model.specs.iter()
+                    .map(|s| GetSPPredicateZ3::new(&ctx, &model, step, &s.invariant())).collect();
                 for i in invariants {
                     slv_assert_z3!(&ctx, &slv, i);
                 }
@@ -500,13 +503,12 @@ impl ComputePlanSPModelZ3 {
                 for g in goals {
                     match &g.1 {
                         Some(x) => {
-                            slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, &g.0, 0, step));
-                            // slv_assert_z3!(&ctx, &slv, UntilAndInvarZ3::new(&ctx, &model, x, &g.0, 0, step));
+                            slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(x, &g.0), 0, step));
                             slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &g.0, 0, step));
-                                // UntilZ3::new(ctx: &ContextZ3, ts_model: &TransitionSystemModel, x: &Predicate, y: &Predicate, mut from_step: u32, until_step: u32)
+
                             },
                         None => {
-                            slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, &g.0, 0, step));
+                            slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(&g.0), 0, step));
                         },
                     }
                 }     
@@ -515,7 +517,7 @@ impl ComputePlanSPModelZ3 {
                 break;
             }
         }
-    
+
         let planning_time = now.elapsed();
         
         if plan_found == true {
@@ -583,7 +585,7 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
             i = i + 1;
         }
 
-        // println!("MODEL {:#?}", model_vec);
+        println!("MODEL {:#?}", model_vec);
 
         let mut trace: Vec<PlanningFrameZ3> = vec!();
         
@@ -609,7 +611,6 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
         
         }
 
-        // println!("TRACE: {:#?}", trace);
         PlanningResultZ3 {
             plan_found: plan_found,
             plan_length: nr_steps - 1,
