@@ -414,7 +414,6 @@ impl <'ctx> GetSPUpdatesZ3<'ctx> {
                     PredicateValue::SPPath(path, _) => {
                         let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
                         let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
-                        // let elements = &enum_sort.enum_asts;
                         updates.push(EQZ3::new(&ctx, 
                             EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
                             EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", path.to_string(), step).as_str())));
@@ -443,24 +442,27 @@ impl ComputePlanSPModelZ3 {
         let slv = SolverZ3::new(&ctx);
     
         // offline specs for initial step:
-        let invariants: Vec<_> = model.specs.iter().map(|s| GetSPPredicateZ3::new(&ctx, &model, 0, s.invariant())).collect();
+        let invariants: Vec<_> = model.specs.iter()
+            .map(|s| GetSPPredicateZ3::new(&ctx, &model, 0, s.invariant())).collect();
         for i in invariants {
             slv_assert_z3!(&ctx, &slv, i);
         }
 
         slv_assert_z3!(&ctx, &slv, GetInitialStateZ3::new(&ctx, &model, &state));
-        
-        SlvPushZ3::new(&ctx, &slv);
-        // for g in &goals.iter() {
-        slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &goals[0].0));
-        // }
-        // println!("GOAL is: {:?}", &goals[0].0);
-        let cls_ast_vec = SlvGetAssertsZ3::new(&ctx, &slv);
-        let cls = Z3AstVectorToVectorAstZ3::new(&ctx, cls_ast_vec); 
 
-        // for i in 0..cls.len() {
-        //     println!("assertion: {:?} : {}", i, AstToStringZ3::new(&ctx, cls[i]));
-        // }  
+        SlvPushZ3::new(&ctx, &slv);
+
+        for g in goals {
+            match &g.1 {
+                Some(x) => {
+                    slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &g.0));
+                    slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &g.0, 0, 0));
+                }
+                None => {
+                    slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &g.0));
+                },
+            }
+        }
 
         let now = Instant::now();
         let mut plan_found: bool = false;
@@ -492,11 +494,22 @@ impl ComputePlanSPModelZ3 {
                 for i in invariants {
                     slv_assert_z3!(&ctx, &slv, i);
                 }
-                
-                
+
                 SlvPushZ3::new(&ctx, &slv);
-                slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, step, &goals[0].0));
                 
+                for g in goals {
+                    match &g.1 {
+                        Some(x) => {
+                            slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, &g.0, 0, step));
+                            // slv_assert_z3!(&ctx, &slv, UntilAndInvarZ3::new(&ctx, &model, x, &g.0, 0, step));
+                            slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &g.0, 0, step));
+                                // UntilZ3::new(ctx: &ContextZ3, ts_model: &TransitionSystemModel, x: &Predicate, y: &Predicate, mut from_step: u32, until_step: u32)
+                            },
+                        None => {
+                            slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, &g.0, 0, step));
+                        },
+                    }
+                }     
             } else {
                 plan_found = true;
                 break;
@@ -513,13 +526,13 @@ impl ComputePlanSPModelZ3 {
             let model = FreshModelZ3::new(&ctx);
             let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
             result
-        }        
-        
+        }              
     }   
 }
 
 impl <'ctx> GetPlanningFramesZ3<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, planning_time: std::time::Duration, plan_found: bool) -> Vec<(u32, Vec<String>, String)> {
+    pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
+    planning_time: std::time::Duration, plan_found: bool) -> Vec<(u32, Vec<String>, String)> {
         let model_str = ModelToStringZ3::new(&ctx, model);
         let mut model_vec = vec!();
 
@@ -556,7 +569,8 @@ impl <'ctx> GetPlanningFramesZ3<'ctx> {
 
 // rewrite this mess...
 impl <'ctx> GetSPPlanningResultZ3<'ctx> {
-    pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, planning_time: std::time::Duration, plan_found: bool) -> PlanningResultZ3 {
+    pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
+    planning_time: std::time::Duration, plan_found: bool) -> PlanningResultZ3 {
         let model_str = ModelToStringZ3::new(&ctx, model);
         let mut model_vec = vec!();
 
