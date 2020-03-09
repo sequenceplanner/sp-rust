@@ -104,25 +104,34 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     let prods = vec!(1, 2, 3);
     let rs = vec!(("r1", r1_holding.clone()), ("r2", r2_holding.clone()));
-    let pos = vec!(buffer1_holding.clone(), table1_holding.clone(), table2_holding.clone());
+    let pos = vec!(buffer1_holding.clone(), buffer2_holding.clone(), table1_holding.clone(), table2_holding.clone());
 
     for (r_name, holding) in rs {
         for pos in pos.iter() {
             for p in prods.iter() {
-                m.add_op(&format!("{}_{}_pick_{}", p, r_name, pos), true,
+
+                // r1 cannot pick at buffer2 and vice versa
+                if r_name == "r1" && pos.leaf() == "buffer2_holding" {
+                    continue;
+                }
+                if r_name == "r2" && pos.leaf() == "buffer1_holding" {
+                    continue;
+                }
+
+                m.add_op(&format!("{}_{}_pick_{}", p, r_name, pos.leaf()), true,
                     &p!([p:pos == p] && [p:holding == 0]),
                     &p!([p:pos == 0] && [p:holding == p]),
-        
+
                     &[a!(p:pos = 0), a!(p:holding = p)],
                     None);
-        
-                m.add_op(&format!("{}_{}_place_{}", p, r_name, pos), true,
+
+                m.add_op(&format!("{}_{}_place_{}", p, r_name, pos.leaf()), true,
                     &p!([p:pos == 0] && [p:holding == p]),
                     &p!([p:pos == p] && [p:holding == 0]),
-        
+
                     &[a!(p:pos = p), a!(p:holding = 0)],
                     None);
-    
+
             }
         }
     }

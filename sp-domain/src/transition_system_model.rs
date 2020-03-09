@@ -146,9 +146,17 @@ impl TransitionSystemModel {
             .collect();
 
 
+        // we don't need these details
         vars.extend(global_ops.iter().map(|o|o.state_variable().clone()));
 
         let mut transitions: Vec<_> = global_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
+        transitions.retain(|t| t.name() == "start");
+        for t in &mut transitions {
+            // if let Predicate::AND(v) = &mut t.guard {
+            //     v.remove(0); // delete state == "i"
+            // }
+            // t.actions.clear(); // only keep effects
+        }
 
         TransitionSystemModel {
             name: format!("op_model_{}", model.name()),

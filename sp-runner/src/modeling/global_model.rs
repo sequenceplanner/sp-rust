@@ -121,18 +121,18 @@ impl GModel {
             "start",
             Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
             vec![a!(p: state = "e")],
-            vec![],
+            effects.to_vec(), // move effect here to get shorter plans
             true,
         );
 
-        // effect for planning
-        let op_effect = Transition::new(
-            "executing",
-            Predicate::AND(vec![p!(p:state == "e")]),
-            vec![],
-            effects.to_vec(),
-            false,
-        );
+        // // effect for planning
+        // let op_effect = Transition::new(
+        //     "executing",
+        //     Predicate::AND(vec![p!(p:state == "e")]),
+        //     vec![],
+        //     vec![],
+        //     false,
+        // );
 
         let f_actions =
             if resets {
@@ -152,7 +152,8 @@ impl GModel {
 
         let op = Operation::new(
             name,
-            &[op_start, op_effect, op_finish],
+            // &[op_start, op_effect, op_finish],
+            &[op_start, op_finish],
             Some(op_goal),
         );
         self.model.add_item(SPItem::Operation(op))
