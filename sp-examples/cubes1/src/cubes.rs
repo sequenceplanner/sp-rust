@@ -46,45 +46,21 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     m.add_invar("via_home_buffer1", &p!([p:r1act == "buffer1"] => [[p:r1prev == "buffer1"] || [p:r1prev == "home"]]));
     m.add_invar("via_home_buffer2", &p!([p:r2act == "buffer2"] => [[p:r2prev == "buffer2"] || [p:r2prev == "home"]]));
 
-    // r1 take/leave products
+    // robot take/leave products
+    let rs = vec!(("r1", r1act, r1_holding.clone()), ("r2", r2act, r2_holding.clone()));
+    let pos = vec!(("buffer1", buffer1_holding.clone()), ("buffer2", buffer2_holding.clone()), ("table1", table1_holding.clone()), ("table2", table2_holding.clone()));
+    for (r_name, act, holding) in rs {
+        for (pos_name, pos) in pos.iter() {
+            m.add_delib(&format!("{}_take_{}", r_name, pos_name), 
+                &p!([p:act == pos_name] && [p:pos != 0] && [p:holding == 0]),
+                &[a!(p:holding <- p:pos), a!(p:pos = 0)]);
 
-    m.add_delib("r1_take_table1", &p!([p:r1act == "table1"] && [p:table1_holding != 0] && [p:r1_holding == 0]),
-                &[a!(p:r1_holding <- p:table1_holding), a!(p:table1_holding = 0)]);
+            m.add_delib(&format!("{}_leave_{}", r_name, pos_name), 
+                &p!([p:act == pos_name] && [p:holding != 0] && [p:pos == 0]),
+                &[a!(p:pos <- p:holding), a!(p:holding = 0)]);
+        }
+    }
 
-    m.add_delib("r1_take_table2", &p!([p:r1act == "table2"] && [p:table2_holding != 0] && [p:r1_holding == 0]),
-               &[a!(p:r1_holding <- p:table2_holding), a!(p:table2_holding = 0)]);
-
-    m.add_delib("r1_take_buffer1", &p!([p:r1act == "buffer1"] && [p:buffer1_holding != 0] && [p:r1_holding == 0]),
-               &[a!(p:r1_holding <- p:buffer1_holding), a!(p:buffer1_holding = 0)]);
-
-    m.add_delib("r1_leave_table1", &p!([p:r1act == "table1"] && [p:r1_holding != 0] && [p:table1_holding == 0]),
-                &[a!(p:table1_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
-
-    m.add_delib("r1_leave_table2", &p!([p:r1act == "table2"] && [p:r1_holding != 0] && [p:table2_holding == 0]),
-               &[a!(p:table2_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
-
-    m.add_delib("r1_leave_buffer1", &p!([p:r1act == "buffer1"] && [p:r1_holding != 0] && [p:buffer1_holding == 0]),
-               &[a!(p:buffer1_holding <- p:r1_holding), a!(p:r1_holding = 0)]);
-
-    // r2 take/leave products
-
-    m.add_delib("r2_take_table1", &p!([p:r2act == "table1"] && [p:table1_holding != 0] && [p:r2_holding == 0]),
-                &[a!(p:r2_holding <- p:table1_holding), a!(p:table1_holding = 0)]);
-
-    m.add_delib("r2_take_table2", &p!([p:r2act == "table2"] && [p:table2_holding != 0] && [p:r2_holding == 0]),
-               &[a!(p:r2_holding <- p:table2_holding), a!(p:table2_holding = 0)]);
-
-    m.add_delib("r2_take_buffer2", &p!([p:r2act == "buffer2"] && [p:buffer2_holding != 0] && [p:r2_holding == 0]),
-               &[a!(p:r2_holding <- p:buffer2_holding), a!(p:buffer2_holding = 0)]);
-
-    m.add_delib("r2_leave_table1", &p!([p:r2act == "table1"] && [p:r2_holding != 0] && [p:table1_holding == 0]),
-                &[a!(p:table1_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
-
-    m.add_delib("r2_leave_table2", &p!([p:r2act == "table2"] && [p:r2_holding != 0] && [p:table2_holding == 0]),
-               &[a!(p:table2_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
-
-    m.add_delib("r2_leave_buffer", &p!([p:r2act == "buffer2"] && [p:r2_holding != 0] && [p:buffer2_holding == 0]),
-               &[a!(p:buffer2_holding <- p:r2_holding), a!(p:r2_holding = 0)]);
 
     let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]);
 
