@@ -5,11 +5,16 @@ use crate::mecademic::*;
 pub fn cubes() -> (Model, SPState, Predicate) {
     let mut m = GModel::new("cubes");
 
-    let r1 = m.use_resource(make_mecademic("r1", &["home", "table1", "table2", "buffer1"]));
-    let r2 = m.use_resource(make_mecademic("r2", &["home", "table1", "table2", "buffer2"]));
+    let h = "home";
+    let t1 = "table1";
+    let t2 = "table2";
+    let b1 = "buffer1";
+    let b2 = "buffer2";
 
-    let products = &[0.to_spvalue(), 1.to_spvalue(),
-                     2.to_spvalue(), 3.to_spvalue()];
+    let r1 = m.use_resource(make_mecademic("r1", &[h, t1, t2, b1]));
+    let r2 = m.use_resource(make_mecademic("r2", &[h, t1, t2, b2]));
+
+    let products = &[0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue()];
 
     let r1_holding = m.add_estimated_domain("r1_holding", products);
     let r2_holding = m.add_estimated_domain("r2_holding", products);
@@ -25,30 +30,30 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r1ref = &r1["ref_pos"];
     let r2ref = &r2["ref_pos"];
 
-    m.add_invar("table_zone_1", &p!(!([p:r1act == "table1"] && [p:r2act == "table1"])));
-    m.add_invar("table_zone_2", &p!(!([p:r1act == "table2"] && [p:r2act == "table2"])));
-    m.add_invar("table_zone_3", &p!(!([p:r1act == "table1"] && [p:r2act == "table2"])));
-    m.add_invar("table_zone_4", &p!(!([p:r1act == "table2"] && [p:r2act == "table1"])));
+    m.add_invar("table_zone_1", &p!(!([p:r1act == t1] && [p:r2act == t1])));
+    m.add_invar("table_zone_2", &p!(!([p:r1act == t2] && [p:r2act == t2])));
+    m.add_invar("table_zone_3", &p!(!([p:r1act == t1] && [p:r2act == t2])));
+    m.add_invar("table_zone_4", &p!(!([p:r1act == t2] && [p:r2act == t1])));
 
     // special case at table 2
-    m.add_invar("table_zone_2_2", &p!(!([p:r1prev == "table2"] && [p:r1ref != "table2"] && [p:r2ref == "table2"])));
-    m.add_invar("table_zone_2_2", &p!(!([p:r2prev == "table2"] && [p:r2ref != "table2"] && [p:r1ref == "table2"])));
+    m.add_invar("table_zone_2_2", &p!(!([p:r1prev == t2] && [p:r1ref != t2] && [p:r2ref == t2])));
+    m.add_invar("table_zone_2_2", &p!(!([p:r2prev == t2] && [p:r2ref != t2] && [p:r1ref == t2])));
 
 
     // must go to table positions via the home pose
     // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
-    m.add_invar("via_home_r1_table1", &p!([p:r1act == "table1"] => [[p:r1prev == "table1"] || [p:r1prev == "home"]]));
-    m.add_invar("via_home_r1_table2", &p!([p:r1act == "table2"] => [[p:r1prev == "table2"] || [p:r1prev == "home"]]));
-    m.add_invar("via_home_r2_table1", &p!([p:r2act == "table1"] => [[p:r2prev == "table1"] || [p:r2prev == "home"]]));
-    m.add_invar("via_home_r2_table2", &p!([p:r2act == "table2"] => [[p:r2prev == "table2"] || [p:r2prev == "home"]]));
+    m.add_invar("via_home_r1_table1", &p!([p:r1act == t1] => [[p:r1prev == t1] || [p:r1prev == h]]));
+    m.add_invar("via_home_r1_table2", &p!([p:r1act == t2] => [[p:r1prev == t2] || [p:r1prev == h]]));
+    m.add_invar("via_home_r2_table1", &p!([p:r2act == t1] => [[p:r2prev == t1] || [p:r2prev == h]]));
+    m.add_invar("via_home_r2_table2", &p!([p:r2act == t2] => [[p:r2prev == t2] || [p:r2prev == h]]));
 
     // same for buffers
-    m.add_invar("via_home_buffer1", &p!([p:r1act == "buffer1"] => [[p:r1prev == "buffer1"] || [p:r1prev == "home"]]));
-    m.add_invar("via_home_buffer2", &p!([p:r2act == "buffer2"] => [[p:r2prev == "buffer2"] || [p:r2prev == "home"]]));
+    m.add_invar("via_home_buffer1", &p!([p:r1act == b1] => [[p:r1prev == b1] || [p:r1prev == h]]));
+    m.add_invar("via_home_buffer2", &p!([p:r2act == b2] => [[p:r2prev == b2] || [p:r2prev == h]]));
 
     // robot take/leave products
     let rs = vec!(("r1", r1act, r1_holding.clone()), ("r2", r2act, r2_holding.clone()));
-    let pos = vec!(("buffer1", buffer1_holding.clone()), ("buffer2", buffer2_holding.clone()), ("table1", table1_holding.clone()), ("table2", table2_holding.clone()));
+    let pos = vec!((b1, buffer1_holding.clone()), (b2, buffer2_holding.clone()), (t1, table1_holding.clone()), (t2, table2_holding.clone()));
     for (r_name, act, holding) in rs {
         for (pos_name, pos) in pos.iter() {
             m.add_delib(&format!("{}_take_{}", r_name, pos_name), 
@@ -121,10 +126,10 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
-        (r1ref, "home".to_spvalue()),
-        (r2ref, "home".to_spvalue()),
-        (r1prev, "home".to_spvalue()),
-        (r2prev, "home".to_spvalue()),
+        (r1ref, h.to_spvalue()),
+        (r2ref, h.to_spvalue()),
+        (r1prev, h.to_spvalue()),
+        (r2prev, h.to_spvalue()),
         (&r1_holding, 3.to_spvalue()),
         (&r2_holding, 0.to_spvalue()),
         (&table1_holding, 0.to_spvalue()),
