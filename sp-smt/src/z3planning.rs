@@ -5,10 +5,6 @@ use z3_sys::*;
 use sp_domain::*;
 use std::time::{Duration, Instant};
 use std::collections::HashSet;
-// use Iterator::*;
-use std::thread;
-use crossbeam::channel;
-
 
 #[derive(Default, Debug)]
 pub struct PlanningFrameZ3 {
@@ -132,10 +128,19 @@ impl GetSPKeepValueUpdatesZ3 {
                                 BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step - 1).as_str())));
                         },
                         SPValueType::Int32 => {
+                            let name = u.to_string();
+                            let domain = GetSPVarDomain::new(&ts_model, &name);
+                            let domain_name = format!("{}_sort", domain.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), domain.iter().map(|x| x.as_str()).collect());
                             updates.push(EQZ3::new(&ctx, 
-                                IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step).as_str()), 
-                                IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step - 1).as_str())));
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", u.to_string(), step).as_str()), 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", u.to_string(), step - 1).as_str())));
                         },
+                        // SPValueType::Int32 => {
+                        //     updates.push(EQZ3::new(&ctx, 
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step).as_str()), 
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", u.to_string(), step - 1).as_str())));
+                        // },
                         _=> panic!("Implement"),
                     }
                 },
@@ -169,40 +174,84 @@ impl <'ctx> GetInitialStateZ3<'ctx> {
                         let domain = GetSPVarDomain::new(&ts_model, &init_name);
                         let domain_name = &format!("{}_sort", domain.join(".").to_string());
                         let dom_str_vec: Vec<&str> = domain.iter().map(|s| &**s).collect();
-                        let enum_sort = EnumSortZ3::new(&ctx, domain_name, dom_str_vec);
-                        let enum_domain = &enum_sort.enum_asts;
-                        let index = enum_domain.iter().position(|ast| x.to_string() == ast_to_string_z3!(&ctx, *ast)).unwrap();
-                        let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
-                        init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
+                        match dom_str_vec.len() == 0 { // quick and dirty hack
+                            true => (),
+                            // {
+                            //     let domain2 = vec!(x.to_string());
+                            //     let domain_name2 = &format!("{}_sort", domain2.join(".").to_string());
+                            //     let dom_str_vec2: Vec<&str> = domain2.iter().map(|s| &**s).collect();
+                            //     let enum_sort = EnumSortZ3::new(&ctx, domain_name2, dom_str_vec2);
+                            //     let enum_domain = &enum_sort.enum_asts;
+                            //     let index = enum_domain.iter().position(|ast| x.to_string() == ast_to_string_z3!(&ctx, *ast)).unwrap();
+                            //     let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
+                            //     init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
+                            // },
+                            false => {
+                                let enum_sort = EnumSortZ3::new(&ctx, domain_name, dom_str_vec);
+                                let enum_domain = &enum_sort.enum_asts;
+                                
+                                
+                                let index = enum_domain.iter().position(|ast| x.to_string() == ast_to_string_z3!(&ctx, *ast).replace("|", "")).unwrap();
+                                let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
+                                init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
+                            }
+                        } 
                     },
                     SPValueType::Int32 => {
                         let domain = GetSPVarDomain::new(&ts_model, &init_name);
-                        let domain_ints: Vec<u32> = domain.iter().map(|x| x.parse().unwrap()).collect();
-                        let domain_asts: Vec<Z3_ast> = domain_ints.iter().map(|x| IntZ3::new(&ctx, &IntSortZ3::new(&ctx), x.to_string().parse().unwrap())).collect();
-                        init_assert_vec.push(EQZ3::new(&ctx, 
-                            IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", init_name.as_str())),
-                            IntZ3::new(&ctx, &IntSortZ3::new(&ctx), x.to_string().parse().unwrap())));
-                        let mut int_domain_disj = vec!();
-                        
-                        for i in domain_asts {
-                            // println!("{:?}", ast_to_string_z3!(&ctx, i));
-                            int_domain_disj.push(EQZ3::new(&ctx, 
-                                IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", init_name.as_str())), i));
-                        }
-                        
-                        init_assert_vec.push(ORZ3::new(&ctx, int_domain_disj)); 
-                        for j in &init_assert_vec {
-                            println!("================================");
-                            println!("{:?}", ast_to_string_z3!(&ctx, *j));
-                        }
-                        // ));
-                        // init_assert_vec.push(EQZ3::new(&ctx, 
-                        //     IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", init_name.as_str())),
-                        //     ORZ3::new(&ctx, domain_asts)));
+                        let domain_name = &format!("{}_sort", domain.join(".").to_string());
+                        let dom_str_vec: Vec<&str> = domain.iter().map(|s| &**s).collect();
+                        match dom_str_vec.len() == 0 { // quick and dirty hack
+                            true => (),
+                            // {
+                            //     let domain2 = vec!(x.to_string());
+                            //     let domain_name2 = &format!("{}_sort", domain2.join(".").to_string());
+                            //     let dom_str_vec2: Vec<&str> = domain2.iter().map(|s| &**s).collect();
+                            //     let enum_sort = EnumSortZ3::new(&ctx, domain_name2, dom_str_vec2);
+                            //     let enum_domain = &enum_sort.enum_asts;
+                            //     let index = enum_domain.iter().position(|ast| x.to_string() == ast_to_string_z3!(&ctx, *ast)).unwrap();
+                            //     let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
+                            //     init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
+                            // },
+                            false => {
+                                println!("{:?}", dom_str_vec);
+                                let enum_sort = EnumSortZ3::new(&ctx, domain_name, dom_str_vec);
+                                let enum_domain = &enum_sort.enum_asts;
+                                for e in enum_domain {
+                                    println!("{:?}", ast_to_string_z3!(&ctx, *e));
+                                }
+                                let index = enum_domain.iter().position(|ast| x.to_string() == ast_to_string_z3!(&ctx, *ast).replace("|", "")).unwrap();
+                                let init = EnumVarZ3::new(&ctx, enum_sort.r, &format!("{}_s0", init_name.as_str()));
+                                init_assert_vec.push(EQZ3::new(&ctx, init, enum_domain[index]));
+                            }
+                        } 
                     },
+                    // SPValueType::Int32 => {
+                    //     if let SPValue::Int32(x) = &x {
+                    //         let domain = GetSPVarDomain::new(&ts_model, &init_name);
+                    //         let domain_ints: Vec<u32> = domain.iter().map(|x| x.parse().unwrap()).collect();
+                    //         let domain_asts: Vec<Z3_ast> = domain_ints.iter().map(|x| IntZ3::new(&ctx, &IntSortZ3::new(&ctx), x.to_string().parse().unwrap())).collect();
+                    //         println!("{:#?}", ast_to_string_z3!(&ctx, IntZ3::new(&ctx, &IntSortZ3::new(&ctx), *x as i32)));
+                    //         println!("{:#?}", ast_to_string_z3!(&ctx, EQZ3::new(&ctx, 
+                    //             IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", init_name.as_str())), 
+                    //             IntZ3::new(&ctx, &IntSortZ3::new(&ctx), *x as i32))));
+                    //         init_assert_vec.push(EQZ3::new(&ctx, 
+                    //             IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", init_name.as_str())), 
+                    //             IntZ3::new(&ctx, &IntSortZ3::new(&ctx), *x as i32)));
+                    //         let mut int_domain_disj = vec!();
+                    
+                    //         for i in domain_asts {
+                    //             int_domain_disj.push(EQZ3::new(&ctx, 
+                    //                 IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", init_name.as_str())), i));
+                    //         }
+                    //         init_assert_vec.push(ORZ3::new(&ctx, int_domain_disj)); 
+                    //     } else { 
+                    //         panic!("?");
+                    //     }
+                    // },
                     _ => panic!("Implement"),
                 },
-                None => (),
+                None => panic!("?"),
             }
         }
         ANDZ3::new(&ctx, init_assert_vec)
@@ -262,10 +311,36 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                         EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index])
                     },
                     SPValueType::Int32 => {
-                        EQZ3::new(&ctx, 
-                            IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
-                            IntZ3::new(&ctx, &IntSortZ3::new(&ctx), value.to_string().parse().unwrap()))
+                        let var_vec: Vec<_> = var.path.clone().iter().map(|path|path.clone()).collect();
+                        let var_name = var_vec.join("/").to_string();
+                        let init_domain_strings = GetSPVarDomain::new(&ts_model, &var_name);     
+                        let val_index = init_domain_strings.iter().position(|r| *r == value.to_string()).unwrap();
+                        let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        EQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index])
                     },
+                    // SPValueType::Int32 => {
+                    //     let var_vec: Vec<_> = var.path.clone().iter().map(|path|path.clone()).collect();
+                    //     let var_name = var_vec.join("/").to_string();
+                    //     let domain = GetSPVarDomain::new(&ts_model, &var_name);
+                    //         let domain_ints: Vec<u32> = domain.iter().map(|x| x.parse().unwrap()).collect();
+                    //         let domain_asts: Vec<Z3_ast> = domain_ints.iter().map(|x| IntZ3::new(&ctx, &IntSortZ3::new(&ctx), x.to_string().parse().unwrap())).collect();
+                    //     println!("{:#?}", ast_to_string_z3!(&ctx, EQZ3::new(&ctx, 
+                    //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
+                    //         IntZ3::new(&ctx, &IntSortZ3::new(&ctx), value.to_string().parse().unwrap()))));
+                    //     let valasdf: i32 = value.to_string().parse().unwrap();
+                    //     let mut int_domain_disj = vec!();
+                    
+                    //         for i in domain_asts {
+                    //             int_domain_disj.push(EQZ3::new(&ctx, 
+                    //                 IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), &format!("{}_s0", var_name.as_str())), i));
+                    //         }
+                    //         // init_assert_vec.push(ORZ3::new(&ctx, int_domain_disj));
+                    //     ANDZ3::new(&ctx, vec!(EQZ3::new(&ctx, 
+                    //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
+                    //         IntZ3::new(&ctx, &IntSortZ3::new(&ctx), valasdf)), ORZ3::new(&ctx, int_domain_disj)))
+                    // },
                     _ => panic!("implement stuff")
                 };
                 sub_res
@@ -286,23 +361,36 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                 let vds = GetSPVarDomain::new(&ts_model, &var_name);
                 let ods = GetSPVarDomain::new(&ts_model, &other_name);
 
-                let res: Z3_ast = match init_var_type == init_other_type {
-                    true => {
-                        let sub_res: Z3_ast = match vds.iter().zip(&ods).filter(|&(a, b)| a == b).count() == vds.len() {
-                            true => {
-                                let domain_name = format!("{}_sort", vds.join(".").to_string());
-                                let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
-                                EQZ3::new(&ctx, 
-                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
-                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", other_name.to_string(), step).as_str()))
-                            },
-                            false => panic!("Not same domain size"),
-                        };
-                        sub_res
+                match (vds.len() == ods.len()) && vds.iter().zip(&ods).all(|(a,b)| a == b) {
+                    true => match init_var_type {
+                        SPValueType::Bool => {
+                            EQZ3::new(&ctx,
+                                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()))
+                        },
+                        SPValueType::String => {
+                            let domain_name = format!("{}_sort", vds.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
+                            EQZ3::new(&ctx, 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", other_name.to_string(), step).as_str()))
+                        },
+                        SPValueType::Int32 => {
+                            let domain_name = format!("{}_sort", vds.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
+                            EQZ3::new(&ctx, 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", other_name.to_string(), step).as_str()))
+                        },
+                        // SPValueType::Int32 => {
+                        //     EQZ3::new(&ctx, 
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()))
+                        // },
+                        _ => panic!("Implement"),
                     },
-                    false => panic!("Trying to assign with different types"),
-                };
-                res
+                    false => panic!("Not the same domain")
+                }
             },
             Predicate::NEQ(PredicateValue::SPPath(var, _),
                           PredicateValue::SPValue(value)) => {
@@ -340,10 +428,24 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                         NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index])
                     },
                     SPValueType::Int32 => {
-                        NEQZ3::new(&ctx, 
-                            IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
-                            IntZ3::new(&ctx, &IntSortZ3::new(&ctx), value.to_string().parse().unwrap()))
+                        let var_vec: Vec<_> = var.path.clone().iter().map(|path|path.clone()).collect();
+                        let var_name = var_vec.join("/").to_string();
+                        let init_domain_strings = GetSPVarDomain::new(&ts_model, &var_name);     
+                        let val_index = init_domain_strings.iter().position(|r| *r == value.to_string()).unwrap();
+                        let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                        let elements = &enum_sort.enum_asts;
+                        NEQZ3::new(&ctx, EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), elements[val_index])
                     },
+                    // SPValueType::Int32 => {
+                    //     println!("{:#?}", ast_to_string_z3!(&ctx, NEQZ3::new(&ctx, 
+                    //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
+                    //         IntZ3::new(&ctx, &IntSortZ3::new(&ctx), value.to_string().parse().unwrap()))));
+                    //     let valasdf: i32 = value.to_string().parse().unwrap();
+                    //     NEQZ3::new(&ctx, 
+                    //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var.to_string(), step).as_str()),
+                    //         IntZ3::new(&ctx, &IntSortZ3::new(&ctx), valasdf))
+                    // },
                 _ => panic!("implement")
                 };
                 sub_res
@@ -364,23 +466,36 @@ impl <'ctx> GetSPPredicateZ3<'ctx> {
                 let vds = GetSPVarDomain::new(&ts_model, &var_name);
                 let ods = GetSPVarDomain::new(&ts_model, &other_name);
 
-                let sub_res: Z3_ast = match init_var_type == init_other_type {
-                    true => {
-                        let sub_sub_res: Z3_ast = match vds.iter().zip(&ods).filter(|&(a, b)| a == b).count() == vds.len() {
-                            true => {
-                                let domain_name = format!("{}_sort", vds.join(".").to_string());
-                                let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
-                                NEQZ3::new(&ctx, 
-                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
-                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", other_name.to_string(), step).as_str()))
-                            },
-                            false => panic!("Not same domain size"),
-                        };
-                        sub_sub_res
+                match (vds.len() == ods.len()) && vds.iter().zip(&ods).all(|(a,b)| a == b) {
+                    true => match init_var_type {
+                        SPValueType::Bool => {
+                            NEQZ3::new(&ctx,
+                                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                                BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()))
+                        },
+                        SPValueType::String => {
+                            let domain_name = format!("{}_sort", vds.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
+                            NEQZ3::new(&ctx, 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", other_name.to_string(), step).as_str()))
+                        },
+                        SPValueType::Int32 => {
+                            let domain_name = format!("{}_sort", vds.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), vds.iter().map(|x| x.as_str()).collect());
+                            NEQZ3::new(&ctx, 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", other_name.to_string(), step).as_str()))
+                        },
+                        // SPValueType::Int32 => {
+                        //     NEQZ3::new(&ctx, 
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()),
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()))
+                        // },
+                        _ => panic!("Implement"),
                     },
-                    false => panic!("Trying to assign with different types"),
-                };
-                sub_res
+                    false => panic!("Not the same domain")
+                }
             },
             _ => panic!("Implement"),
         };
@@ -427,23 +542,61 @@ impl <'ctx> GetSPUpdatesZ3<'ctx> {
                                 EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
                                 elements[val_index]));
                         },
-                        SPValueType::Int32 => { // not sure if this will work...
+                        SPValueType::Int32 => {    
                             let val_index = init_domain_strings.iter().position(|r| *r == spval.to_string()).unwrap();
-                            let domain = GetSPVarDomain::new(&ts_model, &var_name);
-                            // let domain_ints: Vec<u32> = domain.iter().map(|x| x.parse().unwrap()).collect();
-                            // let domain_asts: Vec<Z3_ast> = domain_ints.iter().map(|x| IntZ3::new(&ctx, &IntSortZ3::new(&ctx), x.to_string().parse().unwrap())).collect();
-                            updates.push(EQZ3::new(&ctx, 
-                                IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name, step).as_str()),
-                                IntZ3::new(&ctx, &IntSortZ3::new(&ctx), domain[val_index].to_string().parse().unwrap())));
+                            let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                            let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                            let elements = &enum_sort.enum_asts;
+                            updates.push(EQZ3::new(&ctx,
+                                EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                elements[val_index]));
                         },
+                        // SPValueType::Int32 => { 
+                        //     let val_index = init_domain_strings.iter().position(|r| *r == spval.to_string()).unwrap();
+                        //     let domain = GetSPVarDomain::new(&ts_model, &var_name);
+                        //     println!("{:#?}", ast_to_string_z3!(&ctx, EQZ3::new(&ctx, 
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name, step).as_str()),
+                        //         IntZ3::new(&ctx, &IntSortZ3::new(&ctx), domain[val_index].to_string().parse().unwrap()))));
+                        //     let valasdf: i32 = domain[val_index].to_string().parse().unwrap();
+                        //     updates.push(EQZ3::new(&ctx, 
+                        //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name, step).as_str()),
+                        //         IntZ3::new(&ctx, &IntSortZ3::new(&ctx), valasdf)));
+                        // },
                         _ => panic!("Implement"),
                     },
                     PredicateValue::SPPath(path, _) => {
-                        let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
-                        let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
-                        updates.push(EQZ3::new(&ctx, 
-                            EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
-                            EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", path.to_string(), step).as_str())));
+
+                        let init_var_type = &ts_model.vars.iter()
+                            .find_map(|x| if x.path() == path { Some(x.value_type()) } else {None} )
+                            .expect(&format!("could not find variable (7)"));
+
+                        match init_var_type {
+                            SPValueType::Bool => {
+                                updates.push(EQZ3::new(&ctx, 
+                                    BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                    BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), format!("{}_s{}", path.to_string(), step).as_str())));
+                            },
+                            SPValueType::String => {
+                                let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                                let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                                updates.push(EQZ3::new(&ctx, 
+                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", path.to_string(), step).as_str())));
+                            },
+                            SPValueType::Int32 => {
+                                let domain_name = format!("{}_sort", init_domain_strings.join(".").to_string());
+                                let enum_sort = EnumSortZ3::new(&ctx, domain_name.as_str(), init_domain_strings.iter().map(|x| x.as_str()).collect());
+                                updates.push(EQZ3::new(&ctx, 
+                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                                    EnumVarZ3::new(&ctx, enum_sort.r, format!("{}_s{}", path.to_string(), step).as_str())));
+                            },
+                            // SPValueType::Int32 => {
+                            //     updates.push(EQZ3::new(&ctx, 
+                            //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", var_name.to_string(), step).as_str()), 
+                            //         IntVarZ3::new(&ctx, &IntSortZ3::new(&ctx), format!("{}_s{}", path.to_string(), step).as_str())));
+                            // },
+                            _ => panic!("Implement"),
+                        };                       
                     },
                 },
                 Compute::Predicate(p) => {
@@ -474,7 +627,8 @@ impl SeqComputePlanSPModelZ3 {
             slv_assert_z3!(&ctx, &slv, i);
         }
 
-        slv_assert_z3!(&ctx, &slv, GetInitialStateZ3::new(&ctx, &model, &state));
+        let initial_state = GetInitialStateZ3::new(&ctx, &model, &state);
+        slv_assert_z3!(&ctx, &slv, initial_state);
 
         SlvPushZ3::new(&ctx, &slv);
 
@@ -482,7 +636,7 @@ impl SeqComputePlanSPModelZ3 {
             match &g.1 {
                 Some(x) => {
                     slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(x, &g.0), 0, 0));
-                    slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &vec!(x, &g.0), 0, 0)); // unnecessary?
+                    slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &vec!(x, &g.0), 0, 0));
                 }
                 None => {
                     slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &g.0));
@@ -521,7 +675,6 @@ impl SeqComputePlanSPModelZ3 {
 
                 slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
 
-                // offline specs for all steps:
                 let invariants: Vec<_> = model.specs.iter()
                     .map(|s| GetSPPredicateZ3::new(&ctx, &model, step, &s.invariant())).collect();
                 for i in invariants {
@@ -534,8 +687,7 @@ impl SeqComputePlanSPModelZ3 {
                     match &g.1 {
                         Some(x) => {
                             slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(&g.0), 0, step));
-                            // slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(&g.0), 0, step));
-                            slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &vec!(x, &g.0), 0, step)); // unnecessary?
+                            slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &vec!(x, &g.0), 0, step - 1));
                             },
                         None => {
                             slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(&g.0), 0, step));
@@ -553,6 +705,13 @@ impl SeqComputePlanSPModelZ3 {
                 break;
             }
         }
+
+        let cls_ast_vec = SlvGetAssertsZ3::new(&ctx, &slv);
+    let cls = Z3AstVectorToVectorAstZ3::new(&ctx, cls_ast_vec);
+
+    for i in 0..cls.len() {
+        println!("{:?} : {}", i, AstToStringZ3::new(&ctx, cls[i]));
+    }   
 
         let planning_time = now.elapsed();
         
@@ -607,11 +766,7 @@ impl SubParComputePlanSPModelZ3 {
             step = step + 1;
             println!("{:?}", step);
             let now2 = Instant::now();
-            // let step_slv_time = now2.elapsed();
-            // println!("STEP SOLVING TIME: {:?}", step_slv_time);
-                
-            // let now3 = Instant::now();
-                
+
             let mut all_trans = vec!();
             for t in &model.transitions {
                 let trans_node = t.node().to_string();
@@ -630,7 +785,6 @@ impl SubParComputePlanSPModelZ3 {
 
             slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
 
-            // offline specs for all steps:
             let invariants: Vec<_> = model.specs.iter()
                 .map(|s| GetSPPredicateZ3::new(&ctx, &model, step, &s.invariant())).collect();
             for i in invariants {
@@ -654,121 +808,6 @@ impl SubParComputePlanSPModelZ3 {
     }   
 }
 
-// impl ParComputePlanSPModelZ3 {
-//     pub fn plan(model: &TransitionSystemModel,
-//             goals: &[(Predicate, Option<Predicate>)],
-//             state: &SPState,
-//             max_steps: u32) -> PlanningResultZ3 {
-    
-//         let (tx, rx) = channel::unbounded();
-
-//         thread::spawn(move || {
-//             let mut step: u32 = 0;
-
-//             let cfg = ConfigZ3::new();
-//             let ctx = ContextZ3::new(&cfg);
-//             let slv = SolverZ3::new(&ctx);
-
-//             slv_assert_z3!(&ctx, &slv, GetInitialStateZ3::new(&ctx, &model, &state));
-
-//             let invariants: Vec<_> = model.specs.iter()
-//                 .map(|s| GetSPPredicateZ3::new(&ctx, &model, step, s.invariant())).collect();
-//             for i in invariants {
-//                 slv_assert_z3!(&ctx, &slv, i);
-//                 }
-
-//             SlvPushZ3::new(&ctx, &slv);
-
-//             for g in goals {
-//                 match &g.1 {
-//                     Some(x) => {
-//                         slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(x, &g.0), 0, 0));
-//                         slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &g.0, 0, 0)); // unnecessary?
-//                     }
-//                     None => {
-//                         slv_assert_z3!(&ctx, &slv, GetSPPredicateZ3::new(&ctx, &model, 0, &g.0));
-//                     },
-//                 }
-//             }
-
-//             let now = Instant::now();
-//             let mut plan_found: bool = false;
-            
-//             for step in (0..max_steps).step_by(2) {
-//                 let now2 = Instant::now();
-//                 if SlvCheckZ3::new(&ctx, &slv) != 1 {
-//                     SlvPopZ3::new(&ctx, &slv, 1);
-//                     let step_slv_time = now2.elapsed();
-//                     println!("STEP SOLVING TIME: {:?}", step_slv_time);
-
-//                     let now3 = Instant::now();
-
-//                     let mut all_trans = vec!();
-//                     for t in &model.transitions {
-//                         let trans_node = t.node().to_string();
-//                         let trans_vec: Vec<&str> = trans_node.rsplit(':').collect();
-//                         let trans_name: String = format!("{}_t{}", trans_vec[0].to_string(), step + 1);
-//                         let guard = GetSPPredicateZ3::new(&ctx, &model, step, t.guard());
-//                         let updates = GetSPUpdatesZ3::new(&ctx, &model, &t, step + 1);
-//                         let keep_updates = GetSPKeepValueUpdatesZ3::new(&ctx, &model, &t, step + 1);
-
-//                         all_trans.push(ANDZ3::new(&ctx, 
-//                             vec!(EQZ3::new(&ctx, 
-//                                 BoolVarZ3::new(&ctx, &BoolSortZ3::new(&ctx), trans_name.as_str()), 
-//                                 BoolZ3::new(&ctx, true)),
-//                             guard, keep_updates, updates)));
-//                         }
-
-//                     slv_assert_z3!(&ctx, &slv, ORZ3::new(&ctx, all_trans));
-
-//                     // offline specs for all steps:
-//                     let invariants: Vec<_> = model.specs.iter()
-//                         .map(|s| GetSPPredicateZ3::new(&ctx, &model, step + 1, &s.invariant())).collect();
-//                     for i in invariants {
-//                         slv_assert_z3!(&ctx, &slv, i);
-//                     }
-
-//                     SlvPushZ3::new(&ctx, &slv);
-
-//                     for g in goals {
-//                         match &g.1 {
-//                             Some(x) => {
-//                                 slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(x, &g.0), 0, step + 1));
-//                                 slv_assert_z3!(&ctx, &slv, UntilZ3::new(&ctx, &model, x, &g.0, 0, step + 1)); // unnecessary?
-//                                 },
-//                             None => {
-//                                 slv_assert_z3!(&ctx, &slv, AtLeastOnceZ3::new(&ctx, &model, vec!(&g.0), 0, step + 1));
-//                             },
-//                         }
-//                     }     
-
-//                     let internal_stuff_time = now3.elapsed();
-//                     println!("INTERNAL TIME: {:?}", internal_stuff_time);
-
-//                 } else {
-//                     let step_slv_time = now2.elapsed();
-//                     println!("STEP SOLVING TIME: {:?}", step_slv_time);
-//                     plan_found = true;
-//                     break;
-//                 }
-//             }
-
-//             let planning_time = now.elapsed();
-        
-//             if plan_found == true {
-//                 let model = SlvGetModelAndForbidZ3::new(&ctx, &slv);
-//                 let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-//                 tx.send(result).unwrap();
-//             } else {
-//                 let model = FreshModelZ3::new(&ctx);
-//                 let result = GetSPPlanningResultZ3::new(&ctx, model, step, planning_time, plan_found);
-//                 tx.send(result).unwrap();
-//             }
-//         });
-//         rx.recv().unwrap()
-//     }   
-// }
-
 impl <'ctx> GetSPPlanningResultZ3<'ctx> {
     pub fn new(ctx: &'ctx ContextZ3, model: Z3_model, nr_steps: u32, 
     planning_time: std::time::Duration, plan_found: bool) -> PlanningResultZ3 {
@@ -783,6 +822,8 @@ impl <'ctx> GetSPPlanningResultZ3<'ctx> {
             model_vec.push(lines.next().unwrap_or(""));
             i = i + 1;
         }
+
+        println!("{:#?}", model_vec);
 
         let mut trace: Vec<PlanningFrameZ3> = vec!();
         
