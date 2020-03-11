@@ -32,7 +32,7 @@ impl fmt::Display for NuXMVValue<'_> {
             SPValue::Time(t) => write!(fmtr, "{:?}", t),
             SPValue::Duration(d) => write!(fmtr, "{:?}", d),
             SPValue::Array(_at, a) => write!(fmtr, "{:?}", a),
-            SPValue::Unknown => write!(fmtr, "[unknown]"),
+            SPValue::Unknown => write!(fmtr, "SPUNKNOWN"),
         }
     }
 }

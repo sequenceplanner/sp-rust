@@ -2,6 +2,7 @@ use failure::Error;
 use sp_runner::*;
 
 mod cubes;
+mod cubes_unknown;
 mod mecademic;
 
 fn main() -> Result<(), Error> {

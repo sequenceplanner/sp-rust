@@ -2,7 +2,7 @@ use sp_domain::*;
 use sp_runner::*;
 use crate::mecademic::*;
 
-pub fn cubes() -> (Model, SPState, Predicate) {
+pub fn unknown_cubes() -> (Model, SPState, Predicate) {
     let mut m = GModel::new("cubes");
 
     let h = "home";
@@ -14,7 +14,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let r1 = m.use_resource(make_mecademic("r1", &[h, t1, t2, b1]));
     let r2 = m.use_resource(make_mecademic("r2", &[h, t1, t2, b2]));
 
-    let products = &[0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue()];
+    let products = &[SPValue::Unknown,
+                     0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue()];
 
     let r1_holding = m.add_estimated_domain("r1_holding", products);
     let r2_holding = m.add_estimated_domain("r2_holding", products);
@@ -36,7 +37,7 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     m.add_invar("table_zone_4", &p!(!([p:r1act == t2] && [p:r2act == t1])));
 
     // special case at table 2
-    m.add_invar("table_zone_2_2", &p!(!([p:r1prev == t2] && [p:r1ref != t2] && [p:r2ref == t2])));
+    m.add_invar("table_zone_2_1", &p!(!([p:r1prev == t2] && [p:r1ref != t2] && [p:r2ref == t2])));
     m.add_invar("table_zone_2_2", &p!(!([p:r2prev == t2] && [p:r2ref != t2] && [p:r1ref == t2])));
 
 
@@ -164,8 +165,8 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 //  => FALSE
 
 #[test]
-fn test_cubes() {
-    let (m, s, g) = cubes();
+fn test_unknown_cubes() {
+    let (m, s, g) = unknown_cubes();
 
     let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
         .flat_map(|si| match si {
@@ -190,6 +191,7 @@ fn test_cubes() {
     let now = std::time::Instant::now();
     let mut new_specs = Vec::new();
     for s in &ts_model.specs {
+        println!("refining {}", s.name());
         new_specs.push(Spec::new(s.name(), refine_invariant(&m, s.invariant())));
     }
     ts_model.specs = new_specs;
