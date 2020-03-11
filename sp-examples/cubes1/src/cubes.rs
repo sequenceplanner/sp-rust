@@ -166,26 +166,23 @@ fn test_cubes() {
     let initial = Predicate::AND(inits);
 
     let mut ts_model = TransitionSystemModel::from(&m);
-    // guard gen takes too much time....
-    // println!("G GEN");
-//    let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
 
-    // for t in ts_model.transitions.iter_mut() {
-    //     *t.mut_guard() = Predicate::TRUE;
-    // }
+    // println!("START GUARD GEN");
+    // let now = std::time::Instant::now();
+    // let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
+    // update_guards(&mut ts_model, &new_guards);
+    // ts_model.specs.clear();
+    // ts_model.specs.push(Spec::new("supervisor", supervisor));
+    // println!("GUARD GEN DONE IN {}ms", now.elapsed().as_millis());
 
-    // println!("G GEN DONE");
-    //update_guards(&mut ts_model, &new_guards);
-
-    ts_model.specs.clear();
-
-//    ts_model.specs.push(Spec::new("supervisor", supervisor));
-
+    println!("START INVAR REFINEMENT");
+    let now = std::time::Instant::now();
     let mut new_specs = Vec::new();
     for s in &ts_model.specs {
         new_specs.push(Spec::new(s.name(), refine_invariant(&m, s.invariant())));
     }
     ts_model.specs = new_specs;
+    println!("INVAR REFINEMENT DONE IN {}ms", now.elapsed().as_millis());
 
     let goal = (g, None);
     let plan = plan(&ts_model, &[goal], &s, 50);
