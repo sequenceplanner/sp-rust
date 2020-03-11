@@ -15,7 +15,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (tx_planner, rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) = channel::unbounded();
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
-    ticker(Duration::from_millis(500), tx_runner.clone());
+    ticker(Duration::from_millis(2000), tx_runner.clone());
     planner(tx_runner.clone(), rx_planner);
     node_handler(
         Duration::from_millis(1000),
@@ -47,11 +47,13 @@ fn runner(
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let resources: Vec<SPPath> = model.resources().iter().map(|r| r.path().clone()).collect();
+        let timer = Instant::now();
 
         loop {
+            let input = rx_input.recv();
             let mut tick = false;
             let mut state_has_probably_changed = false;
-            let input = rx_input.recv();
+            runner.last_fired_transitions = vec!();
             if let Ok(msg) = input {
                 match msg {
                     SPRunnerInput::StateChange(s) => {
@@ -85,6 +87,7 @@ fn runner(
                 println!("The runner channel broke? - {:?}", input);
                 break;
             }
+            //println!("tick: {} ms", timer.elapsed().as_millis());
 
 
             if !runner.last_fired_transitions.is_empty() {
@@ -316,7 +319,7 @@ struct NodeState {
     cmd: String,
     mode: String,
     time: Instant,
-    echo: Option<serde_json::Value>,
+    cmd_msg: Option<MessageField>,
 }
 
 use sp_ros::{NodeCmd, NodeMode};
@@ -328,18 +331,19 @@ fn node_handler(
     tx_node: Sender<NodeCmd>,
     tx_runner: Sender<SPRunnerInput>,
 ) {
-    let resources: Vec<SPPath> = model.resources().iter().map(|r| r.path().clone()).collect();
-    let mut nodes: HashMap<SPPath, NodeState> = resources
-        .into_iter()
+    let mut nodes: HashMap<SPPath, NodeState> = model.resources()
+        .iter()
         .map(|r| {
+            let r: &Resource = r;
+            let cmd_msg = r.get_message("command");
             (
-                r.clone(),
+                r.path().clone(),
                 NodeState {
-                    resource: r,
+                    resource: r.path().clone(),
                     cmd: "init".to_string(),
                     mode: String::new(),
                     time: Instant::now(),
-                    echo: None,
+                    cmd_msg,
                 },
             )
         })
@@ -349,6 +353,7 @@ fn node_handler(
     fn mode_from_node(
         mode: Result<NodeMode, channel::RecvError>,
         nodes: &mut HashMap<SPPath, NodeState>,
+        tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         match mode {
             Ok(n) => {
@@ -357,22 +362,27 @@ fn node_handler(
                     cmd: "init".to_string(),
                     mode: n.mode.clone(),
                     time: n.time_stamp.clone(),
-                    echo: Some(n.echo.clone()),
+                    cmd_msg: None,
                 });
 
                 // TODO: Handle handshake with SP and node and upd using echo if needed
                 x.mode = n.mode;
-                x.time = n.time_stamp;
-                x.echo = Some(n.echo);
+                
+                if x.cmd == "init" {
+                    if let Some(ref cmd_msg) = x.cmd_msg {
+                        if let Some(echo) = n.echo.get("echo").map(|x| x.as_str()).flatten() {
+                            if let Ok(json) = serde_json::from_str(echo) {
+                                let json: serde_json::Value = json;
+                                let mut cmd_state = sp_ros::json_to_state(&json, &cmd_msg);
+                                cmd_state.prefix_paths(&cmd_msg.path());
+                                tx_runner.send(SPRunnerInput::NodeChange(cmd_state)).expect("Hmm, why is the runner dead?");
+                            }
+                        }
+                    }
+                }
+                
                 x.cmd = "run".to_string();
-
-                // println!(
-                //     "Node mode: {}, since: {}, node_mode: {:?}",
-                //     x.resource.clone(),
-                //     x.time.elapsed().as_millis(),
-                //     x.mode.clone()
-                // );
-
+                x.time = n.time_stamp;
                 true
             }
             Err(e) => {
@@ -402,7 +412,6 @@ fn node_handler(
                         println!("Node {} is not responding", r.clone());
                         n.mode = String::new();
                         n.cmd = "init".to_string();
-                        n.echo = None;
                     }
 
                     let cmd = NodeCmd {
@@ -431,7 +440,7 @@ fn node_handler(
     thread::spawn(move || loop {
         let res;
         crossbeam::select! {
-            recv(rx_node) -> mode => res = mode_from_node(mode, &mut nodes),
+            recv(rx_node) -> mode => res = mode_from_node(mode, &mut nodes, tx_runner.clone()),
             recv(tick) -> tick_time => res = tick_node(tick_time, &mut nodes, deadline, tx_node.clone(), tx_runner.clone()),
         };
         if !res {

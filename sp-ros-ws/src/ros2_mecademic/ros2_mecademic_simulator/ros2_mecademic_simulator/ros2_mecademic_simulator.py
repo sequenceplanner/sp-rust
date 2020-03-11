@@ -7,6 +7,7 @@ import math
 import numpy
 import ast
 import json
+import yaml
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from ros2_mecademic_msgs.msg import MecademicGuiToEsd
@@ -151,6 +152,11 @@ class Ros2MecademicSimulator(Node):
             "mode",
             10)
 
+
+
+
+
+
     def get_pose_from_pose_name(self, name):
         '''
         Returns the saved pose that matches the pose name
@@ -228,11 +234,20 @@ class Ros2MecademicSimulator(Node):
         else:
             pass
 
+
+
     def sp_node_cmd_callback(self, data):
         self.get_logger().info('"%s"' % data)
         #print(json.dumps(data))
         self.node_cmd = data
-        self.mode.echo = json.dumps({"ref_pos": self.sp_to_esd_msg.ref_pos})
+
+        # move to general function in sp
+        echo_msg = {}
+        for k in RCommand.get_fields_and_field_types().keys():
+            echo_msg.update({k: getattr(self.sp_to_esd_msg, "_"+k)})
+
+        self.mode.echo = json.dumps(echo_msg)
+
         if self.node_cmd.mode == "run":
             self.mode.mode = "running"
         else:

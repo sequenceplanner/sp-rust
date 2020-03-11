@@ -625,6 +625,18 @@ impl Resource {
             .flat_map(|a| a.predicates.clone())
             .collect()
     }
+
+    /// Get the message in the command topic. For now this is hardcoded
+    pub fn get_message(&self, topic: &str) -> Option<MessageField> {
+        let mut res = None;
+        self.messages.iter().for_each(|t| {
+            let t: &Topic = t;
+            if t.node.name() == topic {
+                res = Some(t.msg().clone());
+            }
+        });
+        res
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
