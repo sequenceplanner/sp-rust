@@ -120,7 +120,11 @@ impl FormalContext {
                         v => {
                             // find index in domain.
                             let dom = var.domain();
-                            Value::InDomain(dom.iter().position(|e| e == v).unwrap())
+                            if let Some(p) = dom.iter().position(|e| e == v) {
+                                Value::InDomain(p)
+                            } else {
+                                panic!("value {} is not in domain: {:?} (expr: {:?})", v, dom, p);
+                            }
                         }
                     };
 

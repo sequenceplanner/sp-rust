@@ -56,11 +56,20 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     let pos = vec!((b1, buffer1_holding.clone()), (b2, buffer2_holding.clone()), (t1, table1_holding.clone()), (t2, table2_holding.clone()));
     for (r_name, act, holding) in rs {
         for (pos_name, pos) in pos.iter() {
-            m.add_delib(&format!("{}_take_{}", r_name, pos_name), 
+
+            // r1 cannot pick at buffer2 and vice versa
+            if r_name == "r1" && pos.leaf() == "buffer2_holding" {
+                continue;
+            }
+            if r_name == "r2" && pos.leaf() == "buffer1_holding" {
+                continue;
+            }
+
+            m.add_delib(&format!("{}_take_{}", r_name, pos_name),
                 &p!([p:act == pos_name] && [p:pos != 0] && [p:holding == 0]),
                 &[a!(p:holding <- p:pos), a!(p:pos = 0)]);
 
-            m.add_delib(&format!("{}_leave_{}", r_name, pos_name), 
+            m.add_delib(&format!("{}_leave_{}", r_name, pos_name),
                 &p!([p:act == pos_name] && [p:holding != 0] && [p:pos == 0]),
                 &[a!(p:pos <- p:holding), a!(p:holding = 0)]);
         }
