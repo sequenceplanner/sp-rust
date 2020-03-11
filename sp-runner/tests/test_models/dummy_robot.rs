@@ -22,9 +22,6 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 
             act_pos : domain,
             active : bool,
-
-            echo / ref_pos : domain,   // these are used for handshaking.
-            echo / activate : bool,    // "echo" has special meaning for us.
         },
         estimated!{
             prev_pos: domain,

@@ -19,8 +19,6 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
             msg_type: "cubes_1_msgs/msg/RState",
 
             act_pos : domain,
-
-            echo / ref_pos : domain,   // these are used for handshaking.
         },
         estimated!{
             prev_pos: domain,

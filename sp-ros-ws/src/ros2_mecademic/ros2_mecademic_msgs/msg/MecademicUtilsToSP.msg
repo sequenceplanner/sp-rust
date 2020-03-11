@@ -1,3 +1,1 @@
 string[] saved_poses
-string echo_utility_action
-string echo_utility_pose_name
