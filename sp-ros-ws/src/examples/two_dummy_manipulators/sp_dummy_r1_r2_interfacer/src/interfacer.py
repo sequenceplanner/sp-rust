@@ -138,5 +138,4 @@ class Interfacer(Node):
         msg = State()
         msg.act_pos = self.act_pos
         msg.active = self.active
-        msg.echo = self.echo
         self.state_to_sp_publisher_.publish(msg)

@@ -68,7 +68,7 @@ class Ros2MecademicSimulator(Node):
 
         # sp to esd:
         self.sp_to_esd_msg = RCommand()
-        self.sp_to_esd_msg.ref_pos = "unknown"
+        self.sp_to_esd_msg.ref_pos = "away" # initial ref
         # self.sp_to_esd_msg.reference_joint_speed = 0
 
         self.sp_to_esd_subscriber = self.create_subscription(
@@ -232,6 +232,7 @@ class Ros2MecademicSimulator(Node):
         self.get_logger().info('"%s"' % data)
         #print(json.dumps(data))
         self.node_cmd = data
+        self.mode.echo = json.dumps({"ref_pos": self.sp_to_esd_msg.ref_pos})
         if self.node_cmd.mode == "run":
             self.mode.mode = "running"
         else:
@@ -329,11 +330,9 @@ class Ros2MecademicSimulator(Node):
     def esd_to_sp_callback(self):
         if time.time() < self.callback_timeout:
             self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
-            self.esd_to_sp_msg.echo = self.sp_to_esd_msg
             self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
         else:
             self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
-            self.esd_to_sp_msg.echo.ref_pos = self.esd_to_gui_msg.act_pos
             self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
     
 def main(args=None):
