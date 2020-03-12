@@ -14,7 +14,7 @@ pub fn unknown_cubes() -> (Model, SPState, Predicate) {
     let r1 = m.use_resource(make_mecademic("r1", &[h, t1, t2, b1]));
     let r2 = m.use_resource(make_mecademic("r2", &[h, t1, t2, b2]));
 
-    let products = &[SPValue::Unknown,
+    let products = &[100.to_spvalue(), // SPValue::Unknown,   macros need better support for Unknown
                      0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue()];
 
     let r1_holding = m.add_estimated_domain("r1_holding", products);
@@ -76,8 +76,20 @@ pub fn unknown_cubes() -> (Model, SPState, Predicate) {
         }
     }
 
+    m.add_delib("scan_r2_1",
+                &p!([p:r2act == h] && [p:r2_holding == 100]),
+                &[a!(p:r2_holding = 1)]);
+    m.add_delib("scan_r2_2",
+                &p!([p:r2act == h] && [p:r2_holding == 100]),
+                &[a!(p:r2_holding = 2)]);
+    m.add_delib("scan_r2_3",
+                &p!([p:r2act == h] && [p:r2_holding == 100]),
+                &[a!(p:r2_holding = 3)]);
 
-    let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]);
+    // let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]);
+    // let g = p!([p:buffer1_holding == 2]);
+    let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]
+               && [p:table1_holding == 3]);
 
 
     // HIGH LEVEL OPS
@@ -130,22 +142,20 @@ pub fn unknown_cubes() -> (Model, SPState, Predicate) {
 
 
 
-
-
-
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
+        (r2act, h.to_spvalue()),
         (r1ref, h.to_spvalue()),
         (r2ref, h.to_spvalue()),
         (r1prev, h.to_spvalue()),
         (r2prev, h.to_spvalue()),
-        (&r1_holding, 3.to_spvalue()),
-        (&r2_holding, 0.to_spvalue()),
+        (&r1_holding, 100.to_spvalue()),
+        (&r2_holding, 100.to_spvalue()), //SPValue::Unknown),
         (&table1_holding, 0.to_spvalue()),
         (&table2_holding, 0.to_spvalue()),
-        (&buffer1_holding, 2.to_spvalue()),
-        (&buffer2_holding, 1.to_spvalue()),
+        (&buffer1_holding, 100.to_spvalue()),
+        (&buffer2_holding, 0.to_spvalue()),
     ]);
 
     println!("MAKING MODEL");
