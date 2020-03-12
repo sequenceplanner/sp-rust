@@ -6,12 +6,16 @@ import os
 import math
 import numpy
 import ast
+import json
+import yaml
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from ros2_mecademic_msgs.msg import MecademicGuiToEsd
 from ros2_mecademic_msgs.msg import MecademicEsdToGui
 from cubes_1_msgs.msg import RCommand
 from cubes_1_msgs.msg import RState
+from sp_messages.msg import NodeCmd
+from sp_messages.msg import NodeMode
 # from ros2_mecademic_msgs.msg import MecademicSPToEsd
 # from ros2_mecademic_msgs.msg import MecademicEsdToSP
 from ament_index_python.packages import get_package_share_directory
@@ -65,13 +69,24 @@ class Ros2MecademicSimulator(Node):
 
         # sp to esd:
         self.sp_to_esd_msg = RCommand()
-        self.sp_to_esd_msg.ref_pos = "unknown"
+        self.sp_to_esd_msg.ref_pos = "away" # initial ref
         # self.sp_to_esd_msg.reference_joint_speed = 0
 
         self.sp_to_esd_subscriber = self.create_subscription(
             RCommand, 
             "/command",
             self.sp_to_esd_callback,
+            10)
+
+        # sp node to esd:
+        self.sp_node_cmd = NodeCmd()
+        self.mode = NodeMode()
+        self.mode.mode = "init"
+
+        self.sp_node_cmd_subscriber = self.create_subscription(
+            NodeCmd, 
+            "node_cmd",
+            self.sp_node_cmd_callback,
             10)
 
         time.sleep(2)
@@ -131,6 +146,16 @@ class Ros2MecademicSimulator(Node):
         self.esd_to_sp_publisher_timer = self.create_timer(
             self.esd_to_sp_timer_period, 
             self.esd_to_sp_callback)
+
+        self.esd_sp_mode_pub = self.create_publisher(
+            NodeMode,
+            "mode",
+            10)
+
+
+
+
+
 
     def get_pose_from_pose_name(self, name):
         '''
@@ -208,6 +233,28 @@ class Ros2MecademicSimulator(Node):
             self.joint_ref_pos = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
         else:
             pass
+
+
+
+    def sp_node_cmd_callback(self, data):
+        self.get_logger().info('"%s"' % data)
+        #print(json.dumps(data))
+        self.node_cmd = data
+
+        # move to general function in sp
+        echo_msg = {}
+        for k in RCommand.get_fields_and_field_types().keys():
+            echo_msg.update({k: getattr(self.sp_to_esd_msg, "_"+k)})
+
+        self.mode.echo = json.dumps(echo_msg)
+
+        if self.node_cmd.mode == "run":
+            self.mode.mode = "running"
+        else:
+            self.mode.mode = "init"
+
+        self.esd_sp_mode_pub.publish(self.mode)
+        
 
     def gui_to_esd_callback(self, data):
         self.gui_to_esd_msg.gui_control_enabled = data.gui_control_enabled
@@ -298,11 +345,9 @@ class Ros2MecademicSimulator(Node):
     def esd_to_sp_callback(self):
         if time.time() < self.callback_timeout:
             self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
-            self.esd_to_sp_msg.echo = self.sp_to_esd_msg
             self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
         else:
             self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.act_pos
-            self.esd_to_sp_msg.echo.ref_pos = self.esd_to_gui_msg.act_pos
             self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
     
 def main(args=None):

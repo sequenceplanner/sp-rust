@@ -1,5 +1,5 @@
-use sp_domain::*;
 use guard_extraction::*;
+use sp_domain::*;
 use std::collections::HashMap;
 
 pub struct FormalContext {
@@ -21,12 +21,14 @@ impl FormalContext {
             };
             var_map.insert(v.path().clone(), (index, v.clone()));
         }
-        let pred_map: HashMap<_,_> = model.state_predicates.iter().flat_map(|p| {
-            match p.variable_type() {
+        let pred_map: HashMap<_, _> = model
+            .state_predicates
+            .iter()
+            .flat_map(|p| match p.variable_type() {
                 VariableType::Predicate(x) => Some((p.path().clone(), x.clone())),
-                _ => None
-            }
-        }).collect();
+                _ => None,
+            })
+            .collect();
 
         let mut fc = FormalContext {
             context: c,
@@ -36,8 +38,8 @@ impl FormalContext {
 
         for t in &model.transitions {
             let guard = fc.sp_pred_to_ex(t.guard());
-            let actions: Vec<_> = t.actions().iter().map(|a| fc.sp_action_to_ac(a) ).collect();
-            let effects: Vec<_> = t.effects().iter().map(|a| fc.sp_action_to_ac(a) ).collect();
+            let actions: Vec<_> = t.actions().iter().map(|a| fc.sp_action_to_ac(a)).collect();
+            let effects: Vec<_> = t.effects().iter().map(|a| fc.sp_action_to_ac(a)).collect();
             let mut a = Vec::new();
             a.extend(actions.iter().cloned());
             a.extend(effects.iter().cloned());
@@ -52,15 +54,17 @@ impl FormalContext {
         fc
     }
 
-
     pub fn sp_action_to_ac(&self, a: &Action) -> Ac {
-        let (index, var) = self.var_map.get(&a.var).expect(&format!("variable not found! {}", a.var));
+        let (index, var) = self
+            .var_map
+            .get(&a.var)
+            .expect(&format!("variable not found! {}", a.var));
         let val = match &a.value {
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
                 // assign p to var
                 let (other, _var) = self.var_map.get(p).expect("variable not found");
                 Value::Var(*other)
-            },
+            }
             Compute::PredicateValue(PredicateValue::SPValue(value)) => {
                 // assign value to var
                 match value {
@@ -71,9 +75,9 @@ impl FormalContext {
                         Value::InDomain(dom.iter().position(|e| e == v).unwrap())
                     }
                 }
-            },
+            }
             Compute::Any => Value::Free,
-            x => panic!("TODO: {:?}", x)
+            x => panic!("TODO: {:?}", x),
         };
         Ac {
             var: *index,
@@ -86,22 +90,23 @@ impl FormalContext {
             Predicate::AND(v) => {
                 let v = v.iter().map(|x| self.sp_pred_to_ex(x)).collect();
                 Ex::AND(v)
-            },
+            }
             Predicate::OR(v) => {
                 let v = v.iter().map(|x| self.sp_pred_to_ex(x)).collect();
                 Ex::OR(v)
-            },
+            }
             Predicate::NOT(v) => {
                 let v = self.sp_pred_to_ex(v);
                 Ex::NOT(Box::new(v))
-            },
+            }
             Predicate::FALSE => Ex::FALSE,
             Predicate::TRUE => Ex::TRUE,
-            Predicate::EQ(PredicateValue::SPPath(var, _),
-                          PredicateValue::SPValue(value)) => {
+            Predicate::EQ(PredicateValue::SPPath(var, _), PredicateValue::SPValue(value)) => {
                 if self.pred_map.contains_key(var) {
                     if value == &SPValue::Bool(false) {
-                        Ex::NOT(Box::new(self.sp_pred_to_ex(self.pred_map.get(var).unwrap())))
+                        Ex::NOT(Box::new(
+                            self.sp_pred_to_ex(self.pred_map.get(var).unwrap()),
+                        ))
                     } else if value == &SPValue::Bool(true) {
                         self.sp_pred_to_ex(self.pred_map.get(var).unwrap())
                     } else {
@@ -115,7 +120,11 @@ impl FormalContext {
                         v => {
                             // find index in domain.
                             let dom = var.domain();
-                            Value::InDomain(dom.iter().position(|e| e == v).unwrap())
+                            if let Some(p) = dom.iter().position(|e| e == v) {
+                                Value::InDomain(p)
+                            } else {
+                                panic!("value {} is not in domain: {:?} (expr: {:?})", v, dom, p);
+                            }
                         }
                     };
 
@@ -123,9 +132,8 @@ impl FormalContext {
                 } else {
                     panic!("VAR {:?}, VALUE {:?}", var, value)
                 }
-            },
-            Predicate::EQ(PredicateValue::SPPath(var, _),
-                          PredicateValue::SPPath(other, _)) => {
+            }
+            Predicate::EQ(PredicateValue::SPPath(var, _), PredicateValue::SPPath(other, _)) => {
                 if self.var_map.contains_key(var) && self.var_map.contains_key(other) {
                     let (index, _var) = self.var_map.get(var).unwrap();
                     let (index2, _other) = self.var_map.get(other).unwrap();
@@ -133,9 +141,8 @@ impl FormalContext {
                 } else {
                     panic!("VAR {:?}, OTHER {:?}", var, other)
                 }
-            },
-            Predicate::NEQ(PredicateValue::SPPath(var, _),
-                           PredicateValue::SPPath(other, _)) => {
+            }
+            Predicate::NEQ(PredicateValue::SPPath(var, _), PredicateValue::SPPath(other, _)) => {
                 if self.var_map.contains_key(var) && self.var_map.contains_key(other) {
                     let (index, _var) = self.var_map.get(var).unwrap();
                     let (index2, _other) = self.var_map.get(other).unwrap();
@@ -143,14 +150,15 @@ impl FormalContext {
                 } else {
                     panic!("VAR {:?}, OTHER {:?}", var, other)
                 }
-            },
-            Predicate::NEQ(PredicateValue::SPPath(var, _),
-                           PredicateValue::SPValue(value)) => {
+            }
+            Predicate::NEQ(PredicateValue::SPPath(var, _), PredicateValue::SPValue(value)) => {
                 if self.pred_map.contains_key(var) {
                     if value == &SPValue::Bool(false) {
                         self.sp_pred_to_ex(self.pred_map.get(var).unwrap())
                     } else if value == &SPValue::Bool(true) {
-                        Ex::NOT(Box::new(self.sp_pred_to_ex(self.pred_map.get(var).unwrap())))
+                        Ex::NOT(Box::new(
+                            self.sp_pred_to_ex(self.pred_map.get(var).unwrap()),
+                        ))
                     } else {
                         panic!("predicates must be boolean");
                     }
@@ -170,8 +178,8 @@ impl FormalContext {
                 } else {
                     panic!("VAR {:?}, VALUE {:?}", var, value)
                 }
-            },
-            x => panic!("NO X {:?}", x)
+            }
+            x => panic!("NO X {:?}", x),
         }
     }
 
@@ -180,46 +188,72 @@ impl FormalContext {
             Ex::AND(v) => {
                 let v = v.iter().map(|x| self.ex_to_sp_pred(x)).collect();
                 Predicate::AND(v)
-            },
+            }
             Ex::OR(v) => {
                 let v = v.iter().map(|x| self.ex_to_sp_pred(x)).collect();
                 Predicate::OR(v)
-            },
+            }
             Ex::NOT(v) => {
                 let v = self.ex_to_sp_pred(v);
                 Predicate::NOT(Box::new(v))
-            },
+            }
             Ex::FALSE => Predicate::FALSE,
             Ex::TRUE => Predicate::TRUE,
             Ex::EQ(index, value) => {
-                let var = self.var_map.values().find(|(idx, _)| idx == index).unwrap().1.clone();
+                let var = self
+                    .var_map
+                    .values()
+                    .find(|(idx, _)| idx == index)
+                    .unwrap()
+                    .1
+                    .clone();
                 let val = match value {
                     Value::Bool(b) => PredicateValue::SPValue(SPValue::Bool(*b)),
-                    Value::InDomain(vid) => PredicateValue::SPValue(var.domain().get(*vid).unwrap().clone()),
+                    Value::InDomain(vid) => {
+                        PredicateValue::SPValue(var.domain().get(*vid).unwrap().clone())
+                    }
                     Value::Var(other) => {
-                        let other = self.var_map.values().find(|(idx, _)| idx == other).unwrap().1.clone();
+                        let other = self
+                            .var_map
+                            .values()
+                            .find(|(idx, _)| idx == other)
+                            .unwrap()
+                            .1
+                            .clone();
                         PredicateValue::SPPath(other.path().clone(), None)
-                    },
-                    Value::Free => panic!("not supported")
+                    }
+                    Value::Free => panic!("not supported"),
                 };
                 Predicate::EQ(PredicateValue::SPPath(var.path().clone(), None), val)
-            },
+            }
             Ex::VAR(index) => {
-                let var = self.var_map.values().find(|(idx, _)| idx == index).unwrap().1.clone();
+                let var = self
+                    .var_map
+                    .values()
+                    .find(|(idx, _)| idx == index)
+                    .unwrap()
+                    .1
+                    .clone();
                 let val = PredicateValue::SPValue(SPValue::Bool(true));
                 Predicate::EQ(PredicateValue::SPPath(var.path().clone(), None), val)
-            },
+            }
         }
     }
 
     pub fn sat_clause_to_spstate(&self, values: &[guard_extraction::Value]) -> SPState {
         let mut state = SPState::new();
-        values.iter().enumerate().for_each(|(i,v)| {
-            let var = self.var_map.values().find(|(idx, _)| idx == &i).unwrap().1.clone();
+        values.iter().enumerate().for_each(|(i, v)| {
+            let var = self
+                .var_map
+                .values()
+                .find(|(idx, _)| idx == &i)
+                .unwrap()
+                .1
+                .clone();
             let val = match v {
                 Value::Bool(b) => SPValue::Bool(*b),
                 Value::InDomain(vid) => var.domain()[*vid].clone(),
-                _ => panic!("cannot happen")
+                _ => panic!("cannot happen"),
             };
 
             state.add_variable(var.path().clone(), val);
@@ -228,21 +262,32 @@ impl FormalContext {
     }
 }
 
-
-pub fn extract_guards(model: &TransitionSystemModel, initial: &Predicate) -> (HashMap<String, Predicate>, Predicate) {
+pub fn extract_guards(
+    model: &TransitionSystemModel,
+    initial: &Predicate,
+) -> (HashMap<String, Predicate>, Predicate) {
     let c = FormalContext::from(model);
 
     // pull out all specs.
-    let forbidden =  Ex::OR(model.specs.iter().map(|s| {
-        // forbidden = not always
-        Ex::NOT(Box::new(c.sp_pred_to_ex(s.invariant())))
-    }).collect());
+    let forbidden = Ex::OR(
+        model
+            .specs
+            .iter()
+            .map(|s| {
+                // forbidden = not always
+                Ex::NOT(Box::new(c.sp_pred_to_ex(s.invariant())))
+            })
+            .collect(),
+    );
 
     let initial = c.sp_pred_to_ex(&initial);
 
     let (ng, supervisor) = c.context.compute_guards(&initial, &forbidden);
 
-    let ng = ng.into_iter().map(|(n,e)| (n, c.ex_to_sp_pred(&e))).collect();
+    let ng = ng
+        .into_iter()
+        .map(|(n, e)| (n, c.ex_to_sp_pred(&e)))
+        .collect();
     let supervisor = c.ex_to_sp_pred(&supervisor);
     (ng, supervisor)
 }
@@ -291,16 +336,17 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
 }
 
 pub fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
-    ts_model.transitions.iter_mut().for_each(|ot| {
-        match ng.get(&ot.path().to_string()) {
+    ts_model
+        .transitions
+        .iter_mut()
+        .for_each(|ot| match ng.get(&ot.path().to_string()) {
             Some(nt) => {
                 println!("UPDATING GUARD FOR TRANS {}:", ot.path());
                 println!("{}", nt);
                 *ot.mut_guard() = Predicate::AND(vec![ot.guard().clone(), nt.clone()]);
-            },
-            None => {},
-        }
-    });
+            }
+            None => {}
+        });
 }
 
 #[cfg(test)]

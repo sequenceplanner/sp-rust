@@ -1,6 +1,6 @@
+use super::*;
 use sp_domain::*;
 use std::collections::HashMap;
-use super::*;
 
 #[test]
 fn test_update_guards_empty_model() {

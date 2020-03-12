@@ -1,25 +1,46 @@
 // Public APIs for the runner
-use sp_domain::*;
 use serde::{Deserialize, Serialize};
+use sp_domain::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerModel {
+    // temporary!
+    pub hl_op_transitions: RunnerTransitions,
+
     pub op_transitions: RunnerTransitions,
     pub ab_transitions: RunnerTransitions,
     pub plans: RunnerPlans,
     pub state_predicates: Vec<Variable>,
+
+    // temporary!
     pub goals: Vec<IfThen>,
+    pub hl_goals: Vec<IfThen>,
+
     // temporary!
     pub model: TransitionSystemModel,
+    pub op_model: TransitionSystemModel,
+
 }
 
 impl RunnerModel {
     pub fn upd_state_paths(&mut self, state: &SPState) {
         // TODO. Add all other actions, preds etc...
-        self.op_transitions.ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
-        self.op_transitions.un_ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
-        self.ab_transitions.ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
-        self.ab_transitions.un_ctrl.iter_mut().for_each(|t| t.upd_state_path(state));
+        self.op_transitions
+            .ctrl
+            .iter_mut()
+            .for_each(|t| t.upd_state_path(state));
+        self.op_transitions
+            .un_ctrl
+            .iter_mut()
+            .for_each(|t| t.upd_state_path(state));
+        self.ab_transitions
+            .ctrl
+            .iter_mut()
+            .for_each(|t| t.upd_state_path(state));
+        self.ab_transitions
+            .un_ctrl
+            .iter_mut()
+            .for_each(|t| t.upd_state_path(state));
     }
 }
 
@@ -31,16 +52,14 @@ pub struct AbPlanItem {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerPlans {
-    pub op_plan: Vec<SPPath>,         // maybe have spids here?
+    pub op_plan: Vec<SPPath>, // maybe have spids here?
     pub ab_plan: Vec<AbPlanItem>,
 }
-
-
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerTransitions {
     pub ctrl: Vec<Transition>,
-    pub un_ctrl: Vec<Transition>
+    pub un_ctrl: Vec<Transition>,
 }
 
 impl RunnerTransitions {
@@ -59,7 +78,7 @@ pub struct RunnerCommand {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PlannerResult {
     OpPlan(Vec<SPPath>),
-    AbPlan(Vec<SPPath>)
+    AbPlan(Vec<SPPath>),
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerInfo {

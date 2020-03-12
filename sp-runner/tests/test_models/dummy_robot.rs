@@ -7,7 +7,7 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
     // domain is a list of saved poses. add "unknown" to this list.
     let mut domain = vec!["unknown"];
     domain.extend(poses.iter());
-    resource!{
+    resource! {
         name: name,
         command!{
             topic: "Control",
@@ -22,9 +22,6 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 
             act_pos : domain,
             active : bool,
-
-            echo / ref_pos : domain,   // these are used for handshaking.
-            echo / activate : bool,    // "echo" has special meaning for us.
         },
         estimated!{
             prev_pos: domain,
@@ -77,9 +74,12 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 #[serial]
 fn test_dummy() {
     let r1 = make_dummy_robot("r1", &["at", "away"]);
-//    println!("{:#?}", r1);
+    //    println!("{:#?}", r1);
 
-    let r1_p_a = r1.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    let r1_p_a = r1
+        .find_item("act_pos", &["r1"])
+        .expect("check spelling")
+        .path();
     println!("path: {}", r1_p_a);
 
     let m = Model::new_root("one_robot_model", vec![SPItem::Resource(r1)]);

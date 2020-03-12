@@ -1,6 +1,6 @@
+use serial_test::serial;
 use sp_domain::*;
 use sp_runner::*;
-use serial_test::serial;
 
 mod test_models;
 use test_models::*;
@@ -15,21 +15,31 @@ fn test_guard_extraction() {
     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
-    let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
+    let inits: Vec<Predicate> = m
+        .resources()
+        .iter()
+        .flat_map(|r| r.sub_items())
         .flat_map(|si| match si {
             SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
-            _ => None
-        }).collect();
+            _ => None,
+        })
+        .collect();
 
     // we need to assume that we are in a state that adheres to the resources
     let initial = Predicate::AND(inits);
 
     // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r1_p_a = m
+        .find_item("act_pos", &["r1"])
+        .expect("check spelling")
+        .path();
+    let r2_p_a = m
+        .find_item("act_pos", &["r2"])
+        .expect("check spelling")
+        .path();
 
     // (offline) Specifications
-    let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+    let table_zone = p!(!([p: r1_p_a == "at"] && [p: r2_p_a == "at"]));
     m.add_item(SPItem::Spec(Spec::new("table_zone", table_zone)));
 
     let mut ts_model = TransitionSystemModel::from(&m);
@@ -54,11 +64,17 @@ fn test_invariant_refinement() {
     m.add_item(SPItem::Resource(make_dummy_robot("r2", &["at", "away"])));
 
     // Make some global stuff
-    let r1_p_a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
-    let r2_p_a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    let r1_p_a = m
+        .find_item("act_pos", &["r1"])
+        .expect("check spelling")
+        .path();
+    let r2_p_a = m
+        .find_item("act_pos", &["r2"])
+        .expect("check spelling")
+        .path();
 
     // (offline) Specifications
-    let table_zone = p!(!( [p:r1_p_a == "at"] && [p:r2_p_a == "at"]));
+    let table_zone = p!(!([p: r1_p_a == "at"] && [p: r2_p_a == "at"]));
 
     let new_table_zone = refine_invariant(&m, &table_zone);
     assert_ne!(new_table_zone, table_zone);
@@ -68,5 +84,4 @@ fn test_invariant_refinement() {
 
     let ts_model = TransitionSystemModel::from(&m);
     generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
-
 }

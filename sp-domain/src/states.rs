@@ -68,7 +68,7 @@ impl<'a> StateProjection<'a> {
             if *p == path {
                 return Some(*v);
             }
-        };
+        }
         None
     }
 }
@@ -347,15 +347,20 @@ impl SPState {
     pub fn difference(&self, new_state: &SPState) -> SPState {
         let self_p = self.projection();
         let new_p = new_state.projection();
-        let res: Vec<(SPPath, StateValue)> = self_p.state.iter().flat_map(|(p, v)| {
-            new_p.value(p).map(|new_v| {
-                if new_v.value() != v.value() {
-                    Some(((*p).clone(), new_v.clone()))
-                } else {
-                    None
-                }
+        let res: Vec<(SPPath, StateValue)> = self_p
+            .state
+            .iter()
+            .flat_map(|(p, v)| {
+                new_p.value(p).map(|new_v| {
+                    if new_v.value() != v.value() {
+                        Some(((*p).clone(), new_v.clone()))
+                    } else {
+                        None
+                    }
+                })
             })
-        }).flatten().collect();
+            .flatten()
+            .collect();
         SPState::new_from_state_values(&res)
     }
 
@@ -469,6 +474,22 @@ impl SPState {
         let p = other_state.extract();
         self.add_state_variables(p);
     }
+
+    /// Tries to extend the state only if the state does not contain the same
+    /// path or if that path has the same value, else the other_state will be
+    /// returned and self will not be extended
+    pub fn try_extend(&mut self, other_state: SPState) -> Option<SPState> {
+        let can_extend = other_state.projection().state.iter().all(|(p, v)| {
+            let self_v = self.sp_value_from_path(p);
+            self_v.map(|x| x == v.value()).unwrap_or(true)
+        });
+        if can_extend {
+            self.extend(other_state);
+            None
+        } else {
+            Some(other_state)
+        }
+    }
 }
 
 impl fmt::Display for SPState {
@@ -478,11 +499,14 @@ impl fmt::Display for SPState {
         proj.sort();
         let mut buf = Vec::new();
         for (p, val) in proj.state {
-
             let current = val.current.to_string();
-            let next = val.next.as_ref()
+            let next = val
+                .next
+                .as_ref()
                 .map_or("".to_string(), |x| format!("- n: {}", x));
-            let prev = val.prev.as_ref()
+            let prev = val
+                .prev
+                .as_ref()
                 .map_or("".to_string(), |x| format!("- p: {}", x));
 
             buf.push(format!("{}: {} {} {}", p, current, next, prev));
@@ -649,7 +673,5 @@ mod sp_value_test {
         println!("");
         println!("{}", new_s.difference(&s));
         println!("");
-
-
     }
 }
