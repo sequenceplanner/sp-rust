@@ -32,7 +32,7 @@ class Ros2DornaDriver(Node):
         
         while True:
             self.get_logger().info('Trying to connect to dorna...')
-            ret = self.robot.connect()
+            ret = self.robot.connect('/dev/ttyDORNA')
             if json.loads(ret)['connection'] == 2:
                 self.get_logger().info(ret)
                 break
