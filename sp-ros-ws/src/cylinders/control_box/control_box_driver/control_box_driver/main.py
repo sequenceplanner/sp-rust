@@ -8,6 +8,7 @@ import numpy
 import ast
 import json
 import yaml
+import pyfirmata
 from rclpy.node import Node
 
 from control_box_msgs.msg import ControlBoxCommand
@@ -22,8 +23,13 @@ class ControlBoxDriver(Node):
     def __init__(self):
         super().__init__("control_box_driver")
 
+        self.board = pyfirmata.Arduino('/dev/ttyACM1')
+
         # internal state
         self.blue_light = 0
+
+        # initial state off
+        self.board.digital[3].write(1)
 
         # remember last command
         self.last_seen_command = ControlBoxCommand()
@@ -62,6 +68,9 @@ class ControlBoxDriver(Node):
         self.last_seen_command = data
         self.blue_light = data.blue_light
         self.get_logger().info('command: "%s"' % data)
+
+        # update light
+        self.board.digital[3].write(data.blue_light == False)
 
         msg = ControlBoxState()
         msg.blue_light_on = self.blue_light
