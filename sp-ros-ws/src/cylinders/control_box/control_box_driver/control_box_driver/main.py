@@ -23,7 +23,7 @@ class ControlBoxDriver(Node):
     def __init__(self):
         super().__init__("control_box_driver")
 
-        self.board = pyfirmata.Arduino('/dev/ttyACM1')
+        self.board = pyfirmata.Arduino('/dev/ttyARDUINO')
 
         # internal state
         self.blue_light = 0
