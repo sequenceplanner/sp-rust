@@ -11,8 +11,8 @@ import yaml
 import pyfirmata
 from rclpy.node import Node
 
-from control_box_msgs.msg import ControlBoxCommand
-from control_box_msgs.msg import ControlBoxState
+from control_box_msgs.msg import Goal
+from control_box_msgs.msg import State
 
 from sp_messages.msg import NodeCmd
 from sp_messages.msg import NodeMode
@@ -31,8 +31,8 @@ class ControlBoxDriver(Node):
         # initial state off
         self.board.digital[3].write(1)
 
-        # remember last command
-        self.last_seen_command = ControlBoxCommand()
+        # remember last goal
+        self.last_seen_goal = Goal()
 
         # sp node mode
         self.sp_node_cmd = NodeCmd()
@@ -40,8 +40,8 @@ class ControlBoxDriver(Node):
         self.mode.mode = "init"
 
         self.subscriber = self.create_subscription(
-            ControlBoxCommand,
-            "/control_box/command",
+            Goal,
+            "/control_box/goal",
             self.sp_cmd_callback,
             10)
 
@@ -52,7 +52,7 @@ class ControlBoxDriver(Node):
             10)
 
         self.state_publisher = self.create_publisher(
-            ControlBoxState,
+            State,
             "/control_box/state",
             10)
 
@@ -67,27 +67,28 @@ class ControlBoxDriver(Node):
     def sp_cmd_callback(self, data):
         self.last_seen_command = data
         self.blue_light = data.blue_light
-        self.get_logger().info('command: "%s"' % data)
+        self.get_logger().info('goal: "%s"' % data)
 
         # update light
         self.board.digital[3].write(data.blue_light == False)
 
-        msg = ControlBoxState()
+        msg = State()
         msg.blue_light_on = self.blue_light
         self.state_publisher.publish(msg)
 
 
-    def sp_node_cmd_callback(self, node_cmd):
+    def sp_node_cmd_callback(self, data):
         self.get_logger().info('"%s"' % data)
+        self.sp_node_cmd = data
 
         # move to general function in sp
         echo_msg = {}
-        for k in ControlBoxCommand.get_fields_and_field_types().keys():
-            echo_msg.update({k: getattr(self.last_seen_command, "_"+k)})
+        for k in Goal.get_fields_and_field_types().keys():
+            echo_msg.update({k: getattr(self.last_seen_goal, "_"+k)})
 
         self.mode.echo = json.dumps(echo_msg)
 
-        if self.node_cmd.mode == "run":
+        if self.sp_node_cmd.mode == "run":
             self.mode.mode = "running"
         else:
             self.mode.mode = "init"

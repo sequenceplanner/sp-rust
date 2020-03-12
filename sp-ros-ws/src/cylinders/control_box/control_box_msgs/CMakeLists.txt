@@ -26,8 +26,8 @@ find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(control_box_msgs
-  "msg/ControlBoxCommand.msg"
-  "msg/ControlBoxState.msg"
+  "msg/Goal.msg"
+  "msg/State.msg"
   DEPENDENCIES builtin_interfaces
 )
 
