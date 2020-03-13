@@ -187,29 +187,31 @@ class Ros2DornaDriver(Node):
                 pose_list.append(row[0])
             return pose_list
 
-    def joint_state_callback(self, data):
-        self.act_pos[0] = data.position[0]
-        self.act_pos[1] = data.position[1]
-        self.act_pos[2] = data.position[2]
-        self.act_pos[3] = data.position[3]
-        self.act_pos[4] = data.position[4]
-
     def sp_to_esd_callback(self, data):
-        self.sp_to_esd_msg.ref_pos = data.reference_pose
-        self.sp_to_esd_msg.reference_joint_speed = data.reference_joint_speed
-        if self.sp_to_esd_msg.ref_pos in self.read_and_generate_pose_list():
-            self.joint_reference_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
+        if self.gui_to_esd_msg.gui_control_enabled:
+            return
+
+        self.sp_to_esd_msg.ref_pos = data.ref_pos
+        pose_list = self.read_and_generate_pose_list()
+        if self.sp_to_esd_msg.ref_pos in pose_list:
+            new_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
+            if new_pose != self.joint_reference_pose:
+                self.move_to_pose_rad(new_pose)
+                self.joint_reference_pose = new_pose
         else:
             pass
 
+    def move_to_pose_rad(self, p):
+        p_deg = [ p[0] * 180.0/math.pi, p[1] * 180.0/math.pi, p[2] * 180.0/math.pi, p[3] * 180.0/math.pi, p[4] * 180.0/math.pi ]
+        command = {"command": "move", "prm":{"path": "joint", "movement":0, "joint": p_deg}}
+        self.get_logger().info(json.dumps(command))
+        self.robot.play(command, append = False)
+
     def gui_to_esd_callback(self, data):
         if data.gui_control_enabled and self.gui_to_esd_msg != data:
-            p = data.gui_joint_control
-            p_deg = [ p[0] * 180.0/math.pi, p[1] * 180.0/math.pi, p[2] * 180.0/math.pi, p[3] * 180.0/math.pi, p[4] * 180.0/math.pi ]
-            command = {"command": "move", "prm":{"path": "joint", "movement":0, "joint": p_deg}}
-            self.get_logger().info(json.dumps(command))
-            self.robot.play(command, append = False)
-            self.gui_to_esd_msg = data
+            self.move_to_pose_rad(data.gui_joint_control)
+            self.joint_reference_pose = data.gui_joint_control
+        self.gui_to_esd_msg = data
 
     def joint_state_publisher_callback(self):
         joint_state = JointState()
@@ -217,7 +219,15 @@ class Ros2DornaDriver(Node):
         rp = self.robot.position()
         js = json.loads(rp)
         if len(js) == 5:
-            joint_state.position = [ js[0] * math.pi/180.0, js[1] * math.pi/180.0, js[2] * math.pi/180.0, js[3] * math.pi/180.0, js[4] * math.pi/180.0, 0.0 ]
+            self.act_pos[0] = js[0] * math.pi/180.0
+            self.act_pos[1] = js[1] * math.pi/180.0
+            self.act_pos[2] = js[2] * math.pi/180.0
+            self.act_pos[3] = js[3] * math.pi/180.0
+            self.act_pos[4] = js[4] * math.pi/180.0
+
+            joint_state.position = self.act_pos
+            joint_state.position.append(0.0)
+
             self.joint_state_publisher_.publish(joint_state)
 
     def esd_to_gui_publisher_callback(self):
