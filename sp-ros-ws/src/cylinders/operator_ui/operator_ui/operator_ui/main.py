@@ -76,8 +76,6 @@ class OperatorUI(Node, Callbacks):
         self.get_logger().info('goal: "%s"' % data)
         Callbacks.trigger_ui()
 
-        msg = State()
-        msg.state = self.current_state
         self.state_publisher.publish(Callbacks.state)
 
 
