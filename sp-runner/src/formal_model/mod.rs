@@ -318,8 +318,42 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
         intersection.is_empty()
     }) {
         // nothing to process! invariant is safe to use as is.
+        println!("nothing to do for {}", invariant);
         return invariant.clone();
     }
+
+    // hack to remove un-needed variabables
+    // think about wheter this is sound, and also if more transitions can be removed
+    let mut support_all: HashSet<SPPath> = support.clone();
+    model.transitions.iter().for_each(|t| {
+        support_all.extend(t.guard().support().into_iter());
+        let modifies = modified_by(t);
+        support_all.extend(modifies);
+    });
+    let preds: Vec<_> = support_all.iter()
+        .filter_map(|s| {
+            if let Some(v) = model.state_predicates.iter().find(|t| t.path() == s) {
+                if let VariableType::Predicate(p) = v.variable_type() {
+                    return Some(p);
+                }
+            }
+            return None;
+        })
+        .collect();
+
+    let mut support_all: HashSet<_> = support_all.into_iter()
+        .filter(|s| !model
+                .state_predicates.iter().any(|t| t.path() == s)).collect();
+
+    support_all.extend(preds.iter().flat_map(|p| p.support()));
+
+    println!("needed variables:");
+    support_all.iter().for_each(|t| {
+        println!("{}", t);
+    });
+
+    // finally filter out any variables left
+    model.vars.retain(|v| support_all.contains(v.path()));
 
     // TODO: also filter out all variables and state predicates which
     // are not included in any of our transitions/invariants
