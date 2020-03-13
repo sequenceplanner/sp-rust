@@ -1,6 +1,8 @@
 use sp_domain::*;
 use sp_runner::*;
 use serial_test::serial;
+use sp_smt::*;
+use std::collections::HashMap;
 
 mod test_models;
 use test_models::*;
@@ -316,7 +318,8 @@ fn planning_invar_len11() {
     let new_table_zone = refine_invariant(&m, &table_zone);
 
     // no guard extr.
-    let ts_model = TransitionSystemModel::from(&m);
+    let mut ts_model = TransitionSystemModel::from(&m);
+    ts_model.specs.clear();
 
     let state = state! {
         r1a => "away",
@@ -337,7 +340,7 @@ fn planning_invar_len11() {
     let i2 = new_table_zone.clone();
     let g2 = p!(p:r2a == "at");
 
-    let goals = vec![(g1, Some(i1)), (g2, Some(i2))];
+    let goals = vec![(g1, Some(i1)), (g2, Some(i2))];    
 
     let result = plan(&ts_model, goals.as_slice(), &state, 20);
     assert!(result.plan_found);
@@ -390,4 +393,95 @@ fn planning_invar_len9() {
     assert!(result.plan_found);
     assert_eq!(result.trace.len(), 9);
     assert_eq!(result.plan_length, 8);
+}
+
+#[test]
+#[serial]
+fn until2_test() {
+      // Make model
+      let mut m = Model::new_root("tsi", Vec::new());
+
+      // Make resoureces
+      m.add_item(SPItem::Resource(resource!(name : "r1",
+        command!{
+            topic: "Control",
+            msg_type: "dummy_robot_messages/msg/Control",
+            activate : bool,
+        },
+        measured!{
+            topic: "State",
+            msg_type: "dummy_robot_messages/msg/State",
+            active : bool,
+        },
+        // ability!{
+        //     name: activate,
+
+        //     enabled: p!([!activate] && [!active]),
+        //     executing: p!([activate] && [!active]),
+        //     finished: p!([activate] && [active]),
+
+        //     *start: p!(enabled) => [ a!(activate) ] / [],
+        //     finish: p!(executing) => [] / [ a!(active) ],
+        // },
+    )));
+    //   m.add_item(SPItem::Resource(make_dummy_robot("r1", &[])));
+    //   m.add_item(SPItem::Resource(make_dummy_robot("r2", &[])));
+  
+    //   let r1a = m.find_item("act_pos", &["r1"]).expect("check spelling").path();
+    //   let r1r = m.find_item("ref_pos", &["r1"]).expect("check spelling").path();
+      let r1active = m.find_item("active", &["r1"]).expect("check spelling").path();
+      let r1activate = m.find_item("activate", &["r1"]).expect("check spelling").path();
+  
+    //   let r2a = m.find_item("act_pos", &["r2"]).expect("check spelling").path();
+    //   let r2r = m.find_item("ref_pos", &["r2"]).expect("check spelling").path();
+    //   let r2active = m.find_item("active", &["r2"]).expect("check spelling").path();
+    //   let r2activate = m.find_item("activate", &["r2", "Control"]).expect("check spelling").path();
+  
+  
+    //   let table_zone = p!(!( [p:r1a == "at"] && [p:r2a == "at"]));
+    // let activation = p!(!( [p:r1active == true] && [p:r1activate == true]));
+    let activation = p!(!([p:r1activate == true]));
+      let new_activation = refine_invariant(&m, &activation);
+  
+      // no guard extr.
+      let mut ts_model = TransitionSystemModel::from(&m);
+      ts_model.specs.clear();
+  
+      let state = state! {
+        //   r1a => "away",
+        //   r1r => "away",
+          r1active => false,
+          r1activate => false
+        //   r2a => "away",
+        //   r2r => "away",
+        //   r2active => false,
+        //   r2activate => false
+      };
+  
+      // start planning test
+  
+      let i1 = new_activation.clone();
+      let g1 = p!(p:r1active == true);
+    //   let g1 = p!(p:r1a == "at");
+  
+    //   let i2 = new_activation.clone();
+    //   let g2 = p!(p:r2active == true);
+
+      let cfg = ConfigZ3::new();
+        let ctx = ContextZ3::new(&cfg);
+        let slv = SolverZ3::new(&ctx);
+  
+      let until2 = Until2Z3::new(&ctx, &ts_model, &i1, &g1, 0, 2);
+      println!("{}", ast_to_string_z3!(&ctx, until2));
+
+    //   let goals = vec![(g1, Some(i1)), (g2, Some(i2))];    
+  
+      
+
+      
+
+    //   let result = plan(&ts_model, goals.as_slice(), &state, 20);
+    //   assert!(result.plan_found);
+    //   assert_eq!(result.trace.len(), 11);
+    //   assert_eq!(result.plan_length, 10);
 }

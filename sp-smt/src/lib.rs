@@ -47,4 +47,4 @@ pub use crate::z3planning::{GetInitialStateZ3, GetSPPredicateZ3, GetSPUpdatesZ3,
     SubParComputePlanSPModelZ3, PlanningFrameZ3, PlanningResultZ3, GetSPVarDomain};
 
 pub mod z3ltlf;
-pub use crate::z3ltlf::{UntilZ3, AtLeastOnceZ3};
+pub use crate::z3ltlf::{UntilZ3, Until2Z3, AtLeastOnceZ3};

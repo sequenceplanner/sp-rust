@@ -9,6 +9,7 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
     // at the table at the same time. reaching a goal that they should
     // both at the table shouldn't make us ignore the
     // invariants. instead we don't want a plan to be found.
+    
     let goals: Vec<_> = goals.iter().map(|(g,i)| {
         if let Some(invar) = i {
             (Predicate::AND(vec![g.clone(),invar.clone()]), i.clone())
@@ -17,8 +18,9 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
         }
     }).collect();
 
-    let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
     let result2 = Z3Planner::plan(model, &goals, state, max_steps);
+    let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
+    
     // let result3 = SatPlanner::plan(model, &goals, state, max_steps);
 
 
@@ -29,6 +31,8 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
         println!("{}", f.state);
 
     }
+
+    println!("================sdfsdf==========");
 
     for f in &result2.trace {
         println!("==========================");
@@ -46,6 +50,8 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
     assert_eq!(result.plan_found, result2.plan_found);
 
     if result2.plan_found {
+        assert_eq!(result.trace.len(), result2.trace.len());
+        
         assert_eq!(result.plan_length, result2.plan_length);
         println!("we have a plan of length {}", result2.plan_length);
         println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
