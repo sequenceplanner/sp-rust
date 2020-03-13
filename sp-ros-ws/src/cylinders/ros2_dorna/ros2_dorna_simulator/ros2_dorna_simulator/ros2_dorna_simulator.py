@@ -32,7 +32,7 @@ class Ros2DornaSimulator(Node):
         self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.pub_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.sync_speed_scale = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-        self.max_speed_factor = 2 # do not exceed 2, for now... Reduce if necessary.
+        self.max_speed_factor = 2.0 / 0.25 # do not exceed 2, for now... Reduce if necessary.
         self.joint_reference_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.joint_tolerance = 0.01
 
@@ -101,7 +101,7 @@ class Ros2DornaSimulator(Node):
                                 "dorna_axis_5_joint",
                                 "nonexistent"]
 
-        self.joint_state_timer_period = 0.01
+        self.joint_state_timer_period = 0.025
 
         self.joint_state_publisher_ = self.create_publisher(
             JointState,
@@ -162,13 +162,13 @@ class Ros2DornaSimulator(Node):
         with open(self.joints_input, 'r') as joint_csv:
             joint_csv_reader = csv.reader(joint_csv, delimiter=':')
             for row in joint_csv_reader:
-                if len(ast.literal_eval(row[1])) == 6 and current_pose != []:
+                if len(ast.literal_eval(row[1])) == 5 and current_pose != []:
                     saved_pose = ast.literal_eval(row[1])
-                    if all(numpy.isclose(current_pose[i], saved_pose[i], atol=self.joint_tolerance) for i in range(0, 6)):
+                    if all(numpy.isclose(current_pose[i], saved_pose[i], atol=self.joint_tolerance) for i in range(0, 5)):
                         actual_joint_pose = row[0]
                         break
                     else:
-                        actual_joint_pose = "UNKNOWN"
+                        actual_joint_pose = "unknown"
                         pass
                 else:
                     pass
@@ -193,7 +193,6 @@ class Ros2DornaSimulator(Node):
         self.act_pos[2] = data.position[2]
         self.act_pos[3] = data.position[3]
         self.act_pos[4] = data.position[4]
-        # self.act_pos[5] = data.position[5]
 
     def sp_to_esd_callback(self, data):
         self.sp_to_esd_msg.ref_pos = data.ref_pos

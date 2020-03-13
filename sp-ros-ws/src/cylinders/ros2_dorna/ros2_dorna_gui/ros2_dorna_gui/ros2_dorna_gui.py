@@ -22,7 +22,7 @@ from PyQt5.QtGui import *
 
 class CommVariables():
     gui_control_enabled = False
-    speed_slider_value = 0
+    speed_slider_value = 50
     slider_1_value = 0
     slider_2_value = 0
     slider_3_value = 0
@@ -417,7 +417,6 @@ class Window(QWidget, CommVariables):
                 self.pose_saver_box.setEnabled(True)
                 self.combo_box_box.setEnabled(True)
                 self.current_pose_box.setEnabled(True)
-
             else:
                 CommVariables.gui_control_enabled = False
                 for slider in self.sliders:
@@ -556,6 +555,7 @@ class Window(QWidget, CommVariables):
         self.speed_slider.setMaximum(100)
         self.speed_slider.setSingleStep(step)
         self.speed_slider.setMinimumWidth(200)
+        self.speed_slider.setValue(CommVariables.speed_slider_value)
         self.speed_line = QLineEdit("%")
         self.speed_line.setMaximumWidth(80)
         self.speed_button = QPushButton("set")
