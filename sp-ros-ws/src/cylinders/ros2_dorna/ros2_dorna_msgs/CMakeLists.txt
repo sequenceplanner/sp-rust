@@ -27,8 +27,10 @@ find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(ros2_dorna_msgs
-  "msg/DornaSPToEsd.msg"
-  "msg/DornaEsdToSP.msg"
+# sp messages
+  "msg/Goal.msg"
+  "msg/State.msg"
+# internal messages
   "msg/DornaGuiToEsd.msg"
   "msg/DornaEsdToGui.msg"
   "msg/DornaGuiToUtils.msg"

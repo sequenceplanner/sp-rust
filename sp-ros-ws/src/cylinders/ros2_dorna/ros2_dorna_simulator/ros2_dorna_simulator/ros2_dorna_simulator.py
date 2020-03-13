@@ -10,10 +10,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from ros2_dorna_msgs.msg import DornaGuiToEsd
 from ros2_dorna_msgs.msg import DornaEsdToGui
-from ros2_dorna_msgs.msg import DornaSPToEsd
-from ros2_dorna_msgs.msg import DornaEsdToSP
-from ros2_dorna_msgs.msg import DornaSPToEsd
-from ros2_dorna_msgs.msg import DornaEsdToSP
+from ros2_dorna_msgs.msg import Goal
+from ros2_dorna_msgs.msg import State
 from ament_index_python.packages import get_package_share_directory
 from launch.substitutions import LaunchConfiguration
 
@@ -43,31 +41,30 @@ class Ros2DornaSimulator(Node):
 
         # gui to esd:
         self.gui_to_esd_msg = DornaGuiToEsd()
-        self.gui_to_esd_msg.gui_control_enabled = False                       
-        self.gui_to_esd_msg.gui_speed_control = 0                             
-        self.gui_to_esd_msg.gui_joint_control = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]                      
+        self.gui_to_esd_msg.gui_control_enabled = False
+        self.gui_to_esd_msg.gui_speed_control = 0
+        self.gui_to_esd_msg.gui_joint_control = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
         self.gui_to_esd_subscriber = self.create_subscription(
-            DornaGuiToEsd, 
+            DornaGuiToEsd,
             "/dorna_gui_to_esd",
             self.gui_to_esd_callback,
             10)
-        
+
         # joints to esd:
         self.joint_state_subscriber = self.create_subscription(
-            JointState, 
+            JointState,
             "/dorna_joint_states",
             self.joint_state_callback,
             10)
 
         # sp to esd:
-        self.sp_to_esd_msg = DornaSPToEsd()
-        self.sp_to_esd_msg.reference_pose = ""
-        self.sp_to_esd_msg.reference_joint_speed = 0
+        self.sp_to_esd_msg = Goal()
+        self.sp_to_esd_msg.ref_pos = ""
 
         self.sp_to_esd_subscriber = self.create_subscription(
-            DornaSPToEsd, 
-            "/dorna_sp_to_esd",
+            Goal,
+            "/dorna/goal",
             self.sp_to_esd_callback,
             10)
 
@@ -84,23 +81,23 @@ class Ros2DornaSimulator(Node):
             10)
 
         self.esd_to_gui_timer = self.create_timer(
-            self.esd_to_gui_timer_period, 
+            self.esd_to_gui_timer_period,
             self.esd_to_gui_publisher_callback)
 
         # esd to joints:
         self.joint_state = JointState()
         if self.namespace != "":
-            self.joint_names = [self.namespace + "/" + "dorna_axis_1_joint", 
-                                self.namespace + "/" + "dorna_axis_2_joint", 
+            self.joint_names = [self.namespace + "/" + "dorna_axis_1_joint",
+                                self.namespace + "/" + "dorna_axis_2_joint",
                                 self.namespace + "/" + "dorna_axis_3_joint",
-                                self.namespace + "/" + "dorna_axis_4_joint", 
+                                self.namespace + "/" + "dorna_axis_4_joint",
                                 self.namespace + "/" + "dorna_axis_5_joint",
                                 "nonexistent"]
         else:
-            self.joint_names = ["dorna_axis_1_joint", 
-                                "dorna_axis_2_joint", 
+            self.joint_names = ["dorna_axis_1_joint",
+                                "dorna_axis_2_joint",
                                 "dorna_axis_3_joint",
-                                "dorna_axis_4_joint", 
+                                "dorna_axis_4_joint",
                                 "dorna_axis_5_joint",
                                 "nonexistent"]
 
@@ -110,26 +107,23 @@ class Ros2DornaSimulator(Node):
             JointState,
             "/dorna_joint_states",
             10)
-    
+
         self.joint_state_publisher_timer = self.create_timer(
-            self.joint_state_timer_period, 
+            self.joint_state_timer_period,
             self.joint_state_publisher_callback)
 
         # esd to sp:
-        self.esd_to_sp_msg = DornaEsdToSP()
-        self.esd_to_sp_msg.actual_pose = ""
-        self.esd_to_sp_msg.actual_joint_speed = 0
-        self.esd_to_sp_msg.echo_reference_pose = ""
-        self.esd_to_sp_msg.echo_reference_joint_speed = 0
+        self.esd_to_sp_msg = State()
+        self.esd_to_sp_msg.act_pos = ""
         self.esd_to_sp_timer_period = 0.1
 
         self.esd_to_sp_publisher_ = self.create_publisher(
-            DornaEsdToSP,
-            "/dorna_esd_to_sp",
+            State,
+            "/dorna/state",
             10)
 
         self.esd_to_sp_publisher_timer = self.create_timer(
-            self.esd_to_sp_timer_period, 
+            self.esd_to_sp_timer_period,
             self.esd_to_sp_callback)
 
     def get_pose_from_pose_name(self, name):
@@ -157,8 +151,8 @@ class Ros2DornaSimulator(Node):
     def get_pose_name_from_pose(self):
         '''
         While all joint velocities are 0, compare current robot joint pose with saved poses in the joint_csv file
-        and return the name of the saved pose if they match with a tolerance, else return unknown as the 
-        current joint pose. Using joint_callback because it is very slow to get_current_joint_values via 
+        and return the name of the saved pose if they match with a tolerance, else return unknown as the
+        current joint pose. Using joint_callback because it is very slow to get_current_joint_values via
         moveit_commander according to KCacheGrind.
         '''
 
@@ -178,7 +172,7 @@ class Ros2DornaSimulator(Node):
                         pass
                 else:
                     pass
-        
+
         return actual_joint_pose
 
     def read_and_generate_pose_list(self):
@@ -202,10 +196,9 @@ class Ros2DornaSimulator(Node):
         # self.act_pos[5] = data.position[5]
 
     def sp_to_esd_callback(self, data):
-        self.sp_to_esd_msg.reference_pose = data.reference_pose
-        self.sp_to_esd_msg.reference_joint_speed = data.reference_joint_speed
-        if self.sp_to_esd_msg.reference_pose in self.read_and_generate_pose_list():
-            self.joint_reference_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.reference_pose)
+        self.sp_to_esd_msg.ref_pos = data.ref_pos
+        if self.sp_to_esd_msg.ref_pos in self.read_and_generate_pose_list():
+            self.joint_reference_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
         else:
             pass
 
@@ -219,11 +212,11 @@ class Ros2DornaSimulator(Node):
         self.gui_to_esd_msg.gui_joint_control[4] = round(data.gui_joint_control[4], 3)
         # self.gui_to_esd_msg.gui_joint_control[5] = round(data.gui_joint_control[5], 3)
 
-    def joint_state_publisher_callback(self):        
+    def joint_state_publisher_callback(self):
         if self.gui_to_esd_msg.gui_control_enabled == True:
             if self.gui_to_esd_msg.gui_joint_control != None:
-            
-                for i in range(0, 6):
+
+                for i in range(0, 5):
                     self.sync_speed_scale[i] = abs(self.gui_to_esd_msg.gui_joint_control[i] - self.act_pos[i])
 
                 self.sync_max = max(self.sync_speed_scale)
@@ -232,10 +225,10 @@ class Ros2DornaSimulator(Node):
                 else:
                     self.sync_max_factor = 1
 
-                for i in range(0, 6):
+                for i in range(0, 5):
                     self.sync_speed_scale[i] = self.sync_speed_scale[i]*self.sync_max_factor
 
-                for i in range(0, 6):
+                for i in range(0, 5):
                     # print(self.sync_speed_scale)
                     if self.gui_to_esd_msg.gui_joint_control[i] < self.act_pos[i] - 0.001*self.max_speed_factor:
                         if self.gui_to_esd_msg.gui_joint_control[i] < self.act_pos[i] - 0.01:
@@ -255,7 +248,7 @@ class Ros2DornaSimulator(Node):
         else:
 
             if self.joint_reference_pose != None:
-                for i in range(0, 6):
+                for i in range(0, 5):
                     self.sync_speed_scale[i] = abs(self.joint_reference_pose[i] - self.act_pos[i])
 
                 self.sync_max = max(self.sync_speed_scale)
@@ -264,19 +257,19 @@ class Ros2DornaSimulator(Node):
                 else:
                     self.sync_max_factor = 1
 
-                for i in range(0, 6):
+                for i in range(0, 5):
                     self.sync_speed_scale[i] = self.sync_speed_scale[i]*self.sync_max_factor
 
-            
-                for i in range(0, 6):
+
+                for i in range(0, 5):
                     if self.joint_reference_pose[i] < self.act_pos[i] - 0.001*self.max_speed_factor:
                         if self.joint_reference_pose[i] < self.act_pos[i] - 0.01:
-                            self.pub_pos[i] = round(self.act_pos[i] - 0.0001*self.max_speed_factor*self.sp_to_esd_msg.reference_joint_speed*self.sync_speed_scale[i], 4)
+                            self.pub_pos[i] = round(self.act_pos[i] - 0.01*self.max_speed_factor*self.sync_speed_scale[i], 4)
                         else:
                             self.pub_pos[i] = self.act_pos[i] - 0.001*self.max_speed_factor
                     elif self.joint_reference_pose[i] > self.act_pos[i] + 0.001*self.max_speed_factor:
                         if self.joint_reference_pose[i] > self.act_pos[i] + 0.01:
-                            self.pub_pos[i] = round(self.act_pos[i] + 0.0001*self.max_speed_factor*self.sp_to_esd_msg.reference_joint_speed*self.sync_speed_scale[i], 4)
+                            self.pub_pos[i] = round(self.act_pos[i] + 0.01*self.max_speed_factor*self.sync_speed_scale[i], 4)
                         else:
                             self.pub_pos[i] = self.act_pos[i] + 0.001*self.max_speed_factor
                     else:
@@ -287,18 +280,15 @@ class Ros2DornaSimulator(Node):
         self.joint_state.name = self.joint_names
         self.joint_state.position = self.pub_pos
         self.joint_state_publisher_.publish(self.joint_state)
-            
+
     def esd_to_gui_publisher_callback(self):
         self.esd_to_gui_msg.actual_pose = self.get_pose_name_from_pose()
         self.esd_to_gui_publisher_.publish(self.esd_to_gui_msg)
 
     def esd_to_sp_callback(self):
-        self.esd_to_sp_msg.actual_pose = self.esd_to_gui_msg.actual_pose
-        self.esd_to_sp_msg.actual_joint_speed = self.sp_to_esd_msg.reference_joint_speed
-        self.esd_to_sp_msg.echo_reference_pose = self.sp_to_esd_msg.reference_pose
-        self.esd_to_sp_msg.echo_reference_joint_speed = self.sp_to_esd_msg.reference_joint_speed
+        self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.actual_pose
         self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
-    
+
 def main(args=None):
 
     rclpy.init(args=args)
@@ -306,6 +296,6 @@ def main(args=None):
     rclpy.spin(ros2_dorna_simulator)
     ros2_dorna_simulator.destroy_node()
     rclpy.shutdown()
-    
+
 if __name__ == '__main__':
     main()

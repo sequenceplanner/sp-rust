@@ -1,2 +1,0 @@
-string actual_pose
-uint8 actual_joint_speed

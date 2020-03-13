@@ -14,10 +14,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from ros2_dorna_msgs.msg import DornaGuiToEsd
 from ros2_dorna_msgs.msg import DornaEsdToGui
-from ros2_dorna_msgs.msg import DornaSPToEsd
-from ros2_dorna_msgs.msg import DornaEsdToSP
-from ros2_dorna_msgs.msg import DornaSPToEsd
-from ros2_dorna_msgs.msg import DornaEsdToSP
+from ros2_dorna_msgs.msg import Goal
+from ros2_dorna_msgs.msg import State
 from ament_index_python.packages import get_package_share_directory
 from launch.substitutions import LaunchConfiguration
 
@@ -29,7 +27,7 @@ class Ros2DornaDriver(Node):
 
         config = os.path.join(get_package_share_directory('dorna'), 'config.yaml')
         self.robot = dorna.Dorna(config)
-        
+
         while True:
             self.get_logger().info('Trying to connect to dorna...')
             ret = self.robot.connect('/dev/ttyDORNA')
@@ -38,7 +36,7 @@ class Ros2DornaDriver(Node):
                 break
             self.get_logger().info('Connection failed.')
             time.sleep(5) # back off
-            
+
         self.get_logger().info('Connected!')
 
         if homing:
@@ -70,13 +68,12 @@ class Ros2DornaDriver(Node):
             10)
 
         # sp to esd:
-        self.sp_to_esd_msg = DornaSPToEsd()
-        self.sp_to_esd_msg.reference_pose = ""
-        self.sp_to_esd_msg.reference_joint_speed = 0
+        self.sp_to_esd_msg = Goal()
+        self.sp_to_esd_msg.ref_pos = ""
 
         self.sp_to_esd_subscriber = self.create_subscription(
-            DornaSPToEsd,
-            "/dorna_sp_to_esd",
+            Goal,
+            "/dorna/goal",
             self.sp_to_esd_callback,
             10)
 
@@ -116,16 +113,13 @@ class Ros2DornaDriver(Node):
             self.joint_state_publisher_callback)
 
         # esd to sp:
-        self.esd_to_sp_msg = DornaEsdToSP()
-        self.esd_to_sp_msg.actual_pose = ""
-        self.esd_to_sp_msg.actual_joint_speed = 0
-        self.esd_to_sp_msg.echo_reference_pose = ""
-        self.esd_to_sp_msg.echo_reference_joint_speed = 0
+        self.esd_to_sp_msg = State()
+        self.esd_to_sp_msg.act_pos = ""
         self.esd_to_sp_timer_period = 0.05
 
         self.esd_to_sp_publisher_ = self.create_publisher(
-            DornaEsdToSP,
-            "/dorna_esd_to_sp",
+            State,
+            "/dorna/state",
             10)
 
         self.esd_to_sp_publisher_timer = self.create_timer(
@@ -201,10 +195,10 @@ class Ros2DornaDriver(Node):
         self.act_pos[4] = data.position[4]
 
     def sp_to_esd_callback(self, data):
-        self.sp_to_esd_msg.reference_pose = data.reference_pose
+        self.sp_to_esd_msg.ref_pos = data.reference_pose
         self.sp_to_esd_msg.reference_joint_speed = data.reference_joint_speed
-        if self.sp_to_esd_msg.reference_pose in self.read_and_generate_pose_list():
-            self.joint_reference_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.reference_pose)
+        if self.sp_to_esd_msg.ref_pos in self.read_and_generate_pose_list():
+            self.joint_reference_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
         else:
             pass
 
@@ -231,10 +225,7 @@ class Ros2DornaDriver(Node):
         self.esd_to_gui_publisher_.publish(self.esd_to_gui_msg)
 
     def esd_to_sp_callback(self):
-        self.esd_to_sp_msg.actual_pose = self.esd_to_gui_msg.actual_pose
-        self.esd_to_sp_msg.actual_joint_speed = self.sp_to_esd_msg.reference_joint_speed
-        self.esd_to_sp_msg.echo_reference_pose = self.sp_to_esd_msg.reference_pose
-        self.esd_to_sp_msg.echo_reference_joint_speed = self.sp_to_esd_msg.reference_joint_speed
+        self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.actual_pose
         self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
 
     def cleanup(self):
@@ -251,7 +242,7 @@ def main(args=None):
         homing = True
     else:
         homing = False
-    
+
     rclpy.init(args=args)
     ros2_dorna_driver = Ros2DornaDriver(homing)
 
@@ -265,11 +256,10 @@ def main(args=None):
 
 def stop_node(*args):
     rclpy.shutdown()
-    return True    
+    return True
 
 if __name__ == '__main__':
     try:
         main()
     except:
         stop_node()
-
