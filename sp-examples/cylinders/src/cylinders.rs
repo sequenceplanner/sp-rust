@@ -3,159 +3,133 @@ use sp_runner::*;
 use crate::dorna::*;
 
 pub fn cylinders() -> (Model, SPState, Predicate) {
-    let mut m = GModel::new("cubes");
+    let mut m = GModel::new("cylinders");
 
-    let h = "home";
-    let t1 = "table1";
-    let t2 = "table2";
-    let b1 = "buffer1";
-    let b2 = "buffer2";
+    let pt = "pre_take";
+    let scan = "scan";
+    let t1 = "take1";  // shelf poses
+    let t2 = "take2";
+    let t3 = "take3";
+    let leave = "leave"; // down at conveyor
 
-    let r1 = m.use_resource(make_dorna("r1", &[h, t1, t2, b1]));
-    let r2 = m.use_resource(make_dorna("r2", &[h, t1, t2, b2]));
+    let dorna = m.use_resource(make_dorna("dorna", &[pt, scan, t1, t2, t3, leave]));
 
     let products = &[100.to_spvalue(), // SPValue::Unknown,   macros need better support for Unknown
                      0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue()];
 
-    let r1_holding = m.add_estimated_domain("r1_holding", products);
-    let r2_holding = m.add_estimated_domain("r2_holding", products);
-    let table1_holding = m.add_estimated_domain("table1_holding", products);
-    let table2_holding = m.add_estimated_domain("table2_holding", products);
-    let buffer1_holding = m.add_estimated_domain("buffer1_holding", products);
-    let buffer2_holding = m.add_estimated_domain("buffer2_holding", products);
+    let shelf1 = m.add_estimated_domain("shelf1", products);
+    let shelf2 = m.add_estimated_domain("shelf2", products);
+    let shelf3 = m.add_estimated_domain("shelf3", products);
+    let conveyor = m.add_estimated_domain("conveyor", products);
+    let dorna_holding = m.add_estimated_domain("dorna_holding", products);
 
-    let r1act = &r1["act_pos"];
-    let r2act = &r2["act_pos"];
-    let r1prev = &r1["prev_pos"];
-    let r2prev = &r2["prev_pos"];
-    let r1ref = &r1["ref_pos"];
-    let r2ref = &r2["ref_pos"];
+    let ap = &dorna["act_pos"];
+    let pp = &dorna["prev_pos"];
+    let rp = &dorna["ref_pos"];
 
-    m.add_invar("table_zone_1", &p!(!([p:r1act == t1] && [p:r2act == t1])));
-    m.add_invar("table_zone_2", &p!(!([p:r1act == t2] && [p:r2act == t2])));
-    m.add_invar("table_zone_3", &p!(!([p:r1act == t1] && [p:r2act == t2])));
-    m.add_invar("table_zone_4", &p!(!([p:r1act == t2] && [p:r2act == t1])));
+    // define robot movement
 
-    // special case at table 2
-    m.add_invar("table_zone_2_1", &p!(!([p:r1prev == t2] && [p:r1ref != t2] && [p:r2ref == t2])));
-    m.add_invar("table_zone_2_2", &p!(!([p:r2prev == t2] && [p:r2ref != t2] && [p:r1ref == t2])));
+    // pre_take can be reached from all positions.
 
+    // shelves can be reached from each other and pre_take
+    m.add_invar("to_take1", &p!([p:ap == t1] => [[p:pp == t2] || [p:pp == t3] || [p:pp == pt]]));
+    m.add_invar("to_take2", &p!([p:ap == t2] => [[p:pp == t1] || [p:pp == t3] || [p:pp == pt]]));
+    m.add_invar("to_take3", &p!([p:ap == t3] => [[p:pp == t1] || [p:pp == t2] || [p:pp == pt]]));
 
-    // must go to table positions via the home pose
-    // this leads to RIDICULOUSLY long plans (52 steps for the long operation below) :)
-    m.add_invar("via_home_r1_table1", &p!([p:r1act == t1] => [[p:r1prev == t1] || [p:r1prev == h]]));
-    m.add_invar("via_home_r1_table2", &p!([p:r1act == t2] => [[p:r1prev == t2] || [p:r1prev == h]]));
-    m.add_invar("via_home_r2_table1", &p!([p:r2act == t1] => [[p:r2prev == t1] || [p:r2prev == h]]));
-    m.add_invar("via_home_r2_table2", &p!([p:r2act == t2] => [[p:r2prev == t2] || [p:r2prev == h]]));
+    // scan and leave can only be reached from pre_take
+    m.add_invar("to_scan", &p!([p:ap == scan] => [p:pp == pt]));
+    m.add_invar("to_leave", &p!([p:ap == leave] => [p:pp == pt]));
 
-    // same for buffers
-    m.add_invar("via_home_buffer1", &p!([p:r1act == b1] => [[p:r1prev == b1] || [p:r1prev == h]]));
-    m.add_invar("via_home_buffer2", &p!([p:r2act == b2] => [[p:r2prev == b2] || [p:r2prev == h]]));
+    // dorna take/leave products
+    let pos = vec![(t1, shelf1.clone()),(t2, shelf2.clone()),
+                   (t3, shelf3.clone()),(leave, conveyor.clone())];
 
-    // robot take/leave products
-    let rs = vec!(("r1", r1act, r1_holding.clone()), ("r2", r2act, r2_holding.clone()));
-    let pos = vec!((b1, buffer1_holding.clone()), (b2, buffer2_holding.clone()), (t1, table1_holding.clone()), (t2, table2_holding.clone()));
-    for (r_name, act, holding) in rs {
-        for (pos_name, pos) in pos.iter() {
+    for (pos_name, pos) in pos.iter() {
+        m.add_delib(&format!("take_{}", pos.leaf()),
+                    &p!([p:ap == pos_name] && [p:pos != 0] && [p:dorna_holding == 0]),
+                    &[a!(p:dorna_holding <- p:pos), a!(p:pos = 0)]);
 
-            // r1 cannot pick at buffer2 and vice versa
-            if r_name == "r1" && pos.leaf() == "buffer2_holding" {
-                continue;
-            }
-            if r_name == "r2" && pos.leaf() == "buffer1_holding" {
-                continue;
-            }
-
-            m.add_delib(&format!("{}_take_{}", r_name, pos_name),
-                &p!([p:act == pos_name] && [p:pos != 0] && [p:holding == 0]),
-                &[a!(p:holding <- p:pos), a!(p:pos = 0)]);
-
-            m.add_delib(&format!("{}_leave_{}", r_name, pos_name),
-                &p!([p:act == pos_name] && [p:holding != 0] && [p:pos == 0]),
-                &[a!(p:pos <- p:holding), a!(p:holding = 0)]);
-        }
+        m.add_delib(&format!("leave_{}", pos.leaf()),
+                    &p!([p:ap == pos_name] && [p:dorna_holding != 0] && [p:pos == 0]),
+                    &[a!(p:pos <- p:dorna_holding), a!(p:dorna_holding = 0)]);
     }
 
-    m.add_delib("scan_r2_1",
-                &p!([p:r2act == h] && [p:r2_holding == 100]),
-                &[a!(p:r2_holding = 1)]);
-    m.add_delib("scan_r2_2",
-                &p!([p:r2act == h] && [p:r2_holding == 100]),
-                &[a!(p:r2_holding = 2)]);
-    m.add_delib("scan_r2_3",
-                &p!([p:r2act == h] && [p:r2_holding == 100]),
-                &[a!(p:r2_holding = 3)]);
+    // scan to figure out the which product we are holding
+    m.add_delib("scan_1",
+                &p!([p:ap == scan] && [p:dorna_holding == 100]),
+                &[a!(p:dorna_holding = 1)]);
+    m.add_delib("scan_2",
+                &p!([p:ap == scan] && [p:dorna_holding == 100]),
+                &[a!(p:dorna_holding = 2)]);
+    m.add_delib("scan_3",
+                &p!([p:ap == scan] && [p:dorna_holding == 100]),
+                &[a!(p:dorna_holding = 3)]);
 
-    // let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]);
-    // let g = p!([p:buffer1_holding == 2]);
-    let g = p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]
-               && [p:table1_holding == 3]);
+
+    let g = p!([p:shelf1 == 1] && [p:shelf2 == 2]);
 
 
     // HIGH LEVEL OPS
 
-    m.add_hl_op("swap_parts", true,
-                &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
-                &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]), &[], None);
-
-    m.add_hl_op("swap_parts_again", true,
-                &p!([p:buffer1_holding == 1] && [p:buffer2_holding == 2]),
-                &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]), &[], None);
-
+    m.add_hl_op("identify_parts", true,
+                &p!([p:shelf1 == 100] && [p:shelf2 == 100] && [p:shelf3 == 100]),
+                &p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]),
+                &[a!(p:shelf1 = 100), a!(p:shelf2 = 100), a!(p:shelf3 = 100)],
+                None);
 
     // OPERATIONS
 
-    let prods = vec!(1, 2, 3);
-    let rs = vec!(("r1", r1_holding.clone()), ("r2", r2_holding.clone()));
-    let pos = vec!(buffer1_holding.clone(), buffer2_holding.clone(), table1_holding.clone(), table2_holding.clone());
+    let prods = vec![100, 1, 2, 3];
+    let pos = vec![shelf1.clone(), shelf2.clone(), shelf3.clone(), conveyor.clone()];
 
-    for (r_name, holding) in rs {
-        for pos in pos.iter() {
-            for p in prods.iter() {
+    for pos in &pos {
+        for p in &prods {
+            m.add_op(&format!("pick_{}_at_{}", p, pos.leaf()), true,
+                     &p!([p:pos == p] && [p:dorna_holding == 0]),
+                     &p!([p:pos == 0] && [p:dorna_holding == p]),
 
-                // r1 cannot pick at buffer2 and vice versa
-                if r_name == "r1" && pos.leaf() == "buffer2_holding" {
-                    continue;
-                }
-                if r_name == "r2" && pos.leaf() == "buffer1_holding" {
-                    continue;
-                }
+                     &[a!(p:pos = 0), a!(p:dorna_holding = p)],
+                     None);
 
-                m.add_op(&format!("{}_{}_pick_{}", p, r_name, pos.leaf()), true,
-                    &p!([p:pos == p] && [p:holding == 0]),
-                    &p!([p:pos == 0] && [p:holding == p]),
+            m.add_op(&format!("place_{}_at_{}", p, pos.leaf()), true,
+                     &p!([p:pos == 0] && [p:dorna_holding == p]),
+                     &p!([p:pos == p] && [p:dorna_holding == 0]),
 
-                    &[a!(p:pos = 0), a!(p:holding = p)],
-                    None);
-
-                m.add_op(&format!("{}_{}_place_{}", p, r_name, pos.leaf()), true,
-                    &p!([p:pos == 0] && [p:holding == p]),
-                    &p!([p:pos == p] && [p:holding == 0]),
-
-                    &[a!(p:pos = p), a!(p:holding = 0)],
-                    None);
-
-            }
+                     &[a!(p:pos = p), a!(p:dorna_holding = 0)],
+                     None);
         }
     }
 
+    m.add_op("scan_1", true,
+             &p!([p:dorna_holding == 100]),
+             &p!([p:dorna_holding == 1]),
+             &[a!(p:dorna_holding = 1)],
+             None);
 
+    m.add_op("scan_2", true,
+             &p!([p:dorna_holding == 100]),
+             &p!([p:dorna_holding == 2]),
+             &[a!(p:dorna_holding = 2)],
+             None);
+
+    m.add_op("scan_3", true,
+             &p!([p:dorna_holding == 100]),
+             &p!([p:dorna_holding == 3]),
+             &[a!(p:dorna_holding = 3)],
+             None);
 
 
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
-        (r2act, h.to_spvalue()),
-        (r1ref, h.to_spvalue()),
-        (r2ref, h.to_spvalue()),
-        (r1prev, h.to_spvalue()),
-        (r2prev, h.to_spvalue()),
-        (&r1_holding, 100.to_spvalue()),
-        (&r2_holding, 100.to_spvalue()), //SPValue::Unknown),
-        (&table1_holding, 0.to_spvalue()),
-        (&table2_holding, 0.to_spvalue()),
-        (&buffer1_holding, 100.to_spvalue()),
-        (&buffer2_holding, 0.to_spvalue()),
+        (ap, pt.to_spvalue()),
+        (rp, pt.to_spvalue()),
+        (pp, pt.to_spvalue()),
+        (&dorna_holding, 0.to_spvalue()),
+        (&shelf1, 100.to_spvalue()), //SPValue::Unknown),
+        (&shelf2, 100.to_spvalue()),
+        (&shelf3, 100.to_spvalue()),
+        (&conveyor, 0.to_spvalue()),
     ]);
 
     println!("MAKING MODEL");
@@ -165,7 +139,9 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
 
 #[test]
 fn test_cylinders() {
-    let (m, s, g) = unknown_cubes();
+    let (m, s, g) = cylinders();
+
+    make_runner_model(&m);
 
     let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
         .flat_map(|si| match si {
