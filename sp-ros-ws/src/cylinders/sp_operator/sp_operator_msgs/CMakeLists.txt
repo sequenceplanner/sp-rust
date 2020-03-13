@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(operator_ui_msgs)
+project(sp_operator_msgs)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -25,7 +25,7 @@ find_package(std_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
-rosidl_generate_interfaces(operator_ui_msgs
+rosidl_generate_interfaces(sp_operator_msgs
   "msg/Goal.msg"
   "msg/State.msg"
   DEPENDENCIES builtin_interfaces

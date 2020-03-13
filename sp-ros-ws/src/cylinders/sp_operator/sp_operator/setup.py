@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import setup
 
-package_name = 'operator_ui'
+package_name = 'sp_operator'
 
 setup(
     name=package_name,
@@ -16,9 +16,9 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    author='endree',
+    author='kristofer',
     author_email='',
-    maintainer='endree',
+    maintainer='kristofer',
     maintainer_email='',
     keywords=['ROS2'],
     classifiers=[
@@ -31,7 +31,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'operator_ui = operator_ui.main:main',
+        	'sp_operator = sp_operator.main:main',
         ],
     },
 )
