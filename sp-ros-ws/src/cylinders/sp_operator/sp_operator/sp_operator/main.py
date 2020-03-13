@@ -10,8 +10,8 @@ import json
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from operator_ui_msgs.msg import Goal
-from operator_ui_msgs.msg import State
+from sp_operator_msgs.msg import Goal
+from sp_operator_msgs.msg import State
 from sp_messages.msg import NodeCmd
 from sp_messages.msg import NodeMode
 
@@ -33,7 +33,7 @@ class Callbacks():
 
 class OperatorUI(Node, Callbacks):
     def __init__(self):
-        Node.__init__(self, "operator_ui")
+        Node.__init__(self, "sp_operator")
         Callbacks.__init__(self)
 
         Callbacks.trigger_node = self.trigger
@@ -45,24 +45,24 @@ class OperatorUI(Node, Callbacks):
 
         self.subscriber = self.create_subscription(
             Goal,
-            "/operator_ui/goal",
+            "/sp_operator/goal",
             self.sp_cmd_callback,
             10)
 
         self.sp_node_cmd_subscriber = self.create_subscription(
             NodeCmd,
-            "/operator_ui/node_cmd",
+            "/sp_operator/node_cmd",
             self.sp_node_cmd_callback,
             10)
 
         self.state_publisher = self.create_publisher(
             State,
-            "/operator_ui/state",
+            "/sp_operator/state",
             10)
 
         self.sp_mode_publisher = self.create_publisher(
             NodeMode,
-            "/operator_ui/mode",
+            "/sp_operator/mode",
             10)
 
         print('Up and running...')
