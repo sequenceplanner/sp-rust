@@ -22,11 +22,11 @@ class ControlBoxSimulator(Node):
     def __init__(self):
         super().__init__("control_box_simulator")
 
+        # initial state
+        self.blue_light = False
         # remember last goal
         self.last_seen_goal = Goal()
-
-        # initial state
-        self.last_seen_goal.blue_light = False
+        self.last_seen_goal.blue_light = self.blue_light
 
         # sp node mode
         self.sp_node_cmd = NodeCmd()
@@ -89,7 +89,11 @@ class ControlBoxSimulator(Node):
 
         self.sp_mode_publisher.publish(self.mode)
 
-
+        # because this node is not ticking, we also publish our
+        # measured states here
+        msg = State()
+        msg.blue_light_on = self.blue_light
+        self.state_publisher.publish(msg)
 
 
 

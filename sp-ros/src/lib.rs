@@ -19,7 +19,7 @@ mod ros {
         pub resource: SPPath,
         pub mode: String,
         pub time_stamp: std::time::Instant,
-        pub echo: serde_json::Value,
+        pub echo: SPState,
     }
 
     use crossbeam::channel;
@@ -42,6 +42,14 @@ mod ros {
         _node: &mut RosNode,
         _tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
     ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
+        bail!(format_err!("ROS support not compiled in"));
+    }
+
+    pub fn ros_node_comm_setup(
+        _node: &mut RosNode,
+        _model: &Model,
+        _tx_in: channel::Sender<NodeMode>,
+    ) -> Result<channel::Sender<NodeCmd>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
@@ -78,10 +86,10 @@ mod ros {
         pub resource: SPPath,
         pub mode: String,
         pub time_stamp: std::time::Instant,
-        pub echo: serde_json::Value,
+        pub echo: SPState,
     }
 
-    pub fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
+    fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
         fn json_to_state_<'a>(
             json: &serde_json::Value,
             md: &'a MessageField,
@@ -118,7 +126,7 @@ mod ros {
         SPState::new_from_values(&res)
     }
 
-    pub fn state_to_json(state: &SPState, md: &MessageField) -> serde_json::Value {
+    fn state_to_json(state: &SPState, md: &MessageField) -> serde_json::Value {
         fn state_to_json_<'a>(
             state: &SPState,
             md: &'a MessageField,
@@ -208,6 +216,7 @@ mod ros {
                         let msg_cb = t.msg().clone();
                         let cb = move |state: &SPState| {
                             let local_state = state.sub_state_projection(&msg_cb.path());
+                            if local_state.state.is_empty() { return ; }
                             let mut dropped_local_state = local_state.clone_state();
                             dropped_local_state.unprefix_paths(&msg_cb.path());
                             let to_send = state_to_json(&dropped_local_state, &msg_cb);
@@ -350,33 +359,37 @@ mod ros {
 
         for r in rcs {
             let name = r.name();
-            let tx = tx_in.clone();
-            let r_path = r.path().clone();
 
-            let cb = move |msg: r2r::Result<serde_json::Value>| {
-                    //println!("msg in ros_node_comm: {:?}", msg);
-                let json = msg.unwrap();
-                let mode = json.get("mode");
-                let r_mode = mode
-                    .cloned()
-                    .unwrap_or(serde_json::Value::String("NO".to_string()));
-                //println!("json:{:#?}, mode:{:#?}", json, mode);
+            for t in r.messages() {
+                if !t.is_publisher() { continue; }
+                if let MessageField::Msg(_m) = t.msg() {
+                    let tx = tx_in.clone();
+                    let r_path = r.path().clone();
+                    let cmd_msg = t.msg().clone();
 
-                let time_stamp = std::time::Instant::now();
-                let m = NodeMode {
-                    mode: r_mode.to_string(),
-                    resource: r_path.clone(),
-                    time_stamp,
-                    echo: json,
-                };
+                    let cb = move |msg: r2r::sp_messages::msg::NodeMode| {
+                        let json = serde_json::from_str(&msg.echo);
+                        let echo = json.map_or(SPState::new(), |json| {
+                            let mut cmd_state = json_to_state(&json, &cmd_msg);
+                            cmd_state.prefix_paths(&cmd_msg.path());
+                            cmd_state
+                        });
 
-                tx.send(m).unwrap();
-            };
-            let topic = format!("{}/mode", name);
-            println!("setting up subscription to resource on topic: {}", topic);
-            let _subref =
-                node.0
-                    .subscribe_untyped(&topic, "sp_messages/msg/NodeMode", Box::new(cb))?;
+                        let time_stamp = std::time::Instant::now();
+                        let m = NodeMode {
+                            mode: msg.mode.clone(),
+                            resource: r_path.clone(),
+                            time_stamp,
+                            echo,
+                        };
+
+                        tx.send(m).unwrap();
+                    };
+                    let topic = format!("{}/mode", name);
+                    println!("setting up subscription to resource on topic: {}", topic);
+                    let _subref = node.0.subscribe(&topic, Box::new(cb))?;
+                }
+            }
 
             // Outgoing
             let topic = format!("{}/node_cmd", name);

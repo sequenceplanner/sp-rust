@@ -155,16 +155,12 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
-        (ap, pt.to_spvalue()),
-        (rp, pt.to_spvalue()),
         (pp, pt.to_spvalue()),
         (&dorna_holding, 0.to_spvalue()),
         (&shelf1, 100.to_spvalue()), //SPValue::Unknown),
         (&shelf2, 100.to_spvalue()),
         (&shelf3, 100.to_spvalue()),
         (&conveyor, 0.to_spvalue()),
-        // todo: fix echo handshaking
-        (&blue, false.to_spvalue()),
     ]);
 
     println!("MAKING MODEL");

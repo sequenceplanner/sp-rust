@@ -366,22 +366,13 @@ fn node_handler(
                     cmd_msg: None,
                 });
 
-                // TODO: Handle handshake with SP and node and upd using echo if needed
                 x.mode = n.mode;
-
                 if x.cmd == "init" {
-                    if let Some(ref cmd_msg) = x.cmd_msg {
-                        if let Some(echo) = n.echo.get("echo").map(|x| x.as_str()).flatten() {
-                            if let Ok(json) = serde_json::from_str(echo) {
-                                let json: serde_json::Value = json;
-                                let mut cmd_state = sp_ros::json_to_state(&json, &cmd_msg);
-                                cmd_state.prefix_paths(&cmd_msg.path());
-                                tx_runner.send(SPRunnerInput::NodeChange(cmd_state)).expect("Hmm, why is the runner dead?");
-                            }
-                        }
-                    }
+                    // update goal state vars
+                    tx_runner
+                        .send(SPRunnerInput::NodeChange(n.echo))
+                        .expect("Hmm, why is the runner dead?");
                 }
-
                 x.cmd = "run".to_string();
                 x.time = n.time_stamp;
                 true
@@ -421,13 +412,13 @@ fn node_handler(
                         time_stamp: time.clone(),
                     };
 
-                    tx_node.send(cmd); //.unwrap();
+                    tx_node.send(cmd).unwrap();
 
                     let enabled = n.cmd == "run".to_string() && (!n.mode.is_empty() || n.mode != "init".to_string());
                     resource_state.push((r.clone(), enabled.to_spvalue()));
                 }
                 let rs = SPState::new_from_values(&resource_state);
-                tx_runner.send(SPRunnerInput::NodeChange(rs));
+                tx_runner.send(SPRunnerInput::NodeChange(rs)).unwrap();
 
                 true
             }
