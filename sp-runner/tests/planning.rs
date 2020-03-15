@@ -471,7 +471,7 @@ fn until2_test() {
         let ctx = ContextZ3::new(&cfg);
         let slv = SolverZ3::new(&ctx);
   
-      let until2 = Until2Z3::new(&ctx, &ts_model, &i1, &g1, 0, 2);
+      let until2 = Until2Z3::new(&ctx, &ts_model, &i1, &g1, 0, 7);
       println!("{}", ast_to_string_z3!(&ctx, until2));
 
     //   let goals = vec![(g1, Some(i1)), (g2, Some(i2))];    

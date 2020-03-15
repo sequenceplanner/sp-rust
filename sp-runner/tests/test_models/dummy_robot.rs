@@ -69,7 +69,6 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
             *start: p!(enabled) => [ a!(!activate) ] / [],
             finish: p!(executing) => [] / [ a!(!active) ],
         },
-
     }
 }
 

@@ -9,6 +9,8 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
     // at the table at the same time. reaching a goal that they should
     // both at the table shouldn't make us ignore the
     // invariants. instead we don't want a plan to be found.
+
+    let result2 = Z3Planner::plan(model, &goals, state, max_steps);
     
     let goals: Vec<_> = goals.iter().map(|(g,i)| {
         if let Some(invar) = i {
@@ -18,7 +20,7 @@ pub fn plan(model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate
         }
     }).collect();
 
-    let result2 = Z3Planner::plan(model, &goals, state, max_steps);
+    
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
     
     // let result3 = SatPlanner::plan(model, &goals, state, max_steps);

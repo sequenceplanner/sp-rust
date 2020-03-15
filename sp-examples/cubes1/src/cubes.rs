@@ -35,7 +35,7 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     m.add_invar("via_home_r2_table1", &p!([p:r2act == "table1"] => [[p:r2prev == "table1"] || [p:r2prev == "home"]]));
     m.add_invar("via_home_r2_table2", &p!([p:r2act == "table2"] => [[p:r2prev == "table2"] || [p:r2prev == "home"]]));
 
-    // same for buffers
+    // same for bufferszzz
     m.add_invar("via_home_buffer1", &p!([p:r1act == "buffer1"] => [[p:r1prev == "buffer1"] || [p:r1prev == "home"]]));
     m.add_invar("via_home_buffer2", &p!([p:r2act == "buffer2"] => [[p:r2prev == "buffer2"] || [p:r2prev == "home"]]));
 
@@ -129,7 +129,7 @@ pub fn cubes() -> (Model, SPState, Predicate) {
 
     // goal for testing
     // let g = p!([p:buffer1_holding == 1] && [p:r1act == "r1table"]);
-    let g = p!([p:table1_holding == "d"] && [p:buffer2_holding == "c"]);
+    let g = p!([p:table1_holding == "c"]); // && [p:buffer2_holding == 2]);
 
     // m.add_op("swap_parts", true,
     //          &p!([p:buffer1_holding == 2] && [p:buffer2_holding == 1]),
@@ -159,17 +159,17 @@ pub fn cubes() -> (Model, SPState, Predicate) {
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
-        (r1prev, "home".to_spvalue()),
-        (r2prev, "home".to_spvalue()),
-        (r1ref, "unknown".to_spvalue()),
-        (r2ref, "unknown".to_spvalue()),
+        // (r1prev, "home".to_spvalue()),
+        // (r2prev, "home".to_spvalue()),
+        // (r1ref, "unknown".to_spvalue()),
+        // (r2ref, "unknown".to_spvalue()),
         (r1act, "table1".to_spvalue()),
         (r2act, "unknown".to_spvalue()),
         (&r1_holding, "d".to_spvalue()),
         (&r2_holding, "a".to_spvalue()),
         (&table1_holding, "a".to_spvalue()),
-        (&table2_holding, "a".to_spvalue()),
-        (&buffer1_holding, "c".to_spvalue()),
+        // (&table2_holding, "a".to_spvalue()),
+        // (&buffer1_holding, "c".to_spvalue()),
         (&buffer2_holding, "b".to_spvalue()),
     ]);
 
