@@ -1,6 +1,7 @@
 use sp_domain::*;
 use sp_runner::*;
 use crate::dorna::*;
+use crate::control_box::*;
 
 pub fn cylinders() -> (Model, SPState, Predicate) {
     let mut m = GModel::new("cylinders");
@@ -13,6 +14,8 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let leave = "leave"; // down at conveyor
 
     let dorna = m.use_resource(make_dorna("dorna", &[pt, scan, t1, t2, t3, leave]));
+    let cb = m.use_resource(make_control_box("control_box"));
+
 
     let products = &[100.to_spvalue(), // SPValue::Unknown,   macros need better support for Unknown
                      0.to_spvalue(), 1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue()];
@@ -26,6 +29,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let ap = &dorna["act_pos"];
     let pp = &dorna["prev_pos"];
     let rp = &dorna["ref_pos"];
+    let blue = &cb["blue_light"];
 
     // define robot movement
 
@@ -39,6 +43,11 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     // scan and leave can only be reached from pre_take
     m.add_invar("to_scan", &p!([p:ap == scan] => [p:pp == pt]));
     m.add_invar("to_leave", &p!([p:ap == leave] => [p:pp == pt]));
+
+    // we must always be blue when going to scan
+    m.add_invar("blue_scan", &p!([p:rp == scan] => [p:blue]));
+    // but only then...
+    m.add_invar("blue_scan_2", &p!([[p:rp == t1]||[p:rp == t2]||[p:rp == t3]] => [!p:blue]));
 
     // dorna take/leave products
     let pos = vec![(t1, shelf1.clone()),(t2, shelf2.clone()),
@@ -64,9 +73,6 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     m.add_delib("scan_3",
                 &p!([p:ap == scan] && [p:dorna_holding == 100]),
                 &[a!(p:dorna_holding = 3)]);
-
-
-    let g = p!([p:shelf1 == 1] && [p:shelf2 == 2]);
 
 
     // HIGH LEVEL OPS
@@ -119,6 +125,10 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
              None);
 
 
+    // goal for testing
+    let g = p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]);
+
+
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
@@ -143,44 +153,21 @@ fn test_cylinders() {
 
     make_runner_model(&m);
 
-    let inits: Vec<Predicate> = m.resources().iter().flat_map(|r| r.sub_items())
-        .flat_map(|si| match si {
-            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
-            _ => None
-        }).collect();
-
-    // we need to assume that we are in a state that adheres to the resources
-    let initial = Predicate::AND(inits);
-
     let mut ts_model = TransitionSystemModel::from(&m);
 
-    // println!("START GUARD GEN");
-    // let now = std::time::Instant::now();
-    // let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
-    // update_guards(&mut ts_model, &new_guards);
-    // ts_model.specs.clear();
-    // ts_model.specs.push(Spec::new("supervisor", supervisor));
-    // println!("GUARD GEN DONE IN {}ms", now.elapsed().as_millis());
-
-    println!("START INVAR REFINEMENT");
-    let now = std::time::Instant::now();
     let mut new_specs = Vec::new();
     for s in &ts_model.specs {
-        println!("refining {}", s.name());
         new_specs.push(Spec::new(s.name(), refine_invariant(&m, s.invariant())));
     }
     ts_model.specs = new_specs;
-    println!("INVAR REFINEMENT DONE IN {}ms", now.elapsed().as_millis());
 
     let goal = (g, None);
     let plan = plan(&ts_model, &[goal], &s, 50);
 
-    // crate::planning::generate_offline_nuxvm(&ts_model, &new_initial);
-
     println!("\n\n\n");
 
     if plan.plan_found {
-        plan.trace.iter().enumerate().for_each(|(i,t)| {
+        plan.trace.iter().enumerate().skip(1).for_each(|(i,t)| {
             println!("{}: {}", i, t.transition);
         });
     } else {
@@ -188,9 +175,6 @@ fn test_cylinders() {
     }
 
     println!("\n\n\n");
-
-    // println!("initial state");
-    // println!("{}",s);
 
     assert!(false);
 }
