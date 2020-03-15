@@ -74,14 +74,30 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
                 &p!([p:ap == scan] && [p:dorna_holding == 100]),
                 &[a!(p:dorna_holding = 3)]);
 
+    // product sink is at conveyor, only accepts identified products.
+    m.add_delib("consume_known_product",
+                &p!([p:conveyor != 0] && [p:conveyor != 100]),
+                &[a!(p:conveyor = 0)]);
 
     // HIGH LEVEL OPS
 
-    m.add_hl_op("identify_parts", true,
+    let np = |p: i32| p!([p:shelf1 != p] && [p:shelf2 != p] && [p:shelf3 != p] &&
+                         [p:dorna_holding != p] && [p:conveyor != p]);
+
+    let no_products = Predicate::AND(vec![np(1), np(2), np(3), np(100)]);
+
+    // m.add_hl_op("identify_parts", true,
+    //             &p!([p:shelf1 == 100] && [p:shelf2 == 100] && [p:shelf3 == 100]),
+    //             &p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]),
+    //             &[a!(p:shelf1 = 100), a!(p:shelf2 = 100), a!(p:shelf3 = 100)],
+    //             None);
+
+    m.add_hl_op("identify_and_consume_parts", true,
                 &p!([p:shelf1 == 100] && [p:shelf2 == 100] && [p:shelf3 == 100]),
-                &p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]),
+                &no_products,
                 &[a!(p:shelf1 = 100), a!(p:shelf2 = 100), a!(p:shelf3 = 100)],
                 None);
+
 
     // OPERATIONS
 
@@ -124,10 +140,17 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
              &[a!(p:dorna_holding = 3)],
              None);
 
+    m.add_op("consume", true,
+             &p!([p:conveyor != 100]),
+             &p!([p:conveyor == 0]),
+             &[a!(p:conveyor = 0)],
+             None);
+
 
     // goal for testing
     // let g = p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]);
-    let g = p!([p:shelf1 == 1]);
+    //let g = p!([p:shelf1 == 1]);
+    let g = p!([p:conveyor == 0]);
 
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI

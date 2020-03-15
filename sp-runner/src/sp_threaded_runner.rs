@@ -286,6 +286,7 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
                     let planner_result = crate::planning::plan(&ts, &goal, &pt.state, max_steps);
                     assert!(planner_result.plan_found);
                     //println!("new plan is");
+
                     //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
                     let (tr, s) = if i == 0 { // ability level
                         crate::planning::convert_planning_result(&ts, planner_result, false)
@@ -367,7 +368,7 @@ fn node_handler(
 
                 // TODO: Handle handshake with SP and node and upd using echo if needed
                 x.mode = n.mode;
-                
+
                 if x.cmd == "init" {
                     if let Some(ref cmd_msg) = x.cmd_msg {
                         if let Some(echo) = n.echo.get("echo").map(|x| x.as_str()).flatten() {
@@ -380,7 +381,7 @@ fn node_handler(
                         }
                     }
                 }
-                
+
                 x.cmd = "run".to_string();
                 x.time = n.time_stamp;
                 true

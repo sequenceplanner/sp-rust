@@ -145,12 +145,18 @@ impl TransitionSystemModel {
             })
             .collect();
 
+        // for now I have put back the operation state.
+        // we don't need this if all the mid-level operations
+        // always reset themselves, but for now lets keep it clean
+        // planning post-processing needs to change depending on how
+        // we do this.
 
-        // we don't need these details
+        // can be commented out
         vars.extend(global_ops.iter().map(|o|o.state_variable().clone()));
 
         let mut transitions: Vec<_> = global_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
-        transitions.retain(|t| t.name() == "start");
+        // the comments below can be removed.
+        // transitions.retain(|t| t.name() == "start");
         for t in &mut transitions {
             // if let Predicate::AND(v) = &mut t.guard {
             //     v.remove(0); // delete state == "i"
