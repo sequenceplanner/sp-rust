@@ -78,6 +78,14 @@ impl SPPath {
         }
     }
 
+    pub fn drop_root(&self) -> SPPath {
+        if self.path.len() == 0 {
+            SPPath::new()
+        } else {
+            SPPath::from_slice(&self.path[1..])
+        }
+    }
+
     pub fn leaf(&self) -> String {
         if self.path.len() == 0 {
             "".to_string()

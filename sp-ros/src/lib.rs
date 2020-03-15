@@ -177,7 +177,7 @@ mod ros {
             for t in r.messages() {
                 if let MessageField::Msg(m) = t.msg() {
                     if t.is_subscriber() {
-                        let topic = t.path();
+                        let topic = t.path().drop_root();
                         let topic_str = topic.to_string();
 
                         let tx = tx_in.clone();
@@ -201,7 +201,7 @@ mod ros {
                             node.0
                                 .subscribe_untyped(&topic_str, &m.type_, Box::new(cb))?;
                     } else if t.is_publisher() {
-                        let topic = t.path();
+                        let topic = t.path().drop_root();
                         let topic_str = topic.to_string();
                         println!("setting up publishing to topic: {}", topic);
                         let rp = node.0.create_publisher_untyped(&topic_str, &m.type_)?;
@@ -242,7 +242,7 @@ mod ros {
                     break;
                 }
             }
-            
+
         });
 
         Ok(tx_out)
@@ -333,7 +333,7 @@ mod ros {
                     break;
                 }
             }
-            
+
         });
 
         Ok(tx_out)
@@ -372,14 +372,14 @@ mod ros {
 
                 tx.send(m).unwrap();
             };
-            let topic = format!("{}/{}/mode", model.name(), name);
+            let topic = format!("{}/mode", name);
             println!("setting up subscription to resource on topic: {}", topic);
             let _subref =
                 node.0
                     .subscribe_untyped(&topic, "sp_messages/msg/NodeMode", Box::new(cb))?;
 
             // Outgoing
-            let topic = format!("{}/{}/node_cmd", model.name(), name);
+            let topic = format!("{}/node_cmd", name);
             let msg_type = "sp_messages/msg/NodeCmd";
             let r_path = r.path().clone();
             let rp = node.0.create_publisher_untyped(&topic, msg_type)?;
@@ -410,7 +410,7 @@ mod ros {
                     break;
                 }
             }
-            
+
         });
 
         Ok(tx_out)
