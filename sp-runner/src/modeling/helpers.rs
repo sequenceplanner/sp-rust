@@ -468,7 +468,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_ability(a);
     }
 
-    let mut supervisor = Predicate::AND(invariants.iter().map(|i| i.prop.clone()).collect());
+    let mut supervisor = None; // Predicate::AND(invariants.iter().map(|i| i.prop.clone()).collect());
     if !r.abilities.is_empty() && !invariants.is_empty() {
         // add invariants to model
         let mut to_add = Vec::new();
@@ -483,7 +483,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         let temp_ts_model = TransitionSystemModel::from(&temp_model);
         println!("GE FOR {}", r.name());
         let (new_guards, sv) = extract_guards(&temp_ts_model, &Predicate::TRUE);
-        supervisor = sv;
+        supervisor = Some(sv);
 
         for a in &mut r.abilities {
             let mut to_remove = Vec::new();
@@ -506,10 +506,12 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
-    crate::planning::generate_offline_nuxvm(&temp_ts_model, &supervisor);
+    crate::planning::generate_offline_nuxvm(&temp_ts_model, supervisor.as_ref().unwrap_or(&Predicate::TRUE));
 
-    let supervisor_spec = Spec::new("supervisor", supervisor);
-    r.add_sub_item(SPItem::Spec(supervisor_spec));
+    if let Some(supervisor) = supervisor {
+        let supervisor_spec = Spec::new("supervisor", supervisor);
+        r.add_sub_item(SPItem::Spec(supervisor_spec));
+    }
 
     return r;
 }
