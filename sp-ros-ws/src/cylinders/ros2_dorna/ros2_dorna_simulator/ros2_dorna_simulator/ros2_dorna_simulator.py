@@ -150,7 +150,6 @@ class Ros2DornaSimulator(Node):
             10)
 
     def sp_node_cmd_callback(self, data):
-        self.get_logger().info("Node cmd: %s" % data)
         self.node_cmd = data
 
         # move to general function in sp
@@ -270,7 +269,6 @@ class Ros2DornaSimulator(Node):
                     self.sync_speed_scale[i] = self.sync_speed_scale[i]*self.sync_max_factor
 
                 for i in range(0, 5):
-                    # print(self.sync_speed_scale)
                     if self.gui_to_esd_msg.gui_joint_control[i] < self.act_pos[i] - 0.001*self.max_speed_factor:
                         if self.gui_to_esd_msg.gui_joint_control[i] < self.act_pos[i] - 0.01:
                             self.pub_pos[i] = round(self.act_pos[i] - 0.0001*self.max_speed_factor*self.gui_to_esd_msg.gui_speed_control*self.sync_speed_scale[i], 4)
@@ -323,7 +321,10 @@ class Ros2DornaSimulator(Node):
         self.joint_state_publisher_.publish(self.joint_state)
 
     def esd_to_gui_publisher_callback(self):
+        old_pose_name = self.esd_to_gui_msg.actual_pose
         self.esd_to_gui_msg.actual_pose = self.get_pose_name_from_pose()
+        if old_pose_name != self.esd_to_gui_msg.actual_pose and "unknown" != self.esd_to_gui_msg.actual_pose:
+            self.get_logger().info("reached goal pose " + self.esd_to_gui_msg.actual_pose)
         self.esd_to_gui_publisher_.publish(self.esd_to_gui_msg)
 
     def esd_to_sp_callback(self):
