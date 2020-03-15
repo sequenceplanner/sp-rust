@@ -6,12 +6,19 @@ import os
 import math
 import numpy
 import ast
+import json
+
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+
 from ros2_dorna_msgs.msg import DornaGuiToEsd
 from ros2_dorna_msgs.msg import DornaEsdToGui
 from ros2_dorna_msgs.msg import Goal
 from ros2_dorna_msgs.msg import State
+
+from sp_messages.msg import NodeCmd
+from sp_messages.msg import NodeMode
+
 from ament_index_python.packages import get_package_share_directory
 from launch.substitutions import LaunchConfiguration
 
@@ -125,6 +132,41 @@ class Ros2DornaSimulator(Node):
         self.esd_to_sp_publisher_timer = self.create_timer(
             self.esd_to_sp_timer_period,
             self.esd_to_sp_callback)
+
+
+        # node management
+        self.mode = NodeMode()
+        self.mode.mode = "init"
+
+        self.sp_node_cmd_subscriber = self.create_subscription(
+            NodeCmd,
+            "/dorna/node_cmd",
+            self.sp_node_cmd_callback,
+            10)
+
+        self.sp_mode_publisher = self.create_publisher(
+            NodeMode,
+            "/dorna/mode",
+            10)
+
+    def sp_node_cmd_callback(self, data):
+        self.get_logger().info("Node cmd: %s" % data)
+        self.node_cmd = data
+
+        # move to general function in sp
+        echo_msg = {}
+        for k in Goal.get_fields_and_field_types().keys():
+            echo_msg.update({k: getattr(self.sp_to_esd_msg, "_"+k)})
+
+        self.mode.echo = json.dumps(echo_msg)
+
+        if self.node_cmd.mode == "run":
+            self.mode.mode = "running"
+        else:
+            self.mode.mode = "init"
+
+        self.sp_mode_publisher.publish(self.mode)
+
 
     def get_pose_from_pose_name(self, name):
         '''

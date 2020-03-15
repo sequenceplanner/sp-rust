@@ -126,8 +126,8 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
 
 
     // goal for testing
-    let g = p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]);
-
+    // let g = p!([p:shelf1 == 1] && [p:shelf2 == 2] && [p:shelf3 == 3]);
+    let g = p!([p:shelf1 == 1]);
 
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
@@ -140,6 +140,8 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
         (&shelf2, 100.to_spvalue()),
         (&shelf3, 100.to_spvalue()),
         (&conveyor, 0.to_spvalue()),
+        // todo: fix echo handshaking
+        (&blue, false.to_spvalue()),
     ]);
 
     println!("MAKING MODEL");
