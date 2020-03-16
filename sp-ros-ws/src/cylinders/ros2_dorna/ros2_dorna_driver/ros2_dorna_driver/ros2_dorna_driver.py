@@ -88,7 +88,8 @@ class Ros2DornaDriver(Node):
 
         # sp to esd:
         self.sp_to_esd_msg = Goal()
-        self.sp_to_esd_msg.ref_pos = ""
+        self.sp_to_esd_msg.ref_pos = self.get_pose_name_from_pose()
+
 
         self.sp_to_esd_subscriber = self.create_subscription(
             Goal,
@@ -98,14 +99,12 @@ class Ros2DornaDriver(Node):
 
         # esd to gui:
         self.esd_to_gui_msg = DornaEsdToGui()
-        self.esd_to_gui_msg.actual_pose = "init"
-        self.esd_to_gui_timer_period = 0.1
+        self.esd_to_gui_msg.actual_pose = self.get_pose_name_from_pose()
 
         self.esd_to_gui_publisher_ = self.create_publisher(
             DornaEsdToGui,
             "/dorna_esd_to_gui",
             10)
-
 
         # esd to joints:
         self.joint_names = ["dorna_axis_1_joint",
@@ -256,8 +255,8 @@ class Ros2DornaDriver(Node):
             # below. However, once we get that it seems we cannot
             # recover and need to restart. So for now we are just
             # careful in not overloading the robot instead. Delay may
-            # need to be changed, waiting it to break again.
-            time.sleep(0.1)
+            # need to be changed, waiting for it to break again.
+            time.sleep(0.2)
             retval = self.robot.play(command, append = False)
             #self.get_logger().info(retval)
 
