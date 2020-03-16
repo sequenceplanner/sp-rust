@@ -26,10 +26,10 @@ class ControlBoxDriver(Node):
         self.board = pyfirmata.Arduino('/dev/ttyARDUINO')
 
         # internal state
-        self.blue_light = 0
+        self.blue_light = False
 
         # initial state off
-        self.board.digital[3].write(1)
+        self.board.digital[3].write(self.blue_light == False)
 
         # remember last goal
         self.last_seen_goal = Goal()
@@ -62,8 +62,7 @@ class ControlBoxDriver(Node):
             "/control_box/mode",
             10)
 
-        print('Up and running...')
-
+        self.get_logger().info('Control box up and running!')
 
     def sp_goal_callback(self, data):
         if self.last_seen_goal == data:
@@ -71,11 +70,10 @@ class ControlBoxDriver(Node):
 
         self.last_seen_goal = data
         self.blue_light = data.blue_light
-        self.get_logger().info('goal: "%s"' % data)
 
         # update light
         self.board.digital[3].write(self.blue_light == False)
-        self.get_logger().info("light is " + ('on' if self.blue_light else 'off'))
+        self.get_logger().info("blue light is " + ('on' if self.blue_light else 'off'))
 
         msg = State()
         msg.blue_light_on = self.blue_light
@@ -83,7 +81,6 @@ class ControlBoxDriver(Node):
 
 
     def sp_node_cmd_callback(self, data):
-        self.get_logger().info('"%s"' % data)
         self.sp_node_cmd = data
 
         # move to general function in sp

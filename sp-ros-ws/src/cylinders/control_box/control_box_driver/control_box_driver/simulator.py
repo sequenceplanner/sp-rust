@@ -55,7 +55,7 @@ class ControlBoxSimulator(Node):
             "/control_box/mode",
             10)
 
-        print('Up and running...')
+        self.get_logger().info('Control box up and running!')
 
 
     def sp_goal_callback(self, data):
@@ -66,7 +66,7 @@ class ControlBoxSimulator(Node):
         self.blue_light = data.blue_light
 
         # in the simulation the light is just a print
-        self.get_logger().info("light is " + ('on' if self.blue_light else 'off'))
+        self.get_logger().info("blue light is " + ('on' if self.blue_light else 'off'))
 
         msg = State()
         msg.blue_light_on = self.blue_light
