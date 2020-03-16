@@ -29,25 +29,25 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let ap = &dorna["act_pos"];
     let pp = &dorna["prev_pos"];
     let rp = &dorna["ref_pos"];
-    let blue = &cb["blue_light"];
+    let blue = &cb["blue_light_on"];
 
     // define robot movement
 
     // pre_take can be reached from all positions.
 
     // shelves can be reached from each other and pre_take
-    m.add_invar("to_take1", &p!([p:ap == t1] => [[p:pp == t2] || [p:pp == t3] || [p:pp == pt]]));
-    m.add_invar("to_take2", &p!([p:ap == t2] => [[p:pp == t1] || [p:pp == t3] || [p:pp == pt]]));
-    m.add_invar("to_take3", &p!([p:ap == t3] => [[p:pp == t1] || [p:pp == t2] || [p:pp == pt]]));
+    m.add_invar("to_take1", &p!([p:ap == t1] => [[p:pp == t1] || [p:pp == t2] || [p:pp == t3] || [p:pp == pt]]));
+    m.add_invar("to_take2", &p!([p:ap == t2] => [[p:pp == t1] || [p:pp == t2] || [p:pp == t3] || [p:pp == pt]]));
+    m.add_invar("to_take3", &p!([p:ap == t3] => [[p:pp == t1] || [p:pp == t2] || [p:pp == t3] || [p:pp == pt]]));
 
     // scan and leave can only be reached from pre_take
-    m.add_invar("to_scan", &p!([p:ap == scan] => [p:pp == pt]));
-    m.add_invar("to_leave", &p!([p:ap == leave] => [p:pp == pt]));
+    m.add_invar("to_scan", &p!([p:ap == scan] => [[p:pp == scan] || [p:pp == pt]]));
+    m.add_invar("to_leave", &p!([p:ap == leave] => [[p:pp == leave] || [p:pp == pt]]));
 
     // we must always be blue when going to scan
-    m.add_invar("blue_scan", &p!([p:rp == scan] => [p:blue]));
+    m.add_invar("blue_scan", &p!([p:ap == scan] => [p:blue]));
     // but only then...
-    m.add_invar("blue_scan_2", &p!([[p:rp == t1]||[p:rp == t2]||[p:rp == t3]] => [!p:blue]));
+    m.add_invar("blue_scan_2", &p!([[p:ap == t1]||[p:ap == t2]||[p:ap == t3]||[p:ap == leave]] => [!p:blue]));
 
     // dorna take/leave products
     let pos = vec![(t1, shelf1.clone()),(t2, shelf2.clone()),
@@ -155,7 +155,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     // setup initial state of our estimated variables.
     // todo: do this interactively in some UI
     m.initial_state(&[
-        (pp, pt.to_spvalue()),
+        (pp, pt.to_spvalue()),  // TODO: move to measured in robot driver?
         (&dorna_holding, 0.to_spvalue()),
         (&shelf1, 100.to_spvalue()), //SPValue::Unknown),
         (&shelf2, 100.to_spvalue()),
