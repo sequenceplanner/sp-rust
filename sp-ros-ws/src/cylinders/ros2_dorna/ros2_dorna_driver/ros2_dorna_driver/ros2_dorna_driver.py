@@ -152,6 +152,11 @@ class Ros2DornaDriver(Node):
     def sp_node_cmd_callback(self, data):
         self.node_cmd = data
 
+        # refresh poses in case gui was used to move the robot
+        self.update_act_pos()
+        self.sp_to_esd_msg.ref_pos = self.get_pose_name_from_pose()
+        self.esd_to_gui_msg.actual_pose = self.get_pose_name_from_pose()
+
         # move to general function in sp
         echo_msg = {}
         for k in Goal.get_fields_and_field_types().keys():
