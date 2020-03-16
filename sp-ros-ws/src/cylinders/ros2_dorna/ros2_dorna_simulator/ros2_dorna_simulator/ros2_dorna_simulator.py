@@ -250,7 +250,6 @@ class Ros2DornaSimulator(Node):
         self.gui_to_esd_msg.gui_joint_control[2] = round(data.gui_joint_control[2], 3)
         self.gui_to_esd_msg.gui_joint_control[3] = round(data.gui_joint_control[3], 3)
         self.gui_to_esd_msg.gui_joint_control[4] = round(data.gui_joint_control[4], 3)
-        # self.gui_to_esd_msg.gui_joint_control[5] = round(data.gui_joint_control[5], 3)
 
     def joint_state_publisher_callback(self):
         if self.gui_to_esd_msg.gui_control_enabled == True:

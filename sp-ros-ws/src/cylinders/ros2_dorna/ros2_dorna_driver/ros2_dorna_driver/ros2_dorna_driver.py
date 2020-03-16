@@ -12,10 +12,15 @@ import json
 
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+
 from ros2_dorna_msgs.msg import DornaGuiToEsd
 from ros2_dorna_msgs.msg import DornaEsdToGui
 from ros2_dorna_msgs.msg import Goal
 from ros2_dorna_msgs.msg import State
+
+from sp_messages.msg import NodeCmd
+from sp_messages.msg import NodeMode
+
 from ament_index_python.packages import get_package_share_directory
 from launch.substitutions import LaunchConfiguration
 
@@ -46,11 +51,25 @@ class Ros2DornaDriver(Node):
             self.get_logger().info('Homing done.')
 
 
-        self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0]
-        self.pub_pos = [0.0, 0.0, 0.0, 0.0, 0.0]
+        # check that we are in fact homed
+        homed_str = self.robot.homed()
+        homed = json.loads(homed_str)
+        self.get_logger().info(homed_str)
+        if homed['j0'] == 0 or homed['j1'] == 0 or homed['j2'] == 0 or homed['j3'] == 0 or homed['j4'] == 0:
+           self.get_logger().error('Dorna not homed! Exiting.')
+           sys.exit(1)
 
+        default_speed_str = self.robot.default_speed()
+        self.get_logger().info(default_speed_str)
+        # the default seems to be 1000
+        self.robot.set_default_speed({"joint": 1000})
+
+        self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0]
         self.joint_reference_pose = [0.0, 0.0, 0.0, 0.0, 0.0]
         self.joint_tolerance = 0.01
+
+        # get act pos from actual joint values
+        self.update_act_pos()
 
         self.joints_input = os.path.join(get_package_share_directory('ros2_dorna_utilities'),
             'poses', 'joint_poses.csv')
@@ -77,8 +96,6 @@ class Ros2DornaDriver(Node):
             self.sp_to_esd_callback,
             10)
 
-        time.sleep(2)
-
         # esd to gui:
         self.esd_to_gui_msg = DornaEsdToGui()
         self.esd_to_gui_msg.actual_pose = "init"
@@ -89,9 +106,6 @@ class Ros2DornaDriver(Node):
             "/dorna_esd_to_gui",
             10)
 
-        self.esd_to_gui_timer = self.create_timer(
-            self.esd_to_gui_timer_period,
-            self.esd_to_gui_publisher_callback)
 
         # esd to joints:
         self.joint_names = ["dorna_axis_1_joint",
@@ -101,7 +115,7 @@ class Ros2DornaDriver(Node):
                             "dorna_axis_5_joint",
                             "nonexistent"]
 
-        self.joint_state_timer_period = 0.25
+        self.joint_state_timer_period = 0.05
 
         self.joint_state_publisher_ = self.create_publisher(
             JointState,
@@ -115,16 +129,44 @@ class Ros2DornaDriver(Node):
         # esd to sp:
         self.esd_to_sp_msg = State()
         self.esd_to_sp_msg.act_pos = ""
-        self.esd_to_sp_timer_period = 0.05
 
         self.esd_to_sp_publisher_ = self.create_publisher(
             State,
             "/dorna/state",
             10)
 
-        self.esd_to_sp_publisher_timer = self.create_timer(
-            self.esd_to_sp_timer_period,
-            self.esd_to_sp_callback)
+        # node management
+        self.mode = NodeMode()
+        self.mode.mode = "init"
+
+        self.sp_node_cmd_subscriber = self.create_subscription(
+            NodeCmd,
+            "/dorna/node_cmd",
+            self.sp_node_cmd_callback,
+            10)
+
+        self.sp_mode_publisher = self.create_publisher(
+            NodeMode,
+            "/dorna/mode",
+            10)
+
+    def sp_node_cmd_callback(self, data):
+        self.node_cmd = data
+
+        # move to general function in sp
+        echo_msg = {}
+        for k in Goal.get_fields_and_field_types().keys():
+            echo_msg.update({k: getattr(self.sp_to_esd_msg, "_"+k)})
+
+        self.mode.echo = json.dumps(echo_msg)
+
+        if self.node_cmd.mode == "run":
+            self.mode.mode = "running"
+        else:
+            self.mode.mode = "init"
+
+        self.sp_mode_publisher.publish(self.mode)
+
 
     def get_pose_from_pose_name(self, name):
         '''
@@ -168,7 +210,7 @@ class Ros2DornaDriver(Node):
                         actual_joint_pose = row[0]
                         break
                     else:
-                        actual_joint_pose = "UNKNOWN"
+                        actual_joint_pose = "unknown"
                         pass
                 else:
                     pass
@@ -196,6 +238,7 @@ class Ros2DornaDriver(Node):
         if self.sp_to_esd_msg.ref_pos in pose_list:
             new_pose = self.get_pose_from_pose_name(self.sp_to_esd_msg.ref_pos)
             if new_pose != self.joint_reference_pose:
+                self.get_logger().info("moving to goal pose " + self.sp_to_esd_msg.ref_pos)
                 self.move_to_pose_rad(new_pose)
                 self.joint_reference_pose = new_pose
         else:
@@ -204,8 +247,39 @@ class Ros2DornaDriver(Node):
     def move_to_pose_rad(self, p):
         p_deg = [ p[0] * 180.0/math.pi, p[1] * 180.0/math.pi, p[2] * 180.0/math.pi, p[3] * 180.0/math.pi, p[4] * 180.0/math.pi ]
         command = {"command": "move", "prm":{"path": "joint", "movement":0, "joint": p_deg}}
-        self.get_logger().info(json.dumps(command))
-        self.robot.play(command, append = False)
+        #self.get_logger().info(json.dumps(command))
+
+        while True:
+            # It seems that the dorna needs to (sometimes) flush
+            # something before being issued a new command. Without
+            # sleeping a bit here, we frequently get the timeout error
+            # below. However, once we get that it seems we cannot
+            # recover and need to restart. So for now we are just
+            # careful in not overloading the robot instead. Delay may
+            # need to be changed, waiting it to break again.
+            time.sleep(0.1)
+            retval = self.robot.play(command, append = False)
+            #self.get_logger().info(retval)
+
+            js = json.loads(retval)
+            ok = True
+            # json is object on error, list on success...
+            if isinstance(js, dict):
+                # error case
+                if js['error'] == 3:
+                    self.get_logger().info('Dorna timeout, retrying...')
+                    time.sleep(1)
+                    ok = False
+                elif js['error'] != None:
+                    self.get_logger().error('new kind of error, add handling. exiting')
+                    sys.exit(1)
+            else:
+                # list of commands, assume everything is fine
+                pass
+
+            if ok:
+                break
+
 
     def gui_to_esd_callback(self, data):
         if data.gui_control_enabled and self.gui_to_esd_msg != data:
@@ -213,10 +287,9 @@ class Ros2DornaDriver(Node):
             self.joint_reference_pose = data.gui_joint_control
         self.gui_to_esd_msg = data
 
-    def joint_state_publisher_callback(self):
-        joint_state = JointState()
-        joint_state.name = self.joint_names
+    def update_act_pos(self):
         rp = self.robot.position()
+        # self.get_logger().info(rp);
         js = json.loads(rp)
         if len(js) == 5:
             self.act_pos[0] = js[0] * math.pi/180.0
@@ -225,16 +298,22 @@ class Ros2DornaDriver(Node):
             self.act_pos[3] = js[3] * math.pi/180.0
             self.act_pos[4] = js[4] * math.pi/180.0
 
-            joint_state.position = self.act_pos
-            joint_state.position.append(0.0)
+    def joint_state_publisher_callback(self):
+        joint_state = JointState()
+        joint_state.name = self.joint_names
+        self.update_act_pos()
+        joint_state.position = self.act_pos
+        # ros wants 6 joints
+        joint_state.position.append(0.0)
 
-            self.joint_state_publisher_.publish(joint_state)
+        self.joint_state_publisher_.publish(joint_state)
 
-    def esd_to_gui_publisher_callback(self):
+        old_pose_name = self.esd_to_gui_msg.actual_pose
         self.esd_to_gui_msg.actual_pose = self.get_pose_name_from_pose()
+        if old_pose_name != self.esd_to_gui_msg.actual_pose and "unknown" != self.esd_to_gui_msg.actual_pose:
+            self.get_logger().info("reached goal pose " + self.esd_to_gui_msg.actual_pose)
         self.esd_to_gui_publisher_.publish(self.esd_to_gui_msg)
 
-    def esd_to_sp_callback(self):
         self.esd_to_sp_msg.act_pos = self.esd_to_gui_msg.actual_pose
         self.esd_to_sp_publisher_.publish(self.esd_to_sp_msg)
 
