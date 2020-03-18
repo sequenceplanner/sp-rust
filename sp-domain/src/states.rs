@@ -21,8 +21,10 @@ pub struct SPState {
 // TODO: Maybe check the id?
 impl PartialEq for SPState {
     fn eq(&self, other: &Self) -> bool {
-        let mut x = self.projection(); x.sort();
-        let mut y = other.projection(); y.sort();
+        let mut x = self.projection();
+        x.sort();
+        let mut y = other.projection();
+        y.sort();
         x == y
     }
 }

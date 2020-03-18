@@ -75,14 +75,10 @@ pub trait Noder {
     fn node_mut(&mut self) -> &mut SPNode;
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>>;
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>>;
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>>;
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>);
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>);
@@ -121,9 +117,7 @@ pub trait Noder {
     }
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item_mut<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         if self.node().name() == name {
             let found_it = path_sections
@@ -168,9 +162,7 @@ where
 /// Tries to find an item with the path in a list that incl
 /// items that impl Noder
 pub fn find_item_in_list<'a, T>(
-    xs: &'a [T],
-    name: &str,
-    path_sections: &[&str],
+    xs: &'a [T], name: &str, path_sections: &[&str],
 ) -> Option<SPItemRef<'a>>
 where
     T: Noder,
@@ -185,9 +177,7 @@ where
 }
 
 pub fn find_item_mut_in_list<'a, T>(
-    xs: &'a mut [T],
-    name: &str,
-    path_sections: &[&str],
+    xs: &'a mut [T], name: &str, path_sections: &[&str],
 ) -> Option<SPMutItemRef<'a>>
 where
     T: Noder,
@@ -204,9 +194,7 @@ where
 /// A method used by the items when impl the Noder trait
 /// Updates the path in items in the list of items impl Noder
 pub fn update_path_in_list<'a, T>(
-    xs: &'a mut [T],
-    path: &SPPath,
-    changes: &mut HashMap<SPPath, SPPath>,
+    xs: &'a mut [T], path: &SPPath, changes: &mut HashMap<SPPath, SPPath>,
 ) where
     T: Noder,
 {

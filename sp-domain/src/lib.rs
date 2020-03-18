@@ -61,5 +61,4 @@ impl error::Error for SPError {
 }
 
 #[cfg(test)]
-mod tests_domain {
-}
+mod tests_domain {}

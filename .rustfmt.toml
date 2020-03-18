@@ -1,0 +1,16 @@
+edition = "2018"
+fn_args_layout = "Compressed"
+force_explicit_abi = true
+hard_tabs = false
+trailing_comma = "Vertical"
+max_width = 100
+merge_derives = true
+newline_style = "Unix"
+remove_nested_parens = true
+reorder_imports = true
+reorder_modules = true
+use_field_init_shorthand = true
+use_small_heuristics = "Default"
+use_try_shorthand = true
+indent_style = "Block"
+control_brace_style = "AlwaysSameLine"

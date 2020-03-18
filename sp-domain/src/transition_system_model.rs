@@ -131,13 +131,18 @@ impl TransitionSystemModel {
     pub fn from_op(model: &Model) -> Self {
         let mut vars: Vec<Variable> = Vec::new();
 
-        let model_item_vars: Vec<Variable> = model.items().iter().flat_map(|i| match i {
-            SPItem::Variable(s) => Some(s.clone()),
-            _ => None,
-        }).collect();
+        let model_item_vars: Vec<Variable> = model
+            .items()
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Variable(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect();
         vars.extend(model_item_vars.iter().cloned());
 
-        let global_ops: Vec<Operation> = model.items()
+        let global_ops: Vec<Operation> = model
+            .items()
             .iter()
             .flat_map(|i| match i {
                 SPItem::Operation(o) if !o.high_level => Some(o.clone()),
@@ -152,9 +157,13 @@ impl TransitionSystemModel {
         // we do this.
 
         // can be commented out
-        vars.extend(global_ops.iter().map(|o|o.state_variable().clone()));
+        vars.extend(global_ops.iter().map(|o| o.state_variable().clone()));
 
-        let mut transitions: Vec<_> = global_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
+        let mut transitions: Vec<_> = global_ops
+            .iter()
+            .flat_map(|o| o.transitinos())
+            .cloned()
+            .collect();
         // the comments below can be removed.
         // transitions.retain(|t| t.name() == "start");
         // for t in &mut transitions {

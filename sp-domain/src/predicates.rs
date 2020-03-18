@@ -72,7 +72,7 @@ impl<'a> PredicateValue {
                 if sp.is_none() {
                     state.sp_value_from_path(&path)
                 } else if let Some(the_path) = sp {
-                        state.sp_value(&the_path)
+                    state.sp_value(&the_path)
                 } else {
                     None
                 }
@@ -218,29 +218,29 @@ impl Predicate {
     pub fn support(&self) -> Vec<SPPath> {
         let mut s = Vec::new();
         match &self {
-            Predicate::AND(x) => s.extend(x.iter().flat_map(|p|p.support())),
-            Predicate::OR(x) => s.extend(x.iter().flat_map(|p|p.support())),
-            Predicate::XOR(x) => s.extend(x.iter().flat_map(|p|p.support())),
+            Predicate::AND(x) => s.extend(x.iter().flat_map(|p| p.support())),
+            Predicate::OR(x) => s.extend(x.iter().flat_map(|p| p.support())),
+            Predicate::XOR(x) => s.extend(x.iter().flat_map(|p| p.support())),
             Predicate::NOT(x) => s.extend(x.support()),
-            Predicate::TRUE => {},
-            Predicate::FALSE => {},
+            Predicate::TRUE => {}
+            Predicate::FALSE => {}
             Predicate::EQ(x, y) => {
                 match x {
-                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPValue(_) => {}
                     PredicateValue::SPPath(p, _) => s.push(p.clone()),
                 };
                 match y {
-                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPValue(_) => {}
                     PredicateValue::SPPath(p, _) => s.push(p.clone()),
                 };
             }
             Predicate::NEQ(x, y) => {
                 match x {
-                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPValue(_) => {}
                     PredicateValue::SPPath(p, _) => s.push(p.clone()),
                 };
                 match y {
-                    PredicateValue::SPValue(_) => {},
+                    PredicateValue::SPValue(_) => {}
                     PredicateValue::SPPath(p, _) => s.push(p.clone()),
                 };
             }

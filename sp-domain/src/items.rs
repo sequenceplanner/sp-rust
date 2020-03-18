@@ -66,9 +66,7 @@ impl Noder for SPItem {
         }
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         match self {
             SPItem::Model(x) => x.find_item_among_children(name, path_sections),
@@ -85,9 +83,7 @@ impl Noder for SPItem {
         }
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         match self {
             SPItem::Model(x) => x.find_item_mut_among_children(name, path_sections),
@@ -332,16 +328,12 @@ impl Noder for Model {
         get_from_list(self.items.as_slice(), next, path)
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.items.as_slice(), name, path_sections)
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         find_item_mut_in_list(self.items.as_mut_slice(), name, path_sections)
     }
@@ -427,9 +419,7 @@ impl Noder for Resource {
             .or_else(|| get_from_list(self.messages.as_slice(), next, path))
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.abilities.as_slice(), name, path_sections)
             .or_else(|| find_item_in_list(self.parameters.as_slice(), name, path_sections))
@@ -437,9 +427,7 @@ impl Noder for Resource {
             .or_else(|| find_item_in_list(self.messages.as_slice(), name, path_sections))
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         if let Some(x) = find_item_mut_in_list(self.abilities.as_mut_slice(), name, path_sections) {
             Some(x)
@@ -574,8 +562,7 @@ impl Resource {
 
     pub fn get_variables(&self) -> Vec<Variable> {
         fn r(
-            m: &MessageField,
-            acum: &mut Vec<Variable>,
+            m: &MessageField, acum: &mut Vec<Variable>,
             command_mirrors_rev: &HashMap<SPPath, SPPath>,
         ) {
             match m {
@@ -658,16 +645,12 @@ impl Noder for Topic {
         self.msg.get(path)
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         self.msg.find_item(name, path_sections)
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         self.msg.find_item_mut(name, path_sections)
     }
@@ -734,16 +717,12 @@ impl Noder for Message {
         get_from_list(self.fields.as_slice(), next, path)
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.fields.as_slice(), name, path_sections)
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         find_item_mut_in_list(self.fields.as_mut_slice(), name, path_sections)
     }
@@ -799,9 +778,7 @@ impl Noder for MessageField {
         }
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         match self {
             MessageField::Msg(ref x) => x.find_item(name, path_sections),
@@ -809,9 +786,7 @@ impl Noder for MessageField {
         }
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         match self {
             MessageField::Msg(ref mut x) => x.find_item_mut(name, path_sections),
@@ -866,16 +841,12 @@ impl Noder for Variable {
         None
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         None
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a mut self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -896,10 +867,7 @@ impl Noder for Variable {
 
 impl Variable {
     pub fn new(
-        name: &str,
-        type_: VariableType,
-        value_type: SPValueType,
-        domain: Vec<SPValue>,
+        name: &str, type_: VariableType, value_type: SPValueType, domain: Vec<SPValue>,
     ) -> Variable {
         let node = SPNode::new(name);
         Variable {
@@ -975,16 +943,12 @@ impl Noder for Transition {
         None
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         None
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a mut self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -1008,11 +972,7 @@ impl Noder for Transition {
 
 impl Transition {
     pub fn new(
-        name: &str,
-        guard: Predicate,
-        actions: Vec<Action>,
-        effects: Vec<Action>,
-        controlled: bool,
+        name: &str, guard: Predicate, actions: Vec<Action>, effects: Vec<Action>, controlled: bool,
     ) -> Self {
         let node = SPNode::new(name);
         Transition {
@@ -1057,18 +1017,21 @@ impl Transition {
 
 impl fmt::Display for Transition {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let c = if self.controlled {
-            "c"
-        } else {""};
+        let c = if self.controlled { "c" } else { "" };
 
-
-        let s = format!("t_{}:{} {}/{:?} e:{:?}", c, self.path(), self.guard, self.actions, self.effects);
+        let s = format!(
+            "t_{}:{} {}/{:?} e:{:?}",
+            c,
+            self.path(),
+            self.guard,
+            self.actions,
+            self.effects
+        );
         //let s = format!("t_{}:{}", c, self.path());
 
         write!(fmtr, "{}", &s)
     }
 }
-
 
 impl EvaluatePredicate for Transition {
     fn eval(&self, state: &SPState) -> bool {
@@ -1106,17 +1069,13 @@ impl Noder for Ability {
             .or_else(|| get_from_list(self.predicates.as_slice(), next, path))
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| find_item_in_list(self.predicates.as_slice(), name, path_sections))
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections)
         {
@@ -1184,9 +1143,7 @@ impl Noder for Operation {
             .or_else(|| self.goal.as_ref().and_then(|x| x.get(path)))
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| self.state_variable.find_item(name, path_sections))
@@ -1197,9 +1154,7 @@ impl Noder for Operation {
             })
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections)
         {
@@ -1254,11 +1209,7 @@ impl Operation {
         }
     }
 
-    pub fn new_hl(
-        name: &str,
-        trans: &[Transition],
-        goal: Option<IfThen>,
-    ) -> Operation {
+    pub fn new_hl(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Operation {
         let node = SPNode::new(name);
 
         let op_state = Variable::new(
@@ -1316,16 +1267,12 @@ impl Noder for IfThen {
         None
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         None
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a mut self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -1347,10 +1294,7 @@ impl Noder for IfThen {
 
 impl IfThen {
     pub fn new(
-        name: &str,
-        condition: Predicate,
-        goal: Predicate,
-        invariant: Option<Predicate>,
+        name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>,
     ) -> IfThen {
         let node = SPNode::new(name);
         IfThen {
@@ -1398,16 +1342,12 @@ impl Noder for Spec {
         None
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         None
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        _name: &str,
-        _path_sections: &[&str],
+        &'a mut self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -1454,16 +1394,12 @@ impl Noder for TransitionSpec {
         None
     }
     fn find_item_among_children<'a>(
-        &'a self,
-        name: &str,
-        path_sections: &[&str],
+        &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         self.spec_transition.find_item(name, path_sections)
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         self.spec_transition.find_item_mut(name, path_sections)
     }
@@ -1488,9 +1424,7 @@ impl Noder for TransitionSpec {
 
 impl TransitionSpec {
     pub fn new(
-        name: &str,
-        spec_transition: Transition,
-        syncronized_with: Vec<SPPath>,
+        name: &str, spec_transition: Transition, syncronized_with: Vec<SPPath>,
     ) -> TransitionSpec {
         let node = SPNode::new(name);
         TransitionSpec {
