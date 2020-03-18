@@ -7,8 +7,7 @@
 #          all contributors have.
 
 for FILE in `git diff --cached --name-only`; do
-    echo "Checking \"$FILE\" file."
-    if [[ $FILE == *.rs ]] && ! rustup run nightly rustfmt --unstable-features --skip-children --check $FILE; then
+    if [[ $FILE == *.rs ]] && [ -f $FILE ] && ! rustup run nightly rustfmt --unstable-features --skip-children --check $FILE; then
         echo "Commit rejected due to invalid formatting of \"$FILE\" file."
 
         exit 1
