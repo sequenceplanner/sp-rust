@@ -92,10 +92,10 @@ impl SPValue {
             )
         };
         match spv_t {
-            SPValueType::Bool => json.as_bool().expect(&tm("bool")).to_spvalue(),
-            SPValueType::Int32 => (json.as_i64().expect(&tm("int")) as i32).to_spvalue(),
-            SPValueType::Float32 => (json.as_f64().expect(&tm("float")) as f32).to_spvalue(),
-            SPValueType::String => json.as_str().expect(&tm("string")).to_spvalue(),
+            SPValueType::Bool => json.as_bool().unwrap_or_else(|| panic!(tm("bool"))).to_spvalue(),
+            SPValueType::Int32 => (json.as_i64().unwrap_or_else(|| panic!(tm("int"))) as i32).to_spvalue(),
+            SPValueType::Float32 => (json.as_f64().unwrap_or_else(|| panic!(tm("float"))) as f32).to_spvalue(),
+            SPValueType::String => json.as_str().unwrap_or_else(|| panic!(tm("string"))).to_spvalue(),
             // todo: check is_array
             _ => unimplemented!("TODO {:?}", spv_t),
         }
@@ -218,7 +218,7 @@ impl ToSPValue for String {
 }
 impl ToSPValue for &str {
     fn to_spvalue(&self) -> SPValue {
-        SPValue::String(self.to_string())
+        SPValue::String((*self).to_string())
     }
 }
 // impl ToSPValue for Uuid {

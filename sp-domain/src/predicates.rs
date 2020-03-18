@@ -70,13 +70,12 @@ impl<'a> PredicateValue {
             PredicateValue::SPValue(x) => Some(x),
             PredicateValue::SPPath(path, sp) => {
                 if sp.is_none() {
-                    return state.sp_value_from_path(&path);
+                    state.sp_value_from_path(&path)
+                } else if let Some(the_path) = sp {
+                        state.sp_value(&the_path)
                 } else {
-                    if let Some(the_path) = sp {
-                        return state.sp_value(&the_path);
-                    }
+                    None
                 }
-                return None;
             }
         }
     }
@@ -346,7 +345,7 @@ impl EvaluatePredicate for Predicate {
 impl NextAction for Action {
     fn next(&self, state: &mut SPState) -> SPResult<()> {
         let c = match &self.value {
-            Compute::PredicateValue(pv) => match pv.sp_value(state).map(|x| x.clone()) {
+            Compute::PredicateValue(pv) => match pv.sp_value(state).cloned() {
                 Some(x) => x,
                 None => {
                     eprintln!(
@@ -621,7 +620,6 @@ macro_rules! a {
 
 #[cfg(test)]
 mod sp_value_test {
-    #![warn(unused_must_use)]
     #![warn(unused_variables)]
 
     use super::*;
@@ -737,7 +735,7 @@ mod sp_value_test {
             state_path: None,
         };
 
-        a.next(&mut s);
+        a.next(&mut s).unwrap();
 
         assert!(a2.eval(&s));
         assert!(!a.eval(&s));

@@ -62,7 +62,4 @@ impl error::Error for SPError {
 
 #[cfg(test)]
 mod tests_domain {
-    use super::*;
-    #[test]
-    fn making() {}
 }

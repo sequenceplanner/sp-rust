@@ -21,8 +21,8 @@ pub struct SPState {
 // TODO: Maybe check the id?
 impl PartialEq for SPState {
     fn eq(&self, other: &Self) -> bool {
-        let x = self.projection().sort();
-        let y = other.projection().sort();
+        let mut x = self.projection(); x.sort();
+        let mut y = other.projection(); y.sort();
         x == y
     }
 }
@@ -295,12 +295,10 @@ impl SPState {
             .map(|(key, i)| (key, &self.values[*i]))
             .collect();
 
-        let mut p = StateProjection {
+        StateProjection {
             state: s,
             id: self.id,
-        };
-        //p.sort();  // Maybe not this?
-        p
+        }
     }
 
     /// Returns a projection of the sub part of the state where the variables are children to the path
@@ -588,36 +586,6 @@ mod sp_value_test {
         println!("{:?}", x);
         println!("{:?}", s);
     }
-    #[test]
-    fn take_all_next() {
-        let mut s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
-        let ab = &SPPath::from_slice(&["a", "b"]);
-        let ac = &SPPath::from_slice(&["a", "c"]);
-        let p_ab = s.state_path(ab).unwrap();
-        let p_ac = s.state_path(ac).unwrap();
-
-        // s.next(&p_ab, 5.to_spvalue()).expect("Oh no");
-        // s.next(&p_ac, AssignStateValue::Delay(false.to_spvalue(), 1000))
-        //     .expect("oh no");
-        // println!("The state before: {:?}", s);
-        // s.take_transition();
-
-        // assert_eq!(
-        //     s.state_value(&p_ac),
-        //     Some(&StateValue::Delay(Delay {
-        //         current_value: true.to_spvalue(),
-        //         next_value: false.to_spvalue(),
-        //         millis: 1000,
-        //         has_been_spawned: true
-        //     }))
-        // );
-        // assert_eq!(
-        //     s.state_value(&p_ab),
-        //     Some(&StateValue::SPValue(5.to_spvalue()))
-        // );
-
-        // println!("The state: {:?}", s);
-    }
 
     #[test]
     fn sub_state_testing() {
@@ -656,22 +624,22 @@ mod sp_value_test {
         let ac = s.state_path(&SPPath::from_slice(&["a", "c"])).unwrap();
 
         let mut new_s = s.clone();
-        new_s.force(&ab, 3.to_spvalue());
+        new_s.force(&ab, 3.to_spvalue()).unwrap();
 
         println!("{}", s.difference(&new_s));
-        println!("");
+        println!();
 
-        new_s.force(&ab, 2.to_spvalue());
-
-        println!("{}", s.difference(&new_s));
-        println!("");
-
-        new_s.force(&ab, 4.to_spvalue());
-        new_s.force(&ac, 2.to_spvalue());
+        new_s.force(&ab, 2.to_spvalue()).unwrap();
 
         println!("{}", s.difference(&new_s));
-        println!("");
+        println!();
+
+        new_s.force(&ab, 4.to_spvalue()).unwrap();
+        new_s.force(&ac, 2.to_spvalue()).unwrap();
+
+        println!("{}", s.difference(&new_s));
+        println!();
         println!("{}", new_s.difference(&s));
-        println!("");
+        println!();
     }
 }

@@ -27,7 +27,7 @@ impl SPPath {
         SPPath { path: xs }
     }
     pub fn from_string(s: &str) -> SPPath {
-        let res: Vec<&str> = s.split("/").collect();
+        let res: Vec<&str> = s.split('/').collect();
         SPPath::from_slice(&res)
     }
     pub fn add_child(mut self, sub: &str) -> Self {
@@ -67,7 +67,7 @@ impl SPPath {
     }
 
     pub fn is_child_of_any(&self, others: &[SPPath]) -> bool {
-        others.iter().find(|o| self.is_child_of(o)).is_some()
+        others.iter().any(|o| self.is_child_of(o))
     }
 
     pub fn parent(&self) -> SPPath {
@@ -79,7 +79,7 @@ impl SPPath {
     }
 
     pub fn drop_root(&self) -> SPPath {
-        if self.path.len() == 0 {
+        if self.path.is_empty() {
             SPPath::new()
         } else {
             SPPath::from_slice(&self.path[1..])
@@ -87,7 +87,7 @@ impl SPPath {
     }
 
     pub fn leaf(&self) -> String {
-        if self.path.len() == 0 {
+        if self.path.is_empty() {
             "".to_string()
         } else {
             self.path[self.path.len() - 1].clone()

@@ -112,7 +112,7 @@ pub trait Noder {
         if self.node().name() == name {
             let found_it = path_sections
                 .iter()
-                .all(|x| self.node().path().path.contains(&x.to_string()));
+                .all(|x| self.node().path().path.contains(&(*x).to_string()));
             if found_it {
                 return Some(self.as_ref());
             }
@@ -128,7 +128,7 @@ pub trait Noder {
         if self.node().name() == name {
             let found_it = path_sections
                 .iter()
-                .all(|x| self.node().path().path.contains(&x.to_string()));
+                .all(|x| self.node().path().path.contains(&(*x).to_string()));
             if found_it {
                 return Some(self.as_mut_ref());
             }

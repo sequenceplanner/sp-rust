@@ -148,7 +148,7 @@ impl Noder for SPItem {
             SPItem::TransitionSpec(x) => x.as_ref(),
         }
     }
-    fn as_mut_ref<'a>(&'a mut self) -> SPMutItemRef<'a> {
+    fn as_mut_ref(&mut self) -> SPMutItemRef {
         match self {
             SPItem::Model(x) => x.as_mut_ref(),
             SPItem::Resource(x) => x.as_mut_ref(),
@@ -376,8 +376,7 @@ impl Model {
 
     pub fn new_no_root(name: &str, items: Vec<SPItem>) -> Model {
         // hack to not update the item names for the model...
-        let mut m = Model::new(name, items);
-        m
+        Model::new(name, items)
     }
 
     pub fn items(&self) -> &[SPItem] {
@@ -609,7 +608,7 @@ impl Resource {
             }
         });
 
-        return vs;
+        vs
     }
 
     pub fn get_transitions(&self) -> Vec<Transition> {
@@ -703,7 +702,7 @@ impl Topic {
                 MessageField::Var(v) => v.type_ == VariableType::Measured,
             }
         }
-        return is_sub(&self.msg);
+        is_sub(&self.msg)
     }
 
     pub fn is_publisher(&self) -> bool {
@@ -713,7 +712,7 @@ impl Topic {
                 MessageField::Var(v) => v.type_ == VariableType::Command,
             }
         }
-        return is_pub(&self.msg);
+        is_pub(&self.msg)
     }
 }
 
@@ -875,8 +874,8 @@ impl Noder for Variable {
     }
     fn find_item_mut_among_children<'a>(
         &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        _name: &str,
+        _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -932,7 +931,7 @@ impl Variable {
         self.type_.clone()
     }
     pub fn value_type(&self) -> SPValueType {
-        self.value_type.clone()
+        self.value_type
     }
     pub fn domain(&self) -> &[SPValue] {
         self.domain.as_slice()
@@ -984,8 +983,8 @@ impl Noder for Transition {
     }
     fn find_item_mut_among_children<'a>(
         &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        _name: &str,
+        _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -1325,8 +1324,8 @@ impl Noder for IfThen {
     }
     fn find_item_mut_among_children<'a>(
         &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        _name: &str,
+        _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -1407,8 +1406,8 @@ impl Noder for Spec {
     }
     fn find_item_mut_among_children<'a>(
         &'a mut self,
-        name: &str,
-        path_sections: &[&str],
+        _name: &str,
+        _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
@@ -1548,7 +1547,7 @@ mod test_items {
         let res = t3.eval(&s);
         println!("t3: {:?}", res);
         assert!(res);
-        t3.next(&mut s);
+        t3.next(&mut s).unwrap();
 
         s.take_transition();
         assert_eq!(s.sp_value_from_path(&xy).unwrap(), &true.to_spvalue());
