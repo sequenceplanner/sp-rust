@@ -39,7 +39,9 @@ class Ros2DornaSimulator(Node):
         self.act_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.pub_pos = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.sync_speed_scale = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-        self.max_speed_factor = 2.0 / 0.25 # do not exceed 2, for now... Reduce if necessary.
+        # do not exceed 2, for now... Reduce if necessary.
+        # MD 2020-03-18: I halved the update rate so I doubled this.
+        self.max_speed_factor = 4.0
         self.joint_reference_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.joint_tolerance = 0.01
 
@@ -67,7 +69,7 @@ class Ros2DornaSimulator(Node):
 
         # sp to esd:
         self.sp_to_esd_msg = Goal()
-        self.sp_to_esd_msg.ref_pos = ""
+        self.sp_to_esd_msg.ref_pos = self.get_pose_name_from_pose()
 
         self.sp_to_esd_subscriber = self.create_subscription(
             Goal,
@@ -108,7 +110,7 @@ class Ros2DornaSimulator(Node):
                                 "dorna_axis_5_joint",
                                 "nonexistent"]
 
-        self.joint_state_timer_period = 0.025
+        self.joint_state_timer_period = 0.02
 
         self.joint_state_publisher_ = self.create_publisher(
             JointState,
@@ -151,6 +153,10 @@ class Ros2DornaSimulator(Node):
 
     def sp_node_cmd_callback(self, data):
         self.node_cmd = data
+
+        # refresh poses in case gui was used to move the robot
+        self.sp_to_esd_msg.ref_pos = self.get_pose_name_from_pose()
+        self.esd_to_gui_msg.actual_pose = self.get_pose_name_from_pose()
 
         # move to general function in sp
         echo_msg = {}
@@ -250,6 +256,7 @@ class Ros2DornaSimulator(Node):
         self.gui_to_esd_msg.gui_joint_control[2] = round(data.gui_joint_control[2], 3)
         self.gui_to_esd_msg.gui_joint_control[3] = round(data.gui_joint_control[3], 3)
         self.gui_to_esd_msg.gui_joint_control[4] = round(data.gui_joint_control[4], 3)
+        self.joint_reference_pose = self.gui_to_esd_msg.gui_joint_control
 
     def joint_state_publisher_callback(self):
         if self.gui_to_esd_msg.gui_control_enabled == True:
