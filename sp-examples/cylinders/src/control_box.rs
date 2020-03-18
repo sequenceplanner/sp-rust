@@ -42,16 +42,27 @@ pub fn make_control_box(name: &str) -> Resource {
     }
 }
 
-#[test]
-fn test_control_box() {
-    let control_box = make_control_box("cb");
-    println!("{:#?}", control_box);
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serial_test::serial;
 
-    let bl = control_box.find_item("blue_light", &["control_box"]).expect("check spelling").path();
-    println!("bl: {}", bl);
+    #[test]
+    #[serial]
+    fn test_control_box() {
+        let control_box = make_control_box("cb");
+        println!("{:#?}", control_box);
 
-    let bl_on = control_box.find_item("blue_light_on", &["control_box"]).expect("check spelling").path();
-    println!("bl on: {}", bl_on);
+        let bl = control_box
+            .find_item("blue_light", &["cb"])
+            .expect("check spelling")
+            .path();
+        println!("bl: {}", bl);
 
-    assert!(false);
+        let bl_on = control_box
+            .find_item("blue_light_on", &["cb"])
+            .expect("check spelling")
+            .path();
+        println!("bl on: {}", bl_on);
+    }
 }

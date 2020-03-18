@@ -19,7 +19,6 @@ pub struct RunnerModel {
     // temporary!
     pub model: TransitionSystemModel,
     pub op_model: TransitionSystemModel,
-
 }
 
 impl RunnerModel {

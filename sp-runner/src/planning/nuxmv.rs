@@ -1,7 +1,6 @@
 use crate::planning::*;
 use chrono::offset::Local;
 use chrono::DateTime;
-use sp_domain::*;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
@@ -157,8 +156,7 @@ fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String, String
 }
 
 fn postprocess_nuxmv_problem(
-    model: &TransitionSystemModel,
-    raw: &String,
+    model: &TransitionSystemModel, raw: &String,
 ) -> Option<Vec<PlanningFrame>> {
     if !raw.contains("Trace Type: Counterexample") {
         // we didn't find a counter-example, which means we already fulfil the goal.
@@ -234,9 +232,7 @@ pub struct NuXmvPlanner {}
 
 impl Planner for NuXmvPlanner {
     fn plan(
-        model: &TransitionSystemModel,
-        goals: &[(Predicate, Option<Predicate>)],
-        state: &SPState,
+        model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
         max_steps: u32,
     ) -> PlanningResult {
         let lines = create_nuxmv_problem(&model, &goals, &state);
@@ -266,9 +262,9 @@ impl Planner for NuXmvPlanner {
                 });
 
                 PlanningResult {
-                    plan_found: plan_found,
+                    plan_found,
                     plan_length: trace.len() as u32 - 1, // hack :)
-                    trace: trace,
+                    trace,
                     time_to_solve: duration,
                     raw_output: raw.to_owned(),
                     raw_error_output: raw_error.to_owned(),
@@ -295,9 +291,7 @@ fn create_offline_nuxmv_problem(model: &TransitionSystemModel, initial: &Predica
 }
 
 fn create_nuxmv_problem(
-    model: &TransitionSystemModel,
-    goal_invs: &[(Predicate, Option<Predicate>)],
-    state: &SPState,
+    model: &TransitionSystemModel, goal_invs: &[(Predicate, Option<Predicate>)], state: &SPState,
 ) -> String {
     let mut lines = make_base_problem(model);
 

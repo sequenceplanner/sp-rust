@@ -1,13 +1,8 @@
 use sp_domain::*;
 
 pub fn add_op(
-    m: &mut Model,
-    name: &str,
-    resets: bool,
-    pre: Predicate,
-    post: Predicate,
-    post_actions: Vec<Action>,
-    invariant: Option<Predicate>,
+    m: &mut Model, name: &str, resets: bool, pre: Predicate, post: Predicate,
+    post_actions: Vec<Action>, invariant: Option<Predicate>,
 ) -> SPPath {
     let op_state = Variable::new(
         name,

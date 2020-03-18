@@ -32,8 +32,8 @@ impl FormalContext {
 
         let mut fc = FormalContext {
             context: c,
-            var_map: var_map,
-            pred_map: pred_map,
+            var_map,
+            pred_map,
         };
 
         for t in &model.transitions {
@@ -79,10 +79,7 @@ impl FormalContext {
             Compute::Any => Value::Free,
             x => panic!("TODO: {:?}", x),
         };
-        Ac {
-            var: *index,
-            val: val,
-        }
+        Ac { var: *index, val }
     }
 
     pub fn sp_pred_to_ex(&self, p: &Predicate) -> Ex {
@@ -263,8 +260,7 @@ impl FormalContext {
 }
 
 pub fn extract_guards(
-    model: &TransitionSystemModel,
-    initial: &Predicate,
+    model: &TransitionSystemModel, initial: &Predicate,
 ) -> (HashMap<String, Predicate>, Predicate) {
     let c = FormalContext::from(model);
 
@@ -330,7 +326,8 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
         let modifies = modified_by(t);
         support_all.extend(modifies);
     });
-    let preds: Vec<_> = support_all.iter()
+    let preds: Vec<_> = support_all
+        .iter()
         .filter_map(|s| {
             if let Some(v) = model.state_predicates.iter().find(|t| t.path() == s) {
                 if let VariableType::Predicate(p) = v.variable_type() {
@@ -341,9 +338,10 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
         })
         .collect();
 
-    let mut support_all: HashSet<_> = support_all.into_iter()
-        .filter(|s| !model
-                .state_predicates.iter().any(|t| t.path() == s)).collect();
+    let mut support_all: HashSet<_> = support_all
+        .into_iter()
+        .filter(|s| !model.state_predicates.iter().any(|t| t.path() == s))
+        .collect();
 
     support_all.extend(preds.iter().flat_map(|p| p.support()));
 

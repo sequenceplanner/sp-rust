@@ -4,18 +4,18 @@ use sp_runner_api::*;
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {
     // each resource contains a supervisor defining its good states
-    let inits: Vec<Predicate> = model
-        .resources()
-        .iter()
-        .flat_map(|r| r.sub_items())
-        .flat_map(|si| match si {
-            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
-            _ => None,
-        })
-        .collect();
+    // let inits: Vec<Predicate> = model
+    //     .resources()
+    //     .iter()
+    //     .flat_map(|r| r.sub_items())
+    //     .flat_map(|si| match si {
+    //         SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
+    //         _ => None,
+    //     })
+    //     .collect();
 
     // we need to assume that we are in a state that adheres to the resources
-    let initial = Predicate::AND(inits);
+    // let initial = Predicate::AND(inits);
 
     let mut ts_model = TransitionSystemModel::from(&model);
 
@@ -54,8 +54,16 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         })
         .collect();
 
-    let global_ops_trans:Vec<_> = global_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
-    let mut global_ops_ctrl: Vec<_> = global_ops_trans.iter().filter(|o|o.controlled).cloned().collect();
+    let global_ops_trans: Vec<_> = global_ops
+        .iter()
+        .flat_map(|o| o.transitinos())
+        .cloned()
+        .collect();
+    let mut global_ops_ctrl: Vec<_> = global_ops_trans
+        .iter()
+        .filter(|o| o.controlled)
+        .cloned()
+        .collect();
 
     // remove all guards from the operations......... ....... .....
     for c in &mut global_ops_ctrl {
@@ -67,9 +75,16 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         }
     }
 
-
-    let global_ops_un_ctrl: Vec<_> = global_ops_trans.iter().filter(|o|!o.controlled).cloned().collect();
-    let global_goals: Vec<IfThen> = global_ops.iter().flat_map(|o|o.goal().as_ref()).cloned().collect();
+    let global_ops_un_ctrl: Vec<_> = global_ops_trans
+        .iter()
+        .filter(|o| !o.controlled)
+        .cloned()
+        .collect();
+    let global_goals: Vec<IfThen> = global_ops
+        .iter()
+        .flat_map(|o| o.goal().as_ref())
+        .cloned()
+        .collect();
 
     let global_hl_ops: Vec<&Operation> = items
         .iter()
@@ -79,10 +94,26 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         })
         .collect();
 
-    let global_hl_ops_trans:Vec<_> = global_hl_ops.iter().flat_map(|o|o.transitinos()).cloned().collect();
-    let mut global_hl_ops_ctrl: Vec<_> = global_hl_ops_trans.iter().filter(|o|o.controlled).cloned().collect();
-    let global_hl_ops_un_ctrl: Vec<_> = global_hl_ops_trans.iter().filter(|o|!o.controlled).cloned().collect();
-    let global_hl_goals: Vec<IfThen> = global_hl_ops.iter().flat_map(|o|o.goal().as_ref()).cloned().collect();
+    let global_hl_ops_trans: Vec<_> = global_hl_ops
+        .iter()
+        .flat_map(|o| o.transitinos())
+        .cloned()
+        .collect();
+    let global_hl_ops_ctrl: Vec<_> = global_hl_ops_trans
+        .iter()
+        .filter(|o| o.controlled)
+        .cloned()
+        .collect();
+    let global_hl_ops_un_ctrl: Vec<_> = global_hl_ops_trans
+        .iter()
+        .filter(|o| !o.controlled)
+        .cloned()
+        .collect();
+    let global_hl_goals: Vec<IfThen> = global_hl_ops
+        .iter()
+        .flat_map(|o| o.goal().as_ref())
+        .cloned()
+        .collect();
 
     let ts_model_op = TransitionSystemModel::from_op(&model);
     crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);

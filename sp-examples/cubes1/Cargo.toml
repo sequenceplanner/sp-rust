@@ -10,3 +10,6 @@ edition = "2018"
 sp-domain = { path = "../../sp-domain/" }
 sp-runner = { path = "../../sp-runner/" }
 failure = "0.1.5"
+
+[dev-dependencies]
+serial_test = "0.4.0"

@@ -4,15 +4,17 @@ use failure::Error;
 use sp_domain::*;
 use sp_ros;
 use sp_runner_api::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (mut node, comm) = set_up_ros_comm(&model)?;
 
-    let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) = channel::bounded(3);
-    let (tx_planner, rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) = channel::unbounded();
+    let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
+        channel::bounded(3);
+    let (tx_planner, rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) =
+        channel::unbounded();
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(2000), tx_runner.clone());
@@ -25,7 +27,14 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
         comm.tx_node_cmd.clone(),
         tx_runner.clone(),
     );
-    runner(&model, initial_state, rx_runner, comm.tx_state_out, comm.tx_runner_info, tx_planner);
+    runner(
+        &model,
+        initial_state,
+        rx_runner,
+        comm.tx_state_out,
+        comm.tx_runner_info,
+        tx_planner,
+    );
 
     loop {
         // blocking ros spinning
@@ -33,27 +42,20 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     }
 }
 
-
 fn runner(
-    model: &Model,
-    initial_state: SPState,
-    rx_input: Receiver<SPRunnerInput>,
-    tx_state_out: Sender<SPState>,
-    tx_runner_info: Sender<RunnerInfo>,
+    model: &Model, initial_state: SPState, rx_input: Receiver<SPRunnerInput>,
+    tx_state_out: Sender<SPState>, tx_runner_info: Sender<RunnerInfo>,
     tx_planner: Sender<PlannerTask>,
 ) {
     let model = model.clone();
     thread::spawn(move || {
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
-        let resources: Vec<SPPath> = model.resources().iter().map(|r| r.path().clone()).collect();
-        let timer = Instant::now();
 
         loop {
             let input = rx_input.recv();
-            let mut tick = false;
             let mut state_has_probably_changed = false;
-            runner.last_fired_transitions = vec!();
+            runner.last_fired_transitions = vec![];
             if let Ok(msg) = input {
                 match msg {
                     SPRunnerInput::StateChange(s) => {
@@ -61,34 +63,31 @@ fn runner(
                             runner.input(SPRunnerInput::StateChange(s));
                             state_has_probably_changed = true;
                         }
-                    },
+                    }
                     SPRunnerInput::NodeChange(s) => {
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::NodeChange(s));
                             state_has_probably_changed = true;
                         }
-                    },
+                    }
                     SPRunnerInput::Tick => {
                         runner.input(SPRunnerInput::Tick);
-                        tick = true;
-                    },
+                    }
                     SPRunnerInput::AbilityPlan(plan) => {
                         runner.input(SPRunnerInput::AbilityPlan(plan));
                         runner.input(SPRunnerInput::Tick);
-                    },
+                    }
                     SPRunnerInput::OperationPlan(plan) => {
                         runner.input(SPRunnerInput::OperationPlan(plan));
                         runner.input(SPRunnerInput::Tick);
-                    },
-                    SPRunnerInput::Settings => {}// TODO},
+                    }
+                    SPRunnerInput::Settings => {} // TODO},
                 }
-
             } else {
                 println!("The runner channel broke? - {:?}", input);
                 break;
             }
             //println!("tick: {} ms", timer.elapsed().as_millis());
-
 
             if !runner.last_fired_transitions.is_empty() {
                 println!("fired:");
@@ -104,9 +103,10 @@ fn runner(
                 println! {""};
             }
 
-
             // For now, we will send out all the time, but soon we should check this
-            tx_state_out.send(runner.state().clone()).expect("tx_state:out");
+            tx_state_out
+                .send(runner.state().clone())
+                .expect("tx_state:out");
             // send out runner info.
             let runner_info = RunnerInfo {
                 state: runner.state().clone(),
@@ -115,22 +115,20 @@ fn runner(
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
-            let planning = PlannerTask{
+            let planning = PlannerTask {
                 ts: runner.transition_system_models.clone(),
                 state: runner.state().clone(),
                 goals: runner.goal(),
                 disabled_paths: runner.disabled_paths(),
             };
             tx_planner.send(planning).unwrap();
-
-
         }
     });
 }
 
 struct RosCommSetup {
     rx_mess: Receiver<sp_ros::RosMessage>,
-    rx_commands: Receiver<RunnerCommand>,
+    _rx_commands: Receiver<RunnerCommand>,
     rx_node: Receiver<sp_ros::NodeMode>,
     tx_state_out: Sender<SPState>,
     tx_runner_info: Sender<RunnerInfo>,
@@ -159,7 +157,7 @@ fn set_up_ros_comm(model: &Model) -> Result<(sp_ros::RosNode, RosCommSetup), Err
         node,
         RosCommSetup {
             rx_mess,
-            rx_commands,
+            _rx_commands: rx_commands,
             rx_node,
             tx_state_out,
             tx_runner_info,
@@ -275,7 +273,7 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
             };
 
             // for now, do all planning here. so loop over each namespace
-            for (i, (ts,goal)) in pt.ts.iter().zip(pt.goals.iter()).enumerate() {
+            for (i, (ts, goal)) in pt.ts.iter().zip(pt.goals.iter()).enumerate() {
                 let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
 
                 if &prev_goal != goal && pt.disabled_paths.is_empty() {
@@ -288,9 +286,11 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
                     //println!("new plan is");
 
                     //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-                    let (tr, s) = if i == 0 { // ability level
+                    let (tr, s) = if i == 0 {
+                        // ability level
                         crate::planning::convert_planning_result(&ts, planner_result, false)
-                    } else { // op level
+                    } else {
+                        // op level
                         crate::planning::convert_planning_result(&ts, planner_result, true)
                     };
                     let plan = SPPlan {
@@ -325,14 +325,11 @@ struct NodeState {
 
 use sp_ros::{NodeCmd, NodeMode};
 fn node_handler(
-    freq: Duration,
-    deadline: Duration,
-    model: &Model,
-    rx_node: Receiver<NodeMode>,
-    tx_node: Sender<NodeCmd>,
-    tx_runner: Sender<SPRunnerInput>,
+    freq: Duration, deadline: Duration, model: &Model, rx_node: Receiver<NodeMode>,
+    tx_node: Sender<NodeCmd>, tx_runner: Sender<SPRunnerInput>,
 ) {
-    let mut nodes: HashMap<SPPath, NodeState> = model.resources()
+    let mut nodes: HashMap<SPPath, NodeState> = model
+        .resources()
         .iter()
         .map(|r| {
             let r: &Resource = r;
@@ -352,8 +349,7 @@ fn node_handler(
     let tick = channel::tick(freq);
 
     fn mode_from_node(
-        mode: Result<NodeMode, channel::RecvError>,
-        nodes: &mut HashMap<SPPath, NodeState>,
+        mode: Result<NodeMode, channel::RecvError>, nodes: &mut HashMap<SPPath, NodeState>,
         tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         match mode {
@@ -387,15 +383,12 @@ fn node_handler(
         }
     }
     fn tick_node(
-        time: Result<Instant, channel::RecvError>,
-        nodes: &mut HashMap<SPPath, NodeState>,
-        deadline: Duration,
-        tx_node: Sender<NodeCmd>,
-        tx_runner: Sender<SPRunnerInput>,
+        time: Result<Instant, channel::RecvError>, nodes: &mut HashMap<SPPath, NodeState>,
+        deadline: Duration, tx_node: Sender<NodeCmd>, tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         match time {
             Ok(time) => {
-                let mut resource_state: Vec<(SPPath, SPValue)> = vec!();
+                let mut resource_state: Vec<(SPPath, SPValue)> = vec![];
                 for (r, n) in nodes {
                     // TODO: Handle handshake with SP and node and change cmd when echo is written
 
@@ -414,7 +407,8 @@ fn node_handler(
 
                     tx_node.send(cmd).unwrap();
 
-                    let enabled = n.cmd == "run".to_string() && (!n.mode.is_empty() || n.mode != "init".to_string());
+                    let enabled = n.cmd == "run".to_string()
+                        && (!n.mode.is_empty() || n.mode != "init".to_string());
                     resource_state.push((r.clone(), enabled.to_spvalue()));
                 }
                 let rs = SPState::new_from_values(&resource_state);
@@ -467,7 +461,6 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         trans.push(t.clone());
     });
 
-
     rm.ab_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_controllable.push(TransitionSpec::new(
@@ -487,7 +480,7 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         vec![],
         vec![],
         vec![rm.model.clone(), rm.op_model.clone()],
-        model.resources().iter().map(|r| r.path().clone()).collect()
+        model.resources().iter().map(|r| r.path().clone()).collect(),
     );
 
     runner.input(SPRunnerInput::AbilityPlan(SPPlan {

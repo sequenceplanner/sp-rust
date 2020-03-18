@@ -506,7 +506,10 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
-    crate::planning::generate_offline_nuxvm(&temp_ts_model, supervisor.as_ref().unwrap_or(&Predicate::TRUE));
+    crate::planning::generate_offline_nuxvm(
+        &temp_ts_model,
+        supervisor.as_ref().unwrap_or(&Predicate::TRUE),
+    );
 
     if let Some(supervisor) = supervisor {
         let supervisor_spec = Spec::new("supervisor", supervisor);
@@ -773,15 +776,7 @@ macro_rules! resource {
 
 #[test]
 fn resource_test() {
-    let rp_c = SPPath::from_string("ref_pos");
-    let ap_m = SPPath::from_string("act_pos");
-    let activate_c = SPPath::from_string("activate");
-    let active_m = SPPath::from_string("active");
-    let enabled = SPPath::from_string("enabled");
-    let executing = SPPath::from_string("executing");
-    let finished = SPPath::from_string("finished");
-
-    let resource = resource! {
+    let _resource = resource! {
         name: "dummy_robot",
         command!{
             topic: "/hej",
@@ -811,7 +806,4 @@ fn resource_test() {
             finish : p!(executing) => [a!(ap_m = "at") ] / [a!(ap_m = "at")]
         }
     };
-
-    // println!("resource: {:#?}", resource);
-    //assert!(false);
 }

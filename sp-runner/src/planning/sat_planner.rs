@@ -2,7 +2,6 @@ use crate::formal_model::*;
 use crate::planning::*;
 use cryptominisat::*;
 use guard_extraction::*;
-use sp_domain::*;
 
 pub struct SatPlanner {}
 
@@ -26,9 +25,7 @@ fn state_to_predicate(vars: &[Variable], state: &SPState) -> Predicate {
 
 impl Planner for SatPlanner {
     fn plan(
-        model: &TransitionSystemModel,
-        goals: &[(Predicate, Option<Predicate>)],
-        state: &SPState,
+        model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
         max_steps: u32,
     ) -> PlanningResult {
         let c = FormalContext::from(&model);

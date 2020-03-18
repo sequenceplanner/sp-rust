@@ -2,7 +2,6 @@
 
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
-use sp_runner_api::*;
 
 /// The SPRunner that keep tracks of the state and the transition execution
 /// When using the runner, call the input method on every state change and probably
@@ -62,7 +61,7 @@ impl SPRunner {
         name: &str,
         transitions: Vec<Transition>,
         variables: Vec<Variable>,
-        goals: Vec<Vec<IfThen>>,  // for now its just a list
+        goals: Vec<Vec<IfThen>>, // for now its just a list
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
@@ -103,7 +102,7 @@ impl SPRunner {
 
         SPRunner {
             name: name.to_string(),
-            ticker: ticker,
+            ticker,
             variables: vars,
             predicates: preds,
             goals,
@@ -154,11 +153,12 @@ impl SPRunner {
     pub fn goal(&self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
         self.goals
             .iter()
-            .map(|list| list
-                 .iter()
-                 .filter(|g| g.condition.eval(&self.ticker.state))
-                 .map(|x| (x.goal.clone(), x.invariant.clone()))
-                 .collect())
+            .map(|list| {
+                list.iter()
+                    .filter(|g| g.condition.eval(&self.ticker.state))
+                    .map(|x| (x.goal.clone(), x.invariant.clone()))
+                    .collect()
+            })
             .collect()
     }
 
@@ -194,10 +194,13 @@ impl SPRunner {
         // do nothing if we are in a (globally) bad state.
         // these exprs can be pretty big. do some benchmark here.
         let bad: Vec<_> = self
-            .transition_system_models.iter().flat_map(|ts| ts
-            .specs
+            .transition_system_models
             .iter()
-            .filter(|s| !s.invariant().eval(&self.ticker.state)))
+            .flat_map(|ts| {
+                ts.specs
+                    .iter()
+                    .filter(|s| !s.invariant().eval(&self.ticker.state))
+            })
             .collect();
 
         if !bad.is_empty() {
@@ -218,7 +221,9 @@ impl SPRunner {
         self.reload_state_paths_plans();
         self.ticker.specs = self.ability_plan.plan.clone();
         self.ticker.specs.extend(self.operation_plan.plan.clone());
-        self.ticker.specs.extend(self.global_transition_specs.clone());
+        self.ticker
+            .specs
+            .extend(self.global_transition_specs.clone());
     }
 
     fn reload_state_paths(&mut self) {
@@ -245,9 +250,17 @@ impl SPRunner {
 
     fn check_resources(&mut self) {
         // TODO: Maybe not clone these, but probably ok since not many resources.
-        let missing_resources: Vec<SPPath> = self.resources.iter().filter(|r| {
-            self.state().sp_value_from_path(r).map(|v| v != &true.to_spvalue()).unwrap_or(true)
-        }).cloned().collect();
+        let missing_resources: Vec<SPPath> = self
+            .resources
+            .iter()
+            .filter(|r| {
+                self.state()
+                    .sp_value_from_path(r)
+                    .map(|v| v != &true.to_spvalue())
+                    .unwrap_or(true)
+            })
+            .cloned()
+            .collect();
         self.ticker.disabled_paths = missing_resources;
         println!("Disabled paths: {:?}", self.ticker.disabled_paths);
     }

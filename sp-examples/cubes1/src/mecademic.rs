@@ -43,22 +43,26 @@ pub fn make_mecademic(name: &str, poses: &[&str]) -> Resource {
     }
 }
 
-#[test]
-fn test_mecademic() {
-    let r1 = make_mecademic("r1", &["at", "away"]);
-    println!("{:#?}", r1);
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serial_test::serial;
 
-    let r1_p_a = r1
-        .find_item("act_pos", &["r1"])
-        .expect("check spelling")
-        .path();
-    println!("path: {}", r1_p_a);
+    #[test]
+    #[serial]
+    fn test_mecademic() {
+        let r1 = make_mecademic("r1", &["at", "away"]);
+        println!("{:#?}", r1);
 
-    let m = Model::new_root("one_mecademic_model", vec![SPItem::Resource(r1)]);
+        let r1_p_a = r1
+            .find_item("act_pos", &["r1"])
+            .expect("check spelling")
+            .path();
+        println!("path: {}", r1_p_a);
 
-    let r1_p_a = m.find_item("act_pos", &[]).expect("check spelling").path();
-    println!("path: {}", r1_p_a);
+        let m = Model::new_root("one_mecademic_model", vec![SPItem::Resource(r1)]);
 
-    // println!("{:#?}", rm);
-    assert!(false);
+        let r1_p_a = m.find_item("act_pos", &[]).expect("check spelling").path();
+        println!("path: {}", r1_p_a);
+    }
 }

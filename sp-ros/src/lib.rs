@@ -31,24 +31,19 @@ mod ros {
     }
 
     pub fn roscomm_setup(
-        _node: &mut RosNode,
-        _model: &Model,
-        _tx_in: channel::Sender<RosMessage>,
+        _node: &mut RosNode, _model: &Model, _tx_in: channel::Sender<RosMessage>,
     ) -> Result<channel::Sender<SPState>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
     pub fn roscomm_setup_misc(
-        _node: &mut RosNode,
-        _tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
+        _node: &mut RosNode, _tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
     ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
     pub fn ros_node_comm_setup(
-        _node: &mut RosNode,
-        _model: &Model,
-        _tx_in: channel::Sender<NodeMode>,
+        _node: &mut RosNode, _model: &Model, _tx_in: channel::Sender<NodeMode>,
     ) -> Result<channel::Sender<NodeCmd>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
@@ -91,9 +86,7 @@ mod ros {
 
     fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
         fn json_to_state_<'a>(
-            json: &serde_json::Value,
-            md: &'a MessageField,
-            p: &mut Vec<&'a str>,
+            json: &serde_json::Value, md: &'a MessageField, p: &mut Vec<&'a str>,
             a: &mut Vec<(Vec<&'a str>, SPValue)>,
         ) {
             match md {
@@ -128,9 +121,7 @@ mod ros {
 
     fn state_to_json(state: &SPState, md: &MessageField) -> serde_json::Value {
         fn state_to_json_<'a>(
-            state: &SPState,
-            md: &'a MessageField,
-            p: &mut Vec<&'a str>,
+            state: &SPState, md: &'a MessageField, p: &mut Vec<&'a str>,
         ) -> serde_json::Value {
             match md {
                 MessageField::Msg(msg) => {
@@ -173,9 +164,7 @@ mod ros {
     }
 
     pub fn roscomm_setup(
-        node: &mut RosNode,
-        model: &Model,
-        tx_in: channel::Sender<RosMessage>,
+        node: &mut RosNode, model: &Model, tx_in: channel::Sender<RosMessage>,
     ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
@@ -197,7 +186,7 @@ mod ros {
                             state.prefix_paths(&msg_cb.path());
                             let time_stamp = std::time::Instant::now();
                             let m = RosMessage {
-                                state: state,
+                                state,
                                 resource: r_path.clone(),
                                 time_stamp,
                             };
@@ -216,13 +205,19 @@ mod ros {
                         let msg_cb = t.msg().clone();
                         let cb = move |state: &SPState| {
                             let local_state = state.sub_state_projection(&msg_cb.path());
-                            if local_state.state.is_empty() { return ; }
+                            if local_state.state.is_empty() {
+                                return;
+                            }
                             let mut dropped_local_state = local_state.clone_state();
                             dropped_local_state.unprefix_paths(&msg_cb.path());
                             let to_send = state_to_json(&dropped_local_state, &msg_cb);
                             let res = rp.publish(to_send.clone());
                             if res.is_err() {
-                                println!("RosComm not working for {}, error: {:?}", &msg_cb.path(), res);
+                                println!(
+                                    "RosComm not working for {}, error: {:?}",
+                                    &msg_cb.path(),
+                                    res
+                                );
                                 println!("RosComm, local state: {}", dropped_local_state);
                                 println!("RosComm, to_send: {:?}", to_send);
                                 println!("");
@@ -245,21 +240,19 @@ mod ros {
                     for rp in &ros_pubs {
                         (rp)(&state);
                     }
-                },
+                }
                 Err(e) => {
                     println!("RosComm out did not work: {:?}", e);
                     break;
                 }
             }
-
         });
 
         Ok(tx_out)
     }
 
     pub fn roscomm_setup_misc(
-        node: &mut RosNode,
-        tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
+        node: &mut RosNode, tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
     ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
         let runner_cmd_topic = "sp/runner/command";
 
@@ -334,24 +327,19 @@ mod ros {
         let (tx_out, rx_out) = channel::unbounded();
         thread::spawn(move || loop {
             match rx_out.recv() {
-                Ok(x) => {
-                    (info_cb)(x)
-                },
+                Ok(x) => (info_cb)(x),
                 Err(e) => {
                     println!("RosMisc out did not work: {:?}", e);
                     break;
                 }
             }
-
         });
 
         Ok(tx_out)
     }
 
     pub fn ros_node_comm_setup(
-        node: &mut RosNode,
-        model: &Model,
-        tx_in: channel::Sender<NodeMode>,
+        node: &mut RosNode, model: &Model, tx_in: channel::Sender<NodeMode>,
     ) -> Result<channel::Sender<NodeCmd>, Error> {
         let mut ros_pubs = Vec::new();
 
@@ -361,7 +349,9 @@ mod ros {
             let name = r.name();
 
             for t in r.messages() {
-                if !t.is_publisher() { continue; }
+                if !t.is_publisher() {
+                    continue;
+                }
                 if let MessageField::Msg(_m) = t.msg() {
                     let tx = tx_in.clone();
                     let r_path = r.path().clone();
@@ -417,13 +407,12 @@ mod ros {
                     for rp in &ros_pubs {
                         (rp)(&state);
                     }
-                },
+                }
                 Err(e) => {
                     println!("RosNodeComm out did not work: {:?}", e);
                     break;
                 }
             }
-
         });
 
         Ok(tx_out)
@@ -432,9 +421,6 @@ mod ros {
     #[cfg(test)]
     mod ros_tests {
         use super::*;
-
-        use sp_domain::*;
-        use sp_runner_api::*;
 
         #[test]
         fn test_json_to_state() {

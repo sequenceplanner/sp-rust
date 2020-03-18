@@ -1,5 +1,4 @@
 use super::*;
-use sp_domain::*;
 use std::collections::HashMap;
 
 #[test]

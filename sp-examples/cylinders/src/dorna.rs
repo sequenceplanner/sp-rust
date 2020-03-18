@@ -43,28 +43,35 @@ pub fn make_dorna(name: &str, poses: &[&str]) -> Resource {
     }
 }
 
-#[test]
-fn test_dorna() {
-    let dorna = make_dorna("dorna", &["at", "away"]);
-    println!("{:#?}", dorna);
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serial_test::serial;
 
-    let dorna_act = dorna.find_item("act_pos", &["dorna"]).expect("check spelling").path();
-    println!("act path: {}", dorna_act);
+    #[test]
+    #[serial]
+    fn test_dorna() {
+        let dorna = make_dorna("dorna", &["at", "away"]);
+        println!("{:#?}", dorna);
 
-    let dorna_ref = dorna.find_item("ref_pos", &["dorna"]).expect("check spelling").path();
-    println!("ref path: {}", dorna_ref);
+        let dorna_act = dorna
+            .find_item("act_pos", &["dorna"])
+            .expect("check spelling")
+            .path();
+        println!("act path: {}", dorna_act);
 
+        let dorna_ref = dorna
+            .find_item("ref_pos", &["dorna"])
+            .expect("check spelling")
+            .path();
+        println!("ref path: {}", dorna_ref);
 
-    let m = Model::new_no_root("one_dorna_model", vec![SPItem::Resource(dorna)]);
+        let m = Model::new_no_root("one_dorna_model", vec![SPItem::Resource(dorna)]);
 
-    let dorna_act = m.find_item("act_pos", &[]).expect("check spelling").path();
-    println!("path: {}", dorna_act);
+        let dorna_act = m.find_item("act_pos", &[]).expect("check spelling").path();
+        println!("path: {}", dorna_act);
 
-    let dorna_ref = m.find_item("ref_pos", &[]).expect("check spelling").path();
-    println!("path: {}", dorna_ref);
-
-
-
-    // println!("{:#?}", rm);
-    assert!(false);
+        let dorna_ref = m.find_item("ref_pos", &[]).expect("check spelling").path();
+        println!("path: {}", dorna_ref);
+    }
 }

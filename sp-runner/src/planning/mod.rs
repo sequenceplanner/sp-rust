@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 use sp_domain::*;
 
 pub fn plan(
-    model: &TransitionSystemModel,
-    goals: &[(Predicate, Option<Predicate>)],
-    state: &SPState,
+    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
     max_steps: u32,
 ) -> PlanningResult {
     // if we have an invariant for our goal, express it as inv U (inv
@@ -43,21 +41,28 @@ pub fn plan(
     result
 }
 
-pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResult, op: bool) -> (Vec<TransitionSpec>, SPState) {
-    let ctrl: Vec<SPPath> = model.transitions.iter().filter_map(|t: &Transition| {
-        if t.controlled() {
-            Some(t.path().clone())
-        } else { None }
-    }).collect();
-    let in_plan: Vec<SPPath> = res.trace.iter()
-        .map(|x| x.transition.clone()).collect();
+pub fn convert_planning_result(
+    model: &TransitionSystemModel, res: PlanningResult, op: bool,
+) -> (Vec<TransitionSpec>, SPState) {
+    let ctrl: Vec<SPPath> = model
+        .transitions
+        .iter()
+        .filter_map(|t: &Transition| {
+            if t.controlled() {
+                Some(t.path().clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    let in_plan: Vec<SPPath> = res.trace.iter().map(|x| x.transition.clone()).collect();
     let plan_p = if op {
-        SPPath::from_slice(&["runner","operation_plan"])
+        SPPath::from_slice(&["runner", "operation_plan"])
     } else {
-        SPPath::from_slice(&["runner","ability_plan"])
+        SPPath::from_slice(&["runner", "ability_plan"])
     };
 
-    let mut tr = vec!();
+    let mut tr = vec![];
     let mut i = 0;
 
     // trace[0] is always the initial state.
@@ -69,11 +74,18 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
             let prev = prev_ctrl.unwrap();
             let prev_tr_state = prev_state.unwrap_or(&pf.state);
             let diff = prev.state.difference(prev_tr_state);
-            let mut pred: Vec<Predicate> = diff.projection().sorted().state.iter().map(|(p,v)| {
-                Predicate::EQ(
-                    PredicateValue::path((*p).clone()),
-                    PredicateValue::value(v.value().clone()))
-            }).collect();
+            let mut pred: Vec<Predicate> = diff
+                .projection()
+                .sorted()
+                .state
+                .iter()
+                .map(|(p, v)| {
+                    Predicate::EQ(
+                        PredicateValue::path((*p).clone()),
+                        PredicateValue::value(v.value().clone()),
+                    )
+                })
+                .collect();
             if op {
                 // terrible hacks to get at previous transitions POST (e.i. goal)
                 pred.clear();
@@ -82,17 +94,20 @@ pub fn convert_planning_result(model: &TransitionSystemModel, res: PlanningResul
                 if parent != SPPath::new() {
                     let prev_start = parent.add_child("start");
                     println!("PREV start: {}", prev_start);
-                    let prev_trans = model.transitions.iter().find(|t| t.path() == &prev_start).unwrap();
+                    let prev_trans = model
+                        .transitions
+                        .iter()
+                        .find(|t| t.path() == &prev_start)
+                        .unwrap();
                     let mut prev_guard = prev_trans.guard().clone();
                     if let Predicate::AND(v) = &mut prev_guard {
                         let prev_guard = Predicate::AND(vec![v[0].clone()]); // state == i ,,, e.g. must finish
                         println!("ADDING GUARD {} ", prev_guard);
                         pred.push(prev_guard);
                     }
-
                 }
             }
-            pred.push(p!(p:plan_p == i));
+            pred.push(p!(p: plan_p == i));
             println!("Transition: {:?} {}", i, pf.transition);
             let guard = Predicate::AND(pred);
             println!("A new Guard: {}", guard);
@@ -181,9 +196,7 @@ pub struct PlanningFrame {
 
 pub trait Planner {
     fn plan(
-        model: &TransitionSystemModel,
-        goal: &[(Predicate, Option<Predicate>)],
-        state: &SPState,
+        model: &TransitionSystemModel, goal: &[(Predicate, Option<Predicate>)], state: &SPState,
         max_steps: u32,
     ) -> PlanningResult;
 }
