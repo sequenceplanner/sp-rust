@@ -64,63 +64,26 @@ class Ros2Node(Node, Callbacks):
 
 
 class Window(QWidget, Callbacks):
+    triggerSignal = pyqtSignal(bool)
+    count = 0
+
     def __init__(self):
         Callbacks.__init__(self)
         QWidget.__init__(self, None)
 
-        Callbacks.trigger_ui = self.trigger
 
+        Callbacks.trigger_ui = self.trigger
+        self.triggerSignal.connect(self.update_state_variables)
         self.state_map = {}
 
-        l = QGridLayout(self)
-
-        self.ability_plan = QLabel("no info yet")
-        l.addWidget(QLabel("ability_plan: "), 1, 0)
-        l.addWidget(self.ability_plan, 1, 1)
-        
-        self.enabled_ability_transitions = QLabel("no info yet")
-        l.addWidget(QLabel("enabled_ability_transitions: "), 2, 0)
-        l.addWidget(self.enabled_ability_transitions, 2, 1)
-
-        self.operation_plan = QLabel("no info yet")
-        l.addWidget(QLabel("operation_plan: "), 3, 0)
-        l.addWidget(self.operation_plan, 3, 1)
-
-        self.enabled_operation_transitions = QLabel("no info yet")
-        l.addWidget(QLabel("enabled_operation_transitions: "), 4, 0)
-        l.addWidget(self.enabled_operation_transitions, 4, 1)
-
-        runner_box = QGroupBox("Runner info")
-        runner_box.setLayout(l)
-
-
-        expand_button = QPushButton("expand")
-        def expand_button_clicked():
-            print("expand")
-            self.tree.expandAll()
-        expand_button.clicked.connect(expand_button_clicked)
-
-        self.tree = QTreeView(self)
-        self.state_model = QStandardItemModel(self.tree)
-        self.state_model.setHorizontalHeaderLabels(['path', 'value'])
-        self.tree.header().setDefaultSectionSize(300)
-        self.tree.setModel(self.state_model)
-        
         grid = QGridLayout(self)
-        grid.addWidget(runner_box)
-        grid.addWidget(self.tree)
-        grid.addWidget(expand_button)
-
+        grid.addWidget(self.info_widget())
+        grid.addWidget(self.tree_widget())
         self.setLayout(grid)
         self.setWindowTitle("Sequence Planner Control UI")
-
         self.resize(600, 800)
 
         self.init = True
-
-
-    def loadModels(self):
-        update_state_variables()
 
     def split_path(self, s):
         path = s.split("/")
@@ -165,7 +128,7 @@ class Window(QWidget, Callbacks):
             self.state_map[name] = item.index()
                     
 
-    def update_state_variables(self):
+    def update_state_variables(self, dummy_bool):
         if self and self.init:
             for v in Callbacks.info.state:
                 path = self.split_path(v.path)
@@ -190,7 +153,7 @@ class Window(QWidget, Callbacks):
                     value_index = index.siblingAtColumn(1)
 
                     value = self.state_model.itemFromIndex(value_index)
-                    text = v.value_as_json # + "_" + str(self.count)
+                    text = v.value_as_json #+ "_" + str(self.count)
 
                     if value.data(Qt.DisplayRole) != text:
                         value.setData(text, Qt.DisplayRole)
@@ -200,13 +163,57 @@ class Window(QWidget, Callbacks):
             self.operation_plan.setText(str(Callbacks.info.operation_plan))
             self.enabled_operation_transitions.setText(str(Callbacks.info.enabled_operation_transitions))
 
-            i = self.state_model.invisibleRootItem().index()
-            self.tree.dataChanged(i, i)
+            #self.count += 1
+
+            #i = self.state_model.invisibleRootItem().index()
+            #self.tree.dataChanged(i, i)
         
 
     def trigger(self):
-            self.update_state_variables()
+        self.triggerSignal.emit(True)
 
+    def info_widget(self):
+        l = QGridLayout(self)
+
+        self.ability_plan = QLabel("no info yet")
+        l.addWidget(QLabel("ability_plan: "), 1, 0)
+        l.addWidget(self.ability_plan, 1, 1)
+        
+        self.enabled_ability_transitions = QLabel("no info yet")
+        l.addWidget(QLabel("enabled_ability_transitions: "), 2, 0)
+        l.addWidget(self.enabled_ability_transitions, 2, 1)
+
+        self.operation_plan = QLabel("no info yet")
+        l.addWidget(QLabel("operation_plan: "), 3, 0)
+        l.addWidget(self.operation_plan, 3, 1)
+
+        self.enabled_operation_transitions = QLabel("no info yet")
+        l.addWidget(QLabel("enabled_operation_transitions: "), 4, 0)
+        l.addWidget(self.enabled_operation_transitions, 4, 1)
+
+        box = QGroupBox("Runner info")
+        box.setLayout(l)
+        return box
+
+    def tree_widget(self):
+        l = QGridLayout(self)
+        expand_button = QPushButton("expand")
+        def expand_button_clicked():
+            print("expand")
+            self.tree.expandAll()
+        expand_button.clicked.connect(expand_button_clicked)
+        l.addWidget(expand_button)
+
+        self.tree = QTreeView(self)
+        self.state_model = QStandardItemModel(self.tree)
+        self.state_model.setHorizontalHeaderLabels(['path', 'value'])
+        self.tree.header().setDefaultSectionSize(300)
+        self.tree.setModel(self.state_model)
+        l.addWidget(self.tree)
+
+        box = QGroupBox("State")
+        box.setLayout(l)
+        return box
 
 
 def main(args=None):
