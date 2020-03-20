@@ -64,13 +64,15 @@ class Ros2Node(Node, Callbacks):
 
 
 class Window(QWidget, Callbacks):
-    triggerSignal = pyqtSignal(bool)
-    count = 0
+    triggerSignal = pyqtSignal()
 
     def __init__(self):
         Callbacks.__init__(self)
         QWidget.__init__(self, None)
+        #self.count = 0 
 
+        self.state_model = QStandardItemModel(self)
+        self.state_model_proxy = QSortFilterProxyModel(self)
 
         Callbacks.trigger_ui = self.trigger
         self.triggerSignal.connect(self.update_state_variables)
@@ -113,6 +115,7 @@ class Window(QWidget, Callbacks):
             item = QStandardItem()
             n = self.get_leaf_name(name)
             item.setData(n, Qt.DisplayRole)
+            item.setData(name, Qt.ToolTipRole)
             parent.appendRow([item])
             self.state_map[name] = item.index()
 
@@ -121,14 +124,16 @@ class Window(QWidget, Callbacks):
             item = QStandardItem()
             n = self.get_leaf_name(name)
             item.setData(n, Qt.DisplayRole)
+            item.setData(name, Qt.ToolTipRole)
             value = QStandardItem()
             value.setData(value, Qt.DisplayRole)
+            value.setData(value, Qt.ToolTipRole)
 
             parent.appendRow([item, value])
             self.state_map[name] = item.index()
                     
 
-    def update_state_variables(self, dummy_bool):
+    def update_state_variables(self):
         if self and self.init:
             for v in Callbacks.info.state:
                 path = self.split_path(v.path)
@@ -157,6 +162,7 @@ class Window(QWidget, Callbacks):
 
                     if value.data(Qt.DisplayRole) != text:
                         value.setData(text, Qt.DisplayRole)
+                        value.setData(text, Qt.ToolTipRole)
                         
             self.ability_plan.setText(str(Callbacks.info.ability_plan))
             self.enabled_ability_transitions.setText(str(Callbacks.info.enabled_ability_transitions))
@@ -170,49 +176,69 @@ class Window(QWidget, Callbacks):
         
 
     def trigger(self):
-        self.triggerSignal.emit(True)
+        self.triggerSignal.emit()
 
     def info_widget(self):
-        l = QGridLayout(self)
+        info_l = QGridLayout(self)
 
         self.ability_plan = QLabel("no info yet")
-        l.addWidget(QLabel("ability_plan: "), 1, 0)
-        l.addWidget(self.ability_plan, 1, 1)
+        info_l.addWidget(QLabel("ability_plan: "), 1, 0)
+        info_l.addWidget(self.ability_plan, 1, 1)
         
         self.enabled_ability_transitions = QLabel("no info yet")
-        l.addWidget(QLabel("enabled_ability_transitions: "), 2, 0)
-        l.addWidget(self.enabled_ability_transitions, 2, 1)
+        info_l.addWidget(QLabel("enabled_ability_transitions: "), 2, 0)
+        info_l.addWidget(self.enabled_ability_transitions, 2, 1)
 
         self.operation_plan = QLabel("no info yet")
-        l.addWidget(QLabel("operation_plan: "), 3, 0)
-        l.addWidget(self.operation_plan, 3, 1)
+        info_l.addWidget(QLabel("operation_plan: "), 3, 0)
+        info_l.addWidget(self.operation_plan, 3, 1)
 
         self.enabled_operation_transitions = QLabel("no info yet")
-        l.addWidget(QLabel("enabled_operation_transitions: "), 4, 0)
-        l.addWidget(self.enabled_operation_transitions, 4, 1)
+        info_l.addWidget(QLabel("enabled_operation_transitions: "), 4, 0)
+        info_l.addWidget(self.enabled_operation_transitions, 4, 1)
 
         box = QGroupBox("Runner info")
-        box.setLayout(l)
+        box.setLayout(info_l)
         return box
 
     def tree_widget(self):
-        l = QGridLayout(self)
+        self.state_model.setHorizontalHeaderLabels(['path', 'value'])
+        self.state_model_proxy.setRecursiveFilteringEnabled(True)
+        self.state_model_proxy.setFilterRole(Qt.ToolTipRole)
+        self.state_model_proxy.setSourceModel(self.state_model)
+
+        tree_l = QGridLayout(self)
+        filter = QLineEdit("")
+        def filter_changed(text):
+            regex = "^.*{}.*".format(text)
+            self.state_model_proxy.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive))
+            self.tree.expandAll()
+
+        filter.textChanged.connect(filter_changed)
+        tree_l.addWidget(filter, 1, 0)
+
         expand_button = QPushButton("expand")
         def expand_button_clicked():
             print("expand")
             self.tree.expandAll()
         expand_button.clicked.connect(expand_button_clicked)
-        l.addWidget(expand_button)
+        tree_l.addWidget(expand_button, 1, 1)
+        collaps_button = QPushButton("collaps")
+        def collaps_button_clicked():
+            print("collapse")
+            self.tree.collapseAll()
+        collaps_button.clicked.connect(collaps_button_clicked)
+        tree_l.addWidget(collaps_button, 1, 2)
 
         self.tree = QTreeView(self)
-        self.state_model = QStandardItemModel(self.tree)
-        self.state_model.setHorizontalHeaderLabels(['path', 'value'])
+        
         self.tree.header().setDefaultSectionSize(300)
-        self.tree.setModel(self.state_model)
-        l.addWidget(self.tree)
+        self.tree.setModel(self.state_model_proxy)
+        self.tree.setSortingEnabled(True)
+        tree_l.addWidget(self.tree, 2, 0, 1, 3)
 
         box = QGroupBox("State")
-        box.setLayout(l)
+        box.setLayout(tree_l)
         return box
 
 
