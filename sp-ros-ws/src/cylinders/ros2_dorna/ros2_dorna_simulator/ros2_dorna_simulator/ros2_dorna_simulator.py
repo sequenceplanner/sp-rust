@@ -256,7 +256,10 @@ class Ros2DornaSimulator(Node):
         self.gui_to_esd_msg.gui_joint_control[2] = round(data.gui_joint_control[2], 3)
         self.gui_to_esd_msg.gui_joint_control[3] = round(data.gui_joint_control[3], 3)
         self.gui_to_esd_msg.gui_joint_control[4] = round(data.gui_joint_control[4], 3)
-        self.joint_reference_pose = self.gui_to_esd_msg.gui_joint_control
+        if self.gui_to_esd_msg.gui_control_enabled == True:
+            # when gui control is enabled, copy gui ref to sp ref so we don't
+            # move away after releasing gui control again.
+            self.joint_reference_pose = self.gui_to_esd_msg.gui_joint_control
 
     def joint_state_publisher_callback(self):
         if self.gui_to_esd_msg.gui_control_enabled == True:
