@@ -51,6 +51,7 @@ fn runner(
     thread::spawn(move || {
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
+        let mut prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
 
         loop {
             let input = rx_input.recv();
@@ -97,16 +98,17 @@ fn runner(
                     .for_each(|x| println!("{:?}", x));
             }
 
-            if state_has_probably_changed || !runner.last_fired_transitions.is_empty() {
-                println! {""};
-                println!("The State:\n{}", runner.state());
-                println! {""};
+            // if there's nothing to do in this cycle, continue
+            if !state_has_probably_changed && runner.last_fired_transitions.is_empty() {
+                continue;
             }
 
-            // For now, we will send out all the time, but soon we should check this
+            println!("The State:\n{}", runner.state());
+
             tx_state_out
                 .send(runner.state().clone())
                 .expect("tx_state:out");
+
             // send out runner info.
             let runner_info = RunnerInfo {
                 state: runner.state().clone(),
@@ -115,13 +117,37 @@ fn runner(
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
-            let planning = PlannerTask {
-                ts: runner.transition_system_models.clone(),
-                state: runner.state().clone(),
-                goals: runner.goal(),
-                disabled_paths: runner.disabled_paths(),
-            };
-            tx_planner.send(planning).unwrap();
+            let ts_models = runner.transition_system_models.clone();
+            let goals = runner.goal();
+            let disabled = runner.disabled_paths();
+            for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate() {
+                let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
+
+                // for each namespace, check if we need to replan because in the case
+                // that we
+                // 1. got new goals from the runner
+                // 2. can not longer reach our goal (because the state has changed)
+
+                // Because the plan is already encoded in the guards
+                // of the runner transitions we can use the runner for
+                // this purpose.
+                let unreach = runner.check_goal();
+
+                if &prev_goal != goals && disabled.is_empty() {
+                    prev_goals.insert(i, goals.clone());
+
+                    if goals.len() > 0 {
+                        let task = PlannerTask {
+                            namespace: i as i32,
+                            ts: ts.clone(),
+                            state: runner.state().clone(),
+                            goals: goals.clone(),
+                            disabled_paths: disabled.clone(),
+                        };
+                        tx_planner.send(task).unwrap();
+                    }
+                }
+            }
         }
     });
 }
@@ -242,15 +268,15 @@ fn ticker(freq: Duration, tx_runner: Sender<SPRunnerInput>) {
 
 #[derive(Debug)]
 struct PlannerTask {
-    ts: Vec<TransitionSystemModel>,
+    namespace: i32,
+    ts: TransitionSystemModel,
     state: SPState,
-    goals: Vec<Vec<(Predicate, Option<Predicate>)>>,
+    goals: Vec<(Predicate, Option<Predicate>)>,
     disabled_paths: Vec<SPPath>,
 }
 
 fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
     thread::spawn(move || {
-        let mut prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
         loop {
             let pt: PlannerTask = if rx_planner.is_empty() {
                 match rx_planner.recv() {
@@ -273,42 +299,33 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
             };
 
             // for now, do all planning here. so loop over each namespace
-            for (i, (ts, goal)) in pt.ts.iter().zip(pt.goals.iter()).enumerate() {
-                let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
+            let max_steps = 100; // arbitrary decision
+            let planner_result = crate::planning::plan(&pt.ts, &pt.goals, &pt.state, max_steps);
+            assert!(planner_result.plan_found);
+            //println!("new plan is");
 
-                if &prev_goal != goal && pt.disabled_paths.is_empty() {
-                    println!("NEW GOALS FOR NAMESPACE {}", i);
-                    println!("*********");
+            //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
+            // TODO!
+            let (tr, s) = if pt.namespace == 0 {
+                // ability level
+                crate::planning::convert_planning_result(&pt.ts, planner_result, false)
+            } else {
+                // op level
+                crate::planning::convert_planning_result(&pt.ts, planner_result, true)
+            };
+            let plan = SPPlan {
+                plan: tr,
+                state_change: s,
+            };
 
-                    let max_steps = 100; // arbitrary decision
-                    let planner_result = crate::planning::plan(&ts, &goal, &pt.state, max_steps);
-                    assert!(planner_result.plan_found);
-                    //println!("new plan is");
-
-                    //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-                    let (tr, s) = if i == 0 {
-                        // ability level
-                        crate::planning::convert_planning_result(&ts, planner_result, false)
-                    } else {
-                        // op level
-                        crate::planning::convert_planning_result(&ts, planner_result, true)
-                    };
-                    let plan = SPPlan {
-                        plan: tr,
-                        state_change: s,
-                    };
-
-                    let res = if i == 0 {
-                        tx_runner.send(SPRunnerInput::AbilityPlan(plan))
-                    } else {
-                        tx_runner.send(SPRunnerInput::OperationPlan(plan))
-                    };
-                    if res.is_err() {
-                        println!("The runner channel is dead (in the planner)!: {:?}", res);
-                        break;
-                    }
-                    prev_goals.insert(i, goal.clone());
-                }
+            let res = if pt.namespace == 0 {
+                tx_runner.send(SPRunnerInput::AbilityPlan(plan))
+            } else {
+                tx_runner.send(SPRunnerInput::OperationPlan(plan))
+            };
+            if res.is_err() {
+                println!("The runner channel is dead (in the planner)!: {:?}", res);
+                break;
             }
         }
     });

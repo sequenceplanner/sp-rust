@@ -148,7 +148,7 @@ impl SPRunner {
         &self.ticker.state
     }
 
-    /// For each "level", get the current goal and respective invariant
+    /// For each planning level, get the current goal and respective invariant
     /// that runner tries to reach.
     pub fn goal(&self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
         self.goals
@@ -160,6 +160,12 @@ impl SPRunner {
                     .collect()
             })
             .collect()
+    }
+
+    /// For each planning level, check wheter we can reach the current goal
+    /// (using the current plan)
+    pub fn check_goal(&self) -> Vec<bool> {
+        vec![false, false]
     }
 
     /// A special function that the owner of the runner can use to
