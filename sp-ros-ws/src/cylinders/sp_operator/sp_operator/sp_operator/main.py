@@ -108,7 +108,7 @@ class Window(QWidget, Callbacks):
         Callbacks.trigger_ui = self.trigger
 
         self.label_goal = QLabel(Callbacks.goal.to_do)
-        self.goal_box_l = QHBoxLayout()
+        self.goal_box_l = QHBoxLayout(self)
         self.goal_box_l.addWidget(QLabel("To do:"))
         self.goal_box_l.addWidget(self.label_goal)
         self.goal_box = QGroupBox("Goal")
@@ -116,7 +116,7 @@ class Window(QWidget, Callbacks):
 
         self.label_state_doing = QLabel(Callbacks.state.doing)
         self.label_state_estop = QLabel(str(Callbacks.state.e_stop))
-        self.state_box_l = QHBoxLayout()
+        self.state_box_l = QHBoxLayout(self)
         self.state_box_l.addWidget(QLabel("Doing:"))
         self.state_box_l.addWidget(self.label_state_doing)
         self.state_box_l.addWidget(QLabel("E-stop:"))
@@ -125,11 +125,11 @@ class Window(QWidget, Callbacks):
         self.state_box.setLayout(self.state_box_l)
 
         self.line_box_1 = QGroupBox("Doing")
-        self.doing_input = QLineEdit()
+        self.doing_input = QLineEdit(self)
         self.doing_input.setMaximumWidth(120)
         self.button_1 = QPushButton('set doing')
         self.button_2 = QPushButton('set goal')
-        self.line_box_1_layout = QHBoxLayout()
+        self.line_box_1_layout = QHBoxLayout(self)
         self.line_box_1_layout.addWidget(self.doing_input)
         self.line_box_1_layout.addWidget(self.button_1)
         self.line_box_1_layout.addWidget(self.button_2)
