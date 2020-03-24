@@ -14,8 +14,7 @@ pub struct SPRunner {
     pub predicates: Vec<Variable>,
     pub goals: Vec<Vec<IfThen>>,
     pub global_transition_specs: Vec<TransitionSpec>,
-    pub ability_plan: SPPlan,
-    pub operation_plan: SPPlan,
+    pub plans: Vec<SPPlan>, // one plan per namespace
     pub last_fired_transitions: Vec<SPPath>,
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub in_sync: bool,
@@ -36,17 +35,13 @@ pub struct SPRunner {
 ///
 /// Settings will change the internal settings of the runner. Maybe send in goals and specs using this?
 ///
-/// AbilityPlan and OperationPlan will update the plans in the runner. If the runner
-/// is in sync-mode, the AbilityPlan will be computed at each tick and the plan written
-/// via this input will be overwritten.
 #[derive(Debug, PartialEq, Clone)]
 pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
     NodeChange(SPState),
     Settings, // Will come later
-    AbilityPlan(SPPlan),
-    OperationPlan(SPPlan),
+    NewPlan(i32, SPPlan),
 }
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
@@ -84,11 +79,11 @@ impl SPRunner {
 
         let mut state = SPState::new_from_values(&initial_state_map);
         state.add_variable(
-            SPPath::from_slice(&["runner", "ability_plan"]),
+            SPPath::from_slice(&["runner", "plans", "0"]),
             0.to_spvalue(),
         );
         state.add_variable(
-            SPPath::from_slice(&["runner", "operation_plan"]),
+            SPPath::from_slice(&["runner", "plans", "1"]),
             0.to_spvalue(),
         );
         let runner_predicates: Vec<RunnerPredicate> = preds
@@ -110,8 +105,7 @@ impl SPRunner {
             predicates: preds,
             goals,
             global_transition_specs,
-            ability_plan: SPPlan::default(),
-            operation_plan: SPPlan::default(),
+            plans: vec![SPPlan::default(); 2],
             last_fired_transitions: vec![],
             transition_system_models,
             in_sync: false,
@@ -134,14 +128,9 @@ impl SPRunner {
                 self.take_a_tick(s, true);
             }
             SPRunnerInput::Settings => {} // Will come later
-            SPRunnerInput::AbilityPlan(plan) => {
-                self.ability_plan = plan;
-                self.update_state_variables(self.ability_plan.state_change.clone());
-                self.load_plans();
-            }
-            SPRunnerInput::OperationPlan(plan) => {
-                self.operation_plan = plan;
-                self.update_state_variables(self.operation_plan.state_change.clone());
+            SPRunnerInput::NewPlan(idx, plan) => {
+                self.plans[idx as usize] = plan;
+                self.update_state_variables(self.plans[idx as usize].state_change.clone());
                 self.load_plans();
             }
         }
@@ -169,22 +158,16 @@ impl SPRunner {
     /// For each planning level, check wheter we can reach the current goal
     /// (using the current plan)
     /// For now only handle the low level stuff. (namespace 0).
-    pub fn check_goal(&self) -> Vec<bool> {
-        let goals: Vec<Predicate> = self.goal()[0]
-            .iter()
-            .map(|g| g.0.clone()).collect(); // dont care about the invariants for now
-
+    pub fn check_goals(&self, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
         if goals.iter().all(|g| g.eval(&self.state())) {
-            return vec![true, false];
+            return true;
         }
 
-        let trans = self.transition_system_models[0].transitions.clone();
-        let specs = self.ability_plan.plan.clone();
-
+        let trans = ts_model.transitions.clone();
         let tm = SPTicker::create_transition_map(&trans,
-                                                 &specs, &self.ticker.disabled_paths);
+                                                 &plan.plan, &self.ticker.disabled_paths);
 
-        fn rec<'a>(state: &SPState, goals: &Vec<Predicate>,
+        fn rec<'a>(state: &SPState, goals: &[&Predicate],
                tm: &Vec<Vec<&'a Transition>>, ticker: &SPTicker, visited: &mut Vec<SPState>) -> bool {
             if goals.iter().all(|g| g.eval(&state)) {
                 return true;
@@ -228,10 +211,10 @@ impl SPRunner {
 
         let mut visited = vec![self.state().clone()];
         let now = std::time::Instant::now();
-        let level0 = rec(self.state(), &goals, &tm, &self.ticker, &mut visited);
+        let res = rec(self.state(), &goals, &tm, &self.ticker, &mut visited);
         println!("goal check performed in {}ms", now.elapsed().as_millis());
 
-        vec![level0, false]
+        res
     }
 
     /// A special function that the owner of the runner can use to
@@ -291,8 +274,7 @@ impl SPRunner {
 
     fn load_plans(&mut self) {
         self.reload_state_paths_plans();
-        self.ticker.specs = self.ability_plan.plan.clone();
-        self.ticker.specs.extend(self.operation_plan.plan.clone());
+        self.ticker.specs = self.plans.iter().flat_map(|p|p.plan.clone()).collect();
         self.ticker
             .specs
             .extend(self.global_transition_specs.clone());
@@ -312,12 +294,12 @@ impl SPRunner {
         }
     }
     fn reload_state_paths_plans(&mut self) {
-        for x in self.ability_plan.plan.iter_mut() {
-            x.spec_transition.upd_state_path(&self.ticker.state)
-        }
-        for x in self.operation_plan.plan.iter_mut() {
-            x.spec_transition.upd_state_path(&self.ticker.state)
-        }
+        let s = &self.ticker.state;
+        self.plans.iter_mut().for_each(|p| {
+            p.plan.iter_mut().for_each(|x| {
+                x.spec_transition.upd_state_path(&s);
+            });
+        });
     }
 
     fn check_resources(&mut self) {
