@@ -164,8 +164,70 @@ impl SPRunner {
 
     /// For each planning level, check wheter we can reach the current goal
     /// (using the current plan)
+    /// For now only handle the low level stuff. (namespace 0).
     pub fn check_goal(&self) -> Vec<bool> {
-        vec![false, false]
+        let goals: Vec<Predicate> = self.goal()[0]
+            .iter()
+            .map(|g| g.0.clone()).collect(); // dont care about the invariants for now
+
+        if goals.iter().all(|g| g.eval(&self.state())) {
+            return vec![true, false];
+        }
+
+        let trans = self.transition_system_models[0].transitions.clone();
+        let specs = self.ability_plan.plan.clone();
+
+        let tm = SPTicker::create_transition_map(&trans,
+                                                 &specs, &self.ticker.disabled_paths);
+
+        fn rec<'a>(state: &SPState, goals: &Vec<Predicate>,
+               tm: &Vec<Vec<&'a Transition>>, ticker: &SPTicker, visited: &mut Vec<SPState>) -> bool {
+            if goals.iter().all(|g| g.eval(&state)) {
+                return true;
+            }
+
+            let new_states: Vec<SPState> = tm.iter().flat_map(|ts| {
+                if ts.iter().all(|t| t.eval(&state)) {
+                    // transitions enabled. clone the state to start a new search branch.
+                    let mut state = state.clone();
+
+                    // take all actions
+                    ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
+                        // if actions write to the same path, only the first will be used
+                        let _res = a.next(&mut state);
+                    });
+                    // and effects
+                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
+                        let _res = e.next(&mut state);
+                    });
+
+                    // update state predicates
+                    SPTicker::upd_preds(&mut state, &ticker.predicates);
+
+                    // next -> cur
+                    state.take_transition();
+
+                    // recurse on the modified state.
+                    if visited.contains(&state) {
+                        None
+                    } else {
+                        visited.push(state.clone());
+                        Some(state)
+                    }
+                } else {
+                    None
+                }
+            }).collect();
+
+            new_states.iter().any(|s|rec(&s, goals, tm, ticker, visited))
+        }
+
+        let mut visited = vec![self.state().clone()];
+        let now = std::time::Instant::now();
+        let level0 = rec(self.state(), &goals, &tm, &self.ticker, &mut visited);
+        println!("goal check performed in {}ms", now.elapsed().as_millis());
+
+        vec![level0, false]
     }
 
     /// A special function that the owner of the runner can use to
