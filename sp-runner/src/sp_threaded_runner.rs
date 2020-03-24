@@ -56,6 +56,7 @@ fn runner(
         loop {
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
+            let mut ticked = false;
             runner.last_fired_transitions = vec![];
             if let Ok(msg) = input {
                 match msg {
@@ -73,6 +74,7 @@ fn runner(
                     }
                     SPRunnerInput::Tick => {
                         runner.input(SPRunnerInput::Tick);
+                        ticked = true;
                     }
                     SPRunnerInput::AbilityPlan(plan) => {
                         runner.input(SPRunnerInput::AbilityPlan(plan));
@@ -99,7 +101,7 @@ fn runner(
             }
 
             // if there's nothing to do in this cycle, continue
-            if !state_has_probably_changed && runner.last_fired_transitions.is_empty() {
+            if !state_has_probably_changed && runner.last_fired_transitions.is_empty() && !ticked {
                 continue;
             }
 
@@ -126,12 +128,13 @@ fn runner(
                 // for each namespace, check if we need to replan because in the case
                 // that we
                 // 1. got new goals from the runner
-                // 2. can not longer reach our goal (because the state has changed)
+                // 2. can no longer reach our goal (because the state has changed)
 
                 // Because the plan is already encoded in the guards
                 // of the runner transitions we can use the runner for
                 // this purpose.
-                let unreach = runner.check_goal();
+
+                // This is also true for the goals -> they are a function of the state.
 
                 if &prev_goal != goals && disabled.is_empty() {
                     prev_goals.insert(i, goals.clone());
@@ -145,6 +148,97 @@ fn runner(
                             disabled_paths: disabled.clone(),
                         };
                         tx_planner.send(task).unwrap();
+                    }
+                } else if i == 0{
+
+                    // test this by simply changing some variable at random intervals
+                    let dhpath = SPPath::from_string("cylinders/dorna_holding");
+                    let rp = SPPath::from_string("cylinders/dorna/goal/0/ref_pos");
+
+                    let other = StateValue::new("pre_take".to_spvalue());
+                    let v = runner.ticker.state.state_value_from_path(&dhpath).unwrap();
+                    let rpv = runner.ticker.state.state_value_from_path(&rp).unwrap_or(&other);
+
+                    let random_value = std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() % 3;
+                    let nv = ((random_value + 1) as i32).to_spvalue();
+
+                    if rpv.current_value() == &"leave".to_spvalue() &&
+                        v.current_value() != &100.to_spvalue() &&
+                        v.current_value() != &0.to_spvalue() &&
+                        v.current_value() != &nv
+                    {
+                        // change held product randomly
+                        let _res = runner.ticker.state.force_from_path(&dhpath, nv.clone());
+                        println!("****\n****\n****\n");
+                        println!("CHANGED STATE {} TO {}", dhpath, nv);
+                        println!("****\n****\n****\n");
+                    }
+
+                    // goals have not changed. check if the plan is still valid.
+                    let can_reach = if i == 0 {
+                        // For now, only perform this check at the low level
+                        runner.check_goal()[0]
+                    } else {
+                        true
+                    };
+
+                    if !can_reach && !runner.ability_plan.is_empty {
+                        println!("WE CANNOT REACH OUR GOAL!");
+                        //println!("THE GOAL IS {:?}", runner.goal()[0]);
+                        //println!("REPLAN!");
+
+                        // println!("first empty the current plan");
+                        runner.input(SPRunnerInput::AbilityPlan(SPPlan {
+                            is_empty: false, // this may still be fine later...
+                            plan: crate::planning::block_all(&runner.transition_system_models[0]),
+                            state_change: SPState::new(),
+                        }));
+
+
+                        println!("send new planning request");
+                        if goals.len() > 0 {
+                            let task = PlannerTask {
+                                namespace: i as i32,
+                                ts: ts.clone(),
+                                state: runner.state().clone(),
+                                goals: goals.clone(),
+                                disabled_paths: disabled.clone(),
+                            };
+                            tx_planner.send(task).unwrap();
+                        }
+                    }
+                } else if i == 1 {
+                    // here we check if the low level failed to find a plan.
+                    // if so, we replan this higher level
+                    if runner.ability_plan.is_empty {
+                        println!("active goals but no low level plan! sending new high level planning request");
+                        runner.ability_plan.is_empty = false;
+
+                        for op in &runner.operations {
+                            // reset all operation state...
+                            runner.ticker.state.force_from_path(op, "i".to_spvalue()).unwrap();
+                        }
+
+                        runner.input(SPRunnerInput::OperationPlan(SPPlan {
+                            is_empty: false,
+                            plan: crate::planning::block_all(&runner.transition_system_models[1]),
+                            state_change: SPState::new(),
+                        }));
+
+
+                        if goals.len() > 0 {
+                            let task = PlannerTask {
+                                namespace: i as i32,
+                                ts: ts.clone(),
+                                state: runner.state().clone(),
+                                goals: goals.clone(),
+                                disabled_paths: disabled.clone(),
+                            };
+                            tx_planner.send(task).unwrap();
+                        }
                     }
                 }
             }
@@ -299,9 +393,13 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
             };
 
             // for now, do all planning here. so loop over each namespace
-            let max_steps = 100; // arbitrary decision
+            let max_steps = 50; // arbitrary decision
             let planner_result = crate::planning::plan(&pt.ts, &pt.goals, &pt.state, max_steps);
-            assert!(planner_result.plan_found);
+            let is_empty = !planner_result.plan_found;
+            if is_empty {
+                println!("No plan was found for namespace {}!", pt.namespace);
+            }
+
             //println!("new plan is");
 
             //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
@@ -314,6 +412,7 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
                 crate::planning::convert_planning_result(&pt.ts, planner_result, true)
             };
             let plan = SPPlan {
+                is_empty: is_empty,
                 plan: tr,
                 state_change: s,
             };
@@ -489,6 +588,13 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
     rm.ab_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
+
+
+    // hacks abound.... we need to think about what an operation is....
+    let opd = vec!["i".to_spvalue(), "e".to_spvalue(), "f".to_spvalue()];
+    let op_vars: Vec<&Variable> = rm.op_model.vars.iter().filter(|v| v.domain() == opd.as_slice()).collect();
+    let ops = op_vars.iter().map(|v| v.path().clone()).collect();
+
     let mut runner = SPRunner::new(
         "test",
         trans,
@@ -498,13 +604,16 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         vec![],
         vec![rm.model.clone(), rm.op_model.clone()],
         model.resources().iter().map(|r| r.path().clone()).collect(),
+        ops,
     );
 
     runner.input(SPRunnerInput::AbilityPlan(SPPlan {
+        is_empty: false,
         plan: restrict_controllable.clone(),
         state_change: SPState::new(),
     }));
     runner.input(SPRunnerInput::OperationPlan(SPPlan {
+        is_empty: false,
         plan: restrict_op_controllable.clone(),
         state_change: SPState::new(),
     }));

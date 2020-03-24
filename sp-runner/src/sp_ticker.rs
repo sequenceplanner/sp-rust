@@ -100,7 +100,7 @@ impl SPTicker {
     /// This function takes the specs and create a transition map so that the specs are syncronized
     /// with the correct transitions. This is used internally to simplify the runner before each tick. A spec is often generated
     /// by the planner or optimizer
-    fn create_transition_map<'a>(
+    pub fn create_transition_map<'a>(
         ts: &'a [Transition], specs: &'a [TransitionSpec], disabled_paths: &[SPPath],
     ) -> Vec<Vec<&'a Transition>> {
         let mut temp_xs: Vec<(Vec<&SPPath>, Vec<&Transition>)> = specs
@@ -160,7 +160,7 @@ impl SPTicker {
     }
 
     /// Update the state predicate variables
-    fn upd_preds(state: &mut SPState, predicates: &[RunnerPredicate]) {
+    pub fn upd_preds(state: &mut SPState, predicates: &[RunnerPredicate]) {
         predicates.iter().for_each(|pr| {
             let value = pr.1.eval(state).to_spvalue();
             if let Err(e) = state.force(&pr.0, value) {

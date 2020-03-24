@@ -41,9 +41,37 @@ pub fn plan(
     result
 }
 
+/// Return a plan that blocks all deliberation transitions.
+pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
+    model
+        .transitions
+        .iter()
+        .filter_map(|t: &Transition| {
+            if t.controlled() {
+                Some(t.path().clone())
+            } else {
+                None
+            }
+        })
+        .map(|p| {
+            let t = Transition::new(
+                &format!("Blocked {}", p),
+                Predicate::FALSE,
+                vec![],
+                vec![],
+                true,
+            );
+            TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
+        })
+        .collect()
+}
+
 pub fn convert_planning_result(
     model: &TransitionSystemModel, res: PlanningResult, op: bool,
 ) -> (Vec<TransitionSpec>, SPState) {
+    if !res.plan_found {
+        return (block_all(model), SPState::new());
+    }
     let ctrl: Vec<SPPath> = model
         .transitions
         .iter()

@@ -9,7 +9,7 @@ use sp_domain::*;
 #[derive(Debug, PartialEq, Clone)]
 pub struct SPRunner {
     pub name: String,
-    ticker: SPTicker,
+    pub ticker: SPTicker,
     pub variables: Vec<Variable>,
     pub predicates: Vec<Variable>,
     pub goals: Vec<Vec<IfThen>>,
@@ -20,6 +20,7 @@ pub struct SPRunner {
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub in_sync: bool,
     pub resources: Vec<SPPath>,
+    pub operations: Vec<SPPath>,
 }
 
 /// The input to the runner.
@@ -50,6 +51,7 @@ pub enum SPRunnerInput {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
     //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
+    pub is_empty: bool,            // to know if there is not plan currently
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
     pub state_change: SPState,     // for setting variables use in the plans
                                    //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
@@ -66,6 +68,7 @@ impl SPRunner {
         forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
         resources: Vec<SPPath>,
+        operations: Vec<SPPath>,
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -113,6 +116,7 @@ impl SPRunner {
             transition_system_models,
             in_sync: false,
             resources,
+            operations,
         }
     }
 
