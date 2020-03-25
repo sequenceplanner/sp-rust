@@ -57,7 +57,7 @@ impl GModel {
         let v = Variable::new(
             name,
             VariableType::Estimated,
-            SPValueType::String,
+            domain[0].has_type(),
             domain.to_vec(),
         );
         self.model.add_item(SPItem::Variable(v))
@@ -67,7 +67,7 @@ impl GModel {
         let v = Variable::new(
             name,
             VariableType::Estimated,
-            SPValueType::String,
+            domain[0].has_type(),
             domain.to_vec(),
         );
         self.model.add_item(SPItem::Variable(v))
