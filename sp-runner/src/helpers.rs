@@ -77,6 +77,12 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         .cloned()
         .collect();
 
+    let op_states: Vec<Variable> = global_ops
+        .iter()
+        .map(|o| o.state_variable())
+        .cloned()
+        .collect();
+
     let global_hl_ops: Vec<&Operation> = items
         .iter()
         .flat_map(|i| match i {
@@ -138,6 +144,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         hl_goals: global_hl_goals,
         model: ts_model.clone(),
         op_model: ts_model_op.clone(),
+        op_states,
     };
 
     return rm;

@@ -19,7 +19,7 @@ pub struct SPRunner {
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub in_sync: bool,
     pub resources: Vec<SPPath>,
-    pub operations: Vec<SPPath>,
+    pub operation_states: Vec<SPPath>,
 }
 
 /// The input to the runner.
@@ -63,7 +63,7 @@ impl SPRunner {
         forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
         resources: Vec<SPPath>,
-        operations: Vec<SPPath>,
+        operation_states: Vec<SPPath>,
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -110,7 +110,7 @@ impl SPRunner {
             transition_system_models,
             in_sync: false,
             resources,
-            operations,
+            operation_states,
         }
     }
 

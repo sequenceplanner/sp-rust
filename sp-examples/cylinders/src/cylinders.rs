@@ -31,6 +31,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let dorna_holding = m.add_estimated_domain("dorna_holding", products);
 
     let ap = &dorna["act_pos"];
+    let rp = &dorna["ref_pos"];
     let pp = &dorna["prev_pos"];
     let blue = &cb["blue_light_on"];
 
@@ -63,11 +64,11 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     );
 
     // we must always be blue when going to scan
-    m.add_invar("blue_scan", &p!([p:ap == scan] => [p:blue]));
+    m.add_invar("blue_scan", &p!([p:rp == scan] => [p:blue]));
     // but only then...
     m.add_invar(
         "blue_scan_2",
-        &p!([[p:ap == t1]||[p:ap == t2]||[p:ap == t3]||[p:ap == leave]] => [!p:blue]),
+        &p!([[p:rp == t1]||[p:rp == t2]||[p:rp == t3]||[p:rp == leave]] => [!p:blue]),
     );
 
     // dorna take/leave products
@@ -180,7 +181,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     }
 
     m.add_op(
-        "scan_1",
+        "scan_op_1",
         true,
         &p!([p: dorna_holding == 100]),
         &p!([p: dorna_holding == 1]),
@@ -189,7 +190,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     );
 
     m.add_op(
-        "scan_2",
+        "scan_op_2",
         true,
         &p!([p: dorna_holding == 100]),
         &p!([p: dorna_holding == 2]),
@@ -198,7 +199,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     );
 
     m.add_op(
-        "scan_3",
+        "scan_op_3",
         true,
         &p!([p: dorna_holding == 100]),
         &p!([p: dorna_holding == 3]),

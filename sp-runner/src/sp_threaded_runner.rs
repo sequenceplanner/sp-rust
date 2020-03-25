@@ -111,7 +111,7 @@ fn runner(
 
 
             // our state change hack
-            if false {
+            if true {
                 // test this by simply changing some variable at random intervals
                 let dhpath = SPPath::from_string("cylinders/dorna_holding");
                 let rp = SPPath::from_string("cylinders/dorna/state/0/act_pos");
@@ -202,9 +202,9 @@ fn runner(
 
                     // temporary hack
                     if i == 1 {
-                        for op in &runner.operations {
-                            // reset all operation state...
-                            runner.ticker.state.force_from_path(op, "i".to_spvalue()).unwrap();
+                        println!("resetting all operation state");
+                        for p in &runner.operation_states {
+                            runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
                         }
                     }
 
@@ -229,6 +229,8 @@ fn runner(
                         };
                         tx_planner.send(task).unwrap();
                     }
+
+                    continue; // don't check lower levels now.
                 }
             }
         }
@@ -573,10 +575,7 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
     });
 
 
-    // hacks abound.... we need to think about what an operation is....
-    let opd = vec!["i".to_spvalue(), "e".to_spvalue(), "f".to_spvalue()];
-    let op_vars: Vec<&Variable> = rm.op_model.vars.iter().filter(|v| v.domain() == opd.as_slice()).collect();
-    let ops = op_vars.iter().map(|v| v.path().clone()).collect();
+    let ops = rm.op_states.iter().map(|v| v.path().clone()).collect();
 
     let mut runner = SPRunner::new(
         "test",
