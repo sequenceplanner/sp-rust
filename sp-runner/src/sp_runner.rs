@@ -158,23 +158,24 @@ impl SPRunner {
     /// For each planning level, check wheter we can reach the current goal
     /// (using the current plan)
     /// For now only handle the low level stuff. (namespace 0).
-    pub fn check_goals(&self, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
-        if goals.iter().all(|g| g.eval(&self.state())) {
+    pub fn check_goals(&self, print: bool, state: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
+        if goals.iter().all(|g| g.eval(state)) {
             return true;
         }
 
         let trans = ts_model.transitions.clone();
-        let tm = SPTicker::create_transition_map(&trans,
-                                                 &plan.plan, &self.ticker.disabled_paths);
+        let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
 
-        fn rec<'a>(state: &SPState, goals: &[&Predicate],
+        fn rec<'a>(print: bool, state: &SPState, goals: &[&Predicate],
                tm: &Vec<Vec<&'a Transition>>, ticker: &SPTicker, visited: &mut Vec<SPState>) -> bool {
             if goals.iter().all(|g| g.eval(&state)) {
                 return true;
             }
 
             let new_states: Vec<SPState> = tm.iter().flat_map(|ts| {
-                if ts.iter().all(|t| t.eval(&state)) {
+                if ts.iter().all(|t| {
+                    t.eval(&state)
+                }) {
                     // transitions enabled. clone the state to start a new search branch.
                     let mut state = state.clone();
 
@@ -206,15 +207,11 @@ impl SPRunner {
                 }
             }).collect();
 
-            new_states.iter().any(|s|rec(&s, goals, tm, ticker, visited))
+            new_states.iter().any(|s|rec(print, &s, goals, tm, ticker, visited))
         }
 
-        let mut visited = vec![self.state().clone()];
-        let now = std::time::Instant::now();
-        let res = rec(self.state(), &goals, &tm, &self.ticker, &mut visited);
-        println!("goal check performed in {}ms", now.elapsed().as_millis());
-
-        res
+        let mut visited = vec![state.clone()];
+        rec(print, state, &goals, &tm, &self.ticker, &mut visited)
     }
 
     /// A special function that the owner of the runner can use to

@@ -103,6 +103,41 @@ fn runner(
 
             println!("The State:\n{}", runner.state());
 
+            let disabled = runner.disabled_paths();
+            if !disabled.is_empty() {
+                println!("still waiting... do nothing");
+                continue;
+            }
+
+
+            // our state change hack
+            if false {
+                // test this by simply changing some variable at random intervals
+                let dhpath = SPPath::from_string("cylinders/dorna_holding");
+                let rp = SPPath::from_string("cylinders/dorna/state/0/act_pos");
+                let v = runner.ticker.state.state_value_from_path(&dhpath).unwrap();
+                let rpv = runner.ticker.state.state_value_from_path(&rp).unwrap();
+
+                let random_value = std::time::SystemTime::now()
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() % 3;
+                let nv = ((random_value + 1) as i32).to_spvalue();
+
+                if rpv.current_value() == &"pre_take".to_spvalue() &&
+                    v.current_value() != &100.to_spvalue() &&
+                    v.current_value() != &0.to_spvalue() &&
+                    v.current_value() != &nv
+                {
+                    // change held product randomly
+                    let _res = runner.ticker.state.force_from_path(&dhpath, nv.clone());
+                    println!("****\n****\n****\n");
+                    println!("CHANGED STATE {} TO {}", dhpath, nv);
+                    println!("****\n****\n****\n");
+                }
+            }
+
+
             tx_state_out
                 .send(runner.state().clone())
                 .expect("tx_state:out");
@@ -117,13 +152,9 @@ fn runner(
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
-            let disabled = runner.disabled_paths();
-            for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate() {
-                let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
-
-                // for each namespace, check if we need to replan because in the case
-                // that we
-                // 1. got new goals from the runner
+            for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
+                // for each namespace, check if we need to replan because
+                // 1. got new goals from the runner or
                 // 2. can no longer reach our goal (because the state has changed)
 
                 // Because the plan is already encoded in the guards
@@ -132,10 +163,63 @@ fn runner(
 
                 // This is also true for the goals -> they are a function of the state.
 
-                if &prev_goal != goals && disabled.is_empty() {
+                let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
+
+                let gr: Vec<&Predicate> = goals
+                    .iter()
+                    .map(|g| &g.0).collect(); // dont care about the invariants for now
+
+                let replan = {
+                    let ok = &prev_goal == goals;
+                    if !ok {
+                        println!("replanning because goal changed. {}", i);
+                    }
+                    !ok
+                } || {
+                    let now = std::time::Instant::now();
+                    println!("start goal check for {}", i);
+
+                    let mut state = runner.state().clone();
+                    let rpi = SPPath::from_string("runner/plans/1");
+                    let mut v = state.sp_value_from_path(&rpi).unwrap().clone();
+                    if let SPValue::Int32(i) = &mut v {
+                        v = SPValue::Int32(*i-1);
+                    }
+                    let _res = state.force_from_path(&rpi, v.clone());
+
+                    let ok = runner
+                        .check_goals(false, &state, &gr, &runner.plans[i],
+                                     &runner.transition_system_models[i]);
+                    println!("goal check for {} performed in {}ms", i, now.elapsed().as_millis());
+                    if !ok {
+                        println!("replanning because we cannot reach goal. {}", i);
+                    }
+                    !ok
+                };
+
+                if replan {
                     prev_goals.insert(i, goals.clone());
 
+                    // temporary hack
+                    if i == 1 {
+                        for op in &runner.operations {
+                            // reset all operation state...
+                            runner.ticker.state.force_from_path(op, "i".to_spvalue()).unwrap();
+                        }
+                    }
+
+                    // disable all plans under this level
+                    (0..=i).for_each(|ns| {
+                        println!("blocking namespace {}", ns);
+                        runner.input(SPRunnerInput::NewPlan(ns as i32, SPPlan {
+                            is_empty: false,
+                            plan: crate::planning::block_all(&runner.transition_system_models[ns]),
+                            state_change: SPState::new(),
+                        }));
+                    });
+
                     if goals.len() > 0 {
+                        // make new planning request.
                         let task = PlannerTask {
                             namespace: i as i32,
                             ts: ts.clone(),
@@ -144,102 +228,6 @@ fn runner(
                             disabled_paths: disabled.clone(),
                         };
                         tx_planner.send(task).unwrap();
-                    }
-                } else if i == 0{
-
-                    // test this by simply changing some variable at random intervals
-                    let dhpath = SPPath::from_string("cylinders/dorna_holding");
-                    let rp = SPPath::from_string("cylinders/dorna/goal/0/ref_pos");
-
-                    let other = StateValue::new("pre_take".to_spvalue());
-                    let v = runner.ticker.state.state_value_from_path(&dhpath).unwrap();
-                    let rpv = runner.ticker.state.state_value_from_path(&rp).unwrap_or(&other);
-
-                    let random_value = std::time::SystemTime::now()
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs() % 3;
-                    let nv = ((random_value + 1) as i32).to_spvalue();
-
-                    if rpv.current_value() == &"leave".to_spvalue() &&
-                        v.current_value() != &100.to_spvalue() &&
-                        v.current_value() != &0.to_spvalue() &&
-                        v.current_value() != &nv
-                    {
-                        // change held product randomly
-                        let _res = runner.ticker.state.force_from_path(&dhpath, nv.clone());
-                        println!("****\n****\n****\n");
-                        println!("CHANGED STATE {} TO {}", dhpath, nv);
-                        println!("****\n****\n****\n");
-                    }
-
-                    // goals have not changed. check if the plan is still valid.
-                    let can_reach = if i == 0 {
-                        // For now, only perform this check at the low level
-                        let goals = runner.goal().clone();
-                        let goals: Vec<&Predicate> = goals[0]
-                            .iter()
-                            .map(|g| &g.0).collect(); // dont care about the invariants for now
-
-                        runner.check_goals(&goals, &runner.plans[0], &runner.transition_system_models[0])
-                    } else {
-                        true
-                    };
-
-                    if !can_reach && !runner.plans[0].is_empty {
-                        println!("WE CANNOT REACH OUR GOAL!");
-                        //println!("THE GOAL IS {:?}", runner.goal()[0]);
-                        //println!("REPLAN!");
-
-                        // println!("first empty the current plan");
-                        runner.input(SPRunnerInput::NewPlan(0, SPPlan {
-                            is_empty: false, // this may still be fine later...
-                            plan: crate::planning::block_all(&runner.transition_system_models[0]),
-                            state_change: SPState::new(),
-                        }));
-
-
-                        println!("send new planning request");
-                        if goals.len() > 0 {
-                            let task = PlannerTask {
-                                namespace: i as i32,
-                                ts: ts.clone(),
-                                state: runner.state().clone(),
-                                goals: goals.clone(),
-                                disabled_paths: disabled.clone(),
-                            };
-                            tx_planner.send(task).unwrap();
-                        }
-                    }
-                } else if i == 1 {
-                    // here we check if the low level failed to find a plan.
-                    // if so, we replan this higher level
-                    if runner.plans[0].is_empty {
-                        println!("active goals but no low level plan! sending new high level planning request");
-                        runner.plans[0].is_empty = false;
-
-                        for op in &runner.operations {
-                            // reset all operation state...
-                            runner.ticker.state.force_from_path(op, "i".to_spvalue()).unwrap();
-                        }
-
-                        runner.input(SPRunnerInput::NewPlan(1, SPPlan {
-                            is_empty: false,
-                            plan: crate::planning::block_all(&runner.transition_system_models[1]),
-                            state_change: SPState::new(),
-                        }));
-
-
-                        if goals.len() > 0 {
-                            let task = PlannerTask {
-                                namespace: i as i32,
-                                ts: ts.clone(),
-                                state: runner.state().clone(),
-                                goals: goals.clone(),
-                                disabled_paths: disabled.clone(),
-                            };
-                            tx_planner.send(task).unwrap();
-                        }
                     }
                 }
             }
@@ -395,6 +383,7 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
 
             // for now, do all planning here. so loop over each namespace
             let max_steps = 50; // arbitrary decision
+            println!("computing plan for namespace {}", pt.namespace);
             let planner_result = crate::planning::plan(&pt.ts, &pt.goals, &pt.state, max_steps);
             let is_empty = !planner_result.plan_found;
             if is_empty {
@@ -405,13 +394,10 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
 
             //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
             // TODO!
-            let (tr, s) = if pt.namespace == 0 {
-                // ability level
-                crate::planning::convert_planning_result(&pt.ts, planner_result, false)
-            } else {
-                // op level
-                crate::planning::convert_planning_result(&pt.ts, planner_result, true)
-            };
+
+            let plan_p = SPPath::from_slice(&["runner", "plans", &pt.namespace.to_string()]);
+            let (tr, s) = crate::planning::convert_planning_result(&pt.ts, planner_result, &plan_p);
+
             let plan = SPPlan {
                 is_empty: is_empty,
                 plan: tr,
