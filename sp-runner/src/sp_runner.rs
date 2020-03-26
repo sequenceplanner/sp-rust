@@ -46,7 +46,7 @@ pub enum SPRunnerInput {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
     //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
-    pub is_empty: bool,            // to know if there is not plan currently
+    pub is_blocked: bool,          // to quickly know if we have currently blocked all transitions
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
     pub state_change: SPState,     // for setting variables use in the plans
                                    //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
