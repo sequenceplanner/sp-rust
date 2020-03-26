@@ -18,7 +18,9 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(2000), tx_runner.clone());
-    planner(tx_runner.clone(), rx_planner);
+    planner(1, tx_runner.clone(), rx_planner.clone());
+    planner(2, tx_runner.clone(), rx_planner.clone());
+
     node_handler(
         Duration::from_millis(1000),
         Duration::from_secs(3),
@@ -180,7 +182,7 @@ fn runner(
 
                 let replan = {
                     let ok = &prev_goal == goals;
-                    if !ok {
+                    if !ok && goals.len() > 0 {
                         println!("replanning because goal changed. {}", i);
                     }
                     !ok
@@ -207,8 +209,6 @@ fn runner(
                 });
 
                 if replan {
-                    prev_goals.insert(i, goals.clone());
-
                     // temporary hack
                     if i == 1 {
                         println!("resetting all operation state");
@@ -220,6 +220,8 @@ fn runner(
                     // disable all plans under this level
                     (0..=i).for_each(|ns| {
                         println!("blocking namespace {}", ns);
+                        // set prev goal to empty
+                        prev_goals.insert(i, Vec::new());
                         runner.input(SPRunnerInput::NewPlan(ns as i32, SPPlan {
                             is_blocked: true,
                             plan: crate::planning::block_all(&runner.transition_system_models[ns]),
@@ -228,6 +230,8 @@ fn runner(
                     });
 
                     if goals.len() > 0 {
+                        // update last set of goals
+                        prev_goals.insert(i, goals.clone());
                         // make new planning request.
                         let task = PlannerTask {
                             namespace: i as i32,
@@ -369,7 +373,7 @@ struct PlannerTask {
     disabled_paths: Vec<SPPath>,
 }
 
-fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
+fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
     thread::spawn(move || {
         loop {
             let pt: PlannerTask = if rx_planner.is_empty() {
@@ -394,11 +398,11 @@ fn planner(tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) 
 
             // for now, do all planning here. so loop over each namespace
             let max_steps = 50; // arbitrary decision
-            println!("computing plan for namespace {}", pt.namespace);
+            println!("planner thead {}: computing plan for namespace {}", id, pt.namespace);
             let planner_result = crate::planning::plan(&pt.ts, &pt.goals, &pt.state, max_steps);
             let is_empty = !planner_result.plan_found;
             if is_empty {
-                println!("No plan was found for namespace {}!", pt.namespace);
+                println!("planner thread {}: No plan was found for namespace {}!", id, pt.namespace);
             }
 
             //println!("new plan is");
