@@ -1,6 +1,7 @@
 use failure::Error;
 use sp_runner::*;
 
+mod camera;
 mod control_box;
 mod cylinders;
 mod dorna;

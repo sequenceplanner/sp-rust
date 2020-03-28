@@ -1,3 +1,4 @@
+use crate::camera::*;
 use crate::control_box::*;
 use crate::dorna::*;
 use sp_domain::*;
@@ -15,6 +16,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
 
     let dorna = m.use_resource(make_dorna("dorna", &[pt, scan, t1, t2, t3, leave]));
     let cb = m.use_resource(make_control_box("control_box"));
+    let camera = m.use_resource(make_camera("camera"));
 
     let products = &[
         100.to_spvalue(), // SPValue::Unknown,   macros need better support for Unknown
@@ -34,6 +36,11 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let rp = &dorna["ref_pos"];
     let pp = &dorna["prev_pos"];
     let blue = &cb["blue_light_on"];
+    // todo
+    let cf = SPPath::from_string("cylinders/camera/scan/finished");
+    let cs = SPPath::from_string("cylinders/camera/scan/started");
+    let cr = &camera["result"];
+    let cd = &camera["do_scan"];
 
     // define robot movement
 
@@ -71,6 +78,9 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
         &p!([[p:rp == t1]||[p:rp == t2]||[p:rp == t3]||[p:rp == leave]] => [!p:blue]),
     );
 
+    // we can only scan the product in front of the camera
+    m.add_invar("product_at_camera", &p!([p:cs] => [p:ap == scan]));
+
     // dorna take/leave products
     let pos = vec![
         (t1, shelf1.clone()),
@@ -93,25 +103,26 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
         );
     }
 
+
+    // this is what we want
+    // m.add_spec("take_scan_result1", camera.reset,
+    //            &p!([p: dorna_holding == 100] && [p: cr == 1]),
+    //            &[a!(p: dorna_holding = 1)]);
+
     // scan to figure out the which product we are holding
-    m.add_delib(
-        "scan_1",
-        &p!([p: ap == scan] && [p: dorna_holding == 100]),
-        &[a!(p: dorna_holding = 1)],
-    );
-    m.add_delib(
-        "scan_2",
-        &p!([p: ap == scan] && [p: dorna_holding == 100]),
-        &[a!(p: dorna_holding = 2)],
-    );
-    m.add_delib(
-        "scan_3",
-        &p!([p: ap == scan] && [p: dorna_holding == 100]),
-        &[a!(p: dorna_holding = 3)],
-    );
+    m.add_auto("take_scan_result1",
+               &p!([p: dorna_holding == 100] && [p: cf] && [p: cr == 1]),
+               &[a!(!p: cd), a!(p: dorna_holding = 1)]);
+
+    m.add_auto("take_scan_result2",
+               &p!([p: dorna_holding == 100] && [p: cf] && [p: cr == 2]),
+               &[a!(!p: cd), a!(p: dorna_holding = 2)]);
+    m.add_auto("take_scan_result3",
+               &p!([p: dorna_holding == 100] && [p: cf] && [p: cr == 3]),
+               &[a!(!p: cd), a!(p: dorna_holding = 3)]);
 
     // product sink is at conveyor, only accepts identified products.
-    m.add_delib(
+    m.add_auto(
         "consume_known_product",
         &p!([p: conveyor != 0] && [p: conveyor != 100]),
         &[a!(p: conveyor = 0)],
@@ -137,7 +148,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
 
     m.add_hl_op(
         "identify_and_consume_parts",
-        true,
+        false,
         &p!([p: shelf1 == 100] && [p: shelf2 == 100] && [p: shelf3 == 100]),
         &no_products,
         &[
@@ -169,14 +180,29 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
                 None,
             );
 
-            m.add_op(
-                &format!("place_{}_at_{}", p, pos.leaf()),
-                true,
-                &p!([p: pos == 0] && [p: dorna_holding == p]),
-                &p!([p: pos == p] && [p: dorna_holding == 0]),
-                &[a!(p: pos = p), a!(p: dorna_holding = 0)],
-                None,
-            );
+            // These levels quickly become tricky... We need to
+            // account for the auto trans that consumes all known
+            // products from the conveyor.
+
+            if pos.leaf() == "conveyor" && p != &100 {
+                m.add_op(
+                    &format!("place_{}_at_{}", p, pos.leaf()),
+                    true,
+                    &p!([p: pos == 0] && [p: dorna_holding == p]),
+                    &p!([p: pos == p] && [p: dorna_holding == 0]),
+                    &[a!(p: pos = 0), a!(p: dorna_holding = 0)],
+                    None,
+                );
+            } else {
+                m.add_op(
+                    &format!("place_{}_at_{}", p, pos.leaf()),
+                    true,
+                    &p!([p: pos == 0] && [p: dorna_holding == p]),
+                    &p!([p: pos == p] && [p: dorna_holding == 0]),
+                    &[a!(p: pos = p), a!(p: dorna_holding = 0)],
+                    None,
+                );
+            }
         }
     }
 

@@ -120,35 +120,6 @@ fn runner(
                 continue;
             }
 
-
-            // our state change hack
-            if true {
-                // test this by simply changing some variable at random intervals
-                let dhpath = SPPath::from_string("cylinders/dorna_holding");
-                let rp = SPPath::from_string("cylinders/dorna/state/0/act_pos");
-                let v = runner.ticker.state.state_value_from_path(&dhpath).unwrap();
-                let rpv = runner.ticker.state.state_value_from_path(&rp).unwrap();
-
-                let random_value = std::time::SystemTime::now()
-                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() % 3;
-                let nv = ((random_value + 1) as i32).to_spvalue();
-
-                if rpv.current_value() == &"pre_take".to_spvalue() &&
-                    v.current_value() != &100.to_spvalue() &&
-                    v.current_value() != &0.to_spvalue() &&
-                    v.current_value() != &nv
-                {
-                    // change held product randomly
-                    let _res = runner.ticker.state.force_from_path(&dhpath, nv.clone());
-                    println!("****\n****\n****\n");
-                    println!("CHANGED STATE {} TO {}", dhpath, nv);
-                    println!("****\n****\n****\n");
-                }
-            }
-
-
             tx_state_out
                 .send(runner.state().clone())
                 .expect("tx_state:out");
