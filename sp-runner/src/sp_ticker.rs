@@ -44,32 +44,24 @@ impl SPTicker {
     pub fn tick_transitions(&mut self) -> (&SPState, Vec<SPPath>) {
         let temp_transition_map =
             SPTicker::create_transition_map(&self.transitions, &self.specs, &self.disabled_paths);
-        let fired = SPTicker::tick(
-            &mut self.state,
-            &temp_transition_map,
-            &self.predicates,
-            &self.forbidden,
-        );
-        self.state.take_transition();
-        // self.c += 1;
 
-        // if self.c > 10 {
-        //     println!("");
-        //     println!("GOO");
-
-        //     println!("State: {}", &self.state);
-        //     println!("");
-        //     println!("Transitions:");
-        //     temp_transition_map.iter().for_each(|xs| {
-        //         println!("vvvvvv");
-        //         xs.iter().for_each(|t| {
-        //             println!("{}", t);
-        //         });
-        //         println!("^^^^^^");
-        //     });
-
-        //     self.c = 0;
-        // }
+        let mut fired = Vec::new();
+        loop {
+            let f = SPTicker::tick(
+                &mut self.state,
+                &temp_transition_map,
+                &self.predicates,
+                &self.forbidden,
+            );
+            self.state.take_transition();
+            if f.is_empty() {
+                println!("f empty, fired is {:?}", fired);
+                break;
+            } else {
+                println!("runner one more time! adding new fired {:?}", f);
+                fired.extend(f);
+            }
+        }
 
         (&self.state, fired)
     }
@@ -144,7 +136,7 @@ impl SPTicker {
     ///
     /// Tick returns the paths of the transitions that fired
     ///
-    fn tick(
+    pub fn tick(
         state: &mut SPState, trans: &[Vec<&Transition>], predicates: &[RunnerPredicate],
         forbidden_states: &[IfThen],
     ) -> Vec<SPPath> {

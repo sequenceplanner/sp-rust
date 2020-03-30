@@ -159,7 +159,6 @@ fn runner(
                     !ok
                 } || (!runner.plans[i].is_blocked && {
                     let now = std::time::Instant::now();
-                    println!("start goal check for {}", i);
 
                     let mut state = runner.state().clone();
                     let rpi = SPPath::from_string("runner/plans/1");
@@ -170,9 +169,9 @@ fn runner(
                     let _res = state.force_from_path(&rpi, v.clone());
 
                     let ok = runner
-                        .check_goals(false, &state, &gr, &runner.plans[i],
-                                     &runner.transition_system_models[i]);
-                    println!("goal check for {} performed in {}ms", i, now.elapsed().as_millis());
+                        .check_goals_fast(&state, &gr, &runner.plans[i],
+                                          &runner.transition_system_models[i]);
+                    println!("goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
                     if !ok {
                         println!("replanning because we cannot reach goal. {}", i);
                     }
@@ -180,7 +179,8 @@ fn runner(
                 });
 
                 if replan {
-                    // temporary hack
+                    // temporary hack -- actually probably not so
+                    // temporary, this is something we need to deal with
                     if i == 1 {
                         println!("resetting all operation state");
                         for p in &runner.operation_states {
@@ -196,6 +196,7 @@ fn runner(
                         runner.input(SPRunnerInput::NewPlan(ns as i32, SPPlan {
                             is_blocked: true,
                             plan: crate::planning::block_all(&runner.transition_system_models[ns]),
+                            included_trans: Vec::new(),
                             state_change: SPState::new(),
                         }));
                     });
@@ -382,15 +383,21 @@ fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<Plann
             // TODO!
 
             let plan_p = SPPath::from_slice(&["runner", "plans", &pt.namespace.to_string()]);
-            let (tr, s) = crate::planning::convert_planning_result(&pt.ts, planner_result, &plan_p);
+            let (tr, s) = crate::planning::convert_planning_result(&pt.ts, &planner_result, &plan_p);
+            let trans = planner_result.trace.iter()
+                .filter_map(|f|
+                    if f.transition.is_empty() {
+                        None
+                    } else {
+                        Some(f.transition.clone())
+                    }).collect();
 
             let plan = SPPlan {
                 is_blocked: is_empty,
                 plan: tr,
+                included_trans: trans,
                 state_change: s,
             };
-
-            std::thread::sleep_ms(2500); // stress test async
 
             let res = tx_runner.send(SPRunnerInput::NewPlan(pt.namespace, plan));
             if res.is_err() {
@@ -578,11 +585,13 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
     runner.input(SPRunnerInput::NewPlan(0, SPPlan {
         is_blocked: true,
         plan: restrict_controllable.clone(),
+        included_trans: Vec::new(),
         state_change: SPState::new(),
     }));
     runner.input(SPRunnerInput::NewPlan(1, SPPlan {
         is_blocked: true,
         plan: restrict_op_controllable.clone(),
+        included_trans: Vec::new(),
         state_change: SPState::new(),
     }));
     runner.update_state_variables(initial_state);

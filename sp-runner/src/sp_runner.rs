@@ -48,6 +48,7 @@ pub struct SPPlan {
     //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
     pub is_blocked: bool,          // to quickly know if we have currently blocked all transitions
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
+    pub included_trans: Vec<SPPath>, // list of all included transitions in the plan (in order).
     pub state_change: SPState,     // for setting variables use in the plans
                                    //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
 }
@@ -155,27 +156,83 @@ impl SPRunner {
             .collect()
     }
 
-    /// For each planning level, check wheter we can reach the current goal
-    /// (using the current plan)
-    /// For now only handle the low level stuff. (namespace 0).
-    pub fn check_goals(&self, print: bool, state: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
+    /// Checks wheter we can reach the current goal As it doesnt
+    /// exactly follow the plan but instead simulated the runner, it
+    /// can fail if the plan contains two "choices" involving the same
+    /// transitions. Then the "wrong" one might be taken first.
+    pub fn check_goals_fast(&self, s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
+        if goals.iter().all(|g| g.eval(s)) {
+            return true;
+        }
+
+        let trans: Vec<Transition> = ts_model.transitions.iter()
+            .filter(|t| plan.included_trans.contains(t.path()))
+            .cloned().collect();
+
+        let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
+
+        let mut state = s.clone();
+        loop {
+            let state_changed = tm.iter().flat_map(|ts| {
+                if ts.iter().all(|t| {
+                    t.eval(&state)
+                }) {
+                    // transitions enabled. clone the state to start a new search branch.
+
+                    // take all actions
+                    ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
+                        let _res = a.next(&mut state);
+                    });
+                    // and effects
+                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
+                        let _res = e.next(&mut state);
+                    });
+
+                    // update state predicates
+                    SPTicker::upd_preds(&mut state, &self.ticker.predicates);
+
+                    // next -> cur
+                    Some(state.take_transition())
+                } else {
+                    None
+                }
+            }).any(|x|x);
+
+            if goals.iter().all(|g| g.eval(&state)) {
+                return true;
+            }
+            else if !state_changed {
+                // double check with complete search in the normal
+                // case where we fail early in the plan this is still
+                // fast, but it saves us from the issue descibed
+                // above. worst case we waste some time here but but
+                // it should be faster than replanning anyway.
+                return self.check_goals_complete(s, goals, plan, ts_model);
+            }
+        }
+    }
+
+    /// A slower, but more forgiving forward search to goal.
+    /// This handles the case described in check_goals_fast.
+    pub fn check_goals_complete(&self, state: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
         if goals.iter().all(|g| g.eval(state)) {
             return true;
         }
 
-        let trans = ts_model.transitions.clone();
+        let trans: Vec<Transition> = ts_model.transitions.iter()
+            .filter(|t| plan.included_trans.contains(t.path()))
+            .cloned().collect();
+
         let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
 
-        fn rec<'a>(print: bool, state: &SPState, goals: &[&Predicate],
+        fn rec<'a>(state: &SPState, goals: &[&Predicate],
                tm: &Vec<Vec<&'a Transition>>, ticker: &SPTicker, visited: &mut Vec<SPState>) -> bool {
             if goals.iter().all(|g| g.eval(&state)) {
                 return true;
             }
 
             let new_states: Vec<SPState> = tm.iter().flat_map(|ts| {
-                if ts.iter().all(|t| {
-                    t.eval(&state)
-                }) {
+                if ts.iter().all(|t| t.eval(&state)) {
                     // transitions enabled. clone the state to start a new search branch.
                     let mut state = state.clone();
 
@@ -193,25 +250,22 @@ impl SPRunner {
                     SPTicker::upd_preds(&mut state, &ticker.predicates);
 
                     // next -> cur
-                    state.take_transition();
-
-                    // recurse on the modified state.
-                    if visited.contains(&state) {
-                        None
-                    } else {
+                    if state.take_transition() && !visited.contains(&state) {
                         visited.push(state.clone());
                         Some(state)
+                    } else {
+                        None
                     }
                 } else {
                     None
                 }
             }).collect();
 
-            new_states.iter().any(|s|rec(print, &s, goals, tm, ticker, visited))
+            new_states.iter().any(|s| rec(&s, goals, tm, ticker, visited))
         }
 
         let mut visited = vec![state.clone()];
-        rec(print, state, &goals, &tm, &self.ticker, &mut visited)
+        rec(state, &goals, &tm, &self.ticker, &mut visited)
     }
 
     /// A special function that the owner of the runner can use to

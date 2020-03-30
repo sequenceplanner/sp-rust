@@ -67,7 +67,7 @@ pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
 }
 
 pub fn convert_planning_result(
-    model: &TransitionSystemModel, res: PlanningResult, plan_counter: &SPPath,
+    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath,
 ) -> (Vec<TransitionSpec>, SPState) {
     if !res.plan_found {
         return (block_all(model), SPState::new());

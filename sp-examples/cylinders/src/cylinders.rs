@@ -148,7 +148,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
 
     m.add_hl_op(
         "identify_and_consume_parts",
-        false,
+        true,
         &p!([p: shelf1 == 100] && [p: shelf2 == 100] && [p: shelf3 == 100]),
         &no_products,
         &[
@@ -182,8 +182,8 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
 
             // These levels quickly become tricky... We need to
             // account for the auto trans that consumes all known
-            // products from the conveyor.
-
+            // products from the conveyor. Other wise we end with
+            // unnecessary replanning.
             if pos.leaf() == "conveyor" && p != &100 {
                 m.add_op(
                     &format!("place_{}_at_{}", p, pos.leaf()),

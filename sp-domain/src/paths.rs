@@ -61,6 +61,10 @@ impl SPPath {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.path.is_empty()
+    }
+
     pub fn is_child_of(&self, other: &SPPath) -> bool {
         (self.path.len() >= other.path.len())
             && other.path.iter().zip(self.path.iter()).all(|(a, b)| a == b)
