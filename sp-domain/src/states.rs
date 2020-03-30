@@ -450,10 +450,12 @@ impl SPState {
         }
     }
 
-    pub fn take_transition(&mut self) {
+    pub fn take_transition(&mut self) -> bool {
+        let mut changed = false;
         self.values.iter_mut().for_each(|v: &mut StateValue| {
-            v.take();
+            changed |= v.take();
         });
+        changed
     }
 
     pub fn extract(self) -> Vec<(SPPath, StateValue)> {

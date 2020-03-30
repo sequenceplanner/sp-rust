@@ -41,9 +41,37 @@ pub fn plan(
     result
 }
 
+/// Return a plan that blocks all deliberation transitions.
+pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
+    model
+        .transitions
+        .iter()
+        .filter_map(|t: &Transition| {
+            if t.controlled() {
+                Some(t.path().clone())
+            } else {
+                None
+            }
+        })
+        .map(|p| {
+            let t = Transition::new(
+                &format!("Blocked {}", p),
+                Predicate::FALSE,
+                vec![],
+                vec![],
+                true,
+            );
+            TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
+        })
+        .collect()
+}
+
 pub fn convert_planning_result(
-    model: &TransitionSystemModel, res: PlanningResult, op: bool,
+    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath,
 ) -> (Vec<TransitionSpec>, SPState) {
+    if !res.plan_found {
+        return (block_all(model), SPState::new());
+    }
     let ctrl: Vec<SPPath> = model
         .transitions
         .iter()
@@ -56,58 +84,32 @@ pub fn convert_planning_result(
         })
         .collect();
     let in_plan: Vec<SPPath> = res.trace.iter().map(|x| x.transition.clone()).collect();
-    let plan_p = if op {
-        SPPath::from_slice(&["runner", "operation_plan"])
-    } else {
-        SPPath::from_slice(&["runner", "ability_plan"])
-    };
-
     let mut tr = vec![];
     let mut i = 0;
 
     // trace[0] is always the initial state.
-    let mut prev_ctrl: Option<&PlanningFrame> = Some(&res.trace[0]);
-    let mut prev_state: Option<&SPState> = Some(&res.trace[0].state);
+    let mut cur_state: &SPState = &res.trace[0].state;
+    let mut last_ctrl_state: Option<&SPState> = None;
     for pf in res.trace.iter().skip(1) {
-        let pf: &PlanningFrame = pf;
         if ctrl.contains(&pf.transition) {
-            let prev = prev_ctrl.unwrap();
-            let prev_tr_state = prev_state.unwrap_or(&pf.state);
-            let diff = prev.state.difference(prev_tr_state);
-            let mut pred: Vec<Predicate> = diff
-                .projection()
-                .sorted()
-                .state
-                .iter()
-                .map(|(p, v)| {
-                    Predicate::EQ(
-                        PredicateValue::path((*p).clone()),
-                        PredicateValue::value(v.value().clone()),
-                    )
-                })
-                .collect();
-            if op {
-                // terrible hacks to get at previous transitions POST (e.i. goal)
-                pred.clear();
-
-                let parent = prev.transition.parent();
-                if parent != SPPath::new() {
-                    let prev_start = parent.add_child("start");
-                    println!("PREV start: {}", prev_start);
-                    let prev_trans = model
-                        .transitions
-                        .iter()
-                        .find(|t| t.path() == &prev_start)
-                        .unwrap();
-                    let mut prev_guard = prev_trans.guard().clone();
-                    if let Predicate::AND(v) = &mut prev_guard {
-                        let prev_guard = Predicate::AND(vec![v[0].clone()]); // state == i ,,, e.g. must finish
-                        println!("ADDING GUARD {} ", prev_guard);
-                        pred.push(prev_guard);
-                    }
-                }
+            let mut pred = Vec::new();
+            if let Some(last_ctrl_state) = &last_ctrl_state {
+                let diff = last_ctrl_state.difference(cur_state);
+                let preds: Vec<Predicate> = diff
+                    .projection()
+                    .sorted()
+                    .state
+                    .iter()
+                    .map(|(p, v)| {
+                        Predicate::EQ(
+                            PredicateValue::path((*p).clone()),
+                            PredicateValue::value(v.value().clone()),
+                        )
+                    })
+                    .collect();
+                pred.extend(preds);
             }
-            pred.push(p!(p: plan_p == i));
+            pred.push(p!(p: plan_counter == i));
             println!("Transition: {:?} {}", i, pf.transition);
             let guard = Predicate::AND(pred);
             println!("A new Guard: {}", guard);
@@ -116,42 +118,22 @@ pub fn convert_planning_result(
             let t = Transition::new(
                 &format!("step{:?}", i),
                 guard,
-                vec![a!(p: plan_p = { i + 1 })],
+                vec![a!(p: plan_counter = { i + 1 })],
                 vec![],
                 true,
             );
+
             tr.push(TransitionSpec::new(
                 &format!("spec{:?}", i),
                 t,
                 vec![pf.transition.clone()],
             ));
 
-            prev_ctrl = Some(pf);
-            prev_state = Some(&pf.state);
+            last_ctrl_state = Some(cur_state);
             i += 1;
-        } else {
-            prev_state = Some(&pf.state)
         }
+        cur_state = &pf.state;
     }
-
-    // let mut tr: Vec<TransitionSpec> = in_plan.iter()
-    //     .filter(|x| ctrl.contains(x))
-    //     .enumerate()
-    //     .map(|(i, p)| {
-    //         let t = Transition::new(
-    //             &format!("step{:?}", i),
-    //             p!(plan_p == i),
-    //             vec!(a!(plan_p = {i+1})),
-    //             vec!(),
-    //             true,
-    //         );
-    //         TransitionSpec::new(
-    //             &format!("spec{:?}", i),
-    //             t,
-    //             vec!(p.clone())
-    //         )
-    //     })
-    //     .collect();
 
     let blocked: Vec<TransitionSpec> = ctrl
         .iter()
@@ -167,13 +149,14 @@ pub fn convert_planning_result(
             TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
         })
         .collect();
+
     tr.extend(blocked);
 
     println!("THE PLAN");
     in_plan.iter().for_each(|x| println!("{}", x));
-    println!("");
+    println!();
 
-    (tr, SPState::new_from_values(&[(plan_p, 0.to_spvalue())]))
+    (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]

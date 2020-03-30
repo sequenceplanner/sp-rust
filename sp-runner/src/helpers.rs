@@ -59,21 +59,12 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         .flat_map(|o| o.transitinos())
         .cloned()
         .collect();
-    let mut global_ops_ctrl: Vec<_> = global_ops_trans
+    let global_ops_ctrl: Vec<_> = global_ops_trans
         .iter()
-        .filter(|o| o.controlled)
+        // we remove the planning representation of the operation here.
+        .filter(|o| o.controlled && o.name() != "planning")
         .cloned()
         .collect();
-
-    // remove all guards from the operations......... ....... .....
-    for c in &mut global_ops_ctrl {
-        let g = c.mut_guard();
-        if let Predicate::AND(v) = &g {
-            let guard = Predicate::AND(vec![v[0].clone()]); // state == i is the only thing we keep
-            println!("UPDATING GUARD TO {} ", guard);
-            *g = guard
-        }
-    }
 
     let global_ops_un_ctrl: Vec<_> = global_ops_trans
         .iter()
@@ -83,6 +74,12 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     let global_goals: Vec<IfThen> = global_ops
         .iter()
         .flat_map(|o| o.goal().as_ref())
+        .cloned()
+        .collect();
+
+    let op_states: Vec<Variable> = global_ops
+        .iter()
+        .map(|o| o.state_variable())
         .cloned()
         .collect();
 
@@ -147,6 +144,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         hl_goals: global_hl_goals,
         model: ts_model.clone(),
         op_model: ts_model_op.clone(),
+        op_states,
     };
 
     return rm;

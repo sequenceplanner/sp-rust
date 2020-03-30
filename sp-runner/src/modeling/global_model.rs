@@ -57,7 +57,7 @@ impl GModel {
         let v = Variable::new(
             name,
             VariableType::Estimated,
-            SPValueType::String,
+            domain[0].has_type(),
             domain.to_vec(),
         );
         self.model.add_item(SPItem::Variable(v))
@@ -67,7 +67,7 @@ impl GModel {
         let v = Variable::new(
             name,
             VariableType::Estimated,
-            SPValueType::String,
+            domain[0].has_type(),
             domain.to_vec(),
         );
         self.model.add_item(SPItem::Variable(v))
@@ -120,20 +120,20 @@ impl GModel {
 
         let op_start = Transition::new(
             "start",
-            Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
+            Predicate::AND(vec![p!(p: state == "i")]),
             vec![a!(p: state = "e")],
-            effects.to_vec(), // move effect here to get shorter plans
+            vec![],
             true,
         );
 
-        // // effect for planning
-        // let op_effect = Transition::new(
-        //     "executing",
-        //     Predicate::AND(vec![p!(p:state == "e")]),
-        //     vec![],
-        //     vec![],
-        //     false,
-        // );
+        // effect for planning/checking
+        let op_effect = Transition::new(
+            "executing",
+            Predicate::AND(vec![p!(p:state == "e")]),
+            vec![],
+            effects.to_vec(),
+            false,
+        );
 
         let f_actions = if resets {
             vec![a!(p: state = "i")]
@@ -150,10 +150,19 @@ impl GModel {
         );
         let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant);
 
+        // in the planning model, we only have a single transition,
+        // effects are immediate
+        let op_planning = Transition::new(
+            "planning",
+            Predicate::AND(vec![pre.clone()]),
+            vec![],
+            effects.to_vec(),
+            true,
+        );
+
         let op = Operation::new(
             name,
-            // &[op_start, op_effect, op_finish],
-            &[op_start, op_finish],
+            &[op_start, op_effect, op_finish, op_planning],
             Some(op_goal),
         );
         self.model.add_item(SPItem::Operation(op))
