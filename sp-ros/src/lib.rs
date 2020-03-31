@@ -153,6 +153,36 @@ mod ros {
         state_to_json_(state, md, &mut p)
     }
 
+    // TODO: Probably use i64 and f64 instead in SPValue
+    use std::convert::TryFrom;
+    fn json_to_sp_value(value: &serde_json::Value) -> SPValue {
+        match value {
+            serde_json::Value::Bool(x) => SPValue::Bool(*x),
+            serde_json::Value::Number(x) if x.is_u64()  => SPValue::Int32(i32::try_from(x.as_u64().unwrap()).unwrap()), // will panic if overflow
+            serde_json::Value::Number(x) if x.is_i64()  => SPValue::Int32(i32::try_from(x.as_i64().unwrap()).unwrap()), // will panic if overflow
+            serde_json::Value::Number(x) if x.is_f64()  => SPValue::Float32(x.as_f64().unwrap() as f32), // will NOT panic if overflow, so may generate wrong result
+            serde_json::Value::String(x) => SPValue::String(x.clone()),
+            serde_json::Value::Array(xs) => {
+                let res: Vec<SPValue> = xs.iter().map(|x| json_to_sp_value(x)).collect();
+                let t = if res.is_empty() {SPValueType::Unknown} else {res.first().unwrap().has_type()};
+                SPValue::Array(t, res)
+            },
+            _ => {
+                println!("Hmm, no ros to SPValue for {:?}", value);
+                SPValue::Unknown
+            },
+        }
+    }
+
+    fn ros_state_to_sp_state(ros_state: &[r2r::sp_messages::msg::State]) -> SPState {
+        let xs: Vec<(SPPath, SPValue)> = ros_state.iter().flat_map(|s| {
+            let s: &r2r::sp_messages::msg::State = s;
+            let v: Option<serde_json::Value> = serde_json::from_str(&s.value_as_json).ok();
+            v.map(|x| (SPPath::from_string(&s.path), json_to_sp_value(&x)))
+        }).collect();
+        SPState::new_from_values(&xs)
+    }
+
     pub fn start_node() -> Result<RosNode, Error> {
         let ctx = r2r::Context::create()?;
         let node = r2r::Node::create(ctx, "spnode", "")?;
@@ -230,7 +260,7 @@ mod ros {
                 } else {
                     panic!("must have a message under a topic");
                 }
-            }
+            } 
         }
 
         let (tx_out, rx_out) = channel::unbounded();
@@ -254,34 +284,33 @@ mod ros {
     pub fn roscomm_setup_misc(
         node: &mut RosNode, tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
     ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
-        let runner_cmd_topic = "sp/runner/command";
+        let runner_cmd_topic = "sp/runner/command";  
+
+        let _x = r2r::sp_messages::msg::ForcedGoal {
+            level: "0".to_string(),
+            goal: "".to_string(),
+        };
+
 
         let cb = {
             let tx_in = tx_in.clone();
             move |msg: r2r::sp_messages::msg::RunnerCommand| {
-                let oat = msg
-                    .override_ability_transitions
-                    .iter()
-                    .map(|s| {
-                        let path = format!("G:{}", s);
-                        SPPath::from_string(&path)
-                    })
-                    .collect();
-                let oot = msg
-                    .override_operation_transitions
-                    .iter()
-                    .map(|s| {
-                        let path = format!("G:{}", s);
-                        SPPath::from_string(&path)
-                    })
-                    .collect();
-                let rc = RunnerCommand {
-                    pause: msg.pause,
-                    override_ability_transitions: oat,
-                    override_operation_transitions: oot,
+                let possible_cmd = if msg.set_state {
+                    let state = ros_state_to_sp_state(&msg.state);
+                    Some(RunnerCommand::SetState(state))
+                } else if msg.force_state {
+                    let state = ros_state_to_sp_state(&msg.state);
+                    Some(RunnerCommand::ForceState(state))
+                } else if msg.set_mode{
+                    Some(RunnerCommand::Mode(msg.mode))
+                } else {
+                    // TODO: handle goal
+                    None
                 };
-                println!("SENDING TO RUNNER {:?}", rc);
-                tx_in.send(rc).unwrap();
+
+                if let Some(cmd) = possible_cmd {
+                    tx_in.send(cmd).expect("Can not send runner commmands. Threads are dead?");
+                }
             }
         };
         println!("setting up subscription to topic: {}", runner_cmd_topic);
@@ -308,18 +337,10 @@ mod ros {
                         }
                     })
                     .collect(),
-                ability_plan: info.ability_plan.iter().map(|p| p.to_string()).collect(),
-                enabled_ability_transitions: info
-                    .enabled_ability_transitions
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect(),
-                operation_plan: info.operation_plan.iter().map(|p| p.to_string()).collect(),
-                enabled_operation_transitions: info
-                    .enabled_operation_transitions
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect(),
+                plans: vec![],
+                mode: "".to_string(),
+                forced_state: vec![],
+                forced_goal: vec![],
             };
             rp.publish(&ri).unwrap();
         };

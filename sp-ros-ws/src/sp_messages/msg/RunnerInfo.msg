@@ -1,5 +1,5 @@
 State[] state
-string[] ability_plan
-string[] enabled_ability_transitions
-string[] operation_plan
-string[] enabled_operation_transitions
+PlanningInfo[] plans
+string mode
+State[] forced_state
+ForcedGoal[] forced_goal

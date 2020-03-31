@@ -1,22 +1,14 @@
 import sys
-import time
-import ast
-import csv
-import os
-import math
 import threading
-import json
-from itertools import *
+# from itertools import *
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
-from sp_messages.msg import RunnerInfo
-from sp_messages.msg import RunnerCommand
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5 import (QtWidgets, QtCore, QtGui)
+from PyQt5.QtCore import (Qt)
+
+from sp_messages.msg import (RunnerCommand, RunnerInfo)
 
 
 class Callbacks():
@@ -26,8 +18,6 @@ class Callbacks():
     trigger_node = None
     trigger_ui = None
 
-    def __init__(self):
-        super(Callbacks, self).__init__()
 
 
 class Ros2Node(Node, Callbacks):
@@ -63,22 +53,22 @@ class Ros2Node(Node, Callbacks):
         #self.state_publisher.publish(Callbacks.cmd)
 
 
-class Window(QWidget, Callbacks):
-    triggerSignal = pyqtSignal()
+class Window(QtWidgets.QWidget, Callbacks):
+    triggerSignal = QtCore.pyqtSignal()
 
     def __init__(self):
         Callbacks.__init__(self)
-        QWidget.__init__(self, None)
+        QtWidgets.QWidget.__init__(self, None)
         #self.count = 0 
 
-        self.state_model = QStandardItemModel(self)
-        self.state_model_proxy = QSortFilterProxyModel(self)
+        self.state_model = QtGui.QStandardItemModel(self)
+        self.state_model_proxy = QtCore.QSortFilterProxyModel(self)
 
         Callbacks.trigger_ui = self.trigger
         self.triggerSignal.connect(self.update_state_variables)
         self.state_map = {}
 
-        grid = QGridLayout(self)
+        grid = QtWidgets.QGridLayout(self)
         grid.addWidget(self.info_widget())
         grid.addWidget(self.tree_widget())
         self.setLayout(grid)
@@ -112,7 +102,7 @@ class Window(QWidget, Callbacks):
 
     def insert_parent(self, parent, name):
         if name not in self.state_map:
-            item = QStandardItem()
+            item = QtGui.QStandardItem()
             n = self.get_leaf_name(name)
             item.setData(n, Qt.DisplayRole)
             item.setData(name, Qt.ToolTipRole)
@@ -121,11 +111,11 @@ class Window(QWidget, Callbacks):
 
     def insert_variable(self, parent, name, value):
         if name not in self.state_map:
-            item = QStandardItem()
+            item = QtGui.QStandardItem()
             n = self.get_leaf_name(name)
             item.setData(n, Qt.DisplayRole)
             item.setData(name, Qt.ToolTipRole)
-            value = QStandardItem()
+            value = QtGui.QStandardItem()
             value.setData(value, Qt.DisplayRole)
             value.setData(value, Qt.ToolTipRole)
 
@@ -164,10 +154,14 @@ class Window(QWidget, Callbacks):
                         value.setData(text, Qt.DisplayRole)
                         value.setData(text, Qt.ToolTipRole)
                         
-            self.ability_plan.setText(str(Callbacks.info.ability_plan))
-            self.enabled_ability_transitions.setText(str(Callbacks.info.enabled_ability_transitions))
-            self.operation_plan.setText(str(Callbacks.info.operation_plan))
-            self.enabled_operation_transitions.setText(str(Callbacks.info.enabled_operation_transitions))
+            self.mode.setText(str(Callbacks.info.mode))
+
+
+            print("")
+            print("MSG:")
+            print(Callbacks.info)
+            print("END")
+            print("")
 
             #self.count += 1
 
@@ -179,25 +173,20 @@ class Window(QWidget, Callbacks):
         self.triggerSignal.emit()
 
     def info_widget(self):
-        info_l = QGridLayout(self)
+        info_l = QtWidgets.QGridLayout(self)
 
-        self.ability_plan = QLabel("no info yet")
-        info_l.addWidget(QLabel("ability_plan: "), 1, 0)
-        info_l.addWidget(self.ability_plan, 1, 1)
+        #pub state: Vec<sp_messages::msg::State>,
+        #   pub plans: Vec<sp_messages::msg::PlanningInfo>,
+        #pub mode: std::string::String,
+        #pub forced_state: Vec<sp_messages::msg::State>,
+        #pub forced_goal: Vec<sp_messages::msg::ForcedGoal>,
         
-        self.enabled_ability_transitions = QLabel("no info yet")
-        info_l.addWidget(QLabel("enabled_ability_transitions: "), 2, 0)
-        info_l.addWidget(self.enabled_ability_transitions, 2, 1)
 
-        self.operation_plan = QLabel("no info yet")
-        info_l.addWidget(QLabel("operation_plan: "), 3, 0)
-        info_l.addWidget(self.operation_plan, 3, 1)
+        self.mode = QtWidgets.QLabel("no info yet")
+        info_l.addWidget(QtWidgets.QLabel("runner mode: "), 1, 0)
+        info_l.addWidget(self.mode, 1, 1)
 
-        self.enabled_operation_transitions = QLabel("no info yet")
-        info_l.addWidget(QLabel("enabled_operation_transitions: "), 4, 0)
-        info_l.addWidget(self.enabled_operation_transitions, 4, 1)
-
-        box = QGroupBox("Runner info")
+        box = QtWidgets.QGroupBox("Runner info")
         box.setLayout(info_l)
         return box
 
@@ -207,37 +196,37 @@ class Window(QWidget, Callbacks):
         self.state_model_proxy.setFilterRole(Qt.ToolTipRole)
         self.state_model_proxy.setSourceModel(self.state_model)
 
-        tree_l = QGridLayout(self)
-        filter = QLineEdit("")
+        tree_l = QtWidgets.QGridLayout(self)
+        filter_box = QtWidgets.QLineEdit("")
         def filter_changed(text):
             regex = "^.*{}.*".format(text)
-            self.state_model_proxy.setFilterRegExp(QRegExp(regex, Qt.CaseInsensitive))
+            self.state_model_proxy.setFilterRegExp(QtCore.QRegExp(regex, Qt.CaseInsensitive))
             self.tree.expandAll()
 
-        filter.textChanged.connect(filter_changed)
-        tree_l.addWidget(filter, 1, 0)
+        filter_box.textChanged.connect(filter_changed)
+        tree_l.addWidget(filter_box, 1, 0)
 
-        expand_button = QPushButton("expand")
+        expand_button = QtWidgets.QPushButton("expand")
         def expand_button_clicked():
             print("expand")
             self.tree.expandAll()
         expand_button.clicked.connect(expand_button_clicked)
         tree_l.addWidget(expand_button, 1, 1)
-        collaps_button = QPushButton("collaps")
+        collaps_button = QtWidgets.QPushButton("collaps")
         def collaps_button_clicked():
             print("collapse")
             self.tree.collapseAll()
         collaps_button.clicked.connect(collaps_button_clicked)
         tree_l.addWidget(collaps_button, 1, 2)
 
-        self.tree = QTreeView(self)
+        self.tree = QtWidgets.QTreeView(self)
         
         self.tree.header().setDefaultSectionSize(300)
         self.tree.setModel(self.state_model_proxy)
         self.tree.setSortingEnabled(True)
         tree_l.addWidget(self.tree, 2, 0, 1, 3)
 
-        box = QGroupBox("State")
+        box = QtWidgets.QGroupBox("State")
         box.setLayout(tree_l)
         return box
 
@@ -257,7 +246,7 @@ def main(args=None):
 
     # Window has to be in the main thread
     def launch_window():
-        app = QApplication(sys.argv)
+        app = QtWidgets.QApplication(sys.argv)
         clock = Window()
         clock.show()
         sys.exit(app.exec_())

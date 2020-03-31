@@ -26,6 +26,13 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(sp_messages
   "msg/State.msg"
+  "msg/ForcedGoal.msg"
+  "msg/VariableInfo.msg"
+  "msg/TransitionInfo.msg"
+  "msg/ResourceInfo.msg"
+  "msg/PlanningInfo.msg"
+  "msg/AbilityInfo.msg"
+  "msg/ModelInfo.msg"
   "msg/RunnerInfo.msg"
   "msg/RunnerCommand.msg"
   "msg/NodeCmd.msg"

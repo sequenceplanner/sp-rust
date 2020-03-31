@@ -1,3 +1,7 @@
-bool pause
-string[] override_ability_transitions
-string[] override_operation_transitions
+bool set_mode
+string mode
+bool set_state
+bool force_state
+State[] state
+bool force_goal
+ForcedGoal goal
