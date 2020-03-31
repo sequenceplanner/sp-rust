@@ -19,6 +19,9 @@ pub struct RunnerModel {
     // temporary!
     pub model: TransitionSystemModel,
     pub op_model: TransitionSystemModel,
+
+    // temporary!
+    pub op_states: Vec<Variable>
 }
 
 impl RunnerModel {
