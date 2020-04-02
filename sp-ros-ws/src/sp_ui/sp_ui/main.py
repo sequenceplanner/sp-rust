@@ -1,5 +1,7 @@
 import sys
 import threading
+import json
+import ast
 # from itertools import *
 
 import rclpy
@@ -8,7 +10,7 @@ from rclpy.node import Node
 from PyQt5 import (QtWidgets, QtCore, QtGui)
 from PyQt5.QtCore import (Qt)
 
-from sp_messages.msg import (RunnerCommand, RunnerInfo)
+from sp_messages.msg import (RunnerCommand, RunnerInfo, State)
 
 
 class Callbacks():
@@ -42,7 +44,7 @@ class Ros2Node(Node, Callbacks):
     
     def trigger(self):
         print("trigger node")
-        #self.state_publisher.publish(Callbacks.cmd)
+        self.state_publisher.publish(Callbacks.cmd)
     
     def sp_cmd_callback(self, data):
         Callbacks.info = data
@@ -115,11 +117,14 @@ class Window(QtWidgets.QWidget, Callbacks):
             n = self.get_leaf_name(name)
             item.setData(n, Qt.DisplayRole)
             item.setData(name, Qt.ToolTipRole)
-            value = QtGui.QStandardItem()
-            value.setData(value, Qt.DisplayRole)
-            value.setData(value, Qt.ToolTipRole)
+            value_item = QtGui.QStandardItem()
+            value_item.setData(value, Qt.DisplayRole)
 
-            parent.appendRow([item, value])
+            set_item = QtGui.QStandardItem()
+            set_item.setData("", Qt.EditRole)
+            item.setData(name, Qt.ToolTipRole)
+
+            parent.appendRow([item, value_item, set_item])
             self.state_map[name] = item.index()
                     
 
@@ -136,32 +141,24 @@ class Window(QtWidgets.QWidget, Callbacks):
                         self.insert_parent(self.state_model.invisibleRootItem(), p)
                     else:
                         p_of_p_item = self.state_model.itemFromIndex(self.state_map[p_of_p])
-                        self.insert_parent(p_of_p_item,p)
+                        self.insert_parent(p_of_p_item, p)
                     
 
                 # add variable
                 (parent, name) = path[-1]
+                value = json.loads(v.value_as_json)
                 if name not in self.state_map:
-                    self.insert_variable(self.get_parent(parent), name, v.value_as_json)
+                    self.insert_variable(self.get_parent(parent), name, value)
                 else:
                     index = self.state_map[name]
                     value_index = index.siblingAtColumn(1)
+                    value_item = self.state_model.itemFromIndex(value_index)
 
-                    value = self.state_model.itemFromIndex(value_index)
-                    text = v.value_as_json #+ "_" + str(self.count)
-
-                    if value.data(Qt.DisplayRole) != text:
-                        value.setData(text, Qt.DisplayRole)
-                        value.setData(text, Qt.ToolTipRole)
+                    if value_item.data(Qt.DisplayRole) != value:
+                        value_item.setData(value, Qt.DisplayRole)
+                        value_item.setData(value, Qt.ToolTipRole)
                         
             self.mode.setText(str(Callbacks.info.mode))
-
-
-            print("")
-            print("MSG:")
-            print(Callbacks.info)
-            print("END")
-            print("")
 
             #self.count += 1
 
@@ -191,7 +188,7 @@ class Window(QtWidgets.QWidget, Callbacks):
         return box
 
     def tree_widget(self):
-        self.state_model.setHorizontalHeaderLabels(['path', 'value'])
+        self.state_model.setHorizontalHeaderLabels(['path', 'value', 'set'])
         self.state_model_proxy.setRecursiveFilteringEnabled(True)
         self.state_model_proxy.setFilterRole(Qt.ToolTipRole)
         self.state_model_proxy.setSourceModel(self.state_model)
@@ -210,21 +207,56 @@ class Window(QtWidgets.QWidget, Callbacks):
         def expand_button_clicked():
             print("expand")
             self.tree.expandAll()
+
         expand_button.clicked.connect(expand_button_clicked)
         tree_l.addWidget(expand_button, 1, 1)
+
         collaps_button = QtWidgets.QPushButton("collaps")
         def collaps_button_clicked():
             print("collapse")
             self.tree.collapseAll()
+
         collaps_button.clicked.connect(collaps_button_clicked)
         tree_l.addWidget(collaps_button, 1, 2)
 
+        set_state_button = QtWidgets.QPushButton("set_state")
+        def set_state_button_clicked():
+            print("set_state")
+            set_it = []
+            for path, index in self.state_map.items():
+                set_index = index.siblingAtColumn(2)
+                set_item = self.state_model.itemFromIndex(set_index)
+                if set_item:
+                    set_value = set_item.data(Qt.EditRole)
+                    if set_value == "true" or set_value == "t" or set_value == "T":
+                        set_value = True
+                    if set_value == "false" or set_value == "f" or set_value == "F":
+                        set_value = False
+                    if set_value:
+                        try:
+                            val = ast.literal_eval(set_value)
+                            set_it.append(State(path = path, value_as_json = json.dumps(val)))
+                        except ValueError:
+                            set_it.append(State(path = path, value_as_json = json.dumps(set_value)))
+                    
+                        set_item.setData("", Qt.EditRole)
+            
+            print("SET STATE:")
+            print(set_it)
+            if set_it:
+                Callbacks.cmd.state = set_it
+                Callbacks.cmd.set_state = True
+                Callbacks.trigger_node()
+            
+        set_state_button.clicked.connect(set_state_button_clicked)
+        tree_l.addWidget(set_state_button, 1, 3)
+
         self.tree = QtWidgets.QTreeView(self)
         
-        self.tree.header().setDefaultSectionSize(300)
         self.tree.setModel(self.state_model_proxy)
+        self.tree.setColumnWidth(0, 200)
         self.tree.setSortingEnabled(True)
-        tree_l.addWidget(self.tree, 2, 0, 1, 3)
+        tree_l.addWidget(self.tree, 2, 0, 1, 4)
 
         box = QtWidgets.QGroupBox("State")
         box.setLayout(tree_l)

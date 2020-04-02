@@ -28,6 +28,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
         comm.rx_node.clone(),
         comm.tx_node_cmd.clone(),
         tx_runner.clone(),
+        comm.rx_commands.clone()
     );
     runner(
         &model,
@@ -54,6 +55,7 @@ fn runner(
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let mut prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
+        let timer = Instant::now();
 
         loop {
             let input = rx_input.recv();
@@ -78,7 +80,7 @@ fn runner(
                         runner.input(SPRunnerInput::Tick);
                         ticked = true;
                     }
-                    SPRunnerInput::NewPlan(idx, plan) => {
+                    SPRunnerInput::NewPlan(idx, _) => {
 
                         // temporary hack
                         if idx == 1 {
@@ -88,16 +90,19 @@ fn runner(
                             }
                         }
 
-                        runner.input(SPRunnerInput::NewPlan(idx,plan));
+                        runner.input(msg.clone());
                         runner.input(SPRunnerInput::Tick);
                     }
-                    SPRunnerInput::Settings => {} // TODO},
+                    SPRunnerInput::Settings(_) => {
+                        runner.input(msg);
+                        state_has_probably_changed = true;
+                    } // TODO},
                 }
             } else {
                 println!("The runner channel broke? - {:?}", input);
                 break;
             }
-            //println!("tick: {} ms", timer.elapsed().as_millis());
+            println!("tick: {} ms", timer.elapsed().as_millis());
 
             if !runner.last_fired_transitions.is_empty() {
                 println!("fired:");
@@ -112,14 +117,6 @@ fn runner(
                 continue;
             }
 
-            println!("The State:\n{}", runner.state());
-
-            let disabled = runner.disabled_paths();
-            if !disabled.is_empty() {
-                println!("still waiting... do nothing");
-                continue;
-            }
-
             tx_state_out
                 .send(runner.state().clone())
                 .expect("tx_state:out");
@@ -131,6 +128,18 @@ fn runner(
             };
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
+
+            //println!("The State:\n{}", runner.state());
+
+
+
+            let disabled = runner.disabled_paths();
+            if !disabled.is_empty() {
+                println!("still waiting... do nothing");
+                continue;
+            }
+
+            
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -224,7 +233,7 @@ fn runner(
 
 struct RosCommSetup {
     rx_mess: Receiver<sp_ros::RosMessage>,
-    _rx_commands: Receiver<RunnerCommand>,
+    rx_commands: Receiver<RunnerCommand>,
     rx_node: Receiver<sp_ros::NodeMode>,
     tx_state_out: Sender<SPState>,
     tx_runner_info: Sender<RunnerInfo>,
@@ -253,7 +262,7 @@ fn set_up_ros_comm(model: &Model) -> Result<(sp_ros::RosNode, RosCommSetup), Err
         node,
         RosCommSetup {
             rx_mess,
-            _rx_commands: rx_commands,
+            rx_commands: rx_commands,
             rx_node,
             tx_state_out,
             tx_runner_info,
@@ -419,8 +428,13 @@ struct NodeState {
 
 use sp_ros::{NodeCmd, NodeMode};
 fn node_handler(
-    freq: Duration, deadline: Duration, model: &Model, rx_node: Receiver<NodeMode>,
-    tx_node: Sender<NodeCmd>, tx_runner: Sender<SPRunnerInput>,
+    freq: Duration, 
+    deadline: Duration, 
+    model: &Model, 
+    rx_node: Receiver<NodeMode>,
+    tx_node: Sender<NodeCmd>, 
+    tx_runner: Sender<SPRunnerInput>,
+    rx_commands: Receiver<RunnerCommand>
 ) {
     let mut nodes: HashMap<SPPath, NodeState> = model
         .resources()
@@ -443,7 +457,9 @@ fn node_handler(
     let tick = channel::tick(freq);
 
     fn mode_from_node(
-        mode: Result<NodeMode, channel::RecvError>, nodes: &mut HashMap<SPPath, NodeState>,
+        mode: Result<NodeMode, 
+        channel::RecvError>, 
+        nodes: &mut HashMap<SPPath, NodeState>,
         tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         match mode {
@@ -477,8 +493,11 @@ fn node_handler(
         }
     }
     fn tick_node(
-        time: Result<Instant, channel::RecvError>, nodes: &mut HashMap<SPPath, NodeState>,
-        deadline: Duration, tx_node: Sender<NodeCmd>, tx_runner: Sender<SPRunnerInput>,
+        time: Result<Instant, channel::RecvError>, 
+        nodes: &mut HashMap<SPPath, NodeState>,
+        deadline: Duration, 
+        tx_node: Sender<NodeCmd>, 
+        tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         match time {
             Ok(time) => {
@@ -517,11 +536,25 @@ fn node_handler(
         }
     }
 
+    fn cmd_from_node(
+        cmd: Result<RunnerCommand, channel::RecvError>,  
+        tx_runner: Sender<SPRunnerInput>,
+    ) -> bool {
+        if let Ok(cmd) = cmd {
+            // TODO: Handle bad commands here and reply to commander if needed. Probably use service?
+            tx_runner.send(SPRunnerInput::Settings(cmd)).expect("cmd from node could not talk to the runner");
+            true    
+        } else {
+            true
+        }
+    }
+
     thread::spawn(move || loop {
         let res;
         crossbeam::select! {
             recv(rx_node) -> mode => res = mode_from_node(mode, &mut nodes, tx_runner.clone()),
             recv(tick) -> tick_time => res = tick_node(tick_time, &mut nodes, deadline, tx_node.clone(), tx_runner.clone()),
+            recv(rx_commands) -> cmd => res = cmd_from_node(cmd, tx_runner.clone()),
         };
         if !res {
             break;
