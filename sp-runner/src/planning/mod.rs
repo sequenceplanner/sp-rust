@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
+use sp_smt::*;
 
 pub fn plan(
     model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
@@ -23,22 +24,43 @@ pub fn plan(
         .collect();
 
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
-    // let result2 = SatPlanner::plan(model, &goals, state, max_steps);
+    let result2 = Z3Planner::plan(model, &goals, state, max_steps);
+    // let result3 = SatPlanner::plan(model, &goals, state, max_steps);
 
-    // if result.plan_found != result2.plan_found {
-    //     println!("result1 {}", result.plan_found);
-    //     println!("result2 {}", result2.plan_found);
-    // }
-    // assert_eq!(result.plan_found, result2.plan_found);
-    // assert_eq!(result.plan_length, result2.plan_length);
 
-    if result.plan_found {
-        println!("we have a plan of length {}", result.plan_length);
+    for f in &result.trace {
+        println!("==========================");
+        println!("{}", f.transition);
+        println!("==========================");
+        println!("{}", f.state);
+
+    }
+
+    for f in &result2.trace {
+        println!("==========================");
+        println!("{}", f.transition);
+        println!("==========================");
+        println!("{}", f.state);
+
+    }
+
+    if result.plan_found != result2.plan_found {
+        // println!("result1 {}", result.plan_found);
+        println!("result2 {}", result2.plan_found);
+        // println!("result3 {}", result2.plan_found);
+    }
+    assert_eq!(result.plan_found, result2.plan_found);
+
+    if result2.plan_found {
+        assert_eq!(result.plan_length, result2.plan_length);
+        println!("we have a plan of length {}", result2.plan_length);
         println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+        println!("z3 time: {}ms", result2.time_to_solve.as_millis());
+        // println!("cryptosat time: {}ms", result3.time_to_solve.as_millis());
         // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
     }
 
-    result
+    result2
 }
 
 /// Return a plan that blocks all deliberation transitions.
@@ -189,3 +211,6 @@ pub use nuxmv::*;
 
 mod sat_planner;
 pub use sat_planner::*;
+
+mod z3_planner;
+pub use z3_planner::*;
