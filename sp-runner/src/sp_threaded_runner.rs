@@ -102,7 +102,7 @@ fn runner(
                 println!("The runner channel broke? - {:?}", input);
                 break;
             }
-            println!("tick: {} ms", timer.elapsed().as_millis());
+            //println!("tick: {} ms", timer.elapsed().as_millis());
 
             if !runner.last_fired_transitions.is_empty() {
                 println!("fired:");
