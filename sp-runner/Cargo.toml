@@ -10,12 +10,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 crossbeam = "0.7"
 sp-domain = { path = "../sp-domain/" }
-sp-smt = { path = "../sp-smt/" }
 sp-runner-api = { path = "../sp-runner-api/" }
 sp-ros = { path = "../sp-ros/", features = ["ros"] }
 failure = "0.1.6"
 failure_derive = "0.1.6"
-#lazy_static = "1.4.0"
 chrono = { version = "0.4.9", features = ["serde"] }
 guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", tag = "for_sp_0.1.1" }
 indoc = "0.3"
