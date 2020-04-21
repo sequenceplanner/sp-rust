@@ -31,7 +31,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'robot_gui = robot_gui.robot_gui:main',
+        	'gui = robot_gui.robot_gui:main',
         ],
     },
 )

@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import setup
 
-package_name = 'robot_pose_handler'
+package_name = 'sp_ui'
 
 setup(
     name=package_name,
@@ -11,15 +11,14 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-	(os.path.join('share', package_name), glob('launch/*.launch.py')),
+	    (os.path.join('share', package_name), glob('launch/*.launch.py')),
         ('share/' + package_name, ['package.xml']),
-	('share/' + package_name + '/poses/', ['poses/joint_poses.csv']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    author='endree',
+    author='kristofer',
     author_email='',
-    maintainer='endree',
+    maintainer='kristofer',
     maintainer_email='',
     keywords=['ROS2'],
     classifiers=[
@@ -27,12 +26,12 @@ setup(
         'Programming Language :: Python',
         'Topic :: Software Development',
     ],
-    description='',
+    description='An user interface to control and monitor SP',
     license='',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'robot_pose_handler = robot_pose_handler.robot_pose_handler:main',
+        	'sp_ui = sp_ui.main:main',
         ],
     },
 )

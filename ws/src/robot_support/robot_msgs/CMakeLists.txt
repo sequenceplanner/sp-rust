@@ -33,10 +33,6 @@ rosidl_generate_interfaces(robot_msgs
 # internal messages
   "msg/GuiToRobot.msg"
   "msg/RobotToGui.msg"
-  "msg/GuiToPoseHandler.msg"
-  "msg/PoseHandlerToGui.msg"
-  "msg/PoseHandlerCmd.msg"
-  "msg/PoseHandlerResponse.msg"
   DEPENDENCIES builtin_interfaces
 )
 

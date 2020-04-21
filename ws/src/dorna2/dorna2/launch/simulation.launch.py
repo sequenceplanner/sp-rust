@@ -26,12 +26,13 @@ def generate_launch_description():
 
      simulation_parameters = {
           "saved_poses_file": os.path.join(dorna2_share, 'launch', 'r1_joint_poses.csv'),
-          "joint_names": ["dorna_axis_1_joint",
-                    "dorna_axis_2_joint",
-                    "dorna_axis_3_joint",
-                    "dorna_axis_4_joint",
-                    "dorna_axis_5_joint",
-                    "nonexistent"]
+          "joint_names": [
+               "dorna_axis_1_joint",
+               "dorna_axis_2_joint",
+               "dorna_axis_3_joint",
+               "dorna_axis_4_joint",
+               "dorna_axis_5_joint",
+          ]
      }
      sim_node = launch_ros.actions.Node(package='robot_simulator',
                      node_executable='robot_simulator',
@@ -40,9 +41,32 @@ def generate_launch_description():
                      parameters=[simulation_parameters]
                      )
 
+     gui_parameters = {
+          "saved_poses_file": os.path.join(dorna2_share, 'launch', 'r1_joint_poses.csv'),
+          "joint_names": [
+               "dorna_axis_1_joint",
+               "dorna_axis_2_joint",
+               "dorna_axis_3_joint",
+               "dorna_axis_4_joint",
+               "dorna_axis_5_joint",
+          ],
+          "joint_limits": [
+               175, -175,
+               160, -175,
+               130, -130,
+               180, -180,
+               180, -180,
+          ]
+     }
+     gui_node = launch_ros.actions.Node(package='robot_gui',
+                     node_executable='gui',
+                     node_namespace='dorna/r1',
+                     output='screen',
+                     parameters=[gui_parameters]
+                     )
 
 
-     return launch.LaunchDescription([rsp_node, sim_node])
+     return launch.LaunchDescription([rsp_node, sim_node, gui_node])
           
           # Node(package='ros2_dorna_gui', node_executable='ros2_dorna_gui',
           #      output='screen', condition = IfCondition(LaunchConfiguration("gui"))),
