@@ -153,7 +153,6 @@ class Window(QWidget, CommVariables):
             self.loaded = True
             self.load_window()
 
-        print("hej from trigger emit")
         for i in range(len(CommVariables.from_robot.position)):
             p = CommVariables.from_robot.position[i]
             self.labels[i]['act_rad'].setText(str(round(p, 5)))
@@ -167,41 +166,54 @@ class Window(QWidget, CommVariables):
 
         self.labels = self.make_label_boxes()
         self.sliders = self.make_sliders(self.labels)
-
+        self.set_boxes = self.make_set_boxes(self.sliders)
+        self.gui_control_box = self.make_gui_control_box(self.labels, self.sliders, self.set_boxes)
+        self.estop_box = self.make_estop_box(self.sliders)
 
 
          # populate the grid with widgets:
-        for i in range(len(self.sliders)):
-            grid.addWidget(self.sliders[i]['box'], i, 0)
+        for i, s in enumerate(self.sliders):
+            grid.addWidget(s['box'], i, 0)
 
-        for i in range(len(self.labels)):
-            l = self.labels[i]
+        for i, l in enumerate(self.labels):
             grid.addWidget(l['box2'], i, 1)
             grid.addWidget(l['box1'], i, 2)
             grid.addWidget(l['box3'], i, 3)
 
+        for i, sb in enumerate(self.set_boxes):
+            grid.addWidget(sb['box'], i, 4)
 
-        # for line_box in self.line_boxes:
-        #     grid.addWidget(line_box, self.line_boxes.index(line_box), 4)
 
         # grid.addWidget(self.speed_box, 6, 0, 1, 4)
         # grid.addWidget(self.pose_saver_box, 7, 0, 1, 4)
         # grid.addWidget(self.combo_box_box, 8, 0, 1, 4)
         # grid.addWidget(self.current_pose_box, 9, 0, 1, 2)
-        # grid.addWidget(self.stop_box, 9, 2, 1, 1)
-        # grid.addWidget(self.radio_1_box, 9, 3, 1, 1)
+        grid.addWidget(self.estop_box, 9, 2, 1, 1)
+        grid.addWidget(self.gui_control_box, 9, 3, 1, 1)
 
+        self.trigger_enabled(self.labels, self.sliders, self.set_boxes)
         
 
         self.setLayout(grid)
         self.setWindowTitle(CommVariables.node_name)
-        self.resize(550, 250)
+        self.resize(600, 250)
+
+    def trigger_enabled(self, lables, sliders, set_box):
+        for l in lables:
+            l['ref_rad'].setEnabled(CommVariables.to_robot.gui_control_enabled)
+            l['ref_deg'].setEnabled(CommVariables.to_robot.gui_control_enabled)
+
+        for s in sliders:
+            s['slider'].setEnabled(CommVariables.to_robot.gui_control_enabled)
+
+        for x in set_box:
+            x['button'].setEnabled(CommVariables.to_robot.gui_control_enabled)
 
     def make_label_boxes(self):
         result = []
         for name in CommVariables.joint_names:
             label_box_1 = QGroupBox("ref_rad")
-            ref_rad = QLabel("value")
+            ref_rad = QLabel('0.0')
             label_box_1_layout = QVBoxLayout()
             label_box_1_layout.addWidget(ref_rad)
             label_box_1.setLayout(label_box_1_layout)
@@ -209,7 +221,7 @@ class Window(QWidget, CommVariables):
             label_box_1.setMaximumWidth(90)
 
             label_box_2 = QGroupBox("ref_deg")
-            ref_deg = QLabel("value")
+            ref_deg = QLabel('0')
             label_box_2_layout = QVBoxLayout()
             label_box_2_layout.addWidget(ref_deg)
             label_box_2.setLayout(label_box_2_layout)
@@ -217,7 +229,7 @@ class Window(QWidget, CommVariables):
             label_box_2.setMaximumWidth(90)
 
             label_box_3 = QGroupBox("act_rad")
-            act_rad = QLabel("value")
+            act_rad = QLabel('0.0')
             label_box_3_layout = QVBoxLayout()
             label_box_3_layout.addWidget(act_rad)
             label_box_3.setLayout(label_box_3_layout)
@@ -250,8 +262,8 @@ class Window(QWidget, CommVariables):
             slider = QSlider(Qt.Horizontal)
             slider_box_layout = QVBoxLayout()
             slider.setFocusPolicy(Qt.StrongFocus)
-            slider.setTickPosition(QSlider.TicksBothSides)
-            slider.setTickInterval(45)
+            slider.setTickPosition(QSlider.TicksBelow)
+            slider.setTickInterval(5000)
             slider.setMinimum(min_limit)
             slider.setMaximum(max_limit)
             slider.setSingleStep(1)
@@ -259,7 +271,6 @@ class Window(QWidget, CommVariables):
             slider_box_layout.addWidget(slider)
             slider_box.setLayout(slider_box_layout)
             slider.setValue(0.0)
-            slider.setEnabled(True)
 
             def slider_change(value, joint_no):
                 l = labels[joint_no]
@@ -270,54 +281,61 @@ class Window(QWidget, CommVariables):
 
             slider.valueChanged.connect(lambda value=slider.value(), joint_no=i: slider_change(value, joint_no))
             result.append({"box": slider_box, "slider": slider})
-        
+
         return result
 
+    def make_set_boxes(self, sliders):
+        result = []
+        for i in range(CommVariables.no_of_joints):
+            line_box = QGroupBox("set_ref_deg")
+            line = QLineEdit()
+            line.setMinimumWidth(50)
+            button = QPushButton('set')
+            line_box_layout = QHBoxLayout()
+            line_box_layout.addWidget(line)
+            line_box_layout.addWidget(button)
+            line_box.setLayout(line_box_layout)
 
-class QDoubleSlider(QSlider):
+            def clicked(i, set_box):
+                sliders[i]['slider'].setValue(int(set_box.text()))
+            button.clicked.connect(lambda i=i, set_box=line: clicked(i, set_box))
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+            result.append({"box": line_box, "button": button, "edit": line})
+        return result
 
-        self.decimals = 5
-        self._max_int = 10 ** self.decimals
+    def make_gui_control_box(self, lables, sliders, set_boxes):
+        radio_box = QGroupBox("gui_control")
+        radio_box_layout = QHBoxLayout()
+        radio = QRadioButton("enabled")
+        radio.setChecked(CommVariables.to_robot.gui_control_enabled)
+        radio_box_layout.addWidget(radio)
+        radio_box.setLayout(radio_box_layout)
 
-        super().setMinimum(0)
-        super().setMaximum(self._max_int)
+        def toggle():
+            CommVariables.to_robot.gui_control_enabled = radio.isChecked()
+            self.trigger_enabled(lables, sliders, set_boxes)
+        radio.toggled.connect(toggle)
+        return radio_box
 
-        self._min_value = 0.0
-        self._max_value = 1.0
+    def make_estop_box(self, sliders):
+        stop_box = QGroupBox("emergency_stop")
+        stop_box_layout = QHBoxLayout()
+        stop_button = QPushButton("STOP")
+        stop_button.setMaximumWidth(80)
+        stop_box_layout.addWidget(stop_button)
+        stop_box.setLayout(stop_box_layout)
 
-    @property
-    def _value_range(self):
-        return self._max_value - self._min_value
+        def stop_button_clicked():
+            print('EMERGENCY STOP')
+            CommVariables.to_robot.gui_control_enabled = True
+            for i, j in enumerate(CommVariables.from_robot.position):
+                CommVariables.to_robot.gui_joint_control[i] = j
 
-    def value(self):
-        return float(super().value()) / self._max_int * self._value_range + self._min_value
+            for i, s in enumerate(sliders):
+                s['slider'].setValue(180*CommVariables.to_robot.gui_joint_control[i]/math.pi)
 
-    def setValue(self, value):
-        super().setValue(int((value - self._min_value) / self._value_range * self._max_int))
-
-    def setMinimum(self, value):
-        if value > self._max_value:
-            raise ValueError("Minimum limit cannot be higher than maximum")
-
-        self._min_value = value
-        self.setValue(self.value())
-
-    def setMaximum(self, value):
-        if value < self._min_value:
-            raise ValueError("Minimum limit cannot be higher than maximum")
-
-        self._max_value = value
-        self.setValue(self.value())
-
-    def minimum(self):
-        return self._min_value
-
-    def maximum(self):
-        return self._max_value
-
+        stop_button.clicked.connect(stop_button_clicked)
+        return stop_box
 
 
 def main(args=None):
