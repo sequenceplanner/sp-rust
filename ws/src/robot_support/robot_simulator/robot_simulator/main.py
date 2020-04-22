@@ -21,32 +21,24 @@ class RobotSimulator(Node):
 
     def __init__(self):
         super().__init__(
-            node_name="robot_simulator", 
-            automatically_declare_parameters_from_overrides=True
+            node_name="robot_simulator"
         )
 
-        self.saved_poses_file = self.get_parameter("saved_poses_file")
-        self.joint_names = self.get_parameter("joint_names")
-        self.no_of_joints = len(self.joint_names.value)
+        self.saved_poses_file = self.declare_parameter("saved_poses_file").value
+        self.joint_names = self.declare_parameter("joint_names").value
+        self.no_of_joints = len(self.joint_names)
 
-        self.sync_speed_scale = self.get_parameter_or("sync_speed_scale", [1.0]*self.no_of_joints)
-        self.max_speed_factor = self.get_parameter_or("max_speed_factor", 4.0)
-        self.joint_tolerance = self.get_parameter_or("joint_tolerance", 0.01)
+        self.sync_speed_scale = self.declare_parameter("sync_speed_scale", value=[1.0]*self.no_of_joints).value
+        self.max_speed_factor = self.declare_parameter("max_speed_factor", value=4.0).value
+        self.joint_tolerance = self.declare_parameter("joint_tolerance", value=0.01).value
         
-        self.ref_pos = self.get_parameter_or("ref_pos", [0.0]*self.no_of_joints)
-        self.act_pos = self.get_parameter_or("act_pos", [0.0]*self.no_of_joints)
+        self.ref_pos = self.declare_parameter("ref_pos", value=[0.0]*self.no_of_joints).value
+        self.act_pos = self.declare_parameter("act_pos", value=[0.0]*self.no_of_joints).value
 
-        self.joint_state_timer_period = self.get_parameter_or("joint_state_timer_period", 1.0)
-        self.robot_state_timer_period = self.get_parameter_or("robot_state_timer_period", 1.0)
+        self.joint_state_timer_period = self.declare_parameter("joint_state_timer_period", value=1.0).value
+        self.robot_state_timer_period = self.declare_parameter("robot_state_timer_period", value=1.0).value
 
-        self.poses = self.load_poses(self.saved_poses_file.value)
-
-        print("HEJ")
-        print(self.poses)
-        print(self.pose_from_position(self.poses, self.act_pos))
-        print(self.pose_from_position(self.poses, [0.0, 2.423239568078455, -1.791273124690903, 1.5101635885806135, 0.0]))
-        print(self.pose_from_position(self.poses, [0.0, 2.0, 10.0, 1.0, 0.0]))
-
+        self.poses = self.load_poses(self.saved_poses_file)
 
 
         # gui to robot:
@@ -169,9 +161,8 @@ class RobotSimulator(Node):
 
 
     def gui_to_robot_callback(self, data):
-        self.poses = self.load_poses(self.saved_poses_file.value)
-        self.gui_to_robot = data.gui_control_enabled
-        self.gui_to_robot.gui_speed_control = data.gui_speed_control
+        self.poses = self.load_poses(self.saved_poses_file)
+        self.gui_to_robot = data
         for i in range(self.no_of_joints):
             j = 0.0
             if len(data.gui_joint_control) > i:
@@ -210,7 +201,7 @@ class RobotSimulator(Node):
             else:
                 self.act_pos[i] = self.ref_pos[i]
 
-        self.joint_state.name = self.joint_names.value
+        self.joint_state.name = self.joint_names
         self.joint_state.position = self.act_pos
         self.joint_state_publisher_.publish(self.joint_state)
 

@@ -25,15 +25,17 @@ class CommVariables():
     to_robot = GuiToRobot()
     from_robot = JointState()
 
-    to_robot.gui_control_enabled = False
+    to_robot.gui_control_enabled = True
     to_robot.gui_speed_control = 50
     to_robot.gui_joint_control = []
 
     node_name = ""
     
-    saved_poses_file = []
+    saved_poses_file = ""
     joint_names = []
-    joint_limits = {}
+    joint_limit_max = []
+    joint_limit_min = []
+
     no_of_joints = 0
     joint_tolerance = 0.01
     poses = {}
@@ -64,22 +66,24 @@ class RobotGUI(Node, CommVariables):
 
     def __init__(self):
         super().__init__(
-            node_name= "robot_gui", 
-            automatically_declare_parameters_from_overrides=True
+            node_name= "robot_gui"
         )
 
         CommVariables.trigger_node = self.trigger
 
         CommVariables.node_name = self.get_name()
-        CommVariables.saved_poses_file = self.get_parameter("saved_poses_file")
-        CommVariables.joint_names = self.get_parameter("joint_names")
-        CommVariables.joint_limits = self.get_parameter("joint_limits")
-        CommVariables.joint_tolerance = self.get_parameter_or("joint_tolerance", 0.01)
+        CommVariables.saved_poses_file = self.declare_parameter("saved_poses_file").value
+        CommVariables.joint_names = self.declare_parameter("joint_names").value
+        CommVariables.no_of_joints = len(CommVariables.joint_names)
 
-        CommVariables.no_of_joints = len(self.joint_names.value)
-        CommVariables.poses = load_poses(CommVariables.saved_poses_file.value)
+        # for some reason these parameters becomes ([...]) so we need to [0] when using
+        CommVariables.joint_limit_max = self.declare_parameter("joint_limit_max", value=[180]*self.no_of_joints).value,
+        CommVariables.joint_limit_min = self.declare_parameter("joint_limit_min", value=[-180]*self.no_of_joints).value,
+        
+        CommVariables.joint_tolerance = self.declare_parameter("joint_tolerance", value=0.01).value
 
-
+        CommVariables.poses = load_poses(CommVariables.saved_poses_file)
+        CommVariables.to_robot.gui_joint_control = [0.0]*self.no_of_joints
 
         self.joint_state_subscriber = self.create_subscription(
             JointState,
@@ -152,15 +156,13 @@ class Window(QWidget, CommVariables):
         print("hej from trigger emit")
         for i in range(len(CommVariables.from_robot.position)):
             p = CommVariables.from_robot.position[i]
-            self.sliders[i].act_rad.setText(str(round(p, 5)))
+            self.labels[i]['act_rad'].setText(str(round(p, 5)))
 
         
         
 
     def load_window(self):
         print("LOADING UI")
-        print(CommVariables.poses)
-        print(CommVariables.no_of_joints)
         grid = QGridLayout()
 
         self.labels = self.make_label_boxes()
@@ -170,13 +172,13 @@ class Window(QWidget, CommVariables):
 
          # populate the grid with widgets:
         for i in range(len(self.sliders)):
-            grid.addWidget(self.sliders[i].box, i, 0)
+            grid.addWidget(self.sliders[i]['box'], i, 0)
 
         for i in range(len(self.labels)):
             l = self.labels[i]
-            grid.addWidget(l.box2, i, 1)
-            grid.addWidget(l.box1, i, 2)
-            grid.addWidget(l.box3, i, 3)
+            grid.addWidget(l['box2'], i, 1)
+            grid.addWidget(l['box1'], i, 2)
+            grid.addWidget(l['box3'], i, 3)
 
 
         # for line_box in self.line_boxes:
@@ -197,7 +199,7 @@ class Window(QWidget, CommVariables):
 
     def make_label_boxes(self):
         result = []
-        for name in CommVariables.joint_limits.keys():
+        for name in CommVariables.joint_names:
             label_box_1 = QGroupBox("ref_rad")
             ref_rad = QLabel("value")
             label_box_1_layout = QVBoxLayout()
@@ -231,7 +233,7 @@ class Window(QWidget, CommVariables):
                 "box2": label_box_2,
                 "ref_deg": ref_deg,
                 "box3": label_box_3,
-                "act_deg": act_rad,
+                "act_rad": act_rad,
             })
 
         return result
@@ -240,30 +242,33 @@ class Window(QWidget, CommVariables):
 
     def make_sliders(self, labels):
         result = []
-        for i, name in enumerate(CommVariables.joint_limits):
-            limits = CommVariables.joint_limits[name]
+        for i, name in enumerate(CommVariables.joint_names):
+            max_limit = CommVariables.joint_limit_max[0][i]
+            min_limit = CommVariables.joint_limit_min[0][i]
+
             slider_box = QGroupBox(name)
-            slider = QDoubleSlider(Qt.Horizontal)
+            slider = QSlider(Qt.Horizontal)
             slider_box_layout = QVBoxLayout()
             slider.setFocusPolicy(Qt.StrongFocus)
             slider.setTickPosition(QSlider.TicksBothSides)
-            slider.setTickInterval(5000)
-            slider.setMinimum(limits[min])
-            slider.setMaximum(limits[max])
+            slider.setTickInterval(45)
+            slider.setMinimum(min_limit)
+            slider.setMaximum(max_limit)
             slider.setSingleStep(1)
             slider.setMinimumWidth(300)
             slider_box_layout.addWidget(slider)
             slider_box.setLayout(slider_box_layout)
-            slider.setEnabled(False)
+            slider.setValue(0.0)
+            slider.setEnabled(True)
 
-            slider.valueChanged.connect(lambda slider=slider, i=i: slider_change(name, slider, i))
-            def slider_change(slider, i):
-                l = labels[i]
-                l.ref_rad.setText('{}'.format(round(slider.value() * math.pi / 180, 5)))
-                l.ref_deg.setNum(slider.value())
-                CommVariables.to_robot.gui_joint_control[i] = slider.value() * math.pi / 180
+            def slider_change(value, joint_no):
+                l = labels[joint_no]
+                l['ref_rad'].setText('{}'.format(round(value * math.pi / 180, 5)))
+                l['ref_deg'].setNum(value)
+                CommVariables.to_robot.gui_joint_control[joint_no] = value * math.pi / 180
                 CommVariables.trigger_node()
 
+            slider.valueChanged.connect(lambda value=slider.value(), joint_no=i: slider_change(value, joint_no))
             result.append({"box": slider_box, "slider": slider})
         
         return result

@@ -50,12 +50,19 @@ def generate_launch_description():
                "dorna_axis_4_joint",
                "dorna_axis_5_joint",
           ],
-          "joint_limits": [
-               175, -175,
-               160, -175,
-               130, -130,
-               180, -180,
-               180, -180,
+          "joint_limit_max": [
+               175,
+               160,
+               130,
+               180,
+               180,
+          ],
+          "joint_limit_min": [
+               -175,
+               -175,
+               -130,
+               -180,
+               -180,
           ]
      }
      gui_node = launch_ros.actions.Node(package='robot_gui',
