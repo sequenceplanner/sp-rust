@@ -60,6 +60,14 @@ def pose_from_position(poses, joints):
             break
     return result
 
+def rad_pose_to_deg(pose):
+    return list(map(lambda x: 180*x/math.pi, pose))
+
+def deg_pose_to_rad(pose):
+    return list(map(lambda x: x*math.pi/180, pose))
+
+
+
     
 
 class RobotGUI(Node, CommVariables):
@@ -98,7 +106,7 @@ class RobotGUI(Node, CommVariables):
 
         print("print HEJ gui node")
 
-        time.sleep(2)
+        time.sleep(1)
 
         CommVariables.trigger_ui()
 
@@ -106,22 +114,6 @@ class RobotGUI(Node, CommVariables):
     def trigger(self):
         print("trigger node")
         self.gui_to_robot_publisher.publish(CommVariables.to_robot)
-
-    # def tri(self):
-    #     self.gui_to_esd_msg.gui_control_enabled = CommVariables.gui_control_enabled
-
-    #     if CommVariables.speed_slider_value >= 0 and CommVariables.speed_slider_value <= 100:
-    #         self.gui_to_esd_msg.gui_speed_control = CommVariables.speed_slider_value
-    #     else:
-    #         pass
-
-    #     self.gui_to_esd_msg.gui_joint_control[0] = CommVariables.slider_1_value * math.pi / 180
-    #     self.gui_to_esd_msg.gui_joint_control[1] = CommVariables.slider_2_value * math.pi / 180
-    #     self.gui_to_esd_msg.gui_joint_control[2] = CommVariables.slider_3_value * math.pi / 180
-    #     self.gui_to_esd_msg.gui_joint_control[3] = CommVariables.slider_4_value * math.pi / 180
-    #     self.gui_to_esd_msg.gui_joint_control[4] = CommVariables.slider_5_value * math.pi / 180
-
-    #     self.gui_to_esd_publisher_.publish(self.gui_to_esd_msg)
 
 
     def joint_state_callback(self, data):
@@ -134,6 +126,10 @@ class RobotGUI(Node, CommVariables):
 
 class Window(QWidget, CommVariables):
     triggerSignal = pyqtSignal()
+    to_robot_changed_signal = pyqtSignal()
+    from_robot_changed_signal = pyqtSignal()
+    poses_changed_signal = pyqtSignal()
+    force_slider_signal = pyqtSignal()
 
     def __init__(self, parent=None):
         super(Window, self).__init__(parent)
@@ -145,6 +141,10 @@ class Window(QWidget, CommVariables):
 
         self.loaded = False
 
+        def changed_to_robot():
+            CommVariables.trigger_node()
+        self.to_robot_changed_signal.connect(changed_to_robot)
+
     def trigger(self):
         self.triggerSignal.emit()
 
@@ -153,9 +153,9 @@ class Window(QWidget, CommVariables):
             self.loaded = True
             self.load_window()
 
-        for i in range(len(CommVariables.from_robot.position)):
-            p = CommVariables.from_robot.position[i]
-            self.labels[i]['act_rad'].setText(str(round(p, 5)))
+        self.from_robot_changed_signal.emit()
+
+        
 
         
         
@@ -165,10 +165,14 @@ class Window(QWidget, CommVariables):
         grid = QGridLayout()
 
         self.labels = self.make_label_boxes()
-        self.sliders = self.make_sliders(self.labels)
-        self.set_boxes = self.make_set_boxes(self.sliders)
-        self.gui_control_box = self.make_gui_control_box(self.labels, self.sliders, self.set_boxes)
-        self.estop_box = self.make_estop_box(self.sliders)
+        self.sliders = self.make_sliders()
+        self.set_boxes = self.make_set_boxes()
+        self.gui_control_box = self.make_gui_control_box()
+        self.estop_box = self.make_estop_box()
+        self.speed_box = self.make_speed_box()
+        self.pose_saver_box = self.make_pose_box()
+        self.pose_goto_box = self.make_pose_goto_box()
+        self.current_pose_box = self.make_current_pose_box()
 
 
          # populate the grid with widgets:
@@ -182,36 +186,39 @@ class Window(QWidget, CommVariables):
 
         for i, sb in enumerate(self.set_boxes):
             grid.addWidget(sb['box'], i, 4)
-
-
-        # grid.addWidget(self.speed_box, 6, 0, 1, 4)
-        # grid.addWidget(self.pose_saver_box, 7, 0, 1, 4)
-        # grid.addWidget(self.combo_box_box, 8, 0, 1, 4)
-        # grid.addWidget(self.current_pose_box, 9, 0, 1, 2)
+        grid.addWidget(self.speed_box, 6, 0, 1, 4)
+        grid.addWidget(self.pose_saver_box, 7, 0, 1, 4)
+        grid.addWidget(self.pose_goto_box, 8, 0, 1, 4)
+        grid.addWidget(self.current_pose_box, 9, 0, 1, 2)
         grid.addWidget(self.estop_box, 9, 2, 1, 1)
         grid.addWidget(self.gui_control_box, 9, 3, 1, 1)
 
-        self.trigger_enabled(self.labels, self.sliders, self.set_boxes)
+        self.trigger_enabled()
         
 
         self.setLayout(grid)
         self.setWindowTitle(CommVariables.node_name)
         self.resize(600, 250)
 
-    def trigger_enabled(self, lables, sliders, set_box):
-        for l in lables:
+    # TODO. Change this to signals as well
+    def trigger_enabled(self):
+        for l in self.labels:
             l['ref_rad'].setEnabled(CommVariables.to_robot.gui_control_enabled)
             l['ref_deg'].setEnabled(CommVariables.to_robot.gui_control_enabled)
 
-        for s in sliders:
+        for s in self.sliders:
             s['slider'].setEnabled(CommVariables.to_robot.gui_control_enabled)
 
-        for x in set_box:
+        for x in self.set_boxes:
             x['button'].setEnabled(CommVariables.to_robot.gui_control_enabled)
+
+        self.speed_box.setEnabled(CommVariables.to_robot.gui_control_enabled)
+        self.pose_saver_box.setEnabled(CommVariables.to_robot.gui_control_enabled)
+
 
     def make_label_boxes(self):
         result = []
-        for name in CommVariables.joint_names:
+        for i, name in enumerate(CommVariables.joint_names):
             label_box_1 = QGroupBox("ref_rad")
             ref_rad = QLabel('0.0')
             label_box_1_layout = QVBoxLayout()
@@ -238,6 +245,20 @@ class Window(QWidget, CommVariables):
             label_box_3.setMinimumWidth(90)
             label_box_3.setMaximumWidth(90)
 
+            def changed_act(i, label):
+                value = CommVariables.from_robot.position[i]
+                label.setText(str(round(value, 5)))
+            self.from_robot_changed_signal.connect(lambda i = i, label = act_rad: changed_act(i, label))
+
+            def changed_ref(i, deg_label, rad_label):
+                value = CommVariables.to_robot.gui_joint_control[i]
+                rad_label.setNum(value)
+                deg_label.setText('{}'.format(round(value * 180 / math.pi, 5)))
+            self.to_robot_changed_signal.connect(
+                lambda i = i, deg_label = ref_deg, rad_label=ref_rad:
+                changed_ref(i, deg_label, rad_label))
+            
+
             result.append({
                 "name": name,
                 "box1": label_box_1,
@@ -252,7 +273,7 @@ class Window(QWidget, CommVariables):
 
 
 
-    def make_sliders(self, labels):
+    def make_sliders(self):
         result = []
         for i, name in enumerate(CommVariables.joint_names):
             max_limit = CommVariables.joint_limit_max[0][i]
@@ -272,19 +293,21 @@ class Window(QWidget, CommVariables):
             slider_box.setLayout(slider_box_layout)
             slider.setValue(0.0)
 
-            def slider_change(value, joint_no):
-                l = labels[joint_no]
-                l['ref_rad'].setText('{}'.format(round(value * math.pi / 180, 5)))
-                l['ref_deg'].setNum(value)
-                CommVariables.to_robot.gui_joint_control[joint_no] = value * math.pi / 180
-                CommVariables.trigger_node()
-
-            slider.valueChanged.connect(lambda value=slider.value(), joint_no=i: slider_change(value, joint_no))
             result.append({"box": slider_box, "slider": slider})
+
+            def slider_change(value, joint_no):
+                CommVariables.to_robot.gui_joint_control[joint_no] = value * math.pi / 180
+                self.to_robot_changed_signal.emit()
+            slider.valueChanged.connect(lambda value=slider.value(), joint_no=i: slider_change(value, joint_no))
+            
+            def force_slider(i, s):
+                s.setValue(180*CommVariables.to_robot.gui_joint_control[i]/math.pi)
+            self.force_slider_signal.connect(lambda dummy=False, i=i, s=slider: force_slider(i, s))
+            
 
         return result
 
-    def make_set_boxes(self, sliders):
+    def make_set_boxes(self):
         result = []
         for i in range(CommVariables.no_of_joints):
             line_box = QGroupBox("set_ref_deg")
@@ -296,14 +319,18 @@ class Window(QWidget, CommVariables):
             line_box_layout.addWidget(button)
             line_box.setLayout(line_box_layout)
 
-            def clicked(i, set_box):
-                sliders[i]['slider'].setValue(int(set_box.text()))
-            button.clicked.connect(lambda i=i, set_box=line: clicked(i, set_box))
+            def clicked(jointno, set_box):
+                value = int(set_box.text())
+                CommVariables.to_robot.gui_joint_control[jointno] = value * math.pi / 180
+
+                self.force_slider_signal.emit()
+
+            button.clicked.connect(lambda checked, jointno=i, set_box=line: clicked(jointno, set_box))
 
             result.append({"box": line_box, "button": button, "edit": line})
         return result
 
-    def make_gui_control_box(self, lables, sliders, set_boxes):
+    def make_gui_control_box(self):
         radio_box = QGroupBox("gui_control")
         radio_box_layout = QHBoxLayout()
         radio = QRadioButton("enabled")
@@ -313,11 +340,11 @@ class Window(QWidget, CommVariables):
 
         def toggle():
             CommVariables.to_robot.gui_control_enabled = radio.isChecked()
-            self.trigger_enabled(lables, sliders, set_boxes)
+            self.trigger_enabled()
         radio.toggled.connect(toggle)
         return radio_box
 
-    def make_estop_box(self, sliders):
+    def make_estop_box(self):
         stop_box = QGroupBox("emergency_stop")
         stop_box_layout = QHBoxLayout()
         stop_button = QPushButton("STOP")
@@ -331,11 +358,120 @@ class Window(QWidget, CommVariables):
             for i, j in enumerate(CommVariables.from_robot.position):
                 CommVariables.to_robot.gui_joint_control[i] = j
 
-            for i, s in enumerate(sliders):
-                s['slider'].setValue(180*CommVariables.to_robot.gui_joint_control[i]/math.pi)
+            self.force_slider_signal.emit()
 
         stop_button.clicked.connect(stop_button_clicked)
         return stop_box
+
+    def make_speed_box(self):
+        speed_box = QGroupBox("robot_speed")
+        speed_box_layout = QHBoxLayout()
+        speed_slider = QSlider(Qt.Horizontal)
+        speed_slider.setFocusPolicy(Qt.StrongFocus)
+        speed_slider.setTickPosition(QSlider.TicksBothSides)
+        speed_slider.setTickInterval(10)
+        speed_slider.setMinimum(0)
+        speed_slider.setMaximum(100)
+        speed_slider.setSingleStep(1)
+        speed_slider.setMinimumWidth(200)
+        speed_slider.setValue(CommVariables.to_robot.gui_speed_control)
+        speed_line = QLineEdit("%")
+        speed_line.setMaximumWidth(80)
+        speed_button = QPushButton("set")
+        speed_box_layout.addWidget(speed_slider)
+        speed_box_layout.addWidget(speed_line)
+        speed_box_layout.addWidget(speed_button)
+        speed_box.setLayout(speed_box_layout)
+
+        def speed_slider_change():
+            CommVariables.to_robot.gui_speed_control = speed_slider.value()
+            self.to_robot_changed_signal.emit()
+
+        def speed_button_clicked():
+            speed_slider.setValue(int(speed_line.text()))
+
+        speed_button.clicked.connect(speed_button_clicked)
+        speed_slider.valueChanged.connect(speed_slider_change)
+
+        return speed_box
+
+    def make_pose_box(self):
+        '''
+        TODO: Save poses back to the file
+        '''
+        pose_saver_box = QGroupBox("pose_saver")
+        pose_saver_box_layout = QHBoxLayout()
+        pose_saver_label = QLabel("pose_name")
+        pose_saver_line = QLineEdit("some_pose_name")
+        pose_saver_update_button = QPushButton("update")
+        pose_saver_delete_button = QPushButton("delete")
+        pose_saver_box_layout.addWidget(pose_saver_label)
+        pose_saver_box_layout.addWidget(pose_saver_line)
+        pose_saver_box_layout.addWidget(pose_saver_update_button)
+        pose_saver_box_layout.addWidget(pose_saver_delete_button)
+        pose_saver_box.setLayout(pose_saver_box_layout)
+        pose_saver_box.setEnabled(False)
+
+        def pose_saver_update_button_clicked():
+            pose_name = pose_saver_line.text()
+            deg_poses = rad_pose_to_deg(CommVariables.from_robot.position)
+            CommVariables.poses[pose_name] = list(deg_poses)
+            self.poses_changed_signal.emit()
+
+        pose_saver_update_button.clicked.connect(pose_saver_update_button_clicked)
+
+        def pose_saver_delete_button_clicked():
+            pose_name = pose_saver_line.text()
+            CommVariables.poses.pop(pose_name, None)
+            self.poses_changed_signal.emit()
+
+        pose_saver_delete_button.clicked.connect(pose_saver_delete_button_clicked)
+
+        return pose_saver_box
+
+    def make_pose_goto_box(self):
+        combo_box = QGroupBox("go_to_pose")
+        combo_box_layout = QHBoxLayout()
+        combo_box_label = QLabel("pose_name")
+        combo = QComboBox()
+        combo.setMinimumWidth(400)
+        combo_box_button = QPushButton("go")
+        combo_box_button.setMaximumWidth(80)
+        combo_box_layout.addWidget(combo_box_label)
+        combo_box_layout.addWidget(combo)
+        combo_box_layout.addWidget(combo_box_button)
+        combo_box.setLayout(combo_box_layout)
+
+        combo.addItems(CommVariables.poses)
+
+        def combo_box_button_clicked():
+            pose = combo.currentText()
+            for i, v in enumerate(CommVariables.poses[pose]):
+                CommVariables.to_robot.gui_joint_control[i] = v
+            self.force_slider_signal.emit()
+
+        combo_box_button.clicked.connect(combo_box_button_clicked)
+
+        def poses_changed():
+            combo.clear()
+            combo.addItems(CommVariables.poses)
+        self.poses_changed_signal.connect(poses_changed)
+
+        return combo_box
+
+    def make_current_pose_box(self):
+        current_pose_box = QGroupBox("current_pose")
+        current_pose_box_layout = QHBoxLayout()
+        current_pose_label = QLabel("")
+        current_pose_box_layout.addWidget(current_pose_label)
+        current_pose_box.setLayout(current_pose_box_layout)
+
+        def update_current_pose_label():
+            pose_name = pose_from_position(CommVariables.poses, rad_pose_to_deg(CommVariables.from_robot.position))
+            current_pose_label.setText(pose_name)
+        self.from_robot_changed_signal.connect(update_current_pose_label)
+
+        return current_pose_box
 
 
 def main(args=None):

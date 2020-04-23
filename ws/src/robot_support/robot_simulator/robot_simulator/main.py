@@ -28,15 +28,15 @@ class RobotSimulator(Node):
         self.joint_names = self.declare_parameter("joint_names").value
         self.no_of_joints = len(self.joint_names)
 
-        self.sync_speed_scale = self.declare_parameter("sync_speed_scale", value=[1.0]*self.no_of_joints).value
-        self.max_speed_factor = self.declare_parameter("max_speed_factor", value=4.0).value
+        self.max_joint_speed = self.declare_parameter("max_joint_speed", value=[45]*self.no_of_joints).value  #deg/sec
+        self.speed_scale = self.declare_parameter("speed_scale", value=100).value
         self.joint_tolerance = self.declare_parameter("joint_tolerance", value=0.01).value
         
         self.ref_pos = self.declare_parameter("ref_pos", value=[0.0]*self.no_of_joints).value
         self.act_pos = self.declare_parameter("act_pos", value=[0.0]*self.no_of_joints).value
 
-        self.joint_state_timer_period = self.declare_parameter("joint_state_timer_period", value=1.0).value
-        self.robot_state_timer_period = self.declare_parameter("robot_state_timer_period", value=1.0).value
+        self.joint_state_timer_period = self.declare_parameter("joint_state_timer_period", value=0.1).value
+        self.robot_state_timer_period = self.declare_parameter("robot_state_timer_period", value=0.5).value
 
         self.poses = self.load_poses(self.saved_poses_file)
 
@@ -163,41 +163,37 @@ class RobotSimulator(Node):
     def gui_to_robot_callback(self, data):
         self.poses = self.load_poses(self.saved_poses_file)
         self.gui_to_robot = data
-        for i in range(self.no_of_joints):
-            j = 0.0
-            if len(data.gui_joint_control) > i:
-                j = data.gui_joint_control[i]
-            self.gui_to_robot.gui_joint_control[i] = round(j, 3)
+        # for i in range(self.no_of_joints):
+        #     j = 0.0
+        #     if len(data.gui_joint_control) > i:
+        #         j = data.gui_joint_control[i]
+        #     self.gui_to_robot.gui_joint_control[i] = round(j, 5)
+
+        self.speed_scale = self.gui_to_robot.gui_speed_control        
 
         if self.gui_to_robot.gui_control_enabled:
             self.ref_pos = self.gui_to_robot.gui_joint_control
         elif self.robot_goal_msg.ref_pos in self.poses:
-            self.ref_pos = self.poses[self.robot_goal_msg.ref_pos]
+            self.ref_pos = list(map(lambda x: x*math.pi/180, self.poses[self.robot_goal_msg.ref_pos]))
 
     def joint_state_ticker(self):
-        for i in range(self.no_of_joints):
-            self.sync_speed_scale[i] = abs(self.ref_pos[i] - self.act_pos[i])
 
-        sync_max = max(self.sync_speed_scale)
+        # Scale the speed of the joints for nice movement
+        sync_speed_scale = list(map(lambda i: abs(self.ref_pos[i] - self.act_pos[i]), range(self.no_of_joints)))
+        sync_max = max(sync_speed_scale)
         sync_max_factor = 1
         if sync_max != 0:
             sync_max_factor = 1 / sync_max
+        sync_speed_scale = list(map(lambda i: sync_speed_scale[i]*sync_max_factor, range(self.no_of_joints)))
 
         for i in range(self.no_of_joints):
-            self.sync_speed_scale[i] = self.sync_speed_scale[i]*sync_max_factor
+            rad_sec = self.max_joint_speed[i] * math.pi / 180
+            step = rad_sec * self.joint_state_timer_period
 
-
-        for i in range(self.no_of_joints):
-            if self.ref_pos[i] < self.act_pos[i] - 0.001*self.max_speed_factor:
-                if self.ref_pos[i] < self.act_pos[i] - 0.01:
-                    self.act_pos[i] = round(self.act_pos[i] - 0.01*self.max_speed_factor*self.sync_speed_scale[i], 4)
-                else:
-                    self.act_pos[i] = self.act_pos[i] - 0.001*self.max_speed_factor
-            elif self.ref_pos[i] > self.act_pos[i] + 0.001*self.max_speed_factor:
-                if self.ref_pos[i] > self.act_pos[i] + 0.01:
-                    self.act_pos[i] = round(self.act_pos[i] + 0.01*self.max_speed_factor*self.sync_speed_scale[i], 4)
-                else:
-                    self.act_pos[i] = self.act_pos[i] + 0.001*self.max_speed_factor
+            if (self.ref_pos[i] < (self.act_pos[i] - step)) and sync_speed_scale[i] > 0.1:
+                self.act_pos[i] = round(self.act_pos[i] - (step * sync_speed_scale[i]), 5)
+            elif (self.ref_pos[i] > (self.act_pos[i] + step)) and sync_speed_scale[i] > 0.1:
+                self.act_pos[i] = round(self.act_pos[i] + (step * sync_speed_scale[i]), 5)
             else:
                 self.act_pos[i] = self.ref_pos[i]
 

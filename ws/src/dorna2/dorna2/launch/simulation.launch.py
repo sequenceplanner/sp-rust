@@ -15,7 +15,6 @@ def generate_launch_description():
 
      robot_state_publisher_params = {
          "robot_description": robot_desc,
-         "frame_id_prefix": "dorna/r1/"
      }    
      rsp_node = launch_ros.actions.Node(package='robot_state_publisher', 
                                         node_executable='robot_state_publisher',
@@ -25,14 +24,16 @@ def generate_launch_description():
                                         )
 
      simulation_parameters = {
-          "saved_poses_file": os.path.join(dorna2_share, 'launch', 'r1_joint_poses.csv'),
+          "saved_poses_file": os.path.join(dorna2_share, 'poses', 'r1_joint_poses.csv'),
           "joint_names": [
                "dorna_axis_1_joint",
                "dorna_axis_2_joint",
                "dorna_axis_3_joint",
                "dorna_axis_4_joint",
                "dorna_axis_5_joint",
-          ]
+          ],
+          "max_joint_speed": [45, 45, 45, 45, 45],  # deg/sec
+          "joint_state_timer_period": 0.05
      }
      sim_node = launch_ros.actions.Node(package='robot_simulator',
                      node_executable='robot_simulator',

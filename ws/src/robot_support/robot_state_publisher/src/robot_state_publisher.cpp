@@ -80,7 +80,7 @@ RobotStatePublisher::RobotStatePublisher(const rclcpp::NodeOptions & options)
 {
   // get the XML
   std::string urdf_xml = this->declare_parameter("robot_description", std::string(""));
-  frame_id_prefix_ = this->declare_parameter("frame_id_prefix", std::string(""));
+  //frame_id_prefix_ = this->declare_parameter("frame_id_prefix", std::string(""));
 
   // set publish frequency
   double publish_freq = this->declare_parameter("publish_frequency", 20.0);
@@ -212,8 +212,8 @@ void RobotStatePublisher::publishTransforms(
       geometry_msgs::msg::TransformStamped tf_transform =
         kdlToTransform(seg->second.segment.pose(jnt.second));
       tf_transform.header.stamp = time;
-      tf_transform.header.frame_id = frame_id_prefix_ + seg->second.root;
-      tf_transform.child_frame_id = frame_id_prefix_ + seg->second.tip;
+      tf_transform.header.frame_id = std::string(this->get_namespace()) + "/" + seg->second.root;
+      tf_transform.child_frame_id = std::string(this->get_namespace()) + "/" + seg->second.tip;
       tf_transforms.push_back(tf_transform);
     }
   }
@@ -238,8 +238,8 @@ void RobotStatePublisher::publishFixedTransforms()
     }
     tf_transform.header.stamp = now;
 
-    tf_transform.header.frame_id = frame_id_prefix_ + seg.second.root;
-    tf_transform.child_frame_id = frame_id_prefix_ + seg.second.tip;
+    tf_transform.header.frame_id = std::string(this->get_namespace()) + "/" + seg.second.root;
+    tf_transform.child_frame_id = std::string(this->get_namespace()) + "/" + seg.second.tip;
     tf_transforms.push_back(tf_transform);
   }
   if (use_tf_static_) {
@@ -316,16 +316,17 @@ rcl_interfaces::msg::SetParametersResult RobotStatePublisher::parameterUpdate(
   result.successful = true;
 
   for (const rclcpp::Parameter & parameter : parameters) {
-    if (parameter.get_name() == "frame_id_prefix") {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
-        result.successful = false;
-        result.reason = "frame_id_prefix must be a string";
-        break;
-      }
+    // if (parameter.get_name() == "frame_id_prefix") {
+    //   if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+    //     result.successful = false;
+    //     result.reason = "frame_id_prefix must be a string";
+    //     break;
+    //   }
 
-      frame_id_prefix_ = parameter.as_string();
+    //   frame_id_prefix_ = parameter.as_string();
 
-    } else if (parameter.get_name() == "robot_description") {
+    // } else 
+    if (parameter.get_name() == "robot_description") {
       // First make sure that it is still a string
       if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
         result.successful = false;
