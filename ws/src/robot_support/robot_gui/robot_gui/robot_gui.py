@@ -79,7 +79,7 @@ class RobotGUI(Node, CommVariables):
 
         CommVariables.trigger_node = self.trigger
 
-        CommVariables.node_name = self.get_name()
+        CommVariables.node_name = self.get_namespace() + "/" + self.get_name()
         CommVariables.saved_poses_file = self.declare_parameter("saved_poses_file").value
         CommVariables.joint_names = self.declare_parameter("joint_names").value
         CommVariables.no_of_joints = len(CommVariables.joint_names)

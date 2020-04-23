@@ -5,9 +5,8 @@ import launch_ros.actions
 from launch_ros.substitutions import FindPackageShare
 
 
-def generate_launch_description():
 
-
+def make_dorna(name):
      dorna2_share = FindPackageShare('dorna2').find('dorna2')
      urdf = os.path.join(dorna2_share, 'urdf', 'dorna.urdf')
      with open(urdf, 'r') as infp:
@@ -18,13 +17,13 @@ def generate_launch_description():
      }    
      rsp_node = launch_ros.actions.Node(package='robot_state_publisher', 
                                         node_executable='robot_state_publisher',
-                                        node_namespace='dorna/r1',
+                                        node_namespace='dorna/' + name,
                                         output='screen',   
                                         parameters=[robot_state_publisher_params]
                                         )
 
      simulation_parameters = {
-          "saved_poses_file": os.path.join(dorna2_share, 'poses', 'r1_joint_poses.csv'),
+          "saved_poses_file": os.path.join(dorna2_share, 'poses', name+'_joint_poses.csv'),
           "joint_names": [
                "dorna_axis_1_joint",
                "dorna_axis_2_joint",
@@ -37,13 +36,13 @@ def generate_launch_description():
      }
      sim_node = launch_ros.actions.Node(package='robot_simulator',
                      node_executable='robot_simulator',
-                     node_namespace='dorna/r1',
+                     node_namespace='dorna/'+name,
                      output='screen',
                      parameters=[simulation_parameters]
                      )
 
      gui_parameters = {
-          "saved_poses_file": os.path.join(dorna2_share, 'launch', 'r1_joint_poses.csv'),
+          "saved_poses_file": os.path.join(dorna2_share, 'poses', name+'_joint_poses.csv'),
           "joint_names": [
                "dorna_axis_1_joint",
                "dorna_axis_2_joint",
@@ -66,15 +65,22 @@ def generate_launch_description():
                -180,
           ]
      }
-     gui_node = launch_ros.actions.Node(package='robot_gui',
-                     node_executable='gui',
-                     node_namespace='dorna/r1',
-                     output='screen',
-                     parameters=[gui_parameters]
-                     )
+     gui_node = launch_ros.actions.Node(
+                    package='robot_gui',
+                    node_executable='gui',
+                    node_namespace='dorna/'+name,
+                    output='screen',
+                    parameters=[gui_parameters]
+                    )
+     
+     return [rsp_node, sim_node, gui_node]
 
 
-     return launch.LaunchDescription([rsp_node, sim_node, gui_node])
+def generate_launch_description():
+     r1 = make_dorna("r1")
+     r2 = make_dorna("r2")
+
+     return launch.LaunchDescription(r1 + r2)
           
           # Node(package='ros2_dorna_gui', node_executable='ros2_dorna_gui',
           #      output='screen', condition = IfCondition(LaunchConfiguration("gui"))),
