@@ -1,9 +1,0 @@
--
-  ros1_package_name: '{{ ros1_package_name }}'
-  ros1_message_name: '{{ message_name }}' 
-  ros2_package_name: '{{ package_name }}'
-  ros2_message_name: '{{ message_name }}'
-  fields_2_to_1:
-    {% for item in command_variables -%}
-    {{ item }}: '{{ item }}'
-    {% endfor -%}

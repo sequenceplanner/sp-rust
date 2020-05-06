@@ -54,7 +54,7 @@ pub struct AbPlanItem {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerPlans {
-    pub op_plan: Vec<SPPath>, // maybe have spids here?
+    pub op_plan: Vec<SPPath>, 
     pub ab_plan: Vec<AbPlanItem>,
 }
 
@@ -71,12 +71,7 @@ impl RunnerTransitions {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct RunnerCommand {
-    pub pause: bool,
-    pub override_ability_transitions: Vec<SPPath>,
-    pub override_operation_transitions: Vec<SPPath>,
-}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PlannerResult {
     OpPlan(Vec<SPPath>),
@@ -85,13 +80,61 @@ pub enum PlannerResult {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerInfo {
     pub state: SPState,
-    pub ability_plan: Vec<SPPath>,
-    pub enabled_ability_transitions: Vec<SPPath>,
-    pub operation_plan: Vec<SPPath>,
-    pub enabled_operation_transitions: Vec<SPPath>,
+    pub plans: Vec<PlanningInfo>,
+    pub mode: String,
+    pub forced_state: SPState,
+    pub forced_goal: Vec<ForcedGoal>,
+    pub model: ModelInfo,
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct PlanningInfo {
+    pub level: String,
+    pub plan: Vec<SPPath>,
+    pub goal: String,
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct ModelInfo {
+    operations: Vec<SPPath>,
+    resources: Vec<ResourceInfo>,
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct ResourceInfo {
+    path: SPPath,
+    variables: Vec<VariableInfo>,
+    abilities: Vec<AbilityInfo>
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct VariableInfo {
+    path: SPPath,
+    type_: String,
+    value_type: String,
+    domain: Vec<SPValue>,
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct AbilityInfo {
+    path: SPPath,
+    predicates: Vec<SPPath>,
+    transitions: Vec<TransitionInfo>
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct TransitionInfo {
+    path: SPPath,
+    guard: String,
+    actions: Vec<String>,
+    effects: Vec<String>,
+    controllable: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum PlannerCommand {
-    ToDO,
+pub enum RunnerCommand {
+    Mode(String),
+    ForceState(SPState),
+    SetState(SPState),
+    ForceGoal(ForcedGoal),
 }
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub struct ForcedGoal {
+    level: String,
+    goal: Predicate,
+}
+
