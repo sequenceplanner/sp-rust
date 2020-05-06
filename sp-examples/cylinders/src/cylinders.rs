@@ -36,9 +36,9 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let rp = &dorna["ref_pos"];
     let pp = &dorna["prev_pos"];
     let blue = &cb["blue_light_on"];
-    // todo
-    let cf = SPPath::from_string("cylinders/camera/scan/finished");
-    let cs = SPPath::from_string("cylinders/camera/scan/started");
+
+    let cf = camera.find_item("finished", &[]);
+    let cs = camera.find_item("started", &[]);
     let cr = &camera["result"];
     let cd = &camera["do_scan"];
 

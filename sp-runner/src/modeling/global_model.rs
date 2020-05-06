@@ -7,6 +7,7 @@ use std::ops::Index;
 pub struct GResource {
     name: String,
     variables: Vec<Variable>,
+    model: Model,
 }
 
 impl Index<&str> for GResource {
@@ -15,6 +16,15 @@ impl Index<&str> for GResource {
         let result = self.variables.iter().find(|v| v.name() == name);
         result
             .expect(&format!("{}/{} not found", self.name, name))
+            .path()
+    }
+}
+
+impl GResource {
+    pub fn find_item(&self, name: &str, path_sections: &[&str]) -> SPPath {
+        let result = self.model.find_item(name, path_sections);
+        result
+            .expect(&format!("{} [{:?}] not found", name, path_sections))
             .path()
     }
 }
@@ -43,13 +53,17 @@ impl GModel {
         }
     }
 
-    pub fn use_resource(&mut self, r: Resource) -> GResource {
-        let rp = self.model.add_item(SPItem::Resource(r));
+    pub fn use_resource(&mut self, resource: Resource) -> GResource {
+        let rp = self.model.add_item(SPItem::Resource(resource.clone()));
         let r = self.model.get(&rp).unwrap().unwrap_resource();
         let vars = r.get_variables();
+        let mut model = self.model.clone();
+        model.items.clear();
+        model.add_item(SPItem::Resource(resource));
         GResource {
             name: r.name().to_owned(),
             variables: vars,
+            model,
         }
     }
 

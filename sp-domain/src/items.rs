@@ -198,6 +198,10 @@ impl<'a> SPItemRef<'a> {
         self.node().path().clone()
     }
 
+    pub fn path_ref(&self) -> &SPPath {
+        self.node().path()
+    }
+
     pub fn node(&self) -> &SPNode {
         match self {
             SPItemRef::Model(x) => &x.node,
@@ -314,7 +318,7 @@ impl SPItemUnwrapper for SPItem {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Model {
     node: SPNode,
-    items: Vec<SPItem>,
+    pub items: Vec<SPItem>,
 }
 
 impl Noder for Model {
