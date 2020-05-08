@@ -1,2 +1,0 @@
-string level
-string goal

@@ -1,1 +1,0 @@
-string act_pos

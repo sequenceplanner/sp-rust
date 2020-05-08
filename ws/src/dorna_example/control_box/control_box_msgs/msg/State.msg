@@ -1,1 +1,0 @@
-bool blue_light_on

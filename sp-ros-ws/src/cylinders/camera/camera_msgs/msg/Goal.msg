@@ -1,1 +1,0 @@
-bool do_scan
