@@ -21,3 +21,6 @@ Cargo.lock
 # Python stuff
 **/__pycache__/
 **/*.py[cod]
+
+# MAC
+.DS_Store

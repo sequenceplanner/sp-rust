@@ -198,6 +198,10 @@ impl<'a> SPItemRef<'a> {
         self.node().path().clone()
     }
 
+    pub fn path_ref(&self) -> &SPPath {
+        self.node().path()
+    }
+
     pub fn node(&self) -> &SPNode {
         match self {
             SPItemRef::Model(x) => &x.node,
@@ -287,6 +291,16 @@ pub trait SPItemUnwrapper {
     fn unwrap_resource(&self) -> Resource {
         self.as_resource().unwrap()
     }
+    fn as_model(&self) -> Option<Model> {
+        if let SPItem::Model(x) = self.item() {
+            Some(x)
+        } else {
+            None
+        }
+    }
+    fn unwrap_model(&self) -> Model {
+        self.as_model().unwrap()
+    }
     // Add items here when needed
 }
 
@@ -314,7 +328,7 @@ impl SPItemUnwrapper for SPItem {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Model {
     node: SPNode,
-    items: Vec<SPItem>,
+    pub items: Vec<SPItem>,
 }
 
 impl Noder for Model {
@@ -384,6 +398,20 @@ impl Model {
             })
             .collect()
     }
+
+    // all resources including ones nested in layers of models
+    // we should probably change all code to use this one in time...
+    pub fn all_resources(&self) -> Vec<&Resource> {
+        self.items
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Model(m) => m.all_resources(),
+                SPItem::Resource(r) => vec![r],
+                _ => vec![],
+            })
+            .collect()
+    }
+
 
     pub fn add_item(&mut self, mut item: SPItem) -> SPPath {
         let mut changes = HashMap::new();

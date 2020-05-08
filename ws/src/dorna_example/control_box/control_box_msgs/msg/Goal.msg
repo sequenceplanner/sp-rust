@@ -1,0 +1,1 @@
+bool blue_light

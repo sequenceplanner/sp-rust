@@ -103,6 +103,7 @@ pub trait Noder {
         let next = path.next_node_in_path(self.path());
         next.as_ref().and_then(|n| self.get_child(n, path))
     }
+
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item<'a>(&'a self, name: &str, path_sections: &[&str]) -> Option<SPItemRef<'a>> {
         if self.node().name() == name {

@@ -14,7 +14,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let t3 = "take3";
     let leave = "leave"; // down at conveyor
 
-    let dorna = m.use_resource(make_dorna("dorna", &[pt, scan, t1, t2, t3, leave]));
+    let dorna = m.use_named_resource("dorna", make_dorna("r1", &[pt, scan, t1, t2, t3, leave]));
     let cb = m.use_resource(make_control_box("control_box"));
     let camera = m.use_resource(make_camera("camera"));
 
@@ -36,9 +36,9 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let rp = &dorna["ref_pos"];
     let pp = &dorna["prev_pos"];
     let blue = &cb["blue_light_on"];
-    // todo
-    let cf = SPPath::from_string("cylinders/camera/scan/finished");
-    let cs = SPPath::from_string("cylinders/camera/scan/started");
+
+    let cf = camera.find_item("finished", &[]);
+    let cs = camera.find_item("started", &[]);
     let cr = &camera["result"];
     let cd = &camera["do_scan"];
 

@@ -139,7 +139,7 @@ fn runner(
                 continue;
             }
 
-            
+
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -428,16 +428,16 @@ struct NodeState {
 
 use sp_ros::{NodeCmd, NodeMode};
 fn node_handler(
-    freq: Duration, 
-    deadline: Duration, 
-    model: &Model, 
+    freq: Duration,
+    deadline: Duration,
+    model: &Model,
     rx_node: Receiver<NodeMode>,
-    tx_node: Sender<NodeCmd>, 
+    tx_node: Sender<NodeCmd>,
     tx_runner: Sender<SPRunnerInput>,
     rx_commands: Receiver<RunnerCommand>
 ) {
     let mut nodes: HashMap<SPPath, NodeState> = model
-        .resources()
+        .all_resources()
         .iter()
         .map(|r| {
             let r: &Resource = r;
@@ -454,11 +454,12 @@ fn node_handler(
             )
         })
         .collect();
+
     let tick = channel::tick(freq);
 
     fn mode_from_node(
-        mode: Result<NodeMode, 
-        channel::RecvError>, 
+        mode: Result<NodeMode,
+        channel::RecvError>,
         nodes: &mut HashMap<SPPath, NodeState>,
         tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
@@ -493,10 +494,10 @@ fn node_handler(
         }
     }
     fn tick_node(
-        time: Result<Instant, channel::RecvError>, 
+        time: Result<Instant, channel::RecvError>,
         nodes: &mut HashMap<SPPath, NodeState>,
-        deadline: Duration, 
-        tx_node: Sender<NodeCmd>, 
+        deadline: Duration,
+        tx_node: Sender<NodeCmd>,
         tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         match time {
@@ -510,6 +511,8 @@ fn node_handler(
                         println!("Node {} is not responding", r.clone());
                         n.mode = String::new();
                         n.cmd = "init".to_string();
+                    } else {
+                        println!("Node {} responeded!", r.clone());
                     }
 
                     let cmd = NodeCmd {
@@ -537,13 +540,13 @@ fn node_handler(
     }
 
     fn cmd_from_node(
-        cmd: Result<RunnerCommand, channel::RecvError>,  
+        cmd: Result<RunnerCommand, channel::RecvError>,
         tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         if let Ok(cmd) = cmd {
             // TODO: Handle bad commands here and reply to commander if needed. Probably use service?
             tx_runner.send(SPRunnerInput::Settings(cmd)).expect("cmd from node could not talk to the runner");
-            true    
+            true
         } else {
             true
         }

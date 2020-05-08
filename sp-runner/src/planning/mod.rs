@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
-use sp_smt::*;
 
 pub fn plan(
     model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
@@ -24,7 +23,6 @@ pub fn plan(
         .collect();
 
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
-    //let result2 = Z3Planner::plan(model, &goals, state, max_steps);
     // let result3 = SatPlanner::plan(model, &goals, state, max_steps);
 
 
@@ -211,6 +209,3 @@ pub use nuxmv::*;
 
 mod sat_planner;
 pub use sat_planner::*;
-
-mod z3_planner;
-pub use z3_planner::*;
