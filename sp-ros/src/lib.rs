@@ -198,7 +198,7 @@ mod ros {
     ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
-        let rcs = model.resources();
+        let rcs = model.all_resources();
 
         for r in rcs {
             for t in r.messages() {
@@ -260,7 +260,7 @@ mod ros {
                 } else {
                     panic!("must have a message under a topic");
                 }
-            } 
+            }
         }
 
         let (tx_out, rx_out) = channel::unbounded();
@@ -284,7 +284,7 @@ mod ros {
     pub fn roscomm_setup_misc(
         node: &mut RosNode, tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
     ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
-        let runner_cmd_topic = "sp/runner/command";  
+        let runner_cmd_topic = "sp/runner/command";
 
         let _x = r2r::sp_messages::msg::ForcedGoal {
             level: "0".to_string(),
@@ -364,7 +364,7 @@ mod ros {
     ) -> Result<channel::Sender<NodeCmd>, Error> {
         let mut ros_pubs = Vec::new();
 
-        let rcs = model.resources();
+        let rcs = model.all_resources();
 
         for r in rcs {
             let name = r.name();
@@ -396,14 +396,14 @@ mod ros {
 
                         tx.send(m).unwrap();
                     };
-                    let topic = format!("{}/mode", name);
+                    let topic = r.path().drop_root().add_child("mode").to_string();
                     println!("setting up subscription to resource on topic: {}", topic);
                     let _subref = node.0.subscribe(&topic, Box::new(cb))?;
                 }
             }
 
             // Outgoing
-            let topic = format!("{}/node_cmd", name);
+            let topic = r.path().drop_root().add_child("node_cmd").to_string();
             let msg_type = "sp_messages/msg/NodeCmd";
             let r_path = r.path().clone();
             let rp = node.0.create_publisher_untyped(&topic, msg_type)?;

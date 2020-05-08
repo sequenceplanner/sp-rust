@@ -127,7 +127,7 @@ impl FormalContext {
 
                     Ex::EQ(*index, value)
                 } else {
-                    panic!("VAR {:?}, VALUE {:?}", var, value)
+                    panic!("VAR MAP\n{:?}\nVAR {:?}, VALUE {:?}", self.var_map, var, value)
                 }
             }
             Predicate::EQ(PredicateValue::SPPath(var, _), PredicateValue::SPPath(other, _)) => {

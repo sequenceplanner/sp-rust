@@ -10,13 +10,13 @@ pub fn make_dorna(name: &str, poses: &[&str]) -> Resource {
         name: name,
         command!{
             topic: "goal",
-            msg_type: "ros2_dorna_msgs/msg/Goal",
+            msg_type: "robot_msgs/msg/RobotGoal",
 
             ref_pos : domain,
         },
         measured!{
             topic: "state",
-            msg_type: "ros2_dorna_msgs/msg/State",
+            msg_type: "robot_msgs/msg/RobotState",
 
             act_pos : domain,
         },

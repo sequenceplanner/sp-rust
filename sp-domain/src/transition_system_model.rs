@@ -95,7 +95,7 @@ impl TransitionSystemModel {
             });
         }
 
-        let state_predicates: Vec<Variable> = model
+        let mut state_predicates: Vec<Variable> = model
             .resources()
             .iter()
             .flat_map(|r| r.get_state_predicates())
@@ -118,6 +118,18 @@ impl TransitionSystemModel {
             })
             .collect();
         specs.extend(resource_sub_item_specs.iter().cloned());
+
+
+        // recursively collect sub-models
+        model.items.iter().flat_map(|i| match i {
+            SPItem::Model(m) => Some(TransitionSystemModel::from(&m)),
+            _ => None
+        }).for_each(|tsm| {
+            vars.extend(tsm.vars);
+            state_predicates.extend(tsm.state_predicates);
+            transitions.extend(tsm.transitions);
+            specs.extend(tsm.specs);
+        });
 
         TransitionSystemModel {
             name: model.name().into(),

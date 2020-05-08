@@ -14,7 +14,7 @@ pub fn cylinders() -> (Model, SPState, Predicate) {
     let t3 = "take3";
     let leave = "leave"; // down at conveyor
 
-    let dorna = m.use_resource(make_dorna("dorna", &[pt, scan, t1, t2, t3, leave]));
+    let dorna = m.use_named_resource("dorna", make_dorna("r1", &[pt, scan, t1, t2, t3, leave]));
     let cb = m.use_resource(make_control_box("control_box"));
     let camera = m.use_resource(make_camera("camera"));
 

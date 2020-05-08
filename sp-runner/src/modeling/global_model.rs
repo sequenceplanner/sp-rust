@@ -53,6 +53,23 @@ impl GModel {
         }
     }
 
+    pub fn use_named_resource(&mut self, name: &str, resource: Resource) -> GResource {
+        let mut temp_model = Model::new(name, vec![]);
+        let rp = temp_model.add_item(SPItem::Resource(resource.clone()));
+        let temp_model_path = self.model.add_item(SPItem::Model(temp_model));
+        let m = self.model.get(&temp_model_path).unwrap().unwrap_model();
+        let r = m.find_item(resource.name(), &[]).unwrap().unwrap_resource();
+        let vars = r.get_variables();
+        let mut model = self.model.clone();
+        model.items.clear();
+        model.add_item(SPItem::Resource(resource));
+        GResource {
+            name: r.name().to_owned(),
+            variables: vars,
+            model,
+        }
+    }
+
     pub fn use_resource(&mut self, resource: Resource) -> GResource {
         let rp = self.model.add_item(SPItem::Resource(resource.clone()));
         let r = self.model.get(&rp).unwrap().unwrap_resource();
