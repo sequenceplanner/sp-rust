@@ -55,10 +55,10 @@ impl SPTicker {
             );
             self.state.take_transition();
             if f.is_empty() {
-                println!("f empty, fired is {:?}", fired);
+                // println!("f empty, fired is {:?}", fired);
                 break;
             } else {
-                println!("runner one more time! adding new fired {:?}", f);
+                // println!("runner one more time! adding new fired {:?}", f);
                 fired.extend(f);
             }
         }

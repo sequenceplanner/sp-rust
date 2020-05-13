@@ -23,7 +23,7 @@ pub fn plan(
         .collect();
 
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
-    // let result3 = SatPlanner::plan(model, &goals, state, max_steps);
+    // let result2 = SatPlanner::plan(model, &goals, state, max_steps);
 
 
     // for f in &result.trace {
@@ -42,20 +42,13 @@ pub fn plan(
 
     // }
 
-    if result.plan_found != result.plan_found {
-        // println!("result {}", result.plan_found);
-        println!("result {}", result.plan_found);
-        // println!("result3 {}", result.plan_found);
-    }
-    assert_eq!(result.plan_found, result.plan_found);
+    // assert_eq!(result.plan_found, result2.plan_found);
 
     if result.plan_found {
-        assert_eq!(result.plan_length, result.plan_length);
+        // assert_eq!(result.plan_length, result2.plan_length);
         println!("we have a plan of length {}", result.plan_length);
         println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
-        println!("z3 time: {}ms", result.time_to_solve.as_millis());
-        // println!("cryptosat time: {}ms", result3.time_to_solve.as_millis());
-        // println!("satplanner time: {}ms", result.time_to_solve.as_millis());
+        // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
     }
 
     result

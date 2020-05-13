@@ -131,15 +131,15 @@ impl SPRunner {
             }
             SPRunnerInput::Settings(cmd) => {
                 match cmd {
-                    RunnerCommand::Mode(x) => {},
-                    RunnerCommand::ForceState(s) => {},
+                    RunnerCommand::Mode(_x) => {},
+                    RunnerCommand::ForceState(_s) => {},
                     RunnerCommand::SetState(s) => {
                         println!("WE GOT A SET STATE: {}", s);
                         self.take_a_tick(s, false);
                     },
                     RunnerCommand::ForceGoal(_) => {},
                 }
-            } 
+            }
             SPRunnerInput::NewPlan(idx, plan) => {
                 self.plans[idx as usize] = plan;
                 self.update_state_variables(self.plans[idx as usize].state_change.clone());

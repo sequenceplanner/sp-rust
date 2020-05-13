@@ -367,8 +367,6 @@ mod ros {
         let rcs = model.all_resources();
 
         for r in rcs {
-            let name = r.name();
-
             for t in r.messages() {
                 if !t.is_publisher() {
                     continue;

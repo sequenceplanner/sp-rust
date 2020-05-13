@@ -55,7 +55,7 @@ fn runner(
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let mut prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
-        let timer = Instant::now();
+        // let timer = Instant::now();
 
         loop {
             let input = rx_input.recv();
@@ -129,9 +129,7 @@ fn runner(
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
-            //println!("The State:\n{}", runner.state());
-
-
+            // println!("The State:\n{}", runner.state());
 
             let disabled = runner.disabled_paths();
             if !disabled.is_empty() {
@@ -180,8 +178,8 @@ fn runner(
                     let ok = runner
                         .check_goals_fast(&state, &gr, &runner.plans[i],
                                           &runner.transition_system_models[i]);
-                    println!("goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
                     if !ok {
+                        println!("goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
                         println!("replanning because we cannot reach goal. {}", i);
                     }
                     !ok
@@ -511,8 +509,6 @@ fn node_handler(
                         println!("Node {} is not responding", r.clone());
                         n.mode = String::new();
                         n.cmd = "init".to_string();
-                    } else {
-                        println!("Node {} responeded!", r.clone());
                     }
 
                     let cmd = NodeCmd {
