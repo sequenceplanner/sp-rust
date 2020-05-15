@@ -19,7 +19,6 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(2000), tx_runner.clone());
     planner(1, tx_runner.clone(), rx_planner.clone());
-    planner(2, tx_runner.clone(), rx_planner.clone());
 
     node_handler(
         Duration::from_millis(1000),
@@ -199,7 +198,7 @@ fn runner(
                     (0..=i).for_each(|ns| {
                         println!("blocking namespace {}", ns);
                         // set prev goal to empty
-                        prev_goals.insert(i, Vec::new());
+                        prev_goals.insert(ns, Vec::new());
                         runner.input(SPRunnerInput::NewPlan(ns as i32, SPPlan {
                             is_blocked: true,
                             plan: crate::planning::block_all(&runner.transition_system_models[ns]),
@@ -353,6 +352,9 @@ struct PlannerTask {
 }
 
 fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
+    use crate::planning::*;
+    let mut store: PlanningStore = PlanningStore::default();
+
     thread::spawn(move || {
         loop {
             let pt: PlannerTask = if rx_planner.is_empty() {
@@ -378,7 +380,7 @@ fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<Plann
             // for now, do all planning here. so loop over each namespace
             let max_steps = 50; // arbitrary decision
             println!("planner thead {}: computing plan for namespace {}", id, pt.namespace);
-            let planner_result = crate::planning::plan(&pt.ts, &pt.goals, &pt.state, max_steps);
+            let planner_result = plan_with_cache(&pt.ts, &pt.goals, &pt.state, max_steps, &mut store);
             let is_empty = !planner_result.plan_found;
             if is_empty {
                 println!("planner thread {}: No plan was found for namespace {}!", id, pt.namespace);
@@ -390,7 +392,7 @@ fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<Plann
             // TODO!
 
             let plan_p = SPPath::from_slice(&["runner", "plans", &pt.namespace.to_string()]);
-            let (tr, s) = crate::planning::convert_planning_result(&pt.ts, &planner_result, &plan_p);
+            let (tr, s) = convert_planning_result(&pt.ts, &planner_result, &plan_p);
             let trans = planner_result.trace.iter()
                 .filter_map(|f|
                     if f.transition.is_empty() {
