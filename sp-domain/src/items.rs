@@ -1,7 +1,7 @@
 //!
 //!
 use super::*;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum SPItem {
@@ -1040,6 +1040,14 @@ impl Transition {
         self.actions
             .iter_mut()
             .for_each(|a| a.upd_state_path(state));
+    }
+
+    pub fn modifies(&self) -> HashSet<SPPath> {
+        let mut r = HashSet::new();
+
+        r.extend(self.actions().iter().map(|a| a.var.clone()));
+        r.extend(self.effects().iter().map(|a| a.var.clone()));
+        r
     }
 }
 

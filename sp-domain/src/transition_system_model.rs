@@ -78,22 +78,25 @@ impl TransitionSystemModel {
         // drm/r1/move_to/start_with_at
         // drm/r1/move_to/finish
 
-        let auto = transitions
-            .iter()
-            .filter(|t| !t.controlled() && !t.actions().is_empty());
-        let auto_guards: Vec<Predicate> = auto
-            .map(|a| Predicate::NOT(Box::new(a.guard().clone())))
-            .collect();
-        if !auto_guards.is_empty() {
-            let auto_guards = Predicate::AND(auto_guards);
-            transitions.iter_mut().for_each(|t| {
-                if t.controlled() {
-                    let orig = t.guard().clone();
-                    let new = Predicate::AND(vec![orig, auto_guards.clone()]);
-                    *t.mut_guard() = new;
-                }
-            });
-        }
+
+        // for simplicity and clarity we remove this for now.
+
+        // let auto = transitions
+        //     .iter()
+        //     .filter(|t| !t.controlled() && !t.actions().is_empty());
+        // let auto_guards: Vec<Predicate> = auto
+        //     .map(|a| Predicate::NOT(Box::new(a.guard().clone())))
+        //     .collect();
+        // if !auto_guards.is_empty() {
+        //     let auto_guards = Predicate::AND(auto_guards);
+        //     transitions.iter_mut().for_each(|t| {
+        //         if t.controlled() {
+        //             let orig = t.guard().clone();
+        //             let new = Predicate::AND(vec![orig, auto_guards.clone()]);
+        //             *t.mut_guard() = new;
+        //         }
+        //     });
+        // }
 
         let mut state_predicates: Vec<Variable> = model
             .resources()

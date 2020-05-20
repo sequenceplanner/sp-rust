@@ -249,6 +249,85 @@ impl Predicate {
         s.dedup();
         s
     }
+
+    /// Recursively clean expression and keep only constants and allowed paths
+    pub fn keep_only(&self, only: &[SPPath]) -> Option<Predicate> {
+        match &self {
+            Predicate::AND(x) => {
+                let mut new: Vec<_> = x.iter().flat_map(|p| p.keep_only(only)).collect();
+                new.dedup();
+                if new.len() == 0 {
+                    None
+                } else if new.len() == 1 {
+                    Some(new[0].clone())
+                } else {
+                    Some(Predicate::AND(new))
+                }
+            }
+            Predicate::OR(x) => {
+                let mut new: Vec<_> = x.iter().flat_map(|p| p.keep_only(only)).collect();
+                new.dedup();
+                if new.len() == 0 {
+                    None
+                } else if new.len() == 1 {
+                    Some(new[0].clone())
+                } else {
+                    Some(Predicate::OR(new))
+                }
+            }
+            Predicate::XOR(x) => {
+                let mut new: Vec<_> = x.iter().flat_map(|p| p.keep_only(only)).collect();
+                new.dedup();
+                if new.len() == 0 {
+                    None
+                } else if new.len() == 1 {
+                    Some(new[0].clone())
+                } else {
+                    Some(Predicate::XOR(new))
+                }
+            }
+            Predicate::NOT(x) => {
+                match x.keep_only(only) {
+                    Some(x) => Some(Predicate::NOT(Box::new(x))),
+                    None => None,
+                }
+            },
+            Predicate::TRUE => Some(Predicate::TRUE),
+            Predicate::FALSE => Some(Predicate::FALSE),
+            Predicate::EQ(x, y) => {
+                let remove_x = match x {
+                    PredicateValue::SPValue(_) => true,
+                    PredicateValue::SPPath(p, _) => !only.contains(p),
+                };
+                let remove_y = match y {
+                    PredicateValue::SPValue(_) => true,
+                    PredicateValue::SPPath(p, _) => !only.contains(p),
+                };
+
+                if remove_x && remove_y {
+                    None
+                } else {
+                    Some(Predicate::EQ(x.clone(), y.clone()))
+                }
+            }
+            Predicate::NEQ(x, y) => {
+                let remove_x = match x {
+                    PredicateValue::SPValue(_) => true,
+                    PredicateValue::SPPath(p, _) => !only.contains(p),
+                };
+                let remove_y = match y {
+                    PredicateValue::SPValue(_) => true,
+                    PredicateValue::SPPath(p, _) => !only.contains(p),
+                };
+
+                if remove_x && remove_y {
+                    None
+                } else {
+                    Some(Predicate::NEQ(x.clone(), y.clone()))
+                }
+            }
+        }
+    }
 }
 
 impl Action {
@@ -287,6 +366,15 @@ impl Action {
         match &self.state_path {
             Some(sp) => state.revert_next(&sp),
             None => state.revert_next_from_path(&self.var),
+        }
+    }
+
+    pub fn to_predicate(&self) -> Option<Predicate> {
+        match &self.value {
+            Compute::PredicateValue(PredicateValue::SPValue(v)) =>
+                Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None),
+                                   PredicateValue::SPValue(v.clone()))),
+            _ => None
         }
     }
 }

@@ -278,4 +278,73 @@ impl GModel {
         // lastly, add all specifications.
         (self.model, s)
     }
+
+
+    pub fn generate_operation_model(&mut self, products: &[SPPath]) {
+        let tsm = TransitionSystemModel::from(&self.model);
+
+        tsm.transitions.iter().for_each(|t| {
+            let sup = t.guard().support();
+            if products.iter().any(|p| sup.contains(p)) {
+                let cleaned_guard = t.guard().keep_only(&products).unwrap();
+                let acts: Vec<_> = t.actions().into_iter().filter(|p| products.contains(&p.var)).collect();
+
+                // highlevel ops cannot deal with effects
+                // let effs: Vec<_> = t.effects().into_iter().filter(|p| products.contains(&p.var)).collect();
+                // flatten out "all in domain" assignments.
+                let ad: Vec<Vec<(Predicate,Action)>> = acts.iter().flat_map(|a| {
+                    if let Compute::PredicateValue(PredicateValue::SPPath(p,_)) = &a.value {
+                        let v = tsm.vars.iter().find(|v|v.path() == p).unwrap();
+                        let domain = if v.value_type() == SPValueType::Bool {
+                            vec![false.to_spvalue(), true.to_spvalue()]
+                        } else {
+                            v.domain().to_vec()
+                        };
+                        Some(domain.iter().map(|e| {
+                            (Predicate::EQ(PredicateValue::SPPath(p.clone(), None), PredicateValue::SPValue(e.clone())),
+                            Action::new(a.var.clone(),
+                                        Compute::PredicateValue(PredicateValue::SPValue(e.clone()))))
+                        }).collect::<Vec<(Predicate,Action)>>())
+                    } else {
+                        None
+                    }
+                }).collect();
+
+                // keep also the "normal" actions
+                let norm: Vec<Action> = acts.iter().flat_map(|a| {
+                    if let Compute::PredicateValue(PredicateValue::SPPath(_,_)) = &a.value {
+                        None
+                    } else {
+                        Some((*a).clone())
+                    }
+                }).collect();
+
+                if ad.is_empty() {
+                    let post = Predicate::AND(norm.iter().map(|a|a.to_predicate().unwrap()).collect());
+                    println!("Generating operation {}", t.name());
+                    self.add_op(t.name(), true, &cleaned_guard, &post, &norm, None);
+                } else if ad.len() == 1 {
+                    let head = ad[0].clone();
+                    head.iter().for_each(|(g,a)| {
+                        let mut all = norm.clone();
+                        all.push(a.clone());
+
+                        let v = if let Compute::PredicateValue(PredicateValue::SPValue(v)) = &a.value {
+                            v.to_string()
+                        } else { "error".to_string() };
+
+                        let name = format!("{}_{}", t.name(), v);
+                        println!("Generating operation {}", name);
+                        let pre = Predicate::AND(vec![cleaned_guard.clone(), g.clone()]);
+                        let post = Predicate::AND(all.iter().map(|a|a.to_predicate().unwrap()).collect());
+                        self.add_op(&name, true, &pre, &post, &all, None);
+                    });
+                } else {
+                    panic!("TODO! model too complicated for now");
+                }
+
+            }
+        });
+
+    }
 }
