@@ -413,6 +413,18 @@ impl Model {
     }
 
 
+    pub fn all_operations(&self) -> Vec<&Operation> {
+        self.items
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Model(m) => m.all_operations(),
+                SPItem::Operation(o) => vec![o],
+                _ => vec![],
+            })
+            .collect()
+    }
+
+
     pub fn add_item(&mut self, mut item: SPItem) -> SPPath {
         let mut changes = HashMap::new();
         let path = item.update_path(self.node.path(), &mut changes);

@@ -157,7 +157,7 @@ impl GModel {
         &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate, effects: &[Action],
         invariant: Option<Predicate>,
     ) -> SPPath {
-        let state = SPPath::from_slice(&[self.model.name(), name, "state"]);
+        let state = SPPath::from_slice(&[self.model.name(), "operations", name, "state"]);
 
         let op_start = Transition::new(
             "start",
@@ -206,7 +206,22 @@ impl GModel {
             &[op_start, op_effect, op_finish, op_planning],
             Some(op_goal),
         );
-        self.model.add_item(SPItem::Operation(op))
+
+        let m = match self.model.find_item_mut("operations", &[]) {
+            Some(SPMutItemRef::Model(m)) => m,
+            Some(_) => panic!("operations error..."),
+            None => {
+                let temp_model = Model::new("operations", vec![]);
+                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
+                match self.model.find_item_mut("operations", &[]) {
+                    Some(SPMutItemRef::Model(m)) => m,
+                    Some(_) => panic!("operations error..."),
+                    _ => panic!("cannot happen"),
+                }
+            }
+        };
+        m.add_item(SPItem::Operation(op))
+        //self.model.add_item(SPItem::Operation(op))
     }
 
     pub fn add_hl_op(
@@ -259,18 +274,9 @@ impl GModel {
         let mut s = self.initial_state.clone();
 
         // add operation to the initial state here
-        let global_ops: Vec<&Operation> = self
-            .model
-            .items()
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Operation(o) => Some(o),
-                _ => None,
-            })
-            .collect();
-        let global_ops_vars = global_ops.iter().map(|o| o.state_variable());
+        let global_ops_vars: Vec<Variable> = self.model.all_operations().iter().map(|o| o.state_variable().clone()).collect();
 
-        let state: Vec<_> = global_ops_vars
+        let state: Vec<_> = global_ops_vars.iter()
             .map(|v| (v.node().path().clone(), "i".to_spvalue()))
             .collect();
         s.extend(SPState::new_from_values(&state[..]));

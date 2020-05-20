@@ -156,7 +156,11 @@ impl TransitionSystemModel {
             .collect();
         vars.extend(model_item_vars.iter().cloned());
 
-        let global_ops: Vec<Operation> = model
+        let op_model = model.find_item("operations",&[])
+            .as_model()
+            .expect("No operation model created");
+
+        let global_ops: Vec<Operation> = op_model
             .items()
             .iter()
             .flat_map(|i| match i {

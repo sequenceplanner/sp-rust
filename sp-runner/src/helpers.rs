@@ -45,14 +45,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     // runner model has everything from planning model + operations and their global state
     let items = model.items();
 
-    // add global op transitions (all automatic for now).
-    let global_ops: Vec<&Operation> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Operation(o) if !o.high_level => Some(o),
-            _ => None,
-        })
-        .collect();
+    // add global op transitions
+    let global_ops: Vec<&Operation> = model.all_operations()
+        .into_iter().filter(|o| !o.high_level).collect();
 
     let global_ops_trans: Vec<_> = global_ops
         .iter()
