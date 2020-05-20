@@ -15,7 +15,7 @@ sp-ros = { path = "../sp-ros/", features = ["ros"] }
 failure = "0.1.6"
 failure_derive = "0.1.6"
 chrono = { version = "0.4.9", features = ["serde"] }
-guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", tag = "for_sp_0.1.1" }
+guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", rev = "a1c8121" }
 indoc = "0.3"
 cryptominisat = { git = "https://github.com/Storyyeller/cryptominisat-rs.git" }
 

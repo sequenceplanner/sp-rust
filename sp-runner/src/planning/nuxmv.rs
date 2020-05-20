@@ -252,6 +252,10 @@ impl Planner for NuXmvPlanner {
 
         match result {
             Ok((raw, raw_error)) => {
+                if raw_error.len() > 0 {
+                    // just to more easily find syntax errors
+                    panic!("{}", raw_error);
+                }
                 let plan = postprocess_nuxmv_problem(&model, &raw);
                 let plan_found = plan.is_some();
                 let trace = plan.unwrap_or_else(|| {

@@ -177,6 +177,11 @@ fn runner(
                     let ok = runner
                         .check_goals_fast(&state, &gr, &runner.plans[i],
                                           &runner.transition_system_models[i]);
+
+                    if now.elapsed().as_millis() > 100 {
+                        println!("WARNINIG goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
+                    }
+
                     if !ok {
                         println!("goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
                         println!("replanning because we cannot reach goal. {}", i);
