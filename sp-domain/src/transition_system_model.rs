@@ -167,7 +167,7 @@ impl TransitionSystemModel {
 
         let mut transitions: Vec<_> = global_ops
             .iter()
-            .flat_map(|o| o.transitinos())
+            .flat_map(|o| o.transitions())
             .filter(|t| t.name() == "planning")
             .cloned()
             .collect();

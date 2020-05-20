@@ -56,7 +56,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
     let global_ops_trans: Vec<_> = global_ops
         .iter()
-        .flat_map(|o| o.transitinos())
+        .flat_map(|o| o.transitions())
         .cloned()
         .collect();
     let global_ops_ctrl: Vec<_> = global_ops_trans
@@ -93,7 +93,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
     let global_hl_ops_trans: Vec<_> = global_hl_ops
         .iter()
-        .flat_map(|o| o.transitinos())
+        .flat_map(|o| o.transitions())
         .cloned()
         .collect();
     let global_hl_ops_ctrl: Vec<_> = global_hl_ops_trans

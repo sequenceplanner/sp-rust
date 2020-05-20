@@ -1272,7 +1272,7 @@ impl Operation {
         &self.state_variable
     }
 
-    pub fn transitinos(&self) -> &Vec<Transition> {
+    pub fn transitions(&self) -> &Vec<Transition> {
         &self.transitions
     }
 }
