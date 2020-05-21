@@ -53,7 +53,7 @@ fn runner(
     thread::spawn(move || {
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
-        let mut prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
+        let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
         // let timer = Instant::now();
 
         loop {
@@ -140,6 +140,14 @@ fn runner(
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
+            for (i,g) in goals.iter().enumerate() {
+                println!("Goals for {}", i);
+                for g in g {
+                    println!("{}", g.0);
+                }
+                println!("--");
+            }
+
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
                 // for each namespace, check if we need to replan because
                 // 1. got new goals from the runner or
@@ -151,16 +159,25 @@ fn runner(
 
                 // This is also true for the goals -> they are a function of the state.
 
-                let prev_goal = prev_goals.get(&i).unwrap_or(&Vec::new()).clone();
+                let prev_goal = prev_goals.get(&i).unwrap_or(&None).clone();
 
                 let gr: Vec<&Predicate> = goals
                     .iter()
                     .map(|g| &g.0).collect(); // dont care about the invariants for now
 
                 let replan = {
-                    let ok = &prev_goal == goals;
+                    let is_empty = prev_goal.is_none();
+                    if is_empty {
+                        println!("replanning because goal is empty. {}", i);
+                    }
+                    is_empty
+                } || {
+                    let ok = &prev_goal.as_ref().map(|g| g == goals).unwrap_or(false);
                     if !ok && goals.len() > 0 {
                         println!("replanning because goal changed. {}", i);
+                        prev_goal.as_ref().and_then(|g| g.get(i)).map(|g| {
+                            println!("prev goals {}", g.0);
+                        });
                     }
                     !ok
                 } || (!runner.plans[i].is_blocked && {
@@ -203,7 +220,7 @@ fn runner(
                     (0..=i).for_each(|ns| {
                         println!("blocking namespace {}", ns);
                         // set prev goal to empty
-                        prev_goals.insert(ns, Vec::new());
+                        prev_goals.insert(ns, None);
                         runner.input(SPRunnerInput::NewPlan(ns as i32, SPPlan {
                             is_blocked: true,
                             plan: crate::planning::block_all(&runner.transition_system_models[ns]),
@@ -214,7 +231,7 @@ fn runner(
 
                     if goals.len() > 0 {
                         // update last set of goals
-                        prev_goals.insert(i, goals.clone());
+                        prev_goals.insert(i, Some(goals.clone()));
                         // make new planning request.
                         let task = PlannerTask {
                             namespace: i as i32,
@@ -384,7 +401,13 @@ fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<Plann
 
             // for now, do all planning here. so loop over each namespace
             let max_steps = 50; // arbitrary decision
-            println!("planner thead {}: computing plan for namespace {}", id, pt.namespace);
+            println!("planner thread {}: computing plan for namespace {}", id, pt.namespace);
+
+            for g in &pt.goals {
+                println!("goal is: {}", g.0);
+            }
+
+
             let planner_result = plan_with_cache(&pt.ts, &pt.goals, &pt.state, max_steps, &mut store);
             let is_empty = !planner_result.plan_found;
             if is_empty {

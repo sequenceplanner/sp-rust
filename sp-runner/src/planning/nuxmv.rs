@@ -252,7 +252,7 @@ impl Planner for NuXmvPlanner {
 
         match result {
             Ok((raw, raw_error)) => {
-                if raw_error.len() > 0 {
+                if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
                     // just to more easily find syntax errors
                     panic!("{}", raw_error);
                 }

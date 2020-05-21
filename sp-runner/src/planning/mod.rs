@@ -23,7 +23,6 @@ pub fn plan_with_cache(model: &TransitionSystemModel, goals: &[(Predicate, Optio
         .filter(|(k,_)| model.vars.iter().any(|v|&v.path() == k))
         .map(|(k,v)| {
             let s = format!("{}{}", k,serde_json::to_string(v.value()).unwrap());
-            println!("hash key: {}", s);
             s
         })
         .fold("".to_string(), |acum,s| format!("{}{}", acum,s));

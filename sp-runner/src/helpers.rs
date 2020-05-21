@@ -4,18 +4,18 @@ use sp_runner_api::*;
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {
     // each resource contains a supervisor defining its good states
-    // let inits: Vec<Predicate> = model
-    //     .resources()
-    //     .iter()
-    //     .flat_map(|r| r.sub_items())
-    //     .flat_map(|si| match si {
-    //         SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
-    //         _ => None,
-    //     })
-    //     .collect();
+    let inits: Vec<Predicate> = model
+        .all_resources()
+        .iter()
+        .flat_map(|r| r.sub_items())
+        .flat_map(|si| match si {
+            SPItem::Spec(s) if s.name() == "supervisor" => Some(s.invariant().clone()),
+            _ => None,
+        })
+        .collect();
 
     // we need to assume that we are in a state that adheres to the resources
-    // let initial = Predicate::AND(inits);
+    let initial = Predicate::AND(inits);
 
     let mut ts_model = TransitionSystemModel::from(&model);
 
@@ -42,6 +42,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         new_specs.push(Spec::new(s.name(), ri));
     }
     ts_model.specs = new_specs;
+
+    // spit out a nuxmv file for debugging.
+    crate::planning::generate_offline_nuxvm(&ts_model,&initial);
 
     // runner model has everything from planning model + operations and their global state
     let items = model.items();
