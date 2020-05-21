@@ -56,7 +56,7 @@ fn runner(
         let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
         // let timer = Instant::now();
 
-        loop {
+        'outer: loop {
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
             let mut ticked = false;
@@ -128,15 +128,13 @@ fn runner(
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
-            // println!("The State:\n{}", runner.state());
-
             let disabled = runner.disabled_paths();
             if !disabled.is_empty() {
                 println!("still waiting... do nothing");
                 continue;
             }
 
-
+            println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -175,9 +173,9 @@ fn runner(
                     let ok = &prev_goal.as_ref().map(|g| g == goals).unwrap_or(false);
                     if !ok && goals.len() > 0 {
                         println!("replanning because goal changed. {}", i);
-                        prev_goal.as_ref().and_then(|g| g.get(i)).map(|g| {
+                        prev_goal.as_ref().iter().for_each(|g| g.iter().for_each(|g| {
                             println!("prev goals {}", g.0);
-                        });
+                        }));
                     }
                     !ok
                 } || (!runner.plans[i].is_blocked && {
@@ -207,43 +205,53 @@ fn runner(
                 });
 
                 if replan {
-                    // temporary hack -- actually probably not so
-                    // temporary, this is something we need to deal with
-                    if i == 1 {
-                        println!("resetting all operation state");
-                        for p in &runner.operation_states {
-                            runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
+
+                    if goals.len() == 0 {
+                        println!("NO ACTIVE GOALS...")
+                    } else {
+
+                        // temporary hack -- actually probably not so
+                        // temporary, this is something we need to deal with
+                        if i == 1 {
+                            println!("resetting all operation state");
+                            for p in &runner.operation_states {
+                                runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
+                            }
                         }
-                    }
 
-                    // disable all plans under this level
-                    (0..=i).for_each(|ns| {
-                        println!("blocking namespace {}", ns);
-                        // set prev goal to empty
-                        prev_goals.insert(ns, None);
-                        runner.input(SPRunnerInput::NewPlan(ns as i32, SPPlan {
-                            is_blocked: true,
-                            plan: crate::planning::block_all(&runner.transition_system_models[ns]),
-                            included_trans: Vec::new(),
-                            state_change: SPState::new(),
-                        }));
-                    });
+                        let max_steps = 50; // arbitrary decision
+                        println!("computing plan for namespace {}", i);
 
-                    if goals.len() > 0 {
+                        let planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
+                        let is_empty = !planner_result.plan_found;
+                        if is_empty {
+                            println!("No plan was found for namespace {}!", i);
+                        }
+
+                        let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
+                        let (tr, s) = crate::planning::convert_planning_result(&ts, &planner_result, &plan_p);
+                        let trans = planner_result.trace.iter()
+                            .filter_map(|f|
+                                        if f.transition.is_empty() {
+                                            None
+                                        } else {
+                                            Some(f.transition.clone())
+                                        }).collect();
+
+                        let plan = SPPlan {
+                            is_blocked: is_empty,
+                            plan: tr,
+                            included_trans: trans,
+                            state_change: s,
+                        };
+
                         // update last set of goals
                         prev_goals.insert(i, Some(goals.clone()));
-                        // make new planning request.
-                        let task = PlannerTask {
-                            namespace: i as i32,
-                            ts: ts.clone(),
-                            state: runner.state().clone(),
-                            goals: goals.clone(),
-                            disabled_paths: disabled.clone(),
-                        };
-                        tx_planner.send(task).unwrap();
-                    }
 
-                    continue; // don't check lower levels now.
+                        runner.input(SPRunnerInput::NewPlan(i as i32, plan));
+
+                        continue 'outer; // wait until next iteration to check lower levels
+                    }
                 }
             }
         }
