@@ -168,10 +168,10 @@ pub fn convert_planning_result(
                 pred.extend(preds);
             }
             pred.push(p!(p: plan_counter == i));
-            println!("Transition: {:?} {}", i, pf.transition);
+            // println!("Transition: {:?} {}", i, pf.transition);
             let guard = Predicate::AND(pred);
-            println!("A new Guard: {}", guard);
-            println!("");
+            // println!("A new Guard: {}", guard);
+            // println!("");
 
             let t = Transition::new(
                 &format!("step{:?}", i),
@@ -210,11 +210,44 @@ pub fn convert_planning_result(
 
     tr.extend(blocked);
 
-    println!("THE PLAN");
-    in_plan.iter().for_each(|x| println!("{}", x));
-    println!();
+    // println!("THE PLAN");
+    // in_plan.iter().for_each(|x| println!("{}", x));
+    // println!();
 
     (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
+}
+
+
+// create a planning result based on an initial state and a sequence
+// of transitions this is to make it easy to try to rearrange plans.
+pub fn make_planning_trace(model: &TransitionSystemModel, plan: &[SPPath], initial: &SPState) -> Vec<PlanningFrame> {
+    let mut state = initial.clone();
+    let mut result = Vec::new();
+
+    let frame = PlanningFrame {
+        state: state.clone(),
+        transition: SPPath::new(),
+    };
+    result.push(frame);
+
+    for pt in plan {
+        let t = model.transitions.iter().find(|c| c.path() == pt).expect("Model does not match plan");
+        t.actions.iter().for_each(|a| {
+            a.next(&mut state).unwrap();
+        });
+        t.effects.iter().for_each(|a| {
+            a.next(&mut state).unwrap();
+        });
+        state.take_transition();
+
+        let frame = PlanningFrame {
+            state: state.clone(),
+            transition: pt.clone(),
+        };
+
+        result.push(frame);
+    }
+    result
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]

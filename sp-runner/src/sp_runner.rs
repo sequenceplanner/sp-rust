@@ -167,6 +167,10 @@ impl SPRunner {
             .collect()
     }
 
+    fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
+        ts_model.specs.iter().any(|s| !s.invariant().eval(state))
+    }
+
     /// Checks wheter we can reach the current goal As it doesnt
     /// exactly follow the plan but instead simulated the runner, it
     /// can fail if the plan contains two "choices" involving the same
@@ -186,7 +190,7 @@ impl SPRunner {
         loop {
             let state_changed = tm.iter().flat_map(|ts| {
                 if ts.iter().all(|t| {
-                    t.eval(&state)
+                    t.eval(&state) && !SPRunner::bad_state(&state, ts_model)
                 }) {
                     // transitions enabled. clone the state to start a new search branch.
 
@@ -218,7 +222,10 @@ impl SPRunner {
                 // fast, but it saves us from the issue descibed
                 // above. worst case we waste some time here but but
                 // it should be faster than replanning anyway.
-                return self.check_goals_complete(s, goals, plan, ts_model);
+                let x = self.check_goals_complete(s, goals, plan, ts_model);
+                // I want to know if this can actually happend...
+                assert_ne!(x, true);
+                return x;
             }
         }
     }
@@ -237,13 +244,14 @@ impl SPRunner {
         let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
 
         fn rec<'a>(state: &SPState, goals: &[&Predicate],
-               tm: &Vec<Vec<&'a Transition>>, ticker: &SPTicker, visited: &mut Vec<SPState>) -> bool {
+                   tm: &Vec<Vec<&'a Transition>>, ticker: &SPTicker, visited: &mut Vec<SPState>,
+                   ts_model: &TransitionSystemModel) -> bool {
             if goals.iter().all(|g| g.eval(&state)) {
                 return true;
             }
 
             let new_states: Vec<SPState> = tm.iter().flat_map(|ts| {
-                if ts.iter().all(|t| t.eval(&state)) {
+                if ts.iter().all(|t| t.eval(&state) && !SPRunner::bad_state(&state, ts_model)) {
                     // transitions enabled. clone the state to start a new search branch.
                     let mut state = state.clone();
 
@@ -272,11 +280,11 @@ impl SPRunner {
                 }
             }).collect();
 
-            new_states.iter().any(|s| rec(&s, goals, tm, ticker, visited))
+            new_states.iter().any(|s| rec(&s, goals, tm, ticker, visited, ts_model))
         }
 
         let mut visited = vec![state.clone()];
-        rec(state, &goals, &tm, &self.ticker, &mut visited)
+        rec(state, &goals, &tm, &self.ticker, &mut visited, ts_model)
     }
 
     /// A special function that the owner of the runner can use to

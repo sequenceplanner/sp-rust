@@ -222,7 +222,144 @@ fn runner(
                         let max_steps = 50; // arbitrary decision
                         println!("computing plan for namespace {}", i);
 
-                        let planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
+                        let mut planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
+
+                        if i == 0 && planner_result.plan_length > 2 {
+                            // try out our greedy packing algorithm.
+                            let plan = planner_result.trace.iter()
+                                .filter(|f| f.transition != SPPath::new())
+                                .flat_map(|f| ts.transitions.iter().find(|t| t.path() == &f.transition))
+                                .collect::<Vec<_>>();
+
+                            let delib = plan.iter().filter(|t| t.controlled()).collect::<Vec<_>>();
+
+                            println!("original plan");
+                            for t in &plan {
+                                println!("{}", t.path());
+                            }
+
+
+
+
+                            // DEBUG: check if the original plan successfully reaches the goals
+                            // {
+                            //     let plan: Vec<SPPath> = plan.iter().map(|t|t.path().clone()).collect();
+                            //     let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
+
+                            //     let mut planner_result = planner_result.clone();
+                            //     planner_result.trace = trace;
+
+                            //     let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
+                            //     let (tr, s) = crate::planning::convert_planning_result(&ts, &planner_result, &plan_p);
+                            //     let trans = planner_result.trace.iter()
+                            //         .filter_map(|f|
+                            //                     if f.transition.is_empty() {
+                            //                         None
+                            //                     } else {
+                            //                         Some(f.transition.clone())
+                            //                     }).collect();
+
+                            //     let plan = SPPlan {
+                            //         is_blocked: false,
+                            //         plan: tr,
+                            //         included_trans: trans,
+                            //         state_change: s,
+                            //     };
+
+                            //     let mut state = runner.state().clone();
+                            //     state.add_variable(plan_p, 0.to_spvalue());
+
+                            //     // println!("original initial state:\n{}", state);
+
+                            //     let result = runner.check_goals_fast(&state, &gr, &plan,&ts);
+                            //     // println!("original plan takes us to goal? {}", result);
+                            // }
+
+
+
+
+
+
+                            //let mut new_plans = Vec::new();
+                            let mut new_plan = plan.clone();
+                            let mut idx = 1; // start at 2
+                            loop {
+                                if idx >= new_plan.len() {
+                                    println!("done...");
+                                    break;
+                                }
+
+                                if !delib.contains(&&new_plan[idx]) {
+                                    println!("not moving {} to {}, this is not delib", new_plan[idx].path(), idx - 1);
+                                    idx += 1;
+                                    continue;
+                                }
+
+                                if delib.contains(&&new_plan[idx-1]) {
+                                    // don't move delib transitions to before other delib transitions
+                                    println!("not moving {} to {}, previous is delib", new_plan[idx].path(), idx - 1);
+                                    idx += 1;
+                                    continue;
+                                }
+
+                                // else try to bubble it up.
+                                let mut p = new_plan.clone();
+                                let t = p.remove(idx);
+
+                                println!("moving {} to {}", t.path(), idx - 1);
+                                p.insert(idx - 1, t);
+
+                                // check if the new plan successfully reaches the goals
+                                let plan: Vec<SPPath> = p.iter().map(|t|t.path().clone()).collect();
+                                let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
+
+                                let mut planner_result = planner_result.clone();
+                                planner_result.trace = trace;
+
+                                let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
+                                let (tr, s) = crate::planning::convert_planning_result(&ts, &planner_result, &plan_p);
+                                let trans = planner_result.trace.iter()
+                                    .filter_map(|f|
+                                                if f.transition.is_empty() {
+                                                    None
+                                                } else {
+                                                    Some(f.transition.clone())
+                                                }).collect();
+
+                                let plan = SPPlan {
+                                    is_blocked: false,
+                                    plan: tr,
+                                    included_trans: trans,
+                                    state_change: s,
+                                };
+
+                                let mut state = runner.state().clone();
+                                state.add_variable(plan_p, 0.to_spvalue());
+                                let result = runner.check_goals_fast(&state, &gr, &plan,&ts);
+                                println!("plan takes us to goal? {}", result);
+
+
+                                if result {
+                                    new_plan = p;
+                                    idx-=1;
+                                } else {
+                                    idx+=1;
+                                }
+                            }
+
+                            println!("Final plan after heuristic");
+                            for t in &new_plan {
+                                println!("{}", t.path());
+                            }
+                            println!("--------");
+
+
+                            // change original planner result
+                            let plan: Vec<SPPath> = new_plan.iter().map(|t|t.path().clone()).collect();
+                            let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
+                            planner_result.trace = trace;
+                        }
+
                         let is_empty = !planner_result.plan_found;
                         if is_empty {
                             println!("No plan was found for namespace {}!", i);
