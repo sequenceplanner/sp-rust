@@ -59,27 +59,41 @@ fn runner(
         'outer: loop {
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
+            println!("changed1: {}", state_has_probably_changed);
             let mut ticked = false;
             runner.last_fired_transitions = vec![];
             if let Ok(msg) = input {
                 match msg {
                     SPRunnerInput::StateChange(s) => {
+                        println!("GOT STATE CHANGE");
+                        println!("new state\n{}", s);
                         if !runner.state().are_new_values_the_same(&s) {
+                            let diff = runner.state().difference(&s);
+                            println!(" state diff\n{}", diff);
                             runner.input(SPRunnerInput::StateChange(s));
                             state_has_probably_changed = true;
+                            println!("changed2: {}", state_has_probably_changed);
+
+
+                        } else {
+                            println!("new state is the same.")
                         }
                     }
                     SPRunnerInput::NodeChange(s) => {
+                        println!("GOT NODE CHANGE");
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::NodeChange(s));
                             state_has_probably_changed = true;
+                            println!("changed3: {}", state_has_probably_changed);
                         }
                     }
                     SPRunnerInput::Tick => {
+                        println!("GOT TICK");
                         runner.input(SPRunnerInput::Tick);
                         ticked = true;
                     }
                     SPRunnerInput::NewPlan(idx, _) => {
+                        println!("GOT NEW PLAN");
 
                         // temporary hack
                         if idx == 1 {
@@ -89,12 +103,15 @@ fn runner(
                             }
                         }
 
-                        runner.input(msg.clone());
-                        runner.input(SPRunnerInput::Tick);
+                        // runner.input(msg.clone());
+                        // runner.input(SPRunnerInput::Tick);
                     }
                     SPRunnerInput::Settings(_) => {
+                        println!("GOT SETTINGS");
+
                         runner.input(msg);
                         state_has_probably_changed = true;
+                        println!("changed4: {}", state_has_probably_changed);
                     } // TODO},
                 }
             } else {
@@ -113,11 +130,19 @@ fn runner(
 
             // if there's nothing to do in this cycle, continue
             if !state_has_probably_changed && runner.last_fired_transitions.is_empty() && !ticked {
+                println!("DONE");
                 continue;
+            } else {
+                println!("state changed? {}", state_has_probably_changed);
+                println!("last fired? {}", runner.last_fired_transitions.is_empty());
+                println!("ticked? {}", ticked);
             }
 
+            let disabled = runner.disabled_paths();
+            let mut enabled_state = runner.state().projection();
+            enabled_state.state.retain(|(p,_)| !disabled.iter().any(|d| p.is_child_of(d)));
             tx_state_out
-                .send(runner.state().clone())
+                .send(enabled_state.clone_state())
                 .expect("tx_state:out");
 
             // send out runner info.
@@ -134,7 +159,7 @@ fn runner(
                 continue;
             }
 
-            println!("The State:\n{}", runner.state());
+            // println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -684,6 +709,8 @@ fn node_handler(
                         println!("Node {} is not responding", r.clone());
                         n.mode = String::new();
                         n.cmd = "init".to_string();
+                    } else {
+                        println!("Node {} IS responding", r.clone());
                     }
 
                     let cmd = NodeCmd {
@@ -777,15 +804,18 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
 
     let ops = rm.op_states.iter().map(|v| v.path().clone()).collect();
 
+    let mut all_vars = rm.model.vars.clone();
+    all_vars.extend(rm.state_predicates);
+
     let mut runner = SPRunner::new(
         "test",
         trans,
-        rm.state_predicates.clone(),
+        all_vars,
         vec![rm.goals.clone(), rm.hl_goals.clone()],
         vec![],
         vec![],
         vec![rm.model.clone(), rm.op_model.clone()],
-        model.resources().iter().map(|r| r.path().clone()).collect(),
+        model.all_resources().iter().map(|r| r.path().clone()).collect(),
         ops,
     );
 

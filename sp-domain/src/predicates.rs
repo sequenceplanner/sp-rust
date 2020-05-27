@@ -421,8 +421,19 @@ impl EvaluatePredicate for Predicate {
             Predicate::NOT(p) => !p.eval(state),
             Predicate::TRUE => true,
             Predicate::FALSE => false,
-            Predicate::EQ(lp, rp) => lp.sp_value(state) == rp.sp_value(state),
-            Predicate::NEQ(lp, rp) => lp.sp_value(state) != rp.sp_value(state),
+
+            // This works fine.
+            // Predicate::EQ(lp, rp) => lp.sp_value(state) == rp.sp_value(state),
+            // Predicate::NEQ(lp, rp) => lp.sp_value(state) != rp.sp_value(state),
+
+            // To be a bit more precise we crash when we cannot evaluate the expression we
+            // would like to crash instead.
+            // But there is some issue leading to 100% cpu and failure.
+            Predicate::EQ(lp, rp) => lp.sp_value(state).expect(&format!("path not found {:?} in\n{}", lp, state)) ==
+                rp.sp_value(state).expect(&format!("path not found {:?} in\n{}", rp, state)),
+            Predicate::NEQ(lp, rp) => lp.sp_value(state).expect(&format!("path not found {:?} in\n{}", lp, state)) !=
+                rp.sp_value(state).expect(&format!("path not found {:?} in\n{}", rp, state)),
+
             // Predicate::GT(lp, rp) => {}
             // Predicate::LT(lp, rp) => {}
             // Predicate::INDOMAIN(value, domain) => {}

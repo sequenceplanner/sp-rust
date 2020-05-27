@@ -23,25 +23,25 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     // for now we actually comment out guard extraction because it appears we plan alot faster
     // using just the invariants instead.
 
-    // let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
+    let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
 
     // The specs are converted into guards + a global supervisor
-    // ts_model.specs.clear();
-    // ts_model.specs.push(Spec::new("global_supervisor", supervisor));
+    ts_model.specs.clear();
+    ts_model.specs.push(Spec::new("global_supervisor", supervisor));
 
     // TODO: right now its very cumbersome to update the original Model.
     // but it would be nice if we could.
-    // update_guards(&mut ts_model, &new_guards);
+    update_guards(&mut ts_model, &new_guards);
 
     // TODO:
     // so for now we just refine all invariants instead.
-    let mut new_specs = Vec::new();
-    for s in &ts_model.specs {
-        println!("refining invariant {}", s.path());
-        let ri = refine_invariant(&model, s.invariant());
-        new_specs.push(Spec::new(s.name(), ri));
-    }
-    ts_model.specs = new_specs;
+    // let mut new_specs = Vec::new();
+    // for s in &ts_model.specs {
+    //     println!("refining invariant {}", s.path());
+    //     let ri = refine_invariant(&model, s.invariant());
+    //     new_specs.push(Spec::new(s.name(), ri));
+    // }
+    // ts_model.specs = new_specs;
 
     // spit out a nuxmv file for debugging.
     crate::planning::generate_offline_nuxvm(&ts_model,&initial);

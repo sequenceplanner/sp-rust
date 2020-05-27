@@ -121,6 +121,7 @@ impl SPValue {
                 let v: Vec<serde_json::Value> = x.iter().map(|spval| spval.to_json()).collect();
                 serde_json::json!(v)
             }
+            SPValue::Unknown => serde_json::json!("[Unknown]"),
             _ => unimplemented!("TODO: {}", self),
         }
     }
