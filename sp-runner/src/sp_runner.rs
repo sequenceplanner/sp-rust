@@ -224,7 +224,7 @@ impl SPRunner {
                 // it should be faster than replanning anyway.
                 let x = self.check_goals_complete(s, goals, plan, ts_model);
                 // I want to know if this can actually happend...
-                assert_ne!(x, true);
+                // assert_ne!(x, true);
                 return x;
             }
         }

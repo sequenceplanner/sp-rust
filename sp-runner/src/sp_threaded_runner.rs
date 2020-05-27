@@ -13,12 +13,12 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 
     let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
         channel::bounded(3);
-    let (tx_planner, rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) =
+    let (tx_planner, _rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) =
         channel::unbounded();
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(2000), tx_runner.clone());
-    planner(1, tx_runner.clone(), rx_planner.clone());
+    // planner(1, tx_runner.clone(), rx_planner.clone());
 
     node_handler(
         Duration::from_millis(1000),
@@ -47,7 +47,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 fn runner(
     model: &Model, initial_state: SPState, rx_input: Receiver<SPRunnerInput>,
     tx_state_out: Sender<SPState>, tx_runner_info: Sender<RunnerInfo>,
-    tx_planner: Sender<PlannerTask>,
+    _tx_planner: Sender<PlannerTask>,
 ) {
     let model = model.clone();
     thread::spawn(move || {
@@ -59,42 +59,27 @@ fn runner(
         'outer: loop {
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
-            println!("changed1: {}", state_has_probably_changed);
             let mut ticked = false;
             runner.last_fired_transitions = vec![];
             if let Ok(msg) = input {
                 match msg {
                     SPRunnerInput::StateChange(s) => {
-                        println!("GOT STATE CHANGE");
-                        println!("new state\n{}", s);
                         if !runner.state().are_new_values_the_same(&s) {
-                            let diff = runner.state().difference(&s);
-                            println!(" state diff\n{}", diff);
                             runner.input(SPRunnerInput::StateChange(s));
                             state_has_probably_changed = true;
-                            println!("changed2: {}", state_has_probably_changed);
-
-
-                        } else {
-                            println!("new state is the same.")
                         }
                     }
                     SPRunnerInput::NodeChange(s) => {
-                        println!("GOT NODE CHANGE");
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::NodeChange(s));
                             state_has_probably_changed = true;
-                            println!("changed3: {}", state_has_probably_changed);
                         }
                     }
                     SPRunnerInput::Tick => {
-                        println!("GOT TICK");
                         runner.input(SPRunnerInput::Tick);
                         ticked = true;
                     }
                     SPRunnerInput::NewPlan(idx, _) => {
-                        println!("GOT NEW PLAN");
-
                         // temporary hack
                         if idx == 1 {
                             println!("new plan, resetting all operation state");
@@ -103,16 +88,15 @@ fn runner(
                             }
                         }
 
-                        // runner.input(msg.clone());
-                        // runner.input(SPRunnerInput::Tick);
+                        runner.input(msg.clone());
+                        runner.input(SPRunnerInput::Tick);
                     }
                     SPRunnerInput::Settings(_) => {
                         println!("GOT SETTINGS");
 
                         runner.input(msg);
                         state_has_probably_changed = true;
-                        println!("changed4: {}", state_has_probably_changed);
-                    } // TODO},
+                    }
                 }
             } else {
                 println!("The runner channel broke? - {:?}", input);
@@ -130,11 +114,10 @@ fn runner(
 
             // if there's nothing to do in this cycle, continue
             if !state_has_probably_changed && runner.last_fired_transitions.is_empty() && !ticked {
-                println!("DONE");
                 continue;
             } else {
                 println!("state changed? {}", state_has_probably_changed);
-                println!("last fired? {}", runner.last_fired_transitions.is_empty());
+                println!("transition fired? {}", !runner.last_fired_transitions.is_empty());
                 println!("ticked? {}", ticked);
             }
 
@@ -159,7 +142,7 @@ fn runner(
                 continue;
             }
 
-            // println!("The State:\n{}", runner.state());
+            println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -191,7 +174,7 @@ fn runner(
                 let replan = {
                     let is_empty = prev_goal.is_none();
                     if is_empty {
-                        println!("replanning because goal is empty. {}", i);
+                        println!("replanning because previous goal was empty. {}", i);
                     }
                     is_empty
                 } || {
@@ -249,7 +232,7 @@ fn runner(
 
                         let mut planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
 
-                        if i == 0 && planner_result.plan_length > 2 {
+                        if i == 0 && planner_result.plan_length > 2 && false {
                             // try out our greedy packing algorithm.
                             let plan = planner_result.trace.iter()
                                 .filter(|f| f.transition != SPPath::new())
@@ -388,6 +371,7 @@ fn runner(
                         let is_empty = !planner_result.plan_found;
                         if is_empty {
                             println!("No plan was found for namespace {}!", i);
+                            panic!("");
                         }
 
                         let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
@@ -709,8 +693,6 @@ fn node_handler(
                         println!("Node {} is not responding", r.clone());
                         n.mode = String::new();
                         n.cmd = "init".to_string();
-                    } else {
-                        println!("Node {} IS responding", r.clone());
                     }
 
                     let cmd = NodeCmd {

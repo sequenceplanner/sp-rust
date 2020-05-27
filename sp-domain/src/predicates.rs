@@ -421,18 +421,26 @@ impl EvaluatePredicate for Predicate {
             Predicate::NOT(p) => !p.eval(state),
             Predicate::TRUE => true,
             Predicate::FALSE => false,
+            Predicate::EQ(lp, rp) => {
+                let a = lp.sp_value(state).unwrap_or_else(|| {
+                    panic!("path not found {:?} in\n{}", lp, state);
+                });
+                let b = rp.sp_value(state).unwrap_or_else(|| {
+                    panic!("path not found {:?} in\n{}", lp, state);
+                });
 
-            // This works fine.
-            // Predicate::EQ(lp, rp) => lp.sp_value(state) == rp.sp_value(state),
-            // Predicate::NEQ(lp, rp) => lp.sp_value(state) != rp.sp_value(state),
+                a == b
+            },
+            Predicate::NEQ(lp, rp) => {
+                let a = lp.sp_value(state).unwrap_or_else(|| {
+                    panic!("path not found {:?} in\n{}", lp, state);
+                });
+                let b = rp.sp_value(state).unwrap_or_else(|| {
+                    panic!("path not found {:?} in\n{}", lp, state);
+                });
 
-            // To be a bit more precise we crash when we cannot evaluate the expression we
-            // would like to crash instead.
-            // But there is some issue leading to 100% cpu and failure.
-            Predicate::EQ(lp, rp) => lp.sp_value(state).expect(&format!("path not found {:?} in\n{}", lp, state)) ==
-                rp.sp_value(state).expect(&format!("path not found {:?} in\n{}", rp, state)),
-            Predicate::NEQ(lp, rp) => lp.sp_value(state).expect(&format!("path not found {:?} in\n{}", lp, state)) !=
-                rp.sp_value(state).expect(&format!("path not found {:?} in\n{}", rp, state)),
+                a != b
+            }
 
             // Predicate::GT(lp, rp) => {}
             // Predicate::LT(lp, rp) => {}
