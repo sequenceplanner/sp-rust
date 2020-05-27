@@ -167,8 +167,53 @@ impl SPRunner {
             .collect()
     }
 
-    fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
+    pub fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
         ts_model.specs.iter().any(|s| !s.invariant().eval(state))
+    }
+
+    /// Checks wheter we can reach a goal exactly applying
+    /// a list of transitions in their given order
+    pub fn check_goals_exact(&self, s: &SPState, goals: &[&Predicate], plan: &[SPPath], ts_model: &TransitionSystemModel) -> bool {
+        if goals.iter().all(|g| g.eval(s)) {
+            return true;
+        }
+
+        let trans: Vec<&Transition> = ts_model.transitions.iter()
+            .filter(|t| plan.contains(t.path()))
+            .collect();
+
+        let mut state = s.clone();
+        for p in plan {
+            let t = trans.iter().find(|t| t.path() == p).unwrap();
+            if !t.eval(&state) {
+                return false;
+            }
+
+            // take all actions
+            t.actions.iter().for_each(|a| {
+                let _res = a.next(&mut state);
+            });
+            // and effects
+            t.effects.iter().for_each(|e| {
+                let _res = e.next(&mut state);
+            });
+
+            // update state predicates
+            SPTicker::upd_preds(&mut state, &self.ticker.predicates);
+
+            // next -> cur
+            let _changed = state.take_transition();
+
+            if SPRunner::bad_state(&state, ts_model) {
+                return false;
+            }
+
+            if goals.iter().all(|g| g.eval(&state)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// Checks wheter we can reach the current goal As it doesnt
@@ -190,7 +235,7 @@ impl SPRunner {
         loop {
             let state_changed = tm.iter().flat_map(|ts| {
                 if ts.iter().all(|t| {
-                    t.eval(&state) && !SPRunner::bad_state(&state, ts_model)
+                    t.eval(&state)
                 }) {
                     // transitions enabled. clone the state to start a new search branch.
 
@@ -207,11 +252,22 @@ impl SPRunner {
                     SPTicker::upd_preds(&mut state, &self.ticker.predicates);
 
                     // next -> cur
-                    Some(state.take_transition())
+                    let changed = state.take_transition();
+
+                    if SPRunner::bad_state(&state, ts_model) {
+                        None
+                    } else {
+                        Some(changed)
+                    }
                 } else {
                     None
                 }
             }).any(|x|x);
+
+            // if SPRunner::bad_state(&state, ts_model) {
+            //     println!("final state is bad!");
+            //     return false;
+            // }
 
             if goals.iter().all(|g| g.eval(&state)) {
                 return true;
@@ -222,10 +278,9 @@ impl SPRunner {
                 // fast, but it saves us from the issue descibed
                 // above. worst case we waste some time here but but
                 // it should be faster than replanning anyway.
-                let x = self.check_goals_complete(s, goals, plan, ts_model);
-                // I want to know if this can actually happend...
-                // assert_ne!(x, true);
-                return x;
+
+                // return self.check_goals_complete(s, goals, plan, ts_model);
+                return false; // think about how we want to do it...
             }
         }
     }

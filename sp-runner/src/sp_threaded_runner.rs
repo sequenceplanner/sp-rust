@@ -142,6 +142,10 @@ fn runner(
                 continue;
             }
 
+            if SPRunner::bad_state(runner.state(), &runner.transition_system_models[0]) {
+                continue;
+            }
+
             println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
@@ -232,7 +236,10 @@ fn runner(
 
                         let mut planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
 
-                        if i == 0 && planner_result.plan_length > 2 && false {
+                        // check length > 2 because for the heuristic
+                        // to improve the situation sense we need at
+                        // least two deliberation trans + 1 other
+                        if i == 0 && planner_result.plan_length > 2 {
                             // try out our greedy packing algorithm.
                             let plan = planner_result.trace.iter()
                                 .filter(|f| f.transition != SPPath::new())
@@ -245,48 +252,6 @@ fn runner(
                             for t in &plan {
                                 println!("{}", t.path());
                             }
-
-
-
-
-                            // DEBUG: check if the original plan successfully reaches the goals
-                            // {
-                            //     let plan: Vec<SPPath> = plan.iter().map(|t|t.path().clone()).collect();
-                            //     let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
-
-                            //     let mut planner_result = planner_result.clone();
-                            //     planner_result.trace = trace;
-
-                            //     let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
-                            //     let (tr, s) = crate::planning::convert_planning_result(&ts, &planner_result, &plan_p);
-                            //     let trans = planner_result.trace.iter()
-                            //         .filter_map(|f|
-                            //                     if f.transition.is_empty() {
-                            //                         None
-                            //                     } else {
-                            //                         Some(f.transition.clone())
-                            //                     }).collect();
-
-                            //     let plan = SPPlan {
-                            //         is_blocked: false,
-                            //         plan: tr,
-                            //         included_trans: trans,
-                            //         state_change: s,
-                            //     };
-
-                            //     let mut state = runner.state().clone();
-                            //     state.add_variable(plan_p, 0.to_spvalue());
-
-                            //     // println!("original initial state:\n{}", state);
-
-                            //     let result = runner.check_goals_fast(&state, &gr, &plan,&ts);
-                            //     // println!("original plan takes us to goal? {}", result);
-                            // }
-
-
-
-
-
 
                             //let mut new_plans = Vec::new();
                             let mut new_plan = plan.clone();
@@ -319,33 +284,9 @@ fn runner(
 
                                 // check if the new plan successfully reaches the goals
                                 let plan: Vec<SPPath> = p.iter().map(|t|t.path().clone()).collect();
-                                let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
 
-                                let mut planner_result = planner_result.clone();
-                                planner_result.trace = trace;
-
-                                let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
-                                let (tr, s) = crate::planning::convert_planning_result(&ts, &planner_result, &plan_p);
-                                let trans = planner_result.trace.iter()
-                                    .filter_map(|f|
-                                                if f.transition.is_empty() {
-                                                    None
-                                                } else {
-                                                    Some(f.transition.clone())
-                                                }).collect();
-
-                                let plan = SPPlan {
-                                    is_blocked: false,
-                                    plan: tr,
-                                    included_trans: trans,
-                                    state_change: s,
-                                };
-
-                                let mut state = runner.state().clone();
-                                state.add_variable(plan_p, 0.to_spvalue());
-                                let result = runner.check_goals_fast(&state, &gr, &plan,&ts);
+                                let result = runner.check_goals_exact(runner.state(), &gr, &plan, &ts);
                                 println!("plan takes us to goal? {}", result);
-
 
                                 if result {
                                     new_plan = p;
@@ -371,11 +312,17 @@ fn runner(
                         let is_empty = !planner_result.plan_found;
                         if is_empty {
                             println!("No plan was found for namespace {}!", i);
-                            panic!("");
                         }
 
                         let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
-                        let (tr, s) = crate::planning::convert_planning_result(&ts, &planner_result, &plan_p);
+                        let (tr, s) = if i == 1 {
+                            // test packing
+                            //crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
+                            crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                        } else {
+                            crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                        };
+
                         let trans = planner_result.trace.iter()
                             .filter_map(|f|
                                         if f.transition.is_empty() {

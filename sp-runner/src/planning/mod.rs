@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 
 #[derive(Debug, Hash, Eq, PartialEq)]
 struct PlannerRequestKey {
@@ -168,10 +168,10 @@ pub fn convert_planning_result(
                 pred.extend(preds);
             }
             pred.push(p!(p: plan_counter == i));
-            // println!("Transition: {:?} {}", i, pf.transition);
+            println!("Transition: {:?} {}", i, pf.transition);
             let guard = Predicate::AND(pred);
-            // println!("A new Guard: {}", guard);
-            // println!("");
+            println!("A new Guard: {}", guard);
+            println!("");
 
             let t = Transition::new(
                 &format!("step{:?}", i),
@@ -210,9 +210,124 @@ pub fn convert_planning_result(
 
     tr.extend(blocked);
 
-    // println!("THE PLAN");
-    // in_plan.iter().for_each(|x| println!("{}", x));
-    // println!();
+    println!("THE PLAN");
+    in_plan.iter().for_each(|x| println!("{}", x));
+    println!();
+
+    (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
+}
+
+
+pub fn convert_planning_result_with_packing_heuristic(
+    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath,
+) -> (Vec<TransitionSpec>, SPState) {
+    if !res.plan_found {
+        return (block_all(model), SPState::new());
+    }
+    let in_plan: Vec<SPPath> = res.trace.iter().map(|x| x.transition.clone()).collect();
+    let mut tr = vec![];
+    let mut i = 0;
+
+    let mut index_touches = HashSet::new();
+    let mut last_intersect_state: Option<&SPState> = None;
+    let mut cur_state: &SPState = &res.trace[0].state;
+    for x in 1..res.trace.len() {
+        let current = &res.trace[x];
+        let independent = if x < res.trace.len()-1 {
+            let next_path = &res.trace[x+1].transition;
+            let next_transition = model.transitions.iter().find(|t| t.path() == next_path).unwrap();
+            let cur_path = &current.transition;
+            let cur_transition = model.transitions.iter().find(|t| t.path() == cur_path).unwrap();
+
+            let mut next_touches = HashSet::new();
+            next_touches.extend(next_transition.modifies());
+            next_touches.extend(next_transition.guard().support().iter().cloned());
+
+            let mut cur_touches: HashSet<SPPath> = HashSet::new();
+            cur_touches.extend(cur_transition.modifies());
+            cur_touches.extend(cur_transition.guard().support().iter().cloned());
+
+            index_touches.extend(cur_touches);
+
+            let intersection: Vec<_> = next_touches.intersection(&index_touches).collect();
+            if intersection.len() > 0 {
+                intersection.iter().for_each(|p| println!(" intersect: {}", p));
+            }
+            intersection.is_empty()
+        } else {
+            false
+        };
+
+        let mut pred = Vec::new();
+        if let Some(last_intersect_state) = &last_intersect_state {
+            let diff = last_intersect_state.difference(cur_state);
+            let preds: Vec<Predicate> = diff
+                .projection()
+                .sorted()
+                .state
+                .iter()
+                .map(|(p, v)| {
+                    Predicate::EQ(
+                        PredicateValue::path((*p).clone()),
+                        PredicateValue::value(v.value().clone()),
+                    )
+                })
+                .collect();
+            pred.extend(preds);
+        }
+
+        println!("Transition: {:?} {}", i, current.transition);
+
+        pred.push(p!(p: plan_counter == i));
+        let guard = Predicate::AND(pred);
+        println!("A new Guard: {}", guard);
+        println!("");
+
+        let action = if !independent {
+            vec![a!(p: plan_counter = { i + 1 })]
+        } else { Vec::new() };
+        let t = Transition::new(
+            &format!("step{:?}", i),
+            guard,
+            action,
+            vec![],
+            true,
+        );
+
+        tr.push(TransitionSpec::new(
+            &format!("spec{:?}", i),
+            t,
+            vec![current.transition.clone()],
+        ));
+
+        if !independent {
+            i += 1;
+            index_touches.clear();
+            last_intersect_state = Some(cur_state);
+            cur_state = &current.state;
+        }
+    }
+
+    let blocked: Vec<TransitionSpec> = model.transitions
+        .iter()
+        .filter(|t| !in_plan.contains(t.path()))
+        .map(|x| {
+            let t = Transition::new(
+                &format!("Blocked {}", x.path()),
+                Predicate::FALSE,
+                vec![],
+                vec![],
+                true,
+            );
+            TransitionSpec::new(&format!("Blocked {}", x.path()), t, vec![x.path().clone()])
+        })
+        .collect();
+
+    tr.extend(blocked);
+
+    println!("THE PLAN");
+    in_plan.iter().for_each(|x| println!("{}", x));
+    println!();
 
     (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
 }
