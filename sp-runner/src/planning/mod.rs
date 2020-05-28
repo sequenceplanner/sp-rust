@@ -226,86 +226,103 @@ pub fn convert_planning_result_with_packing_heuristic(
     }
     let in_plan: Vec<SPPath> = res.trace.iter().map(|x| x.transition.clone()).collect();
     let mut tr = vec![];
-    let mut i = 0;
 
-    let mut index_touches = HashSet::new();
-    let mut last_intersect_state: Option<&SPState> = None;
-    let mut cur_state: &SPState = &res.trace[0].state;
+    // which variables are touched?
+    let mut touches = Vec::new();
+    touches.push(HashSet::new());
     for x in 1..res.trace.len() {
         let current = &res.trace[x];
-        let independent = if x < res.trace.len()-1 {
-            let next_path = &res.trace[x+1].transition;
-            let next_transition = model.transitions.iter().find(|t| t.path() == next_path).unwrap();
+        let cur_path = &current.transition;
+        let cur_transition = model.transitions.iter().find(|t| t.path() == cur_path).unwrap();
+        let mut cur_touches: HashSet<SPPath> = HashSet::new();
+        cur_touches.extend(cur_transition.modifies());
+        cur_touches.extend(cur_transition.guard().support().iter().cloned());
+        touches.push(cur_touches);
+    }
+
+    let mut highest = 0;
+    for x in 1..res.trace.len() {
+        let current = &res.trace[x];
+        let state = &res.trace[x-1].state;
+
+        println!("Transition {}: {}", x, current.transition);
+
+        let mut last_intersection_point = 0;
+        let mut last_intersection = Vec::new();
+        for y in 0..x {
             let cur_path = &current.transition;
             let cur_transition = model.transitions.iter().find(|t| t.path() == cur_path).unwrap();
-
-            let mut next_touches = HashSet::new();
-            next_touches.extend(next_transition.modifies());
-            next_touches.extend(next_transition.guard().support().iter().cloned());
-
             let mut cur_touches: HashSet<SPPath> = HashSet::new();
             cur_touches.extend(cur_transition.modifies());
             cur_touches.extend(cur_transition.guard().support().iter().cloned());
 
-            index_touches.extend(cur_touches);
-
-            let intersection: Vec<_> = next_touches.intersection(&index_touches).collect();
+            let intersection: Vec<_> = cur_touches.intersection(&touches[y]).cloned().collect();
             if intersection.len() > 0 {
-                intersection.iter().for_each(|p| println!(" intersect: {}", p));
+                intersection.iter().for_each(|p| println!("{} intersects with {} at index {}", cur_path, p, y));
+                last_intersection_point = y;
+                last_intersection = intersection;
             }
-            intersection.is_empty()
-        } else {
-            false
-        };
-
-        let mut pred = Vec::new();
-        if let Some(last_intersect_state) = &last_intersect_state {
-            let diff = last_intersect_state.difference(cur_state);
-            let preds: Vec<Predicate> = diff
-                .projection()
-                .sorted()
-                .state
-                .iter()
-                .map(|(p, v)| {
-                    Predicate::EQ(
-                        PredicateValue::path((*p).clone()),
-                        PredicateValue::value(v.value().clone()),
-                    )
-                })
-                .collect();
-            pred.extend(preds);
         }
 
-        println!("Transition: {:?} {}", i, current.transition);
+        if last_intersection_point == 0 {
+            // completely independent, don't need to add any spec.
+            println!("Transition {} completely independent, no added guard", current.transition);
+            let t = Transition::new(
+                &format!("step{:?}", x),
+                Predicate::TRUE,
+                vec![],
+                vec![],
+                true,
+            );
 
-        pred.push(p!(p: plan_counter == i));
+            println!("A new spec: {}", t);
+
+            tr.push(TransitionSpec::new(
+                &format!("spec{:?}", x),
+                t,
+                vec![current.transition.clone()],
+            ));
+            continue;
+        }
+        let diff = &res.trace[last_intersection_point-1].state.difference(state);
+        let mut pred: Vec<Predicate> = diff
+            .projection()
+            .sorted()
+            .state
+            .iter()
+            .filter(|(p, _)| last_intersection.contains(p))
+            .map(|(p, v)| {
+                Predicate::EQ(
+                    PredicateValue::path((*p).clone()),
+                    PredicateValue::value(v.value().clone()),
+                )
+            })
+            .collect();
+
+        pred.push(p!(p: plan_counter == highest));
+
+        let action = if last_intersection_point > highest { // previous state
+            highest = last_intersection_point;
+            vec![a!(p: plan_counter = highest)]
+        } else { vec![] };
+
         let guard = Predicate::AND(pred);
-        println!("A new Guard: {}", guard);
-        println!("");
 
-        let action = if !independent {
-            vec![a!(p: plan_counter = { i + 1 })]
-        } else { Vec::new() };
         let t = Transition::new(
-            &format!("step{:?}", i),
+            &format!("step{:?}", x),
             guard,
             action,
             vec![],
             true,
         );
 
+        println!("A new spec: {}", t);
+
         tr.push(TransitionSpec::new(
-            &format!("spec{:?}", i),
+            &format!("spec{:?}", x),
             t,
             vec![current.transition.clone()],
         ));
-
-        if !independent {
-            i += 1;
-            index_touches.clear();
-            last_intersect_state = Some(cur_state);
-            cur_state = &current.state;
-        }
     }
 
     let blocked: Vec<TransitionSpec> = model.transitions

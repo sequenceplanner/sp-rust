@@ -22,7 +22,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 
     node_handler(
         Duration::from_millis(1000),
-        Duration::from_secs(3),
+        Duration::from_secs(1000),
         &model,
         comm.rx_node.clone(),
         comm.tx_node_cmd.clone(),
@@ -56,6 +56,7 @@ fn runner(
         let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
         // let timer = Instant::now();
 
+        let mut low_fail = false;
         'outer: loop {
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
@@ -201,9 +202,20 @@ fn runner(
                     }
                     let _res = state.force_from_path(&rpi, v.clone());
 
-                    let ok = runner
-                        .check_goals_fast(&state, &gr, &runner.plans[i],
-                                          &runner.transition_system_models[i]);
+                    let ok =
+                        if i == 0 {
+                            runner
+                                .check_goals_fast(&state, &gr, &runner.plans[i],
+                                                  &runner.transition_system_models[i])
+                        } else {
+                            if low_fail {
+                                println!("replanning because planning failed at the lower level");
+                                low_fail = false;
+                                false
+                            } else {
+                                true
+                            }
+                        };
 
                     if now.elapsed().as_millis() > 100 {
                         println!("WARNINIG goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
@@ -218,8 +230,9 @@ fn runner(
 
                 if replan {
 
-                    if goals.len() == 0 {
-                        println!("NO ACTIVE GOALS...")
+                    if false // goals.len() == 0
+                    {
+                        // println!("NO ACTIVE GOALS...");
                     } else {
 
                         // temporary hack -- actually probably not so
@@ -231,7 +244,11 @@ fn runner(
                             }
                         }
 
-                        let max_steps = 50; // arbitrary decision
+                        let max_steps = if i == 0 {
+                            20 // arbitrary decision
+                        } else {
+                            30
+                        };
                         println!("computing plan for namespace {}", i);
 
                         let mut planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
@@ -290,7 +307,10 @@ fn runner(
 
                                 if result {
                                     new_plan = p;
-                                    idx-=1;
+                                    // can only move up to zero
+                                    if idx > 1 {
+                                        idx-=1;
+                                    }
                                 } else {
                                     idx+=1;
                                 }
@@ -311,14 +331,17 @@ fn runner(
 
                         let is_empty = !planner_result.plan_found;
                         if is_empty {
-                            println!("No plan was found for namespace {}!", i);
+                            println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
+                            if i == 0 {
+                                low_fail = true;
+                            }
                         }
 
                         let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
                         let (tr, s) = if i == 1 {
                             // test packing
-                            //crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
-                            crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                            crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
+                            // crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
                         } else {
                             crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
                         };
@@ -343,7 +366,13 @@ fn runner(
 
                         runner.input(SPRunnerInput::NewPlan(i as i32, plan));
 
-                        continue 'outer; // wait until next iteration to check lower levels
+                        // if we had goals, skip the next level
+                        if goals.len() > 0 {
+                            continue 'outer; // wait until next iteration to check lower levels
+                        } else {
+                            // else we need to check them also
+                            low_fail = true;
+                        }
                     }
                 }
             }

@@ -235,7 +235,9 @@ impl SPRunner {
         loop {
             let state_changed = tm.iter().flat_map(|ts| {
                 if ts.iter().all(|t| {
-                    t.eval(&state)
+                    let x = t.eval(&state);
+                    println!("for {}: {}", t.path(), x);
+                    x
                 }) {
                     // transitions enabled. clone the state to start a new search branch.
 
@@ -279,8 +281,8 @@ impl SPRunner {
                 // above. worst case we waste some time here but but
                 // it should be faster than replanning anyway.
 
-                // return self.check_goals_complete(s, goals, plan, ts_model);
-                return false; // think about how we want to do it...
+                return self.check_goals_complete(s, goals, plan, ts_model);
+                // return false; // think about how we want to do it...
             }
         }
     }

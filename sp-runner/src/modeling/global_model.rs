@@ -161,7 +161,7 @@ impl GModel {
 
         let op_start = Transition::new(
             "start",
-            Predicate::AND(vec![p!(p: state == "i")]),
+            Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
             vec![a!(p: state = "e")],
             vec![],
             true,
