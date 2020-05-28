@@ -236,7 +236,7 @@ impl SPRunner {
             let state_changed = tm.iter().flat_map(|ts| {
                 if ts.iter().all(|t| {
                     let x = t.eval(&state);
-                    println!("for {}: {}", t.path(), x);
+                    // println!("for {}: {}", t.path(), x);
                     x
                 }) {
                     // transitions enabled. clone the state to start a new search branch.

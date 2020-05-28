@@ -54,10 +54,14 @@ fn runner(
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
+        let mut store = crate::planning::PlanningStore::default();
         // let timer = Instant::now();
+
+        let mut now = Instant::now();
 
         let mut low_fail = false;
         'outer: loop {
+            println!("RUNNER TICK TIME: {}ms", now.elapsed().as_millis());
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
             let mut ticked = false;
@@ -103,6 +107,9 @@ fn runner(
                 println!("The runner channel broke? - {:?}", input);
                 break;
             }
+
+            now = Instant::now();
+
             //println!("tick: {} ms", timer.elapsed().as_millis());
 
             if !runner.last_fired_transitions.is_empty() {
@@ -251,7 +258,7 @@ fn runner(
                         };
                         println!("computing plan for namespace {}", i);
 
-                        let mut planner_result = crate::planning::plan(&ts, &goals, runner.state(), max_steps);
+                        let mut planner_result = crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store);
 
                         // check length > 2 because for the heuristic
                         // to improve the situation sense we need at
