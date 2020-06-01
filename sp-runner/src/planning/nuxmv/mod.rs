@@ -7,6 +7,10 @@ use std::fs::File;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
+use std::time::Duration;
+
+mod nuxmv_async;
+use nuxmv_async::*;
 
 fn indent(n: u32) -> String {
     (0..n).map(|_| " ").collect::<Vec<&str>>().concat()
@@ -173,15 +177,20 @@ fn postprocess_nuxmv_problem(
     let mut trace = Vec::new();
     let mut last = PlanningFrame::default();
 
+    let mut break_on_loop = false;
     for l in &s {
         if l.contains("  -- Loop starts here") {
             // when searching for infinite paths...
-            panic!("infinite paths not supported");
+            // panic!("infinite paths not supported");
+            break_on_loop = true; // skip remaining inputs
         } else if l.contains("  -> State: ") {
             // ignore the difference between state and input.
         } else if l.contains("  -> Input: ") || l.contains("nuXmv >") {
             trace.push(last);
             last = PlanningFrame::default();
+            if break_on_loop {
+                break;
+            }
         } else {
             let path_val: Vec<_> = l.split("=").map(|s| s.trim()).collect();
             let path = SPPath::from(path_val[0].split("#").map(|s| s.to_owned()).collect());
@@ -229,6 +238,61 @@ fn postprocess_nuxmv_problem(
 }
 
 pub struct NuXmvPlanner {}
+
+pub fn plan_async(
+    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
+    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration
+) -> PlanningResult {
+    let lines = create_nuxmv_problem(&model, &goals, &state);
+
+    let datetime: DateTime<Local> = SystemTime::now().into();
+    // todo: use non platform way of getting temporary folder
+    // or maybe just output to a subfolder 'plans'
+    let filename = &format!("/tmp/async_planner {}.bmc", datetime);
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
+    let mut f = File::create("/tmp/last_async_planning_request.bmc").unwrap();
+    write!(f, "{}", lines).unwrap();
+
+    let start = Instant::now();
+    let result = block_on_search_heuristic(filename, cutoff, max_steps,
+                                           lookout, max_time);
+    let duration = start.elapsed();
+
+    match result {
+        Ok((_, raw, raw_error)) => {
+            if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
+                // just to more easily find syntax errors
+                panic!("{}", raw_error);
+            }
+            let plan = postprocess_nuxmv_problem(&model, &raw);
+            let plan_found = plan.is_some();
+            let trace = plan.unwrap_or_else(|| {
+                vec![PlanningFrame {
+                    transition: SPPath::new(),
+                    state: state.clone(),
+                }]
+            });
+
+            PlanningResult {
+                plan_found,
+                plan_length: trace.len() as u32 - 1, // hack :)
+                trace,
+                time_to_solve: duration,
+                raw_output: raw.to_owned(),
+                raw_error_output: raw_error.to_owned(),
+            }
+        }
+        Err(e) => PlanningResult {
+            plan_found: false,
+            plan_length: 0,
+            trace: Vec::new(),
+            time_to_solve: duration,
+            raw_output: "".into(),
+            raw_error_output: e.to_string(),
+        },
+    }
+}
 
 impl Planner for NuXmvPlanner {
     fn plan(

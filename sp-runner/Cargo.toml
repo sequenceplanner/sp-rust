@@ -19,5 +19,8 @@ guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", rev
 indoc = "0.3"
 cryptominisat = { git = "https://github.com/Storyyeller/cryptominisat-rs.git" }
 
+tokio = { version = "0.2", features = ["full"] }
+futures = "0.3"
+
 [dev-dependencies]
 serial_test = "0.4.0"

@@ -97,10 +97,9 @@ fn runner(
                         runner.input(SPRunnerInput::Tick);
                     }
                     SPRunnerInput::Settings(_) => {
-                        println!("GOT SETTINGS");
-
                         runner.input(msg);
                         state_has_probably_changed = true;
+                        low_fail = true; // force replan
                     }
                 }
             } else {
@@ -251,14 +250,20 @@ fn runner(
                             }
                         }
 
-                        let max_steps = if i == 0 {
-                            20 // arbitrary decision
-                        } else {
-                            30
-                        };
                         println!("computing plan for namespace {}", i);
 
-                        let mut planner_result = crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store);
+                        let mut planner_result = if i == 0 {
+                            // skip heuristic for the low level
+                            let max_steps = 40; // low to be able to fail quickly
+                            crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
+                        } else {
+                            let max_steps = 50;
+                            let cutoff = 15;
+                            let lookout = 1.0;
+                            let max_time = Duration::from_secs(15);
+                            crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
+                            // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
+                        };
 
                         // check length > 2 because for the heuristic
                         // to improve the situation sense we need at
@@ -342,13 +347,14 @@ fn runner(
                             if i == 0 {
                                 low_fail = true;
                             }
+                            prev_goals.insert(i, None);
                         }
 
                         let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
                         let (tr, s) = if i == 1 {
                             // test packing
                             crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
-                            // crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                            //crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
                         } else {
                             crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
                         };
