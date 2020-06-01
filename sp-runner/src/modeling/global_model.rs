@@ -104,6 +104,11 @@ impl GModel {
         self.model.add_item(SPItem::Variable(v))
     }
 
+    pub fn add_estimated_bool(&mut self, name: &str) -> SPPath {
+        let v = Variable::new_boolean(name, VariableType::Estimated);
+        self.model.add_item(SPItem::Variable(v))
+    }
+
     pub fn add_predicate_variable(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
         let v = Variable::new(
             name,
