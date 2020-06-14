@@ -217,7 +217,11 @@ fn runner(
                             if low_fail {
                                 println!("replanning because planning failed at the lower level");
                                 low_fail = false;
-                                false
+                                if gr.is_empty() {
+                                    true
+                                } else {
+                                    false
+                                }
                             } else {
                                 true
                             }

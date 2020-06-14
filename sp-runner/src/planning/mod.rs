@@ -280,40 +280,24 @@ pub fn convert_planning_result_with_packing_heuristic(
             }
         }
 
-        if last_intersection_point == 0 {
-            // completely independent, don't need to add any spec.
-            println!("Transition {} completely independent, no added guard", current.transition);
-            let t = Transition::new(
-                &format!("step{:?}", x),
-                Predicate::TRUE,
-                vec![],
-                vec![],
-                true,
-            );
-
-            println!("A new spec: {}", t);
-
-            tr.push(TransitionSpec::new(
-                &format!("spec{:?}", x),
-                t,
-                vec![current.transition.clone()],
-            ));
-            continue;
+        let mut pred: Vec<Predicate> = Vec::new();
+        if last_intersection_point > 0 {
+            let diff = &res.trace[last_intersection_point-1].state.difference(state);
+            let guards: Vec<Predicate> = diff
+                .projection()
+                .sorted()
+                .state
+                .iter()
+                .filter(|(p, _)| last_intersection.contains(p))
+                .map(|(p, v)| {
+                    Predicate::EQ(
+                        PredicateValue::path((*p).clone()),
+                        PredicateValue::value(v.value().clone()),
+                    )
+                })
+                .collect();
+            pred.extend(guards);
         }
-        let diff = &res.trace[last_intersection_point-1].state.difference(state);
-        let mut pred: Vec<Predicate> = diff
-            .projection()
-            .sorted()
-            .state
-            .iter()
-            .filter(|(p, _)| last_intersection.contains(p))
-            .map(|(p, v)| {
-                Predicate::EQ(
-                    PredicateValue::path((*p).clone()),
-                    PredicateValue::value(v.value().clone()),
-                )
-            })
-            .collect();
 
         pred.push(p!(p: plan_counter == highest));
 

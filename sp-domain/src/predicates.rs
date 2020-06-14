@@ -574,6 +574,13 @@ macro_rules! p {
             PredicateValue::SPPath(other, None),
         )
     }};
+    (p:$path:tt <-> p:$other:tt) => {{
+        Predicate::EQ(
+            PredicateValue::SPPath($path.clone(), None),
+            PredicateValue::SPPath($other.clone(), None),
+        )
+    }};
+
     // introduce <!> for inequality between variables....
     ($path:tt <!> $other:tt) => {{
         // println!("matched {} == {}", stringify!($path), stringify!($value));

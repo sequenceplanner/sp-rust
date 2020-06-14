@@ -587,8 +587,10 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
                     inv = &NuXMVPredicate(inv)
                 )
             } else {
+                // TODO: clean this up!!! compare to commit 6393dba
                 // no invariant, simple "exists" goal.
-                format!("F ( {} )", &NuXMVPredicate(goal))
+                // format!("F ( {} )", &NuXMVPredicate(goal))
+                format!("( {} )", &NuXMVPredicate(goal))
             }
         })
         .collect();
@@ -599,7 +601,8 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
         goal_str.join("&")
     };
 
-    lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
+    // TODO: clean this up!
+    lines.push_str(&format!("LTLSPEC ! F ( {} );", goals));
 }
 
 // #[cfg(test)]
