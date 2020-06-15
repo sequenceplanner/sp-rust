@@ -18,7 +18,6 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(2000), tx_runner.clone());
-    // planner(1, tx_runner.clone(), rx_planner.clone());
 
     node_handler(
         Duration::from_millis(1000),
@@ -518,78 +517,6 @@ struct PlannerTask {
     state: SPState,
     goals: Vec<(Predicate, Option<Predicate>)>,
     disabled_paths: Vec<SPPath>,
-}
-
-fn planner(id: i32, tx_runner: Sender<SPRunnerInput>, rx_planner: Receiver<PlannerTask>) {
-    use crate::planning::*;
-    let mut store: PlanningStore = PlanningStore::default();
-
-    thread::spawn(move || {
-        loop {
-            let pt: PlannerTask = if rx_planner.is_empty() {
-                match rx_planner.recv() {
-                    Ok(pt) => pt,
-                    Err(e) => {
-                        println!(
-                            "The planning channel from the runner is dead (in planner)!: {:?}",
-                            e
-                        );
-                        return;
-                    }
-                }
-            } else {
-                let mut xs: Vec<PlannerTask> = rx_planner.try_iter().collect();
-                if xs.is_empty() {
-                    println!("The planning channel from the runner is bad (in planner)!");
-                    return;
-                }
-                xs.remove(xs.len() - 1)
-            };
-
-            // for now, do all planning here. so loop over each namespace
-            let max_steps = 50; // arbitrary decision
-            println!("planner thread {}: computing plan for namespace {}", id, pt.namespace);
-
-            for g in &pt.goals {
-                println!("goal is: {}", g.0);
-            }
-
-
-            let planner_result = plan_with_cache(&pt.ts, &pt.goals, &pt.state, max_steps, &mut store);
-            let is_empty = !planner_result.plan_found;
-            if is_empty {
-                println!("planner thread {}: No plan was found for namespace {}!", id, pt.namespace);
-            }
-
-            //println!("new plan is");
-
-            //planner_result.trace.iter().for_each(|f| { println!("Transition: {}\nState:\n{}", f.transition, f.state); });
-            // TODO!
-
-            let plan_p = SPPath::from_slice(&["runner", "plans", &pt.namespace.to_string()]);
-            let (tr, s) = convert_planning_result(&pt.ts, &planner_result, &plan_p);
-            let trans = planner_result.trace.iter()
-                .filter_map(|f|
-                    if f.transition.is_empty() {
-                        None
-                    } else {
-                        Some(f.transition.clone())
-                    }).collect();
-
-            let plan = SPPlan {
-                is_blocked: is_empty,
-                plan: tr,
-                included_trans: trans,
-                state_change: s,
-            };
-
-            let res = tx_runner.send(SPRunnerInput::NewPlan(pt.namespace, plan));
-            if res.is_err() {
-                println!("The runner channel is dead (in the planner)!: {:?}", res);
-                break;
-            }
-        }
-    });
 }
 
 #[derive(Debug)]
