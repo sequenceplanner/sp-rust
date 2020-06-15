@@ -2,6 +2,8 @@ use crate::formal_model::*;
 use sp_domain::*;
 use sp_runner_api::*;
 
+// remember to also change in planner
+// TODO: make this constant crate-wide and use in more places
 const USE_GUARD_EXTRACTION: bool = false;
 
 pub fn make_runner_model(model: &Model) -> RunnerModel {

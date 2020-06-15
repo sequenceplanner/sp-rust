@@ -1,5 +1,6 @@
 use sp_domain::*;
 use std::ops::Index;
+use std::collections::{HashMap,HashSet};
 
 // helpers for creating the "global" model
 
@@ -290,6 +291,126 @@ impl GModel {
         (self.model, s)
     }
 
+    pub fn generate_operation_model2(&mut self, products: &[SPPath],
+                                     related_variables: &HashMap<SPPath, HashSet<SPPath>>) {
+        let tsm = TransitionSystemModel::from(&self.model);
+
+        tsm.transitions.iter().for_each(|t| {
+            let sup = t.guard().support();
+            if products.iter().any(|p| sup.contains(p)) {
+                let cleaned_guard = t.guard().keep_only(&products).unwrap();
+                let acts: Vec<_> = t.actions().into_iter().filter(|p| products.contains(&p.var)).collect();
+
+                // highlevel ops cannot deal with effects
+                // let effs: Vec<_> = t.effects().into_iter().filter(|p| products.contains(&p.var)).collect();
+                // flatten out "all in domain" assignments.
+                let ad: Vec<Vec<(Predicate,Action)>> = acts.iter().flat_map(|a| {
+                    if let Compute::PredicateValue(PredicateValue::SPPath(p,_)) = &a.value {
+                        let v = tsm.vars.iter().find(|v|v.path() == p).unwrap();
+                        let domain = if v.value_type() == SPValueType::Bool {
+                            vec![false.to_spvalue(), true.to_spvalue()]
+                        } else {
+                            v.domain().to_vec()
+                        };
+                        Some(domain.iter().map(|e| {
+                            (Predicate::EQ(PredicateValue::SPPath(p.clone(), None), PredicateValue::SPValue(e.clone())),
+                            Action::new(a.var.clone(),
+                                        Compute::PredicateValue(PredicateValue::SPValue(e.clone()))))
+                        }).collect::<Vec<(Predicate,Action)>>())
+                    } else {
+                        None
+                    }
+                }).collect();
+
+                // keep also the "normal" actions
+                let norm: Vec<Action> = acts.iter().flat_map(|a| {
+                    if let Compute::PredicateValue(PredicateValue::SPPath(_,_)) = &a.value {
+                        None
+                    } else {
+                        Some((*a).clone())
+                    }
+                }).collect();
+
+                if ad.is_empty() {
+                    let post = Predicate::AND(norm.iter().map(|a|a.to_predicate().unwrap()).collect());
+                    println!("Generating operation {}", t.name());
+
+                    let mut touches = HashSet::new();
+                    touches.extend(cleaned_guard.support().iter().cloned());
+                    touches.extend(post.support().iter().cloned());
+
+                    // add related variable paths as identity conditions (x=x) -- always true, but encodes
+                    // information about the relations. TODO: change this later...
+                    let mut related: HashSet<SPPath> = HashSet::new();
+                    for c in &touches {
+                        if let Some(r) = related_variables.get(c) {
+                            related.extend(r.iter().cloned());
+                        }
+                    }
+
+                    let pre = if related.is_empty() {
+                        cleaned_guard
+                    } else {
+                        let more_pre = Predicate::AND(related.iter()
+                                                      .map(|x|
+                                                           Predicate::EQ(
+                                                               PredicateValue::SPPath(x.clone(), None),
+                                                               PredicateValue::SPPath(x.clone(), None)
+                                                           )).collect());
+                        Predicate::AND(vec![cleaned_guard, more_pre])
+                    };
+
+                    self.add_op(t.name(), true, &pre, &post, &norm, None);
+                } else if ad.len() == 1 {
+                    let head = ad[0].clone();
+                    head.iter().for_each(|(g,a)| {
+                        let mut all = norm.clone();
+                        all.push(a.clone());
+
+                        let v = if let Compute::PredicateValue(PredicateValue::SPValue(v)) = &a.value {
+                            v.to_string()
+                        } else { "error".to_string() };
+
+                        let name = format!("{}_{}", t.name(), v);
+                        println!("Generating operation {}", name);
+
+                        let pre = Predicate::AND(vec![cleaned_guard.clone(), g.clone()]);
+                        let post = Predicate::AND(all.iter().map(|a|a.to_predicate().unwrap()).collect());
+
+                        let mut touches = HashSet::new();
+                        touches.extend(pre.support().iter().cloned());
+                        touches.extend(post.support().iter().cloned());
+
+                        // add related variable paths as identity conditions (x=x) -- always true, but encodes
+                        // information about the relations. TODO: change this later...
+                        let mut related: HashSet<SPPath> = HashSet::new();
+                        for c in &touches {
+                            if let Some(r) = related_variables.get(c) {
+                                related.extend(r.iter().cloned());
+                            }
+                        }
+
+                        let pre = if related.is_empty() {
+                            pre
+                        } else {
+                            let more_pre = Predicate::AND(related.iter()
+                                                          .map(|x|
+                                                               Predicate::EQ(
+                                                                   PredicateValue::SPPath(x.clone(), None),
+                                                                   PredicateValue::SPPath(x.clone(), None)
+                                                               )).collect());
+                            Predicate::AND(vec![pre, more_pre])
+                        };
+
+                        self.add_op(&name, true, &pre, &post, &all, None);
+                    });
+                } else {
+                    panic!("TODO! model too complicated for now");
+                }
+
+            }
+        });
+    }
 
     pub fn generate_operation_model(&mut self, products: &[SPPath]) {
         let tsm = TransitionSystemModel::from(&self.model);
@@ -356,6 +477,5 @@ impl GModel {
 
             }
         });
-
     }
 }

@@ -219,22 +219,13 @@ pub fn convert_planning_result(
 
 
 pub fn convert_planning_result_with_packing_heuristic(
-    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath,
+    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath
 ) -> (Vec<TransitionSpec>, SPState) {
     if !res.plan_found {
         return (block_all(model), SPState::new());
     }
     let in_plan: Vec<SPPath> = res.trace.iter().map(|x| x.transition.clone()).collect();
     let mut tr = vec![];
-
-    // hack for demo because we don't support arrays yet...
-    // in the guards we have written product_1_kind in a way that looks independent from
-    // the product variables when in fact we should have written it as product_kind[dorna_holding]
-    // which would catch the interdependency.
-    let mut kinds = HashSet::new();
-    kinds.insert(SPPath::from_string("cylinders2/product_1_kind"));
-    kinds.insert(SPPath::from_string("cylinders2/product_2_kind"));
-    kinds.insert(SPPath::from_string("cylinders2/product_3_kind"));
 
     // which variables are touched?
     let mut touches = Vec::new();
@@ -246,13 +237,11 @@ pub fn convert_planning_result_with_packing_heuristic(
         let mut cur_touches: HashSet<SPPath> = HashSet::new();
         cur_touches.extend(cur_transition.modifies());
         cur_touches.extend(cur_transition.guard().support().iter().cloned());
-        if cur_touches.contains(&SPPath::from_string("cylinders2/dorna_holding")) {
-            cur_touches.extend(kinds.clone());
-        }
         touches.push(cur_touches);
     }
 
     let mut highest = 0;
+    let mut lowest = 0; // for independents...
     for x in 1..res.trace.len() {
         let current = &res.trace[x];
         let state = &res.trace[x-1].state;
@@ -268,10 +257,6 @@ pub fn convert_planning_result_with_packing_heuristic(
             cur_touches.extend(cur_transition.modifies());
             cur_touches.extend(cur_transition.guard().support().iter().cloned());
 
-            if cur_touches.contains(&SPPath::from_string("cylinders2/dorna_holding")) {
-                cur_touches.extend(kinds.clone());
-            }
-
             let intersection: Vec<_> = cur_touches.intersection(&touches[y]).cloned().collect();
             if intersection.len() > 0 {
                 intersection.iter().for_each(|p| println!("{} intersects with {} at index {}", cur_path, p, y));
@@ -281,7 +266,7 @@ pub fn convert_planning_result_with_packing_heuristic(
         }
 
         let mut pred: Vec<Predicate> = Vec::new();
-        if last_intersection_point > 0 {
+        let (guard, action) = if last_intersection_point > 0 {
             let diff = &res.trace[last_intersection_point-1].state.difference(state);
             let guards: Vec<Predicate> = diff
                 .projection()
@@ -297,16 +282,21 @@ pub fn convert_planning_result_with_packing_heuristic(
                 })
                 .collect();
             pred.extend(guards);
-        }
+            pred.push(p!(p: plan_counter == highest));
+            let action = if last_intersection_point > highest { // previous state
+                highest = last_intersection_point;
+                vec![a!(p: plan_counter = highest)]
+            } else { vec![] };
 
-        pred.push(p!(p: plan_counter == highest));
+            let guard = Predicate::AND(pred);
 
-        let action = if last_intersection_point > highest { // previous state
-            highest = last_intersection_point;
-            vec![a!(p: plan_counter = highest)]
-        } else { vec![] };
-
-        let guard = Predicate::AND(pred);
+            (guard, action)
+        } else {
+            lowest -= 1;
+            let action = vec![a!(p: plan_counter = (lowest + 1))];
+            let guard = p!(p: plan_counter == lowest);
+            (guard, action)
+        };
 
         let t = Transition::new(
             &format!("step{:?}", x),
@@ -346,7 +336,7 @@ pub fn convert_planning_result_with_packing_heuristic(
     in_plan.iter().for_each(|x| println!("{}", x));
     println!();
 
-    (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
+    (tr, SPState::new_from_values(&[(plan_counter.clone(), lowest.to_spvalue())]))
 }
 
 
