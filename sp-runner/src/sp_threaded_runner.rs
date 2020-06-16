@@ -17,7 +17,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
         channel::unbounded();
 
     merger(comm.rx_mess.clone(), tx_runner.clone());
-    ticker(Duration::from_millis(2000), tx_runner.clone());
+    ticker(Duration::from_millis(100), tx_runner.clone());
 
     node_handler(
         Duration::from_millis(1000),
@@ -54,13 +54,17 @@ fn runner(
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
         let mut store = crate::planning::PlanningStore::default();
+        let mut store2 = crate::planning::PlanningStore::default();
         // let timer = Instant::now();
 
         let mut now = Instant::now();
 
         let mut low_fail = false;
         'outer: loop {
-            println!("RUNNER TICK TIME: {}ms", now.elapsed().as_millis());
+            let elapsed_ms = now.elapsed().as_millis();
+            if elapsed_ms > 5 {
+                println!("RUNNER TICK TIME: {}ms", elapsed_ms);
+            }
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
             let mut ticked = false;
@@ -84,6 +88,8 @@ fn runner(
                         ticked = true;
                     }
                     SPRunnerInput::NewPlan(idx, _) => {
+                        state_has_probably_changed = true;
+
                         // temporary hack
                         if idx == 1 {
                             println!("new plan, resetting all operation state");
@@ -152,7 +158,7 @@ fn runner(
                 continue;
             }
 
-            println!("The State:\n{}", runner.state());
+            // println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -264,7 +270,8 @@ fn runner(
                             let cutoff = 15;
                             let lookout = 1.0;
                             let max_time = Duration::from_secs(15);
-                            crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
+                            // crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
+                            crate::planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, &mut store2)
                             // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
                         };
 

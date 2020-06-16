@@ -294,6 +294,39 @@ pub fn plan_async(
     }
 }
 
+pub fn plan_async_with_cache(
+    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
+    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration, store: &mut PlanningStore)
+    -> PlanningResult {
+    let now = std::time::Instant::now();
+    // filter the state based on the ts model and serialize it to make it hashable
+    let state_str = state.projection().sorted().state.iter()
+        .filter(|(k,_)| model.vars.iter().any(|v|&v.path() == k))
+        .map(|(k,v)| {
+            let s = format!("{}{}", k,serde_json::to_string(v.value()).unwrap());
+            s
+        })
+        .fold("".to_string(), |acum,s| format!("{}{}", acum,s));
+
+    // serialize goals
+    let goal_str = serde_json::to_string(goals).unwrap();
+    let key = PlannerRequestKey { goal: goal_str, state: state_str };
+
+    store.lookups += 1;
+    if let Some(plan) = store.cache.get(&key) {
+        store.hits += 1;
+        println!("Used cached async plan! Current plan count {}, hit% {}, lookup time {} ms",
+                 store.cache.len(), ((100 * store.hits) / store.lookups), now.elapsed().as_millis());
+        return plan.clone();
+    }
+
+    let result = plan_async(model, goals, state, max_steps, cutoff, lookout, max_time);
+    store.cache.insert(key, result.clone());
+    println!("Added new state/goal pair to async plan store. Current async plan count {}", store.cache.len());
+
+    result
+}
+
 impl Planner for NuXmvPlanner {
     fn plan(
         model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
