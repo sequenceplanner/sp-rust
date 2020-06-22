@@ -147,7 +147,7 @@ pub fn convert_planning_result(
 
     // trace[0] is always the initial state.
     let mut cur_state: &SPState = &res.trace[0].state;
-    let mut last_ctrl_state: Option<&SPState> = None;
+    let mut last_ctrl_state: Option<&SPState> = Some(cur_state);
     for pf in res.trace.iter().skip(1) {
         if ctrl.contains(&pf.transition) {
             let mut pred = Vec::new();
