@@ -347,6 +347,8 @@ impl GModel {
                             related.extend(r.iter().cloned());
                         }
                     }
+                    let mut related: Vec<SPPath> = related.into_iter().collect();
+                    related.sort();
 
                     let pre = if related.is_empty() {
                         cleaned_guard
@@ -389,6 +391,8 @@ impl GModel {
                                 related.extend(r.iter().cloned());
                             }
                         }
+                        let mut related: Vec<SPPath> = related.into_iter().collect();
+                        related.sort();
 
                         let pre = if related.is_empty() {
                             pre
