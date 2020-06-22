@@ -2,7 +2,10 @@
 //!
 
 use super::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::ser::{SerializeMap};
+use serde::de::{Visitor, MapAccess};
+
 use std::collections::HashMap;
 use std::fmt;
 use uuid::Uuid;
@@ -13,9 +16,55 @@ use uuid::Uuid;
 /// index access.
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct SPState {
+    #[serde(serialize_with = "serialize_state_map")]
+    #[serde(deserialize_with = "deserialize_state_map")]
     index: HashMap<SPPath, usize>,
     values: Vec<StateValue>,
     id: Uuid,
+}
+
+fn serialize_state_map<S>(x: &HashMap<SPPath, usize>, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut map = s.serialize_map(Some(x.len()))?;
+    for (k, v) in x {
+        map.serialize_entry(&k.to_string(), v)?;
+    }
+    map.end()
+}
+
+fn deserialize_state_map<'de, D>(deserializer: D) -> Result<HashMap<SPPath, usize>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StateMapVisitor {
+    }
+
+    impl<'de> Visitor<'de> for StateMapVisitor {
+        type Value = HashMap<SPPath, usize>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("statemap")
+        }
+
+        fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            let mut map = HashMap::with_capacity(access.size_hint().unwrap_or(0));
+
+            // While there are entries remaining in the input, add them
+            // into our map.
+            while let Some((key, value)) = access.next_entry::<String, usize>()? {
+                let sppath = SPPath::from_string(&key);
+                map.insert(sppath, value);
+            }
+
+            Ok(map)
+        }
+    }
+    deserializer.deserialize_map(StateMapVisitor {} )
 }
 
 // TODO: Maybe check the id?
