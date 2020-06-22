@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 use sp_domain::*;
 use std::collections::{HashMap,HashSet};
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 struct PlannerRequestKey {
     goal: String,
     state: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PlanningStore {
     cache: HashMap<PlannerRequestKey, PlanningResult>,
     hits: i64,
@@ -28,7 +28,12 @@ pub fn plan_with_cache(model: &TransitionSystemModel, goals: &[(Predicate, Optio
         .fold("".to_string(), |acum,s| format!("{}{}", acum,s));
 
     // serialize goals
-    let goal_str = serde_json::to_string(goals).unwrap();
+    let goal_str = goals.iter().map(|(g,i)| {
+        let i = if let Some(i) = i {
+            i.to_string()
+        } else { "".to_string() };
+        format!("{}+{}", g, i)
+    }).collect::<Vec<_>>().join("");
     let key = PlannerRequestKey { goal: goal_str, state: state_str };
 
     store.lookups += 1;

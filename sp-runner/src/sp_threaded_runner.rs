@@ -7,6 +7,7 @@ use sp_runner_api::*;
 use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (mut node, comm) = set_up_ros_comm(&model)?;
@@ -54,7 +55,8 @@ fn runner(
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
         let mut store = crate::planning::PlanningStore::default();
-        let mut store2 = crate::planning::PlanningStore::default();
+        let store_async = Arc::new(Mutex::new(
+            crate::planning::AsyncPlanningStore::load(&runner.transition_system_models[1])));
         // let timer = Instant::now();
 
         let mut now = Instant::now();
@@ -102,9 +104,19 @@ fn runner(
                         runner.input(SPRunnerInput::Tick);
                     }
                     SPRunnerInput::Settings(_) => {
-                        runner.input(msg);
+                        // temporary hack
+                        println!("force resetting all operation state");
+                        for p in &runner.operation_states {
+                            runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
+                        }
+
                         state_has_probably_changed = true;
                         low_fail = true; // force replan
+                        prev_goals.insert(0, None);
+                        prev_goals.insert(1, None);
+
+                        runner.input(msg);
+                        runner.input(SPRunnerInput::Tick);
                     }
                 }
             } else {
@@ -268,11 +280,11 @@ fn runner(
                         } else {
                             let max_steps = 50;
                             let cutoff = 15;
-                            let lookout = 1.0;
-                            let max_time = Duration::from_secs(15);
+                            let lookout = 0.5;
+                            let max_time = Duration::from_secs(30);
                             // crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
-                            crate::planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, &mut store2)
-                            // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
+                            crate::planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, store_async.clone())
+                            // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store2)
                         };
 
                         // check length > 2 because for the heuristic

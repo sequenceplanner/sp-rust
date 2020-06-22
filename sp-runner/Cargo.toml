@@ -22,5 +22,7 @@ cryptominisat = { git = "https://github.com/Storyyeller/cryptominisat-rs.git" }
 tokio = { version = "0.2", features = ["full"] }
 futures = "0.3"
 
+snap = "1"
+
 [dev-dependencies]
 serial_test = "0.4.0"

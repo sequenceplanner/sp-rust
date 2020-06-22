@@ -4,7 +4,7 @@ use chrono::DateTime;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 use std::time::Duration;
@@ -294,9 +294,78 @@ pub fn plan_async(
     }
 }
 
+// this version is a bit more interesting... we can only store optimal
+// plans, as otherwise we might end up in a situation where we have
+// stored two plans of different length for doing the same thing. the redundant moves
+// can then make us livelock (by moving away from the goal)
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct AsyncPlanningStore {
+    // key must be string to serde::to_string
+    cache: HashMap<String, Option<PlanningResult>>, // none if being computed already
+    hits: i64,
+    lookups: i64,
+}
+
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
+fn filename_from_model(model: &TransitionSystemModel) -> Result<String, Box<dyn std::error::Error>> {
+    let mod_ser = serde_json::to_string(model)?;
+    let mod_ser_hash = calculate_hash(&mod_ser);
+    Ok(format!("store-{}.sz", mod_ser_hash))
+}
+
+fn load_store(model: &TransitionSystemModel) -> Result<AsyncPlanningStore, Box<dyn std::error::Error>> {
+    let path = filename_from_model(model)?;
+    let file = File::open(path)?;
+    let mut buffer = String::new();
+    let mut reader = snap::read::FrameDecoder::new(file);
+    reader.read_to_string(&mut buffer)?;
+    let s = serde_json::from_str(&buffer)?;
+
+    Ok(s)
+}
+
+fn save_store(model: &TransitionSystemModel, store: &AsyncPlanningStore) -> Result<(), Box<dyn std::error::Error>> {
+    let path = filename_from_model(model)?;
+    let file = File::create(path)?;
+    let mut writer = snap::write::FrameEncoder::new(file);
+    let s = serde_json::to_string(store)?;
+    writer.write_all(s.as_bytes())?;
+
+    Ok(())
+}
+
+impl AsyncPlanningStore {
+    pub fn load(model: &TransitionSystemModel) -> Self {
+        match load_store(model) {
+            Ok(store) => {
+                println!("Loaded cache store with {} plans.", store.cache.len());
+                store
+            },
+            Err(err) => {
+                println!("Could not load planning store: {}", err);
+                AsyncPlanningStore::default()
+            }
+        }
+    }
+
+    pub fn save(&self, model: &TransitionSystemModel) {
+        save_store(model, &self).expect("failed to save store")
+    }
+}
+
 pub fn plan_async_with_cache(
     model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
-    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration, store: &mut PlanningStore)
+    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration, store: Arc<Mutex<AsyncPlanningStore>>)
     -> PlanningResult {
     let now = std::time::Instant::now();
     // filter the state based on the ts model and serialize it to make it hashable
@@ -309,22 +378,108 @@ pub fn plan_async_with_cache(
         .fold("".to_string(), |acum,s| format!("{}{}", acum,s));
 
     // serialize goals
-    let goal_str = serde_json::to_string(goals).unwrap();
-    let key = PlannerRequestKey { goal: goal_str, state: state_str };
+    let goal_str = goals.iter().map(|(g,i)| {
+        let i = if let Some(i) = i {
+            i.to_string()
+        } else { "".to_string() };
+        format!("{}+{}", g, i)
+    }).collect::<Vec<_>>().join("");
+    // let key = PlannerRequestKey { goal: goal_str, state: state_str };
+    let key = format!("{}=={}", goal_str, state_str);
 
-    store.lookups += 1;
-    if let Some(plan) = store.cache.get(&key) {
-        store.hits += 1;
-        println!("Used cached async plan! Current plan count {}, hit% {}, lookup time {} ms",
-                 store.cache.len(), ((100 * store.hits) / store.lookups), now.elapsed().as_millis());
-        return plan.clone();
+    {
+        let mut store = store.lock().unwrap();
+        store.lookups += 1;
+        if let Some(Some(plan)) = store.cache.get(&key) {
+            let plan = plan.clone();
+            store.hits += 1;
+            println!("Used cached async plan! Current plan count {}, hit% {}, lookup time {} ms",
+                     store.cache.len(), ((100 * store.hits) / store.lookups), now.elapsed().as_millis());
+            return plan;
+        }
     }
 
-    let result = plan_async(model, goals, state, max_steps, cutoff, lookout, max_time);
-    store.cache.insert(key, result.clone());
-    println!("Added new state/goal pair to async plan store. Current async plan count {}", store.cache.len());
+    // start computing the optimal plan in a thread.
+    let t_key = key.clone();
+    let t_model = model.clone();
+    let t_goals = goals.to_vec();
+    let t_state = state.clone();
+    let t_store = store.clone();
+    std::thread::spawn(move || {
+        {
+            let mut store = t_store.lock().unwrap();
+            if let Some(None) = store.cache.get(&t_key) {
+                // already being computed by someone else, bail
+                return;
+            } else {
+                // we are computing this one!
+                store.cache.insert(t_key.clone(), None);
+            }
+        }
+        let result = plan(&t_model, &t_goals, &t_state, max_steps);
+        {
+            let mut store = t_store.lock().unwrap();
+            store.cache.insert(t_key, Some(result.clone()));
+            println!("Added new state/goal pair to async plan store. Current async plan count {}. time to solve: {}ms", store.cache.len(), result.time_to_solve.as_millis());
+            store.save(&t_model);
+        }
+    });
 
-    result
+    // return best guess for now!
+    plan_async(model, goals, state, max_steps, cutoff, lookout, max_time)
+}
+
+
+pub fn plan_check(
+    model: &TransitionSystemModel, pre: &Predicate, goals: &[(Predicate, Option<Predicate>)],max_steps: u32) -> PlanningResult {
+    let lines = create_nuxmv_problem_check(&model, pre, &goals);
+
+    let datetime: DateTime<Local> = SystemTime::now().into();
+    // todo: use non platform way of getting temporary folder
+    // or maybe just output to a subfolder 'plans'
+    let filename = &format!("/tmp/planner_check {}.bmc", datetime);
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
+    let mut f = File::create("/tmp/last_check_planning_request.bmc").unwrap();
+    write!(f, "{}", lines).unwrap();
+
+    let start = Instant::now();
+    let result = call_nuxmv(max_steps, filename);
+    let duration = start.elapsed();
+
+    match result {
+        Ok((raw, raw_error)) => {
+            if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
+                // just to more easily find syntax errors
+                panic!("{}", raw_error);
+            }
+            let plan = postprocess_nuxmv_problem(&model, &raw);
+            let plan_found = plan.is_some();
+            let trace = plan.unwrap_or_else(|| {
+                vec![PlanningFrame {
+                    transition: SPPath::new(),
+                    state: SPState::new(),
+                }]
+            });
+
+            PlanningResult {
+                plan_found,
+                plan_length: trace.len() as u32 - 1, // hack :)
+                trace,
+                time_to_solve: duration,
+                raw_output: raw.to_owned(),
+                raw_error_output: raw_error.to_owned(),
+            }
+        }
+        Err(e) => PlanningResult {
+            plan_found: false,
+            plan_length: 0,
+            trace: Vec::new(),
+            time_to_solve: duration,
+            raw_output: "".into(),
+            raw_error_output: e.to_string(),
+        },
+    }
 }
 
 impl Planner for NuXmvPlanner {
@@ -399,6 +554,15 @@ fn create_nuxmv_problem(
     add_current_valuations(&mut lines, &model.vars, state);
 
     add_goals(&mut lines, goal_invs);
+
+    return lines;
+}
+
+fn create_nuxmv_problem_check(
+    model: &TransitionSystemModel, pre: &Predicate, goal_invs: &[(Predicate, Option<Predicate>)]) -> String {
+    let mut lines = make_base_problem(model);
+
+    add_pre_goals(&mut lines, pre, goal_invs);
 
     return lines;
 }
@@ -636,6 +800,36 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
 
     // TODO: clean this up!
     lines.push_str(&format!("LTLSPEC ! F ( {} );", goals));
+}
+
+fn add_pre_goals(lines: &mut String, pre: &Predicate, goal_invs: &[(Predicate, Option<Predicate>)]) {
+    let goal_str: Vec<String> = goal_invs
+        .iter()
+        .map(|(goal, inv)| {
+            if let Some(inv) = inv {
+                // invariant until goal
+                format!(
+                    "({inv} U {goal})",
+                    goal = &NuXMVPredicate(goal),
+                    inv = &NuXMVPredicate(inv)
+                )
+            } else {
+                // TODO: clean this up!!! compare to commit 6393dba
+                // no invariant, simple "exists" goal.
+                // format!("F ( {} )", &NuXMVPredicate(goal))
+                format!("( {} )", &NuXMVPredicate(goal))
+            }
+        })
+        .collect();
+    let goals = if goal_str.is_empty() {
+        // TODO: check this before doing everything else....
+        "TRUE".to_string()
+    } else {
+        goal_str.join("&")
+    };
+
+    // TODO: clean this up!
+    lines.push_str(&format!("LTLSPEC ! ({} -> F ( {} ));", &NuXMVPredicate(pre), goals));
 }
 
 // #[cfg(test)]
