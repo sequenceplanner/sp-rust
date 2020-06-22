@@ -61,7 +61,6 @@ fn runner(
 
         let mut now = Instant::now();
 
-        let mut low_fail = false;
         'outer: loop {
             let elapsed_ms = now.elapsed().as_millis();
             if elapsed_ms > 5 {
@@ -111,7 +110,6 @@ fn runner(
                         }
 
                         state_has_probably_changed = true;
-                        low_fail = true; // force replan
                         prev_goals.insert(0, None);
                         prev_goals.insert(1, None);
 
@@ -170,7 +168,7 @@ fn runner(
                 continue;
             }
 
-            // println!("The State:\n{}", runner.state());
+            println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -183,6 +181,9 @@ fn runner(
             }
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
+                if goals.len() == 0 {
+                    continue;
+                }
                 // for each namespace, check if we need to replan because
                 // 1. got new goals from the runner or
                 // 2. can no longer reach our goal (because the state has changed)
@@ -207,7 +208,7 @@ fn runner(
                     is_empty
                 } || {
                     let ok = &prev_goal.as_ref().map(|g| g == goals).unwrap_or(false);
-                    if !ok && goals.len() > 0 {
+                    if !ok {
                         println!("replanning because goal changed. {}", i);
                         prev_goal.as_ref().iter().for_each(|g| g.iter().for_each(|g| {
                             println!("prev goals {}", g.0);
@@ -217,32 +218,47 @@ fn runner(
                 } || (!runner.plans[i].is_blocked && {
                     let now = std::time::Instant::now();
 
-                    let mut state = runner.state().clone();
-                    let rpi = SPPath::from_string("runner/plans/1");
-                    let mut v = state.sp_value_from_path(&rpi).unwrap().clone();
-                    if let SPValue::Int32(i) = &mut v {
-                        v = SPValue::Int32(*i-1);
-                    }
-                    let _res = state.force_from_path(&rpi, v.clone());
+                    let ok = if i == 1 {
+                        let mut state = runner.state().clone();
+                        // first apply all effects that we are waiting
+                        // on for executing operations.
+                        let ok = runner.state()
+                            .projection()
+                            .state
+                            .iter()
+                            .filter(|(k,v)|
+                                    runner.operation_states.contains(k) &&
+                                    v.current_value() == &"e".to_spvalue())
+                            .all(|(k, _)| {
+                                // hacks...
+                                let k = k.parent().add_child("start");
+                                let t = runner.transition_system_models[1].transitions.iter().find(|t| t.path() == &k).unwrap();
 
-                    let ok =
-                        if i == 0 {
+                                let ok = t.eval(&state);
+                                if ok {
+                                    t.effects.iter().for_each(|e| {
+                                        let _res = e.next(&mut state);
+                                    });
+                                }
+                                ok
+                            });
+                        println!("checking running... {}", ok);
+                        state.take_transition();
+
+                        if ok {
+                            let ok2 =
                             runner
                                 .check_goals_fast(&state, &gr, &runner.plans[i],
-                                                  &runner.transition_system_models[i])
-                        } else {
-                            if low_fail {
-                                println!("replanning because planning failed at the lower level");
-                                low_fail = false;
-                                if gr.is_empty() {
-                                    true
-                                } else {
-                                    false
-                                }
-                            } else {
-                                true
-                            }
-                        };
+                                                  &runner.transition_system_models[i]);
+                            println!("checking running 2... {}", ok2);
+                            ok2
+                        } else { false }
+
+                    } else {
+                        runner
+                            .check_goals_fast(runner.state(), &gr, &runner.plans[i],
+                                              &runner.transition_system_models[i])
+                    };
 
                     if now.elapsed().as_millis() > 100 {
                         println!("WARNINIG goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
@@ -256,159 +272,146 @@ fn runner(
                 });
 
                 if replan {
-
-                    if false // goals.len() == 0
-                    {
-                        // println!("NO ACTIVE GOALS...");
-                    } else {
-
-                        // temporary hack -- actually probably not so
-                        // temporary, this is something we need to deal with
-                        if i == 1 {
-                            println!("resetting all operation state");
-                            for p in &runner.operation_states {
-                                runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
-                            }
-                        }
-
-                        println!("computing plan for namespace {}", i);
-
-                        let mut planner_result = if i == 0 {
-                            // skip heuristic for the low level
-                            let max_steps = 40; // low to be able to fail quickly
-                            crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
-                        } else {
-                            let max_steps = 50;
-                            let cutoff = 15;
-                            let lookout = 0.5;
-                            let max_time = Duration::from_secs(30);
-                            // crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
-                            crate::planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, store_async.clone())
-                            // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store2)
-                        };
-
-                        // check length > 2 because for the heuristic
-                        // to improve the situation sense we need at
-                        // least two deliberation trans + 1 other
-                        if i == 0 && planner_result.plan_length > 2 {
-                            // try out our greedy packing algorithm.
-                            let plan = planner_result.trace.iter()
-                                .filter(|f| f.transition != SPPath::new())
-                                .flat_map(|f| ts.transitions.iter().find(|t| t.path() == &f.transition))
-                                .collect::<Vec<_>>();
-
-                            let delib = plan.iter().filter(|t| t.controlled()).collect::<Vec<_>>();
-
-                            println!("original plan");
-                            for t in &plan {
-                                println!("{}", t.path());
-                            }
-
-                            //let mut new_plans = Vec::new();
-                            let mut new_plan = plan.clone();
-                            let mut idx = 1; // start at 2
-                            loop {
-                                if idx >= new_plan.len() {
-                                    println!("done...");
-                                    break;
-                                }
-
-                                if !delib.contains(&&new_plan[idx]) {
-                                    println!("not moving {} to {}, this is not delib", new_plan[idx].path(), idx - 1);
-                                    idx += 1;
-                                    continue;
-                                }
-
-                                if delib.contains(&&new_plan[idx-1]) {
-                                    // don't move delib transitions to before other delib transitions
-                                    println!("not moving {} to {}, previous is delib", new_plan[idx].path(), idx - 1);
-                                    idx += 1;
-                                    continue;
-                                }
-
-                                // else try to bubble it up.
-                                let mut p = new_plan.clone();
-                                let t = p.remove(idx);
-
-                                println!("moving {} to {}", t.path(), idx - 1);
-                                p.insert(idx - 1, t);
-
-                                // check if the new plan successfully reaches the goals
-                                let plan: Vec<SPPath> = p.iter().map(|t|t.path().clone()).collect();
-
-                                let result = runner.check_goals_exact(runner.state(), &gr, &plan, &ts);
-                                println!("plan takes us to goal? {}", result);
-
-                                if result {
-                                    new_plan = p;
-                                    // can only move up to zero
-                                    if idx > 1 {
-                                        idx-=1;
-                                    }
-                                } else {
-                                    idx+=1;
-                                }
-                            }
-
-                            println!("Final plan after heuristic");
-                            for t in &new_plan {
-                                println!("{}", t.path());
-                            }
-                            println!("--------");
-
-
-                            // change original planner result
-                            let plan: Vec<SPPath> = new_plan.iter().map(|t|t.path().clone()).collect();
-                            let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
-                            planner_result.trace = trace;
-                        }
-
-                        let is_empty = !planner_result.plan_found;
-                        if is_empty {
-                            println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
-                            if i == 0 {
-                                low_fail = true;
-                            }
-                            prev_goals.insert(i, None);
-                        }
-
-                        let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
-                        let (tr, s) = if i == 1 {
-                            // test packing
-                            crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
-                            //crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
-                        } else {
-                            crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
-                        };
-
-                        let trans = planner_result.trace.iter()
-                            .filter_map(|f|
-                                        if f.transition.is_empty() {
-                                            None
-                                        } else {
-                                            Some(f.transition.clone())
-                                        }).collect();
-
-                        let plan = SPPlan {
-                            is_blocked: is_empty,
-                            plan: tr,
-                            included_trans: trans,
-                            state_change: s,
-                        };
-
-                        // update last set of goals
-                        prev_goals.insert(i, Some(goals.clone()));
-
-                        runner.input(SPRunnerInput::NewPlan(i as i32, plan));
-
-                        // if we had goals, skip the next level
-                        if goals.len() > 0 {
-                            continue 'outer; // wait until next iteration to check lower levels
-                        } else {
-                            // else we need to check them also
-                            low_fail = true;
+                    // temporary hack -- actually probably not so
+                    // temporary, this is something we need to deal with
+                    if i == 1 {
+                        println!("resetting all operation state");
+                        for p in &runner.operation_states {
+                            runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
                         }
                     }
+
+                    println!("computing plan for namespace {}", i);
+
+                    let mut planner_result = if i == 0 {
+                        // skip heuristic for the low level
+                        let max_steps = 50; // low to be able to fail quickly
+                        crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
+                    } else {
+                        let max_steps = 50;
+                        let cutoff = 15;
+                        let lookout = 0.5;
+                        let max_time = Duration::from_secs(30);
+                        // crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
+                        crate::planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, store_async.clone())
+                        // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store2)
+                    };
+
+                    // check length > 2 because for the heuristic
+                    // to improve the situation sense we need at
+                    // least two deliberation trans + 1 other
+                    if i == 0 && planner_result.plan_length > 2 {
+                        // try out our greedy packing algorithm.
+                        let plan = planner_result.trace.iter()
+                            .filter(|f| f.transition != SPPath::new())
+                            .flat_map(|f| ts.transitions.iter().find(|t| t.path() == &f.transition))
+                            .collect::<Vec<_>>();
+
+                        let delib = plan.iter().filter(|t| t.controlled()).collect::<Vec<_>>();
+
+                        println!("original plan");
+                        for t in &plan {
+                            println!("{}", t.path());
+                        }
+
+                        //let mut new_plans = Vec::new();
+                        let mut new_plan = plan.clone();
+                        let mut idx = 1; // start at 2
+                        loop {
+                            if idx >= new_plan.len() {
+                                println!("done...");
+                                break;
+                            }
+
+                            if !delib.contains(&&new_plan[idx]) {
+                                println!("not moving {} to {}, this is not delib", new_plan[idx].path(), idx - 1);
+                                idx += 1;
+                                continue;
+                            }
+
+                            if delib.contains(&&new_plan[idx-1]) {
+                                // don't move delib transitions to before other delib transitions
+                                println!("not moving {} to {}, previous is delib", new_plan[idx].path(), idx - 1);
+                                idx += 1;
+                                continue;
+                            }
+
+                            // else try to bubble it up.
+                            let mut p = new_plan.clone();
+                            let t = p.remove(idx);
+
+                            println!("moving {} to {}", t.path(), idx - 1);
+                            p.insert(idx - 1, t);
+
+                            // check if the new plan successfully reaches the goals
+                            let plan: Vec<SPPath> = p.iter().map(|t|t.path().clone()).collect();
+
+                            let result = runner.check_goals_exact(runner.state(), &gr, &plan, &ts);
+                            println!("plan takes us to goal? {}", result);
+
+                            if result {
+                                new_plan = p;
+                                // can only move up to zero
+                                if idx > 1 {
+                                    idx-=1;
+                                }
+                            } else {
+                                idx+=1;
+                            }
+                        }
+
+                        println!("Final plan after heuristic");
+                        for t in &new_plan {
+                            println!("{}", t.path());
+                        }
+                        println!("--------");
+
+
+                        // change original planner result
+                        let plan: Vec<SPPath> = new_plan.iter().map(|t|t.path().clone()).collect();
+                        let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
+                        planner_result.trace = trace;
+                    }
+
+                    let is_empty = !planner_result.plan_found;
+                    if is_empty {
+                        println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
+                        prev_goals.insert(i, None);
+                    }
+
+                    let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
+                    let (tr, s) = if i == 1 {
+                        // test packing
+                        crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
+                        //crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                    } else {
+                        crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                    };
+
+                    let trans = planner_result.trace.iter()
+                        .filter_map(|f|
+                                    if f.transition.is_empty() {
+                                        None
+                                    } else {
+                                        Some(f.transition.clone())
+                                    }).collect();
+
+                    let plan = SPPlan {
+                        is_blocked: is_empty,
+                        plan: tr,
+                        included_trans: trans,
+                        state_change: s,
+                    };
+
+                    // update last set of goals
+                    prev_goals.insert(i, Some(goals.clone()));
+
+                    runner.input(SPRunnerInput::NewPlan(i as i32, plan));
+
+                    // because we probably need to do something else,
+                    // wait until next iteration to check lower levels, so
+                    // that the plan has time to be "ticked in".
+                    continue 'outer;
                 }
             }
         }
