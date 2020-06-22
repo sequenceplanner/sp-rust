@@ -79,7 +79,7 @@ async fn search_heuristic(filename: String,
     tasks.push(timeout(max_time, WrappedWorkTask::from(cutoff, fut)));
 
     // solve one instance at a time concurrently for bounds above the cutoff
-    for i in (cutoff+1)..max_steps {
+    for i in ((cutoff+1)..max_steps).step_by(3) { // only look at every third lengths
         let command = format!(
             "go_bmc\ncheck_ltlspec_bmc_onepb -k {}\nshow_traces -v\nquit\n",
             i
