@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
+use crate::planning;
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (mut node, comm) = set_up_ros_comm(&model)?;
@@ -54,9 +55,9 @@ fn runner(
         let runner_model = crate::helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
         let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
-        let mut store = crate::planning::PlanningStore::default();
+        let mut store = planning::PlanningStore::default();
         let store_async = Arc::new(Mutex::new(
-            crate::planning::AsyncPlanningStore::load(&runner.transition_system_models[1])));
+            planning::AsyncPlanningStore::load(&runner.transition_system_models[1])));
         // let timer = Instant::now();
 
         let mut now = Instant::now();
@@ -110,9 +111,6 @@ fn runner(
                         }
 
                         state_has_probably_changed = true;
-                        prev_goals.insert(0, None);
-                        prev_goals.insert(1, None);
-
                         runner.input(msg);
                         runner.input(SPRunnerInput::Tick);
                     }
@@ -283,109 +281,29 @@ fn runner(
 
                     println!("computing plan for namespace {}", i);
 
-                    let mut planner_result = if i == 0 {
+                    let planner_result = if i == 0 {
                         // skip heuristic for the low level
                         let max_steps = 50; // low to be able to fail quickly
-                        crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store)
+                        let mut pr = planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store);
+                        planning::bubble_up_delibs(ts, &gr, &mut pr);
+                        pr
                     } else {
                         let max_steps = 50;
                         let cutoff = 15;
                         let lookout = 0.5;
                         let max_time = Duration::from_secs(30);
                         // crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
-                        crate::planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, store_async.clone())
+                        planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, store_async.clone())
                         // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store2)
                     };
-
-                    // check length > 2 because for the heuristic
-                    // to improve the situation sense we need at
-                    // least two deliberation trans + 1 other
-                    if i == 0 && planner_result.plan_length > 2 {
-                        // try out our greedy packing algorithm.
-                        let plan = planner_result.trace.iter()
-                            .filter(|f| f.transition != SPPath::new())
-                            .flat_map(|f| ts.transitions.iter().find(|t| t.path() == &f.transition))
-                            .collect::<Vec<_>>();
-
-                        let delib = plan.iter().filter(|t| t.controlled()).collect::<Vec<_>>();
-
-                        println!("original plan");
-                        for t in &plan {
-                            println!("{}", t.path());
-                        }
-
-                        //let mut new_plans = Vec::new();
-                        let mut new_plan = plan.clone();
-                        let mut idx = 1; // start at 2
-                        loop {
-                            if idx >= new_plan.len() {
-                                println!("done...");
-                                break;
-                            }
-
-                            if !delib.contains(&&new_plan[idx]) {
-                                println!("not moving {} to {}, this is not delib", new_plan[idx].path(), idx - 1);
-                                idx += 1;
-                                continue;
-                            }
-
-                            if delib.contains(&&new_plan[idx-1]) {
-                                // don't move delib transitions to before other delib transitions
-                                println!("not moving {} to {}, previous is delib", new_plan[idx].path(), idx - 1);
-                                idx += 1;
-                                continue;
-                            }
-
-                            // else try to bubble it up.
-                            let mut p = new_plan.clone();
-                            let t = p.remove(idx);
-
-                            println!("moving {} to {}", t.path(), idx - 1);
-                            p.insert(idx - 1, t);
-
-                            // check if the new plan successfully reaches the goals
-                            let plan: Vec<SPPath> = p.iter().map(|t|t.path().clone()).collect();
-
-                            let result = runner.check_goals_exact(runner.state(), &gr, &plan, &ts);
-                            println!("plan takes us to goal? {}", result);
-
-                            if result {
-                                new_plan = p;
-                                // can only move up to zero
-                                if idx > 1 {
-                                    idx-=1;
-                                }
-                            } else {
-                                idx+=1;
-                            }
-                        }
-
-                        println!("Final plan after heuristic");
-                        for t in &new_plan {
-                            println!("{}", t.path());
-                        }
-                        println!("--------");
-
-
-                        // change original planner result
-                        let plan: Vec<SPPath> = new_plan.iter().map(|t|t.path().clone()).collect();
-                        let trace = crate::planning::make_planning_trace(&ts, &plan, &planner_result.trace[0].state);
-                        planner_result.trace = trace;
-                    }
-
-                    let is_empty = !planner_result.plan_found;
-                    if is_empty {
-                        println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
-                        prev_goals.insert(i, None);
-                    }
 
                     let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
                     let (tr, s) = if i == 1 {
                         // test packing
-                        crate::planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
+                        planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
                         //crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
                     } else {
-                        crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
+                        planning::convert_planning_result(&ts, &planner_result, &plan_p)
                     };
 
                     let trans = planner_result.trace.iter()
@@ -396,15 +314,22 @@ fn runner(
                                         Some(f.transition.clone())
                                     }).collect();
 
+                    let no_plan = !planner_result.plan_found;
+
                     let plan = SPPlan {
-                        is_blocked: is_empty,
+                        is_blocked: no_plan,
                         plan: tr,
                         included_trans: trans,
                         state_change: s,
                     };
 
                     // update last set of goals
-                    prev_goals.insert(i, Some(goals.clone()));
+                    if no_plan {
+                        println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
+                        prev_goals.insert(i, None);
+                    } else {
+                        prev_goals.insert(i, Some(goals.clone()));
+                    }
 
                     runner.input(SPRunnerInput::NewPlan(i as i32, plan));
 

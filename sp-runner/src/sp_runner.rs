@@ -171,51 +171,6 @@ impl SPRunner {
         ts_model.specs.iter().any(|s| !s.invariant().eval(state))
     }
 
-    /// Checks wheter we can reach a goal exactly applying
-    /// a list of transitions in their given order
-    pub fn check_goals_exact(&self, s: &SPState, goals: &[&Predicate], plan: &[SPPath], ts_model: &TransitionSystemModel) -> bool {
-        if goals.iter().all(|g| g.eval(s)) {
-            return true;
-        }
-
-        let trans: Vec<&Transition> = ts_model.transitions.iter()
-            .filter(|t| plan.contains(t.path()))
-            .collect();
-
-        let mut state = s.clone();
-        for p in plan {
-            let t = trans.iter().find(|t| t.path() == p).unwrap();
-            if !t.eval(&state) {
-                return false;
-            }
-
-            // take all actions
-            t.actions.iter().for_each(|a| {
-                let _res = a.next(&mut state);
-            });
-            // and effects
-            t.effects.iter().for_each(|e| {
-                let _res = e.next(&mut state);
-            });
-
-            // update state predicates
-            SPTicker::upd_preds(&mut state, &self.ticker.predicates);
-
-            // next -> cur
-            let _changed = state.take_transition();
-
-            if SPRunner::bad_state(&state, ts_model) {
-                return false;
-            }
-
-            if goals.iter().all(|g| g.eval(&state)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     /// Checks wheter we can reach the current goal As it doesnt
     /// exactly follow the plan but instead simulated the runner, it
     /// can fail if the plan contains two "choices" involving the same

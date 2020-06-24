@@ -225,11 +225,7 @@ fn postprocess_nuxmv_problem(
                 };
 
                 let spval = spval_from_nuxvm(val, spt);
-
-                // only keep real variables, not state predicates.
-                if model.vars.iter().any(|v| v.path() == &sppath) {
-                    last.state.add_variable(sppath, spval);
-                }
+                last.state.add_variable(sppath, spval);
             }
         }
     }

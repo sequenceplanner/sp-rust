@@ -188,6 +188,10 @@ impl TransitionSystemModel {
             specs: vec![],
         }
     }
+
+    pub fn bad_state(&self, state: &SPState) -> bool {
+        self.specs.iter().any(|s| !s.invariant().eval(state))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
