@@ -379,6 +379,20 @@ impl Action {
     }
 }
 
+impl fmt::Display for Action {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match &self.value {
+            Compute::PredicateValue(PredicateValue::SPValue(v)) => v.to_string(),
+            Compute::PredicateValue(PredicateValue::SPPath(p, _)) => p.to_string(),
+            Compute::Predicate(p) => p.to_string(),
+            Compute::Any => "?".to_string(),
+        };
+
+        let s = format!("{} := {}", self.var, s);
+        write!(fmtr, "{}", &s)
+    }
+}
+
 impl Default for Predicate {
     fn default() -> Self {
         Predicate::TRUE
