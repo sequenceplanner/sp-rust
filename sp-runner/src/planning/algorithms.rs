@@ -128,9 +128,21 @@ pub fn convert_planning_result_with_packing_heuristic(
         return (block_all(model), SPState::new());
     }
     let in_plan: Vec<SPPath> = res.trace.iter().map(|x| x.transition.clone()).collect();
+    let ctrl: Vec<SPPath> = model
+        .transitions
+        .iter()
+        .filter_map(|t: &Transition| {
+            if t.controlled() {
+                Some(t.path().clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let mut tr = vec![];
 
-    // which variables are touched?
+    // which variables are touched by which transitions?
     let mut touches = Vec::new();
     touches.push(HashSet::new());
     for x in 1..res.trace.len() {
@@ -143,40 +155,47 @@ pub fn convert_planning_result_with_packing_heuristic(
         touches.push(cur_touches);
     }
 
-    let mut highest = 0;
-    let mut lowest = 0; // for independents...
+    let mut starts = Vec::new();
+
     for x in 1..res.trace.len() {
         let current = &res.trace[x];
-        let state = &res.trace[x-1].state;
-
+        let cur_touches = &touches[x];
         println!("Transition {}: {}", x, current.transition);
 
-        let mut last_intersection_point = 0;
-        let mut last_intersection = Vec::new();
+        // find all intersections between current transition and previous transitions in the plan
+        let mut highest = 0;
+        let mut all_intersections = HashSet::new();
         for y in 0..x {
-            let cur_path = &current.transition;
-            let cur_transition = model.transitions.iter().find(|t| t.path() == cur_path).unwrap();
-            let mut cur_touches: HashSet<SPPath> = HashSet::new();
-            cur_touches.extend(cur_transition.modifies());
-            cur_touches.extend(cur_transition.guard().support().iter().cloned());
-
-            let intersection: Vec<_> = cur_touches.intersection(&touches[y]).cloned().collect();
+            let intersection = cur_touches.intersection(&touches[y]).collect::<HashSet<_>>();
             if intersection.len() > 0 {
-                intersection.iter().for_each(|p| println!("{} intersects with {} at index {}", cur_path, p, y));
-                last_intersection_point = y;
-                last_intersection = intersection;
+                highest = y;
+                println!("intersects with {} {}", y, &res.trace[y].transition);
             }
+            all_intersections.extend(intersection);
         }
+        all_intersections.iter().for_each(|i| println!("  {}", i));
+        starts.push((x,highest,all_intersections));
+    }
 
-        let mut pred: Vec<Predicate> = Vec::new();
-        let (guard, action) = if last_intersection_point > 0 {
-            let diff = &res.trace[last_intersection_point-1].state.difference(state);
-            let guards: Vec<Predicate> = diff
+    starts.sort_by(|&(x0, y0, _), &(x1, y1, _)| y0.cmp(&y1).then(x0.cmp(&x1)));
+
+    let mut counter = 0;
+    for (idx, high_dep, intersections) in starts {
+        let current = &res.trace[idx];
+        if !ctrl.contains(&current.transition) { continue; }
+        let gc = p!(p: plan_counter == counter);
+        let action = vec![a!(p: plan_counter = (counter + 1))];
+
+        let guard = if high_dep > 0 {
+            // make guard
+            let cur_state = &res.trace[idx-1].state;
+
+            let mut guards: Vec<Predicate> = cur_state
                 .projection()
                 .sorted()
                 .state
                 .iter()
-                .filter(|(p, _)| last_intersection.contains(p))
+                .filter(|(p, _)| intersections.contains(p))
                 .map(|(p, v)| {
                     Predicate::EQ(
                         PredicateValue::path((*p).clone()),
@@ -184,43 +203,34 @@ pub fn convert_planning_result_with_packing_heuristic(
                     )
                 })
                 .collect();
-            pred.extend(guards);
-            pred.push(p!(p: plan_counter == highest));
-            let action = if last_intersection_point > highest { // previous state
-                highest = last_intersection_point;
-                vec![a!(p: plan_counter = highest)]
-            } else { vec![] };
-
-            let guard = Predicate::AND(pred);
-
-            (guard, action)
+            guards.push(gc.clone());
+            Predicate::AND(guards)
         } else {
-            lowest -= 1;
-            let action = vec![a!(p: plan_counter = (lowest + 1))];
-            let guard = p!(p: plan_counter == lowest);
-            (guard, action)
+            gc
         };
 
-        let t = Transition::new(
-            &format!("step{:?}", x),
+        println!();
+        println!("{} got a new spec: {}/{}", res.trace[idx].transition, guard, action.iter().map(|a|a.to_string()).collect::<Vec<_>>().join(","));
+
+        let st = Transition::new(
+            &format!("hlstep{:?}", idx),
             guard,
             action,
             vec![],
             true,
         );
 
-        println!("A new spec: {}", t);
-
         tr.push(TransitionSpec::new(
-            &format!("spec{:?}", x),
-            t,
-            vec![current.transition.clone()],
+            &format!("spec{:?}", counter),
+            st,
+            vec![res.trace[idx].transition.clone()],
         ));
-    }
+        counter+=1;
+    };
 
     let blocked: Vec<TransitionSpec> = model.transitions
         .iter()
-        .filter(|t| !in_plan.contains(t.path()))
+        .filter(|t| t.controlled() && !in_plan.contains(t.path()))
         .map(|x| {
             let t = Transition::new(
                 &format!("Blocked {}", x.path()),
@@ -239,9 +249,8 @@ pub fn convert_planning_result_with_packing_heuristic(
     in_plan.iter().for_each(|x| println!("{}", x));
     println!();
 
-    (tr, SPState::new_from_values(&[(plan_counter.clone(), lowest.to_spvalue())]))
+    (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
 }
-
 
 // create a planning result based on an initial state and a sequence
 // of transitions this is to make it easy to try to rearrange plans.
