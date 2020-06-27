@@ -298,8 +298,8 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     r
 }
 
-pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
-    let mut model = TransitionSystemModel::from(&model);
+pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) -> Predicate {
+    let mut model = model.clone();
 
     // only look at the uncontrollable transitions.
     model.transitions.retain(|t| !t.controlled());
@@ -345,10 +345,10 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
 
     support_all.extend(preds.iter().flat_map(|p| p.support()));
 
-    println!("needed variables:");
-    support_all.iter().for_each(|t| {
-        println!("{}", t);
-    });
+    // println!("needed variables:");
+    // support_all.iter().for_each(|t| {
+    //     println!("{}", t);
+    // });
 
     // finally filter out any variables left
     model.vars.retain(|v| support_all.contains(v.path()));
@@ -365,6 +365,34 @@ pub fn refine_invariant(model: &Model, invariant: &Predicate) -> Predicate {
     let new_invariant = Ex::NOT(Box::new(forbidden));
 
     c.ex_to_sp_pred(&new_invariant)
+}
+
+pub fn extend_forward(model: &TransitionSystemModel, pred: &Predicate) -> Predicate {
+    let mut model = model.clone();
+
+    // only look at the uncontrollable transitions.
+    model.transitions.retain(|t| !t.controlled());
+
+    let c = FormalContext::from(&model);
+
+    // forbidden = all states NOT conforming to the invariant
+    let pred = c.sp_pred_to_ex(pred);
+    let pred = c.context.extend_forward(&pred);
+    c.ex_to_sp_pred(&pred)
+}
+
+pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
+    let mut model = model.clone();
+    model.transitions.clear();
+    model.specs.clear();
+    model.state_predicates.clear();
+    let support = p.support();
+    model.vars.retain(|v| support.contains(v.path()));
+
+    let c = FormalContext::from(&model);
+    let ex = c.sp_pred_to_ex(p);
+    let ex = c.context.cycle_expression(&ex);
+    c.ex_to_sp_pred(&ex)
 }
 
 pub fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {

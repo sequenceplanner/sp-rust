@@ -169,16 +169,26 @@ impl TransitionSystemModel {
             })
             .collect();
 
-        let mut transitions: Vec<_> = global_ops
+        let mut op_trans: Vec<_> = global_ops
             .iter()
             .flat_map(|o| o.transitions())
             .filter(|t| t.name() == "planning")
             .cloned()
             .collect();
 
-        transitions.iter_mut().for_each(|t| {
+        op_trans.iter_mut().for_each(|t| {
             t.node_mut().update_name("start");
         });
+
+        // "auto planning" transitions. these exist only in the planning world,
+        // i.e. they don't have any associated operations.
+        let mut transitions = op_model.items().iter()
+            .flat_map(|i| match i {
+                SPItem::Transition(t) => Some(t.clone()),
+                _ => None,
+            }).collect::<Vec<_>>();
+
+        transitions.extend(op_trans);
 
         TransitionSystemModel {
             name: format!("op_model_{}", model.name()),

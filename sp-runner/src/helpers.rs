@@ -41,7 +41,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         let mut new_specs = Vec::new();
         for s in &ts_model.specs {
             println!("refining invariant {}", s.path());
-            let ri = refine_invariant(&model, s.invariant());
+            let ri = refine_invariant(&ts_model, s.invariant());
             new_specs.push(Spec::new(s.name(), ri));
         }
         ts_model.specs = new_specs;

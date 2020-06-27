@@ -159,6 +159,35 @@ impl GModel {
             .path()
     }
 
+    // handles the special case where auto transitions are directly mapped
+    // onto the higher level.
+    pub fn add_op_auto(&mut self, name: &str, pre: &Predicate, actions: &[Action]) {
+        // in the planning model, we only have a single transition,
+        // effects are immediate
+        let t = Transition::new(
+            &format!("{}_auto", name),
+            Predicate::AND(vec![pre.clone()]),
+            actions.to_vec(),
+            vec![],
+            false,
+        );
+
+        let m = match self.model.find_item_mut("operations", &[]) {
+            Some(SPMutItemRef::Model(m)) => m,
+            Some(_) => panic!("operations error..."),
+            None => {
+                let temp_model = Model::new("operations", vec![]);
+                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
+                match self.model.find_item_mut("operations", &[]) {
+                    Some(SPMutItemRef::Model(m)) => m,
+                    Some(_) => panic!("operations error..."),
+                    _ => panic!("cannot happen"),
+                }
+            }
+        };
+        m.add_item(SPItem::Transition(t));
+    }
+
     pub fn add_op(
         &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate, effects: &[Action],
         invariant: Option<Predicate>,
@@ -167,7 +196,12 @@ impl GModel {
 
         let op_start = Transition::new(
             "start",
-            Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
+            // Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
+            // high level ops can be started at any time, because they
+            // may complete by auto transitions before the were
+            // supposed to start. this lets them start and complete in
+            // one transition if post is fulfulled.
+            p!(p: state == "i"),
             vec![a!(p: state = "e")],
             vec![],
             true,
@@ -280,12 +314,22 @@ impl GModel {
         let mut s = self.initial_state.clone();
 
         // add operation to the initial state here
-        let global_ops_vars: Vec<Variable> = self.model.all_operations().iter().map(|o| o.state_variable().clone()).collect();
+        // let global_ops_vars: Vec<Variable> = self.model.all_operations().iter().map(|o| o.state_variable().clone()).collect();
 
-        let state: Vec<_> = global_ops_vars.iter()
-            .map(|v| (v.node().path().clone(), "i".to_spvalue()))
-            .collect();
-        s.extend(SPState::new_from_values(&state[..]));
+        // let state: Vec<_> = global_ops_vars.iter()
+        //     .map(|v| (v.node().path().clone(), "i".to_spvalue()))
+        //     .collect();
+        // s.extend(SPState::new_from_values(&state[..]));
+
+        let state = self.model.all_operations().iter()
+            .map(|o|
+            if o.high_level {
+                (o.state_variable().node().path().clone(), "paused".to_spvalue())
+            } else {
+                (o.state_variable().node().path().clone(), "i".to_spvalue())
+            }).collect::<Vec<_>>();
+
+        s.extend(SPState::new_from_values(state.as_slice()));
 
         // lastly, add all specifications.
         (self.model, s)
@@ -299,7 +343,10 @@ impl GModel {
             let sup = t.guard().support();
             if products.iter().any(|p| sup.contains(p)) {
                 let cleaned_guard = t.guard().keep_only(&products).unwrap();
-                let acts: Vec<_> = t.actions().into_iter().filter(|p| products.contains(&p.var)).collect();
+                let acts: Vec<Action> = t.actions().into_iter().filter(|p| products.contains(&p.var)).cloned().collect();
+                let special_case = &cleaned_guard == t.guard() &&
+                    acts.as_slice() == t.actions() &&
+                    !t.controlled;
 
                 // highlevel ops cannot deal with effects
                 // let effs: Vec<_> = t.effects().into_iter().filter(|p| products.contains(&p.var)).collect();
@@ -332,8 +379,9 @@ impl GModel {
                 }).collect();
 
                 if ad.is_empty() {
-                    let post = Predicate::AND(norm.iter().map(|a|a.to_predicate().unwrap()).collect());
                     println!("Generating operation {}", t.name());
+
+                    let post = Predicate::AND(norm.iter().map(|a|a.to_predicate().unwrap()).collect());
 
                     let mut touches = HashSet::new();
                     touches.extend(cleaned_guard.support().iter().cloned());
@@ -362,7 +410,17 @@ impl GModel {
                         Predicate::AND(vec![cleaned_guard, more_pre])
                     };
 
-                    self.add_op(t.name(), true, &pre, &post, &norm, None);
+                    let c = crate::formal_model::clean_pred(&tsm, &pre);
+                    if c != Predicate::FALSE {
+                        println!("precond: {}", pre);
+                        println!("post: {}", post);
+
+                        if special_case {
+                            self.add_op_auto(t.name(), &pre, &norm);
+                        } else {
+                            self.add_op(t.name(), true, &pre, &post, &norm, None);
+                        }
+                    }
                 } else if ad.len() == 1 {
                     let head = ad[0].clone();
                     head.iter().for_each(|(g,a)| {
@@ -406,7 +464,16 @@ impl GModel {
                             Predicate::AND(vec![pre, more_pre])
                         };
 
-                        self.add_op(&name, true, &pre, &post, &all, None);
+                        let c = crate::formal_model::clean_pred(&tsm, &pre);
+                        if c != Predicate::FALSE {
+                            println!("precond: {}", pre);
+                            println!("post: {}", post);
+                            if special_case {
+                                self.add_op_auto(t.name(), &pre, &norm);
+                            } else {
+                                self.add_op(&name, true, &pre, &post, &all, None);
+                            }
+                        }
                     });
                 } else {
                     panic!("TODO! model too complicated for now");
