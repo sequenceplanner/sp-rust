@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
-use crate::planning;
+use crate::{helpers,planning};
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (mut node, comm) = set_up_ros_comm(&model)?;
@@ -52,9 +52,10 @@ fn runner(
 ) {
     let model = model.clone();
     thread::spawn(move || {
-        let runner_model = crate::helpers::make_runner_model(&model);
+        let runner_model = helpers::make_runner_model(&model);
         let mut runner = make_new_runner(&model, runner_model, initial_state);
-        let mut prev_goals: HashMap<usize, Option<Vec<(Predicate, Option<Predicate>)>>> = HashMap::new();
+        let mut prev_goals: HashMap<usize,
+                                    Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
         let mut store = planning::PlanningStore::default();
         let store_async = Arc::new(Mutex::new(
             planning::AsyncPlanningStore::load(&runner.transition_system_models[1])));
@@ -104,12 +105,6 @@ fn runner(
                         runner.input(SPRunnerInput::Tick);
                     }
                     SPRunnerInput::Settings(_) => {
-                        // temporary hack
-                        println!("force resetting all operation state");
-                        for p in &runner.operation_states {
-                            runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
-                        }
-
                         state_has_probably_changed = true;
                         runner.input(msg);
                         runner.input(SPRunnerInput::Tick);
@@ -179,9 +174,13 @@ fn runner(
             }
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
-                if goals.len() == 0 {
-                    continue;
-                }
+
+                let planner = SPPath::from_slice(&["runner", "planner", &i.to_string()]);
+                if runner.ticker.state.sp_value_from_path(&planner)
+                    .unwrap_or(&false.to_spvalue()) != &true.to_spvalue() {
+                        continue;
+                    }
+
                 // for each namespace, check if we need to replan because
                 // 1. got new goals from the runner or
                 // 2. can no longer reach our goal (because the state has changed)
@@ -192,7 +191,7 @@ fn runner(
 
                 // This is also true for the goals -> they are a function of the state.
 
-                let prev_goal = prev_goals.get(&i).unwrap_or(&None).clone();
+                let prev_goal = prev_goals.get(&i);
 
                 let gr: Vec<&Predicate> = goals
                     .iter()
@@ -205,11 +204,11 @@ fn runner(
                     }
                     is_empty
                 } || {
-                    let ok = &prev_goal.as_ref().map(|g| g == goals).unwrap_or(false);
+                    let ok = &prev_goal.map(|g| g == goals).unwrap_or(false);
                     if !ok {
                         println!("replanning because goal changed. {}", i);
-                        prev_goal.as_ref().iter().for_each(|g| g.iter().for_each(|g| {
-                            println!("prev goals {}", g.0);
+                        prev_goal.map(|g| g.iter().for_each(|g| {
+                            println!("prev goals {}", g.0)
                         }));
                     }
                     !ok
@@ -217,41 +216,9 @@ fn runner(
                     let now = std::time::Instant::now();
 
                     let ok = if i == 1 {
-                        let mut state = runner.state().clone();
-                        // first apply all effects that we are waiting
-                        // on for executing operations.
-                        let ok = runner.state()
-                            .projection()
-                            .state
-                            .iter()
-                            .filter(|(k,v)|
-                                    runner.operation_states.contains(k) &&
-                                    v.current_value() == &"e".to_spvalue())
-                            .all(|(k, _)| {
-                                // hacks...
-                                let k = k.parent().add_child("start");
-                                let t = runner.transition_system_models[1].transitions.iter().find(|t| t.path() == &k).unwrap();
-
-                                let ok = t.eval(&state);
-                                if ok {
-                                    t.effects.iter().for_each(|e| {
-                                        let _res = e.next(&mut state);
-                                    });
-                                }
-                                ok
-                            });
-                        println!("checking running... {}", ok);
-                        state.take_transition();
-
-                        if ok {
-                            let ok2 =
-                            runner
-                                .check_goals_fast(&state, &gr, &runner.plans[i],
-                                                  &runner.transition_system_models[i]);
-                            println!("checking running 2... {}", ok2);
-                            ok2
-                        } else { false }
-
+                        runner
+                            .check_goals_op_model(runner.state(), &gr, &runner.plans[i],
+                                                  &runner.transition_system_models[i])
                     } else {
                         runner
                             .check_goals_fast(runner.state(), &gr, &runner.plans[i],
@@ -292,16 +259,14 @@ fn runner(
                         let cutoff = 15;
                         let lookout = 0.5;
                         let max_time = Duration::from_secs(30);
-                        // crate::planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
+                        //planning::plan_async(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time)
                         planning::plan_async_with_cache(&ts, &goals, runner.state(), max_steps, cutoff, lookout, max_time, store_async.clone())
-                        // crate::planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store2)
+                        // planning::plan_with_cache(&ts, &goals, runner.state(), max_steps, &mut store2)
                     };
 
                     let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
                     let (tr, s) = if i == 1 {
-                        // test packing
                         planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
-                        //crate::planning::convert_planning_result(&ts, &planner_result, &plan_p)
                     } else {
                         planning::convert_planning_result(&ts, &planner_result, &plan_p)
                     };
@@ -326,9 +291,9 @@ fn runner(
                     // update last set of goals
                     if no_plan {
                         println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
-                        prev_goals.insert(i, None);
+                        prev_goals.remove(&i);
                     } else {
-                        prev_goals.insert(i, Some(goals.clone()));
+                        prev_goals.insert(i, goals.clone());
                     }
 
                     runner.input(SPRunnerInput::NewPlan(i as i32, plan));
@@ -680,7 +645,17 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         included_trans: Vec::new(),
         state_change: SPState::new(),
     }));
+
     runner.update_state_variables(initial_state);
+
+    // planning active or not
+    let planner0 = SPPath::from_slice(&["runner", "planner", "0"]);
+    let planner1 = SPPath::from_slice(&["runner", "planner", "1"]);
+    let planners_initially_on = SPState::new_from_values(&[
+        (planner0, true.to_spvalue()),
+        (planner1, true.to_spvalue()),
+    ]);
+    runner.update_state_variables(planners_initially_on);
 
     runner
 }

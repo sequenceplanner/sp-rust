@@ -177,20 +177,16 @@ fn postprocess_nuxmv_problem(
     let mut trace = Vec::new();
     let mut last = PlanningFrame::default();
 
-    let mut break_on_loop = false;
     for l in &s {
         if l.contains("  -- Loop starts here") {
             // when searching for infinite paths...
-            // panic!("infinite paths not supported");
-            break_on_loop = true; // skip remaining inputs
+            // TODO: we should search back to the first ok state when getting this
+            println!("NOTE: INFINITE PATH");
         } else if l.contains("  -> State: ") {
             // ignore the difference between state and input.
         } else if l.contains("  -> Input: ") || l.contains("nuXmv >") {
             trace.push(last);
             last = PlanningFrame::default();
-            if break_on_loop {
-                break;
-            }
         } else {
             let path_val: Vec<_> = l.split("=").map(|s| s.trim()).collect();
             let path = SPPath::from(path_val[0].split("#").map(|s| s.to_owned()).collect());

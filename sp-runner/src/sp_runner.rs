@@ -242,6 +242,117 @@ impl SPRunner {
         }
     }
 
+    /// Same as above but with special hacks for level 1...
+    pub fn check_goals_op_model(&self, s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
+        let mut state = s.clone();
+
+        // first apply all effects that we are waiting
+        // on for executing operations.
+        let running = state.projection().state.iter()
+            .filter_map(|(k,v)|
+                        if self.operation_states.contains(k) && v.current_value() == &"e".to_spvalue() {
+                            Some(k.clone())
+                        } else {
+                            None
+                        }
+                ).cloned().collect::<Vec<SPPath>>();
+        let ok = running.iter().all(|k| {
+            let k = k.parent().add_child("start");
+            let t = ts_model.transitions.iter().find(|t| t.path() == &k).unwrap();
+
+            let ok = t.eval(&state);
+            if ok {
+                t.effects.iter().for_each(|e| {
+                    let _res = e.next(&mut state);
+                });
+            }
+            ok
+        });
+
+        if !ok {
+            // could not apply transitions of running transitions, the state must have
+            // changed in an unexpected way.
+            return false;
+        }
+
+        state.take_transition();
+
+        let mut goals_reached = goals.iter().map(|g| (g, g.eval(s))).collect::<Vec<_>>();
+
+        if goals_reached.iter().all(|(_g, r)| *r) {
+            return true;
+        }
+
+        let trans: Vec<Transition> = ts_model.transitions.iter()
+            .filter(|t| plan.included_trans.contains(t.path()))
+            .cloned().collect();
+
+        let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
+
+        loop {
+            let state_changed = tm.iter().flat_map(|ts| {
+                if ts.iter().all(|t| {
+                    let mut x = t.eval(&state);
+                    // println!("for {}: {}", t.path(), x);
+                    if t.controlled() && trans.contains(t) && !x {
+                        // if we have an operation here that has been completed
+                        // outside the lvl1 plan, let it through anyway so
+                        // we can step the counter.
+                        let post =
+                            Predicate::AND(t.effects
+                                           .iter()
+                                           .flat_map(|e| e.to_predicate())
+                                           .collect());
+                        if post.eval(&state) {
+                            // println!("GOT THROUGH ON: {}", post);
+                            x = true;
+                        }
+                    }
+                    x
+                }) {
+                    // transitions enabled. clone the state to start a new search branch.
+
+                    // take all actions
+                    ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
+                        let _res = a.next(&mut state);
+                    });
+                    // and effects
+                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
+                        let _res = e.next(&mut state);
+                    });
+
+                    // update state predicates
+                    SPTicker::upd_preds(&mut state, &self.ticker.predicates);
+
+                    // next -> cur
+                    let changed = state.take_transition();
+
+                    if SPRunner::bad_state(&state, ts_model) {
+                        None
+                    } else {
+                        Some(changed)
+                    }
+                } else {
+                    None
+                }
+            }).any(|x|x);
+
+            goals_reached.iter_mut().for_each(|(g,r)| {
+                if !*r && g.eval(&state) {
+                    *r = true;
+                    // println!("for {}: {}", g, r);
+                }
+            });
+
+            if goals_reached.iter().all(|(_g, r)| *r) {
+                return true;
+            }
+            else if !state_changed {
+                return false;
+            }
+        }
+    }
+
     /// A slower, but more forgiving forward search to goal.
     /// This handles the case described in check_goals_fast.
     pub fn check_goals_complete(&self, state: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
