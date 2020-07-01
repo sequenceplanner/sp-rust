@@ -76,11 +76,12 @@ fn test_invariant_refinement() {
     // (offline) Specifications
     let table_zone = p!(!([p: r1_p_a == "at"] && [p: r2_p_a == "at"]));
 
-    let new_table_zone = refine_invariant(&m, &table_zone);
+    let mut ts_model = TransitionSystemModel::from(&m);
+    let new_table_zone = refine_invariant(&ts_model, &table_zone);
     assert_ne!(new_table_zone, table_zone);
     // println!("new spec: {}", new_table_zone);
 
-    m.add_item(SPItem::Spec(Spec::new("table_zone", new_table_zone)));
+    ts_model.specs.push(Spec::new("table_zone", new_table_zone));
 
     let ts_model = TransitionSystemModel::from(&m);
     generate_offline_nuxvm(&ts_model, &Predicate::TRUE);

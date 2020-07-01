@@ -212,12 +212,12 @@ mod test_new_ticker {
         let b = a!(p:ab <- p:kl);
         let c = a!(p:xy ? p);
 
-        let t1 = Transition::new("t1", p!(ac), vec![a], vec![], false);
-        let t2 = Transition::new("t2", p!(!ac), vec![b], vec![], false);
+        let t1 = Transition::new("t1", p!(p:ac), vec![a], vec![], false);
+        let t2 = Transition::new("t2", p!(!p:ac), vec![b], vec![], false);
         let t3 = Transition::new("t3", Predicate::TRUE, vec![c], vec![], false);
 
         let sp_pred = s.state_path(&pred).unwrap();
-        let pred_ac = p!(ac);
+        let pred_ac = p!(p:ac);
 
         let rp = RunnerPredicate(sp_pred, pred_ac);
 

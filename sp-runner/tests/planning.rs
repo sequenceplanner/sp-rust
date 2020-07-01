@@ -435,11 +435,11 @@ fn planning_invar_len11() {
         .expect("check spelling")
         .path();
 
-    let table_zone = p!(!([p: r1a == "at"] && [p: r2a == "at"]));
-    let new_table_zone = refine_invariant(&m, &table_zone);
-
     // no guard extr.
     let ts_model = TransitionSystemModel::from(&m);
+
+    let table_zone = p!(!([p: r1a == "at"] && [p: r2a == "at"]));
+    let new_table_zone = refine_invariant(&ts_model, &table_zone);
 
     let state = state! {
         r1a => "away",
