@@ -356,7 +356,7 @@ impl AsyncPlanningStore {
 }
 
 pub fn plan_async_with_cache(
-    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
+    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState, disabled: &[SPPath],
     max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration, store: Arc<Mutex<AsyncPlanningStore>>)
     -> PlanningResult {
     let now = std::time::Instant::now();
@@ -377,7 +377,8 @@ pub fn plan_async_with_cache(
         format!("{}+{}", g, i)
     }).collect::<Vec<_>>().join("");
     // let key = PlannerRequestKey { goal: goal_str, state: state_str };
-    let key = format!("{}=={}", goal_str, state_str);
+    let disabled_str = disabled.iter().map(|p|p.to_string()).collect::<Vec<_>>().join(",");
+    let key = format!("{}=={}=={}", goal_str, state_str,disabled_str);
 
     {
         let mut store = store.lock().unwrap();

@@ -20,6 +20,7 @@ pub struct SPRunner {
     pub in_sync: bool,
     pub resources: Vec<SPPath>,
     pub operation_states: Vec<SPPath>,
+    pub hl_operation_states: Vec<SPPath>,
 }
 
 /// The input to the runner.
@@ -46,7 +47,6 @@ pub enum SPRunnerInput {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
     //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
-    pub is_blocked: bool,          // to quickly know if we have currently blocked all transitions
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
     pub included_trans: Vec<SPPath>, // list of all included transitions in the plan (in order).
     pub state_change: SPState,     // for setting variables use in the plans
@@ -65,6 +65,7 @@ impl SPRunner {
         transition_system_models: Vec<TransitionSystemModel>,
         resources: Vec<SPPath>,
         operation_states: Vec<SPPath>,
+        hl_operation_states: Vec<SPPath>,
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -112,6 +113,7 @@ impl SPRunner {
             in_sync: false,
             resources,
             operation_states,
+            hl_operation_states,
         }
     }
 

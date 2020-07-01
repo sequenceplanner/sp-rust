@@ -21,7 +21,8 @@ pub struct RunnerModel {
     pub op_model: TransitionSystemModel,
 
     // temporary!
-    pub op_states: Vec<Variable>
+    pub op_states: Vec<Variable>,
+    pub hl_op_states: Vec<Variable>,
 }
 
 impl RunnerModel {
@@ -54,7 +55,7 @@ pub struct AbPlanItem {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerPlans {
-    pub op_plan: Vec<SPPath>, 
+    pub op_plan: Vec<SPPath>,
     pub ab_plan: Vec<AbPlanItem>,
 }
 
@@ -137,4 +138,3 @@ pub struct ForcedGoal {
     level: String,
     goal: Predicate,
 }
-

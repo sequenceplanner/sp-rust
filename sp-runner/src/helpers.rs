@@ -115,6 +115,13 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         .cloned()
         .collect();
 
+    let hl_op_states: Vec<Variable> = global_hl_ops
+        .iter()
+        .map(|o| o.state_variable())
+        .cloned()
+        .collect();
+
+
     let ts_model_op = TransitionSystemModel::from_op(&model);
     crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
 
@@ -148,6 +155,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         model: ts_model.clone(),
         op_model: ts_model_op.clone(),
         op_states,
+        hl_op_states,
     };
 
     return rm;
