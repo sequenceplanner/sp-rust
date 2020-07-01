@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 /// In this file both predicates and actions are defined
 use std::collections::HashMap;
 
+mod parser;
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Predicate {
     AND(Vec<Predicate>),
@@ -168,6 +170,10 @@ impl Default for PredicateValue {
 }
 
 impl Predicate {
+    pub fn from_string_or_panic(from: &str) -> Self {
+        parser::pred_parser::pred(from).unwrap()
+    }
+
     pub fn upd_state_path(&mut self, state: &SPState) {
         match self {
             Predicate::AND(x) => x.iter_mut().for_each(|p| p.upd_state_path(state)),
@@ -751,6 +757,38 @@ mod sp_value_test {
     #![warn(unused_variables)]
 
     use super::*;
+
+    // we want to make sure that the macro and string parser
+    // have the same semantics. They probably differ a bit a
+    // the moment, especially with deciding what is a path and
+    // what is a value.
+    #[test]
+    fn macro_vs_parser() {
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let ac = SPPath::from_slice(&["a", "c"]);
+        let kl = SPPath::from_slice(&["k", "l"]);
+
+        let p1 = format!("p:{} && p:{} && p:{}", ab, ac, kl);
+        assert_eq!(Predicate::from_string_or_panic(&p1),
+                   p!( [ p:ab] && [p:ac] && [p:kl ]));
+
+        let p1 = format!("(!p:{}) && p:{} && p:{}", ab, ac, kl);
+        assert_eq!(Predicate::from_string_or_panic(&p1),
+                   p!( [ !p:ab] && [p:ac] && [p:kl ]));
+
+        let p1 = format!("(!p:{}) && p:{} || p:{}", ab, ac, kl);
+        assert_eq!(Predicate::from_string_or_panic(&p1),
+                   p!( [[ !p:ab] && [p:ac]] || [p:kl ]));
+
+        let p1 = format!("(!p:{}) && p:{} -> p:{}", ab, ac, kl);
+        assert_eq!(Predicate::from_string_or_panic(&p1),
+                   p!( [[ !p:ab] && [p:ac]] => [p:kl ]));
+
+        // samve expr as above but with whitespaces interspersed
+        let p1 = format!(" ( ( ! p: {} ) && p: {} ) -> ( p:{} ) ", ab, ac, kl);
+        assert_eq!(Predicate::from_string_or_panic(&p1),
+                   p!( [[ !p:ab] && [p:ac]] => [p:kl ]));
+    }
 
     #[test]
     fn eval_pred() {
