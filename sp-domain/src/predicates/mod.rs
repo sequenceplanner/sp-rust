@@ -170,8 +170,8 @@ impl Default for PredicateValue {
 }
 
 impl Predicate {
-    pub fn from_string_or_panic(from: &str) -> Self {
-        parser::pred_parser::pred(from).unwrap()
+    pub fn from_string(from: &str) -> Option<Self> {
+        parser::pred_parser::pred(from).ok()
     }
 
     pub fn upd_state_path(&mut self, state: &SPState) {
@@ -769,24 +769,24 @@ mod sp_value_test {
         let kl = SPPath::from_slice(&["k", "l"]);
 
         let p1 = format!("p:{} && p:{} && p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string_or_panic(&p1),
+        assert_eq!(Predicate::from_string(&p1).unwrap(),
                    p!( [ p:ab] && [p:ac] && [p:kl ]));
 
         let p1 = format!("(!p:{}) && p:{} && p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string_or_panic(&p1),
+        assert_eq!(Predicate::from_string(&p1).unwrap(),
                    p!( [ !p:ab] && [p:ac] && [p:kl ]));
 
         let p1 = format!("(!p:{}) && p:{} || p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string_or_panic(&p1),
+        assert_eq!(Predicate::from_string(&p1).unwrap(),
                    p!( [[ !p:ab] && [p:ac]] || [p:kl ]));
 
         let p1 = format!("(!p:{}) && p:{} -> p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string_or_panic(&p1),
+        assert_eq!(Predicate::from_string(&p1).unwrap(),
                    p!( [[ !p:ab] && [p:ac]] => [p:kl ]));
 
         // samve expr as above but with whitespaces interspersed
         let p1 = format!(" ( ( ! p: {} ) && p: {} ) -> ( p:{} ) ", ab, ac, kl);
-        assert_eq!(Predicate::from_string_or_panic(&p1),
+        assert_eq!(Predicate::from_string(&p1).unwrap(),
                    p!( [[ !p:ab] && [p:ac]] => [p:kl ]));
     }
 

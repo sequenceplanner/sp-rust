@@ -7,7 +7,7 @@ peg::parser!(pub grammar pred_parser() for str {
     rule _() =  quiet!{[' ' | '\t']*}
 
     rule path() -> SPPath =
-        "p:" _ n:$(['a'..='z' | 'A'..='Z' | '_' | '/']+) _ {
+        "p:" _ n:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '/']+) {
             SPPath::from_string(n)
         }
 
@@ -74,6 +74,7 @@ fn parse_values() {
     assert_eq!(pred_parser::value("hej"), Ok(PredicateValue::SPValue("hej".to_spvalue())));
     assert_eq!(pred_parser::value("\"hej/hopp\""), Ok(PredicateValue::SPValue("hej/hopp".to_spvalue())));
     assert_eq!(pred_parser::value("p:hej/hopp"), Ok(PredicateValue::SPPath(SPPath::from_string("hej/hopp"), None)));
+    assert_eq!(pred_parser::value("p:with_underscore_and/number123"), Ok(PredicateValue::SPPath(SPPath::from_string("with_underscore_and/number123"), None)));
     assert_eq!(pred_parser::value("true"), Ok(PredicateValue::SPValue(true.to_spvalue())));
     assert_eq!(pred_parser::value("TRUE"), Ok(PredicateValue::SPValue(true.to_spvalue())));
     assert_eq!(pred_parser::value("false"), Ok(PredicateValue::SPValue(false.to_spvalue())));
@@ -101,6 +102,18 @@ fn parse_predicate() {
     let eq1 = "TRUE == TRUE";
     let eq2 = EQ(PredicateValue::SPValue(true.to_spvalue()),
                  PredicateValue::SPValue(true.to_spvalue()));
+    assert_eq!(pred_parser::eq(eq1), Ok(eq2));
+
+    let eq1 = "FALSE == p:/root/node1/node2";
+    let path = SPPath::from_slice(&["root", "node1", "node2"]);
+    let eq2 = EQ(PredicateValue::SPValue(false.to_spvalue()),
+                 PredicateValue::SPPath(path, None));
+    assert_eq!(pred_parser::eq(eq1), Ok(eq2));
+
+    let eq1 = "p:/root/node1/node2 != false";
+    let path = SPPath::from_slice(&["root", "node1", "node2"]);
+    let eq2 = NEQ(PredicateValue::SPPath(path, None),
+                 PredicateValue::SPValue(false.to_spvalue()));
     assert_eq!(pred_parser::eq(eq1), Ok(eq2));
 
     let eq1 = "TRUE == TRUE || FALSE != FALSE";
