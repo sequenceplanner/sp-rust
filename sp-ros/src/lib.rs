@@ -22,6 +22,45 @@ mod ros {
         pub echo: SPState,
     }
 
+    pub fn log(msg: &str, file: &str, line: u32, severity: u32) {
+        println!("{}:{}:[{}] - {}", file, line, severity, msg);
+    }
+
+    #[macro_export]
+    macro_rules! log_debug {
+        ($($args:tt)*) => {{
+            $crate::log(&std::fmt::format(format_args!($($args)*)), file!(), line!(), 1);
+        }}
+    }
+
+    #[macro_export]
+    macro_rules! log_info {
+        ($($args:tt)*) => {{
+            $crate::log(&std::fmt::format(format_args!($($args)*)), file!(), line!(), 2);
+        }}
+    }
+
+    #[macro_export]
+    macro_rules! log_warn {
+        ($($args:tt)*) => {{
+            $crate::log(&std::fmt::format(format_args!($($args)*)), file!(), line!(), 3);
+        }}
+    }
+
+    #[macro_export]
+    macro_rules! log_error {
+        ($($args:tt)*) => {{
+            $crate::log(&std::fmt::format(format_args!($($args)*)), file!(), line!(), 4);
+        }}
+    }
+
+    #[macro_export]
+    macro_rules! log_fatal {
+        ($($args:tt)*) => {{
+            $crate::log(&std::fmt::format(format_args!($($args)*)), file!(), line!(), 5);
+        }}
+    }
+
     use crossbeam::channel;
     use failure::*;
     use sp_domain::*;
@@ -82,6 +121,63 @@ mod ros {
         pub mode: String,
         pub time_stamp: std::time::Instant,
         pub echo: SPState,
+    }
+
+    const SP_NODE_NAME: &str = "sp";
+
+    pub fn log_debug(msg: &str, file: &str, line: u32) {
+        r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Debug);
+    }
+
+    #[macro_export]
+    macro_rules! log_debug {
+        ($($args:tt)*) => {{
+            $crate::log_debug(&std::fmt::format(format_args!($($args)*)), file!(), line!());
+        }}
+    }
+
+    pub fn log_info(msg: &str, file: &str, line: u32) {
+        r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Info);
+    }
+
+    #[macro_export]
+    macro_rules! log_info {
+        ($($args:tt)*) => {{
+            $crate::log_info(&std::fmt::format(format_args!($($args)*)), file!(), line!());
+        }}
+    }
+
+    pub fn log_warn(msg: &str, file: &str, line: u32) {
+        r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Warn);
+    }
+
+    #[macro_export]
+    macro_rules! log_warn {
+        ($($args:tt)*) => {{
+            $crate::log_warn(&std::fmt::format(format_args!($($args)*)), file!(), line!());
+        }}
+    }
+
+    pub fn log_error(msg: &str, file: &str, line: u32) {
+        r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Error);
+    }
+
+    #[macro_export]
+    macro_rules! log_error {
+        ($($args:tt)*) => {{
+            $crate::log_error(&std::fmt::format(format_args!($($args)*)), file!(), line!());
+        }}
+    }
+
+    pub fn log_fatal(msg: &str, file: &str, line: u32) {
+        r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Fatal);
+    }
+
+    #[macro_export]
+    macro_rules! log_fatal {
+        ($($args:tt)*) => {{
+            $crate::log_fatal(&std::fmt::format(format_args!($($args)*)), file!(), line!());
+        }}
     }
 
     fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
@@ -185,7 +281,7 @@ mod ros {
 
     pub fn start_node() -> Result<RosNode, Error> {
         let ctx = r2r::Context::create()?;
-        let node = r2r::Node::create(ctx, "spnode", "")?;
+        let node = r2r::Node::create(ctx, SP_NODE_NAME, "")?;
         Ok(RosNode(node))
     }
 

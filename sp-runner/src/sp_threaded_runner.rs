@@ -2,7 +2,7 @@ use super::sp_runner::*;
 use crossbeam::{channel, Receiver, Sender};
 use failure::Error;
 use sp_domain::*;
-use sp_ros;
+use sp_ros::*;
 use sp_runner_api::*;
 use std::collections::HashMap;
 use std::thread;
@@ -48,7 +48,7 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
 
     loop {
         // blocking ros spinning
-        sp_ros::spin(&mut node);
+        spin(&mut node);
     }
 }
 
@@ -74,8 +74,8 @@ fn runner(
 
         'outer: loop {
             let elapsed_ms = now.elapsed().as_millis();
-            if elapsed_ms > 5 {
-                println!("RUNNER TICK TIME: {}ms", elapsed_ms);
+            if elapsed_ms > 50 {
+                log_debug!("RUNNER TICK TIME: {}ms", elapsed_ms);
             }
             let input = rx_input.recv();
             let mut state_has_probably_changed = false;
@@ -102,9 +102,43 @@ fn runner(
                     SPRunnerInput::NewPlan(_, _) => {
                         panic!("not used at the moment, planner called synchronously");
                     }
-                    SPRunnerInput::Settings(_) => {
+                    SPRunnerInput::Settings(cmd) => {
+                        // hack to test out the parser -- add new specs to a living system.
+                        if let RunnerCommand::Mode(str) = &cmd {
+                            log_debug!("got mode string: {}", str);
+                            let v: Vec<_> = str.splitn(3, ":").collect();
+                            if v.len() == 3 && v[0] == "add_spec" {
+                                let name = v[1];
+                                let pred_str = v[2];
+                                let pred = Predicate::from_string(pred_str);
+                                match pred {
+                                    Some(pred) => { // for now we assume only lvl0 spec
+                                        // got a new specifiction, add it to the system and
+                                        // reset the planning store
+                                        log_info!("Added new specification: {}", pred);
+                                        let refined_pred =
+                                            crate::formal_model::refine_invariant(
+                                                &runner.transition_system_models[0], &pred);
+                                        let spec = Spec::new(name, refined_pred);
+                                        runner.transition_system_models[0].specs.push(spec);
+                                        store = planning::PlanningStore::default();
+                                    },
+                                    None => log_error!("Failed to parse predicate {}: {}", name, pred_str)
+                                }
+                            }
+                            if v.len() == 2 && v[0] == "remove_spec" {
+                                let name = v[1];
+                                let ol = runner.transition_system_models[0].specs.len();
+                                runner.transition_system_models[0].specs.retain(|s| s.name() != name);
+                                if runner.transition_system_models[0].specs.len() != ol {
+                                    log_info!("Removed specification {}.", name);
+                                    store = planning::PlanningStore::default();
+                                }
+                            }
+                        }
+
                         state_has_probably_changed = true;
-                        runner.input(msg);
+                        runner.input(SPRunnerInput::Settings(cmd));
                         runner.input(SPRunnerInput::Tick);
 
                         // this could be done all the time, or
@@ -123,7 +157,8 @@ fn runner(
 
                             let goal = vec![(i.goal().clone(), None)];
 
-                            let pr = planning::plan_with_cache(&runner.transition_system_models[0], goal.as_slice(), runner.state(), LVL0_MAX_STEPS, &mut store);
+                            let pr = planning::plan_with_cache(&runner.transition_system_models[0], goal.as_slice(),
+                                                               runner.state(), LVL0_MAX_STEPS, &mut store);
 
                             if !pr.plan_found {
                                 println!("operation still problematic...");
@@ -156,8 +191,10 @@ fn runner(
 
                                     if pr.plan_found {
                                         let state_path = p.parent().add_child("state");
-                                        println!("automatically restarting operation {}", p);
-                                        runner.ticker.state.force_from_path(&state_path, "e".to_spvalue()).unwrap();
+                                        log_info!("automatically restarting operation {}", p);
+                                        runner.ticker.state
+                                            .force_from_path(&state_path,
+                                                             "e".to_spvalue()).unwrap();
                                     }
                                 }
                             }
@@ -182,7 +219,8 @@ fn runner(
             }
 
             // if there's nothing to do in this cycle, continue
-            if !state_has_probably_changed && runner.last_fired_transitions.is_empty() && !ticked {
+            if !state_has_probably_changed && runner.last_fired_transitions.is_empty() &&
+                !ticked {
                 continue;
             } else {
                 println!("state changed? {}", state_has_probably_changed);
@@ -260,13 +298,13 @@ fn runner(
                 let replan = {
                     let is_empty = prev_goal.is_none();
                     if is_empty {
-                        println!("replanning because previous goal was empty. {}", i);
+                        log_info!("replanning because previous goal was empty. {}", i);
                     }
                     is_empty
                 } || {
                     let ok = &prev_goal.map(|g| g == goals).unwrap_or(false);
                     if !ok {
-                        println!("replanning because goal changed. {}", i);
+                        log_info!("replanning because goal changed. {}", i);
                         prev_goal.map(|g| g.iter().for_each(|g| {
                             println!("prev goals {}", g.0)
                         }));
@@ -291,7 +329,7 @@ fn runner(
 
                     if !ok {
                         println!("goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
-                        println!("replanning because we cannot reach goal. {}", i);
+                        log_info!("replanning because we cannot reach goal. {}", i);
                     }
                     !ok
                 };
@@ -312,11 +350,20 @@ fn runner(
 
                     let planner_result = if i == 0 {
                         // skip heuristic for the low level
-                        let mut pr = planning::plan_with_cache(&ts, &goals, runner.state(), LVL0_MAX_STEPS, &mut store);
+                        let mut pr = planning::plan_with_cache(&ts, &goals, runner.state(),
+                                                               LVL0_MAX_STEPS, &mut store);
                         planning::bubble_up_delibs(ts, &gr, &mut pr);
                         pr
                     } else {
-                        planning::plan_async_with_cache(&ts, &goals, runner.state(), &disabled_operations, LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME, store_async.clone())
+                        planning::plan_async_with_cache(&ts,
+                                                        &goals,
+                                                        runner.state(),
+                                                        &disabled_operations,
+                                                        LVL1_MAX_STEPS,
+                                                        LVL1_CUTOFF,
+                                                        LVL1_LOOKOUT,
+                                                        LVL1_MAX_TIME,
+                                                        store_async.clone())
                     };
 
                     let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
@@ -341,7 +388,8 @@ fn runner(
 
                         // look for the problematic goals
                         let g0 = &runner.goals[i];
-                        let ifthens: Vec<&IfThen> = g0.iter().filter(|g| g.condition.eval(runner.state())).collect();
+                        let ifthens: Vec<&IfThen> = g0.iter()
+                            .filter(|g| g.condition.eval(runner.state())).collect();
 
                         for i in ifthens {
                             let goal = vec![(i.goal().clone(), None)];
@@ -349,8 +397,10 @@ fn runner(
                             let pr = planning::plan_with_cache(&ts, goal.as_slice(), runner.state(), LVL0_MAX_STEPS, &mut store);
                             if !pr.plan_found {
                                 let offending_op = i.path().parent();
-                                println!("offending low level operation: {}", offending_op);
-                                runner.ticker.state.force_from_path(&offending_op.clone().add_child("state"), "error".to_spvalue()).unwrap();
+                                log_warn!("offending low level operation: {}", offending_op);
+                                runner.ticker.state
+                                    .force_from_path(&offending_op.clone().add_child("state"),
+                                                     "error".to_spvalue()).unwrap();
                                 disabled_operations.push(offending_op.add_child("start"));
                             }
                         }
@@ -365,14 +415,21 @@ fn runner(
 
                         for i in ifthens {
                             let goal = vec![(i.goal().clone(), None)];
-                            let pr = planning::plan_async_with_cache(&ts, &goal, runner.state(), &disabled_operations,
-                                                                     LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME,
+                            let pr = planning::plan_async_with_cache(&ts, &goal,
+                                                                     runner.state(),
+                                                                     &disabled_operations,
+                                                                     LVL1_MAX_STEPS,
+                                                                     LVL1_CUTOFF,
+                                                                     LVL1_LOOKOUT,
+                                                                     LVL1_MAX_TIME,
                                                                      store_async.clone());
 
                             if !pr.plan_found {
                                 let offending_op = i.path().parent();
-                                println!("offending high level operation: {}", offending_op);
-                                runner.ticker.state.force_from_path(&offending_op.clone().add_child("state"), "error".to_spvalue()).unwrap();
+                                log_warn!("offending high level operation: {}", offending_op);
+                                runner.ticker.state
+                                    .force_from_path(&offending_op.clone().add_child("state"),
+                                                     "error".to_spvalue()).unwrap();
                             }
                         }
                     }
@@ -386,7 +443,8 @@ fn runner(
 
                     // update last set of goals
                     if no_plan {
-                        println!("No plan was found for namespace {}! time to fail {}ms", i, planner_result.time_to_solve.as_millis());
+                        log_warn!("No plan was found for namespace {}! time to fail {}ms",
+                                  i, planner_result.time_to_solve.as_millis());
                         prev_goals.remove(&i);
                     } else {
                         prev_goals.insert(i, goals.clone());
@@ -405,31 +463,31 @@ fn runner(
 }
 
 struct RosCommSetup {
-    rx_mess: Receiver<sp_ros::RosMessage>,
+    rx_mess: Receiver<RosMessage>,
     rx_commands: Receiver<RunnerCommand>,
-    rx_node: Receiver<sp_ros::NodeMode>,
+    rx_node: Receiver<NodeMode>,
     tx_state_out: Sender<SPState>,
     tx_runner_info: Sender<RunnerInfo>,
-    tx_node_cmd: Sender<sp_ros::NodeCmd>,
+    tx_node_cmd: Sender<NodeCmd>,
 }
 
-fn set_up_ros_comm(model: &Model) -> Result<(sp_ros::RosNode, RosCommSetup), Error> {
+fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
     // start ros node
-    let mut node = sp_ros::start_node()?;
+    let mut node = start_node()?;
 
     // data from resources to runner
     // setup ros pub/subs. tx_out to send out to network
     let (tx_in, rx_mess) = channel::bounded(20);
-    let tx_state_out: channel::Sender<SPState> = sp_ros::roscomm_setup(&mut node, model, tx_in)?;
+    let tx_state_out: channel::Sender<SPState> = roscomm_setup(&mut node, model, tx_in)?;
 
     // misc runner data to/from the network.
     // setup ros pub/subs. tx_out to send out to network
     let (tx_in_misc, rx_commands) = channel::bounded(20);
-    let tx_runner_info = sp_ros::roscomm_setup_misc(&mut node, tx_in_misc)?;
+    let tx_runner_info = roscomm_setup_misc(&mut node, tx_in_misc)?;
 
     // Node handler comm
     let (tx_in_node, rx_node) = channel::unbounded();
-    let tx_node_cmd = sp_ros::ros_node_comm_setup(&mut node, model, tx_in_node)?;
+    let tx_node_cmd = ros_node_comm_setup(&mut node, model, tx_in_node)?;
 
     Ok((
         node,
@@ -444,7 +502,7 @@ fn set_up_ros_comm(model: &Model) -> Result<(sp_ros::RosNode, RosCommSetup), Err
     ))
 }
 
-fn merger(rx_mess: Receiver<sp_ros::RosMessage>, tx_runner: Sender<SPRunnerInput>) {
+fn merger(rx_mess: Receiver<RosMessage>, tx_runner: Sender<SPRunnerInput>) {
     thread::spawn(move || {
         let mut s: SPState = SPState::new();
         let mut temp_q: Option<SPState> = None;
@@ -536,7 +594,6 @@ struct NodeState {
     cmd_msg: Option<MessageField>,
 }
 
-use sp_ros::{NodeCmd, NodeMode};
 fn node_handler(
     freq: Duration,
     deadline: Duration,

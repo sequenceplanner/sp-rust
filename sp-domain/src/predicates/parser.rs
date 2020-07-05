@@ -78,6 +78,14 @@ fn parse_values() {
     assert_eq!(pred_parser::value("true"), Ok(PredicateValue::SPValue(true.to_spvalue())));
     assert_eq!(pred_parser::value("TRUE"), Ok(PredicateValue::SPValue(true.to_spvalue())));
     assert_eq!(pred_parser::value("false"), Ok(PredicateValue::SPValue(false.to_spvalue())));
+    assert_eq!(pred_parser::value("left"), Ok(PredicateValue::SPValue("left".to_spvalue())));
+}
+
+#[test]
+fn parse_more_tests() {
+    let e = "p:cylinders2/x == left";
+    let p = SPPath::from_string("cylinders2/x");
+    assert_eq!(pred_parser::pred(e), Ok(p!(p:p == "left")));
 }
 
 #[test]
