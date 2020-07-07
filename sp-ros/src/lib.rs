@@ -434,7 +434,7 @@ mod ros {
                     })
                     .collect(),
                 plans: vec![],
-                mode: "".to_string(),
+                mode: info.mode,
                 forced_state: vec![],
                 forced_goal: vec![],
             };

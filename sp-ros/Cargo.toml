@@ -11,7 +11,7 @@ ros = ["r2r"]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 crossbeam = "0.7"
-r2r = { git = "https://github.com/sequenceplanner/r2r", optional = true }
+r2r = { git = "https://github.com/sequenceplanner/r2r", version = "0.0.5", optional = true }
 sp-domain = { path = "../sp-domain/" }
 sp-runner-api = { path = "../sp-runner-api/" }
 failure = "0.1.5"

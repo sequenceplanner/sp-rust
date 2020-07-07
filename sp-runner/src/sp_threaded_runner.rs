@@ -68,13 +68,15 @@ fn runner(
             planning::AsyncPlanningStore::load(&runner.transition_system_models[1])));
         // let timer = Instant::now();
 
+        let mut bad_state = false;
+
         let mut disabled_operations = Vec::new();
 
         let mut now = Instant::now();
 
         'outer: loop {
             let elapsed_ms = now.elapsed().as_millis();
-            if elapsed_ms > 50 {
+            if elapsed_ms > 1000 {
                 log_debug!("RUNNER TICK TIME: {}ms", elapsed_ms);
             }
             let input = rx_input.recv();
@@ -236,8 +238,13 @@ fn runner(
                 .expect("tx_state:out");
 
             // send out runner info.
+            let mut runner_modes = vec![];
+            if !runner.disabled_paths().is_empty() { runner_modes.push("waiting");}
+            if bad_state { runner_modes.push("bad state");}
+            if !disabled_operations.is_empty() { runner_modes.push("disabled operations"); }
             let runner_info = RunnerInfo {
                 state: runner.state().clone(),
+                mode: runner_modes.join(" | "),
                 ..RunnerInfo::default()
             };
 
@@ -249,7 +256,40 @@ fn runner(
                 continue;
             }
 
-            if SPRunner::bad_state(runner.state(), &runner.transition_system_models[0]) {
+            if !bad_state {
+                let bad: Vec<_> = runner.transition_system_models[0].specs.iter()
+                    .filter_map(|s| if !s.invariant().eval(runner.state()) {
+                        Some(s)
+                    } else {
+                        None
+                    }).collect();
+
+                if !bad.is_empty() {
+                    // try to find a way out of this situation by temporarily relaxing the specs
+                    // and instead planning to a new state where the specs holds.
+                    let mut temp_ts = runner.transition_system_models[0].clone();
+                    temp_ts.specs.retain(|spec| !bad.iter().any(|b| b.path() == spec.path()));
+                    let goals = bad.iter().map(|b| (b.invariant().clone(), None)).collect::<Vec<_>>();
+                    let pr = planning::plan(&temp_ts, goals.as_slice(), runner.state(), LVL0_MAX_STEPS);
+
+                    let plan = pr.trace.iter().map(|x| x.transition.to_string()).collect::<Vec<_>>().join("\n");
+
+                    let spec_names = bad.iter().map(|b| b.path().to_string()).collect::<Vec<_>>().join(", ");
+                    log_error!("We are in a forbidden state! Spec(s) {} are violated. A way to get out could be \n{}", spec_names, plan);
+
+                    bad_state = true;
+                }
+
+                for s in runner.transition_system_models[0].specs.iter() {
+                    if !s.invariant().eval(runner.state()) {
+
+                    }
+                }
+            } else {
+                bad_state = SPRunner::bad_state(runner.state(), &runner.transition_system_models[0]);
+            }
+
+            if bad_state {
                 continue;
             }
 
