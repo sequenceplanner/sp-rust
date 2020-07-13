@@ -51,71 +51,39 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     crate::planning::generate_offline_nuxvm(&ts_model,&initial);
 
     // runner model has everything from planning model + operations and their global state
-    let items = model.items();
 
     // add global op transitions
-    let global_ops: Vec<&Operation> = model.all_operations()
-        .into_iter().filter(|o| !o.high_level).collect();
+    let global_ops: Vec<&Operation> = model.all_operations();
 
-    let global_ops_trans: Vec<_> = global_ops
-        .iter()
-        .flat_map(|o| o.transitions())
-        .cloned()
-        .collect();
-    let global_ops_ctrl: Vec<_> = global_ops_trans
-        .iter()
-        // we remove the planning representation of the operation here.
-        .filter(|o| o.controlled && o.name() != "planning")
-        .cloned()
-        .collect();
+    let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_start.clone()).collect();
+    let global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
+    let global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
+    let op_states: Vec<Variable> = global_ops.iter().map(|o| o.state_variable()).cloned().collect();
 
-    let global_ops_un_ctrl: Vec<_> = global_ops_trans
+    // unchanged. todo
+    let global_intentions: Vec<&Intention> = model.all_intentions();
+    let global_int_trans: Vec<_> = global_intentions
         .iter()
-        .filter(|o| !o.controlled)
+        .flat_map(|i| i.transitions())
         .cloned()
         .collect();
-    let global_goals: Vec<IfThen> = global_ops
+    let global_hl_ops_ctrl: Vec<_> = global_int_trans
+        .iter()
+        .filter(|t| t.controlled)
+        .cloned()
+        .collect();
+    let global_hl_ops_un_ctrl: Vec<_> = global_int_trans
+        .iter()
+        .filter(|t| !t.controlled)
+        .cloned()
+        .collect();
+    let global_hl_goals: Vec<IfThen> = global_intentions
         .iter()
         .flat_map(|o| o.goal().as_ref())
         .cloned()
         .collect();
 
-    let op_states: Vec<Variable> = global_ops
-        .iter()
-        .map(|o| o.state_variable())
-        .cloned()
-        .collect();
-
-    let global_hl_ops: Vec<&Operation> = items
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Operation(o) if o.high_level => Some(o),
-            _ => None,
-        })
-        .collect();
-
-    let global_hl_ops_trans: Vec<_> = global_hl_ops
-        .iter()
-        .flat_map(|o| o.transitions())
-        .cloned()
-        .collect();
-    let global_hl_ops_ctrl: Vec<_> = global_hl_ops_trans
-        .iter()
-        .filter(|o| o.controlled)
-        .cloned()
-        .collect();
-    let global_hl_ops_un_ctrl: Vec<_> = global_hl_ops_trans
-        .iter()
-        .filter(|o| !o.controlled)
-        .cloned()
-        .collect();
-    let global_hl_goals: Vec<IfThen> = global_hl_ops
-        .iter()
-        .flat_map(|o| o.goal().as_ref())
-        .cloned()
-        .collect();
-
-    let hl_op_states: Vec<Variable> = global_hl_ops
+    let hl_op_states: Vec<Variable> = global_intentions
         .iter()
         .map(|o| o.state_variable())
         .cloned()
@@ -150,7 +118,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         },
         plans: RunnerPlans::default(),
         state_predicates: ts_model.state_predicates.clone(),
-        goals: global_goals,
+        goals: global_op_goals,
         hl_goals: global_hl_goals,
         model: ts_model.clone(),
         op_model: ts_model_op.clone(),

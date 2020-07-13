@@ -10,6 +10,7 @@ pub enum SPItem {
     Message(Message),
     Topic(Topic),
     Variable(Variable),
+    Intention(Intention),
     Operation(Operation),
     Ability(Ability),
     Transition(Transition),
@@ -27,6 +28,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.node(),
             SPItem::Topic(x) => x.node(),
             SPItem::Variable(x) => x.node(),
+            SPItem::Intention(x) => x.node(),
             SPItem::Operation(x) => x.node(),
             SPItem::Ability(x) => x.node(),
             SPItem::Transition(x) => x.node(),
@@ -42,6 +44,7 @@ impl Noder for SPItem {
             SPItem::Message(ref mut x) => x.node_mut(),
             SPItem::Topic(ref mut x) => x.node_mut(),
             SPItem::Variable(ref mut x) => x.node_mut(),
+            SPItem::Intention(ref mut x) => x.node_mut(),
             SPItem::Operation(ref mut x) => x.node_mut(),
             SPItem::Ability(ref mut x) => x.node_mut(),
             SPItem::Transition(ref mut x) => x.node_mut(),
@@ -57,6 +60,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.get_child(next, path),
             SPItem::Topic(x) => x.get_child(next, path),
             SPItem::Variable(x) => x.get_child(next, path),
+            SPItem::Intention(x) => x.get_child(next, path),
             SPItem::Operation(x) => x.get_child(next, path),
             SPItem::Ability(x) => x.get_child(next, path),
             SPItem::Transition(x) => x.get_child(next, path),
@@ -74,6 +78,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.find_item_among_children(name, path_sections),
             SPItem::Topic(x) => x.find_item_among_children(name, path_sections),
             SPItem::Variable(x) => x.find_item_among_children(name, path_sections),
+            SPItem::Intention(x) => x.find_item_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_among_children(name, path_sections),
             SPItem::Ability(x) => x.find_item_among_children(name, path_sections),
             SPItem::Transition(x) => x.find_item_among_children(name, path_sections),
@@ -91,6 +96,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Topic(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Variable(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::Intention(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Ability(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Transition(x) => x.find_item_mut_among_children(name, path_sections),
@@ -106,6 +112,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.update_path_children(path, changes),
             SPItem::Topic(x) => x.update_path_children(path, changes),
             SPItem::Variable(x) => x.update_path_children(path, changes),
+            SPItem::Intention(x) => x.update_path_children(path, changes),
             SPItem::Operation(x) => x.update_path_children(path, changes),
             SPItem::Ability(x) => x.update_path_children(path, changes),
             SPItem::Transition(x) => x.update_path_children(path, changes),
@@ -121,6 +128,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.rewrite_expressions(mapping),
             SPItem::Topic(x) => x.rewrite_expressions(mapping),
             SPItem::Variable(x) => x.rewrite_expressions(mapping),
+            SPItem::Intention(x) => x.rewrite_expressions(mapping),
             SPItem::Operation(x) => x.rewrite_expressions(mapping),
             SPItem::Ability(x) => x.rewrite_expressions(mapping),
             SPItem::Transition(x) => x.rewrite_expressions(mapping),
@@ -136,6 +144,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.as_ref(),
             SPItem::Topic(x) => x.as_ref(),
             SPItem::Variable(x) => x.as_ref(),
+            SPItem::Intention(x) => x.as_ref(),
             SPItem::Operation(x) => x.as_ref(),
             SPItem::Ability(x) => x.as_ref(),
             SPItem::Transition(x) => x.as_ref(),
@@ -151,6 +160,7 @@ impl Noder for SPItem {
             SPItem::Message(x) => x.as_mut_ref(),
             SPItem::Topic(x) => x.as_mut_ref(),
             SPItem::Variable(x) => x.as_mut_ref(),
+            SPItem::Intention(x) => x.as_mut_ref(),
             SPItem::Operation(x) => x.as_mut_ref(),
             SPItem::Ability(x) => x.as_mut_ref(),
             SPItem::Transition(x) => x.as_mut_ref(),
@@ -168,6 +178,7 @@ pub enum SPItemRef<'a> {
     Message(&'a Message),
     Topic(&'a Topic),
     Variable(&'a Variable),
+    Intention(&'a Intention),
     Operation(&'a Operation),
     Ability(&'a Ability),
     Transition(&'a Transition),
@@ -184,6 +195,7 @@ pub enum SPMutItemRef<'a> {
     Message(&'a mut Message),
     Topic(&'a mut Topic),
     Variable(&'a mut Variable),
+    Intention(&'a mut Intention),
     Operation(&'a mut Operation),
     Ability(&'a mut Ability),
     Transition(&'a mut Transition),
@@ -209,6 +221,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Message(x) => &x.node,
             SPItemRef::Topic(x) => &x.node,
             SPItemRef::Variable(x) => &x.node,
+            SPItemRef::Intention(x) => &x.node,
             SPItemRef::Operation(x) => &x.node,
             SPItemRef::Ability(x) => &x.node,
             SPItemRef::Transition(x) => &x.node,
@@ -224,6 +237,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Message(x) => SPItem::Message({ *x }.clone()),
             SPItemRef::Topic(x) => SPItem::Topic({ *x }.clone()),
             SPItemRef::Variable(x) => SPItem::Variable({ *x }.clone()),
+            SPItemRef::Intention(x) => SPItem::Intention({ *x }.clone()),
             SPItemRef::Operation(x) => SPItem::Operation({ *x }.clone()),
             SPItemRef::Ability(x) => SPItem::Ability({ *x }.clone()),
             SPItemRef::Transition(x) => SPItem::Transition({ *x }.clone()),
@@ -249,6 +263,7 @@ impl<'a> SPMutItemRef<'a> {
             SPMutItemRef::Message(x) => &x.node,
             SPMutItemRef::Topic(x) => &x.node,
             SPMutItemRef::Variable(x) => &x.node,
+            SPMutItemRef::Intention(x) => &x.node,
             SPMutItemRef::Operation(x) => &x.node,
             SPMutItemRef::Ability(x) => &x.node,
             SPMutItemRef::Transition(x) => &x.node,
@@ -419,6 +434,17 @@ impl Model {
             .flat_map(|i| match i {
                 SPItem::Model(m) => m.all_operations(),
                 SPItem::Operation(o) => vec![o],
+                _ => vec![],
+            })
+            .collect()
+    }
+
+    pub fn all_intentions(&self) -> Vec<&Intention> {
+        self.items
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Model(m) => m.all_intentions(),
+                SPItem::Intention(int) => vec![int],
                 _ => vec![],
             })
             .collect()
@@ -1169,7 +1195,7 @@ impl Ability {
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
-pub struct Operation {
+pub struct Intention {
     node: SPNode,
     transitions: Vec<Transition>,
     goal: Option<IfThen>,
@@ -1178,7 +1204,7 @@ pub struct Operation {
     pub high_level: bool,
 }
 
-impl Noder for Operation {
+impl Noder for Intention {
     fn node(&self) -> &SPNode {
         &self.node
     }
@@ -1230,15 +1256,15 @@ impl Noder for Operation {
         self.state_variable.rewrite_expressions(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
-        SPItemRef::Operation(self)
+        SPItemRef::Intention(self)
     }
     fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
-        SPMutItemRef::Operation(self)
+        SPMutItemRef::Intention(self)
     }
 }
 
-impl Operation {
-    pub fn new(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Operation {
+impl Intention {
+    pub fn new(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Intention {
         let node = SPNode::new(name);
 
         let op_state = Variable::new(
@@ -1248,7 +1274,7 @@ impl Operation {
             vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
         );
 
-        Operation {
+        Intention {
             node,
             transitions: trans.to_vec(),
             state_variable: op_state,
@@ -1257,7 +1283,7 @@ impl Operation {
         }
     }
 
-    pub fn new_hl(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Operation {
+    pub fn new_hl(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Intention {
         let node = SPNode::new(name);
 
         let op_state = Variable::new(
@@ -1267,7 +1293,7 @@ impl Operation {
             vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
         );
 
-        Operation {
+        Intention {
             node,
             transitions: trans.to_vec(),
             state_variable: op_state,
@@ -1368,6 +1394,146 @@ impl IfThen {
         self.goal.upd_state_path(state);
         self.invariant.as_mut().map(|x| x.upd_state_path(state));
     }
+}
+
+
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+pub struct Operation {
+    node: SPNode,
+
+    // for the planning model -- no low-level variables allowed here
+    pub guard: Predicate,
+    pub effects: Vec<Action>,
+
+    // planning transition
+    pub planning_trans: Transition, // guard / effects
+
+    // for the runner -- syncing with the low-level
+    pub goal: IfThen,
+    pub post_actions: Vec<Action>,
+
+    // runner transitions
+    pub runner_start: Transition, // state = i && guard / state = e
+    pub runner_finish: Transition, // state = e && goal.predicate / state = i/f + post_actions + effects
+
+    // operation state
+    state_variable: Variable,
+}
+
+impl Noder for Operation {
+    fn node(&self) -> &SPNode {
+        &self.node
+    }
+    fn node_mut(&mut self) -> &mut SPNode {
+        &mut self.node
+    }
+    fn get_child<'a>(&'a self, _next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
+        self.state_variable.get(path)
+    }
+
+    fn find_item_among_children<'a>(
+        &'a self, name: &str, path_sections: &[&str],
+    ) -> Option<SPItemRef<'a>> {
+        self.state_variable.find_item(name, path_sections)
+    }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self, name: &str, path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        self.state_variable.find_item_mut(name, path_sections)
+    }
+    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        self.planning_trans.update_path(path, changes);
+
+        self.runner_start.update_path(path, changes);
+        self.runner_finish.update_path(path, changes);
+
+        self.state_variable.update_path(path, changes);
+    }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.guard.replace_variable_path(mapping);
+        self.effects.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+        self.planning_trans.rewrite_expressions(mapping);
+
+        self.goal.rewrite_expressions(mapping);
+        self.post_actions.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+        self.runner_start.rewrite_expressions(mapping);
+        self.runner_finish.rewrite_expressions(mapping);
+
+        self.state_variable.rewrite_expressions(mapping);
+    }
+    fn as_ref(&self) -> SPItemRef<'_> {
+        SPItemRef::Operation(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::Operation(self)
+    }
+}
+
+impl Operation {
+    pub fn new(name: &str, guard: &Predicate, effects: &[Action],
+               goal: &Predicate, post_actions: &[Action], resets: bool) -> Operation {
+        let node = SPNode::new(name);
+
+        let state_variable = Variable::new(
+            "state",
+            VariableType::Estimated,
+            SPValueType::String,
+            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+        );
+        let state = state_variable.path();
+
+        // for the runner.
+        let runner_start = Transition::new(
+            "start",
+            Predicate::AND(vec![p!(p: state == "i"), guard.clone()]),
+            vec![a!(p: state = "e")],
+            vec![],
+            true,
+        );
+
+        let mut f_actions = if resets {
+            vec![a!(p: state = "i")]
+        } else {
+            vec![a!(p: state = "f")]
+        };
+        f_actions.extend(post_actions.iter().cloned()); // post actions can change low-level stuff
+        f_actions.extend(effects.iter().cloned());      // effects change high level stuff
+
+        let runner_finish = Transition::new(
+            "finish",
+            Predicate::AND(vec![p!(p: state == "e"), goal.clone()]),
+            f_actions,
+            vec![],
+            false,
+        );
+        let op_goal = IfThen::new("goal", p!(p: state == "e"), goal.clone(), None); // invariant = None for now...
+
+        // in the planning model, we only have a single transition,
+        // effects are immediate
+        let planning_trans = Transition::new("planning",guard.clone(),
+                                             vec![],effects.to_vec(),true);
+
+        Operation {
+            node,
+
+            guard: guard.clone(),
+            effects: effects.to_vec(),
+            planning_trans,
+
+            goal: op_goal,
+            post_actions: post_actions.to_vec(),
+
+            runner_start,
+            runner_finish,
+
+            state_variable
+        }
+    }
+
+    pub fn state_variable(&self) -> &Variable {
+        &self.state_variable
+    }
+
 }
 
 /// Specs are used to define global constraints

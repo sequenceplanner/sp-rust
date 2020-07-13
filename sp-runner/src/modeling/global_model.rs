@@ -1,6 +1,5 @@
 use sp_domain::*;
 use std::ops::Index;
-use std::collections::{HashMap,HashSet};
 
 // helpers for creating the "global" model
 
@@ -44,6 +43,7 @@ struct GOperation {
 pub struct GModel {
     model: Model,
     initial_state: SPState,
+    products: Vec<SPPath>,
 }
 
 impl GModel {
@@ -51,6 +51,7 @@ impl GModel {
         GModel {
             model: Model::new_root(name, Vec::new()),
             initial_state: SPState::new(),
+            products: Vec::new(),
         }
     }
 
@@ -95,29 +96,44 @@ impl GModel {
         }
     }
 
-    pub fn add_estimated_domain(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
+    fn add_product_var(&mut self, v: Variable) -> SPPath {
+        let m = match self.model.find_item_mut("product_state", &[]) {
+            Some(SPMutItemRef::Model(m)) => m,
+            Some(_) => panic!("error..."),
+            None => {
+                let temp_model = Model::new("product_state", vec![]);
+                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
+                match self.model.find_item_mut("product_state", &[]) {
+                    Some(SPMutItemRef::Model(m)) => m,
+                    Some(_) => panic!("error..."),
+                    _ => panic!("cannot happen"),
+                }
+            }
+        };
+        m.add_item(SPItem::Variable(v))
+    }
+
+    pub fn add_estimated_domain(&mut self, name: &str, domain: &[SPValue], product: bool) -> SPPath {
         let v = Variable::new(
             name,
             VariableType::Estimated,
             domain[0].has_type(),
             domain.to_vec(),
         );
-        self.model.add_item(SPItem::Variable(v))
+        if product {
+            self.add_product_var(v)
+        } else {
+            self.model.add_item(SPItem::Variable(v))
+        }
     }
 
-    pub fn add_estimated_bool(&mut self, name: &str) -> SPPath {
+    pub fn add_estimated_bool(&mut self, name: &str, product: bool) -> SPPath {
         let v = Variable::new_boolean(name, VariableType::Estimated);
-        self.model.add_item(SPItem::Variable(v))
-    }
-
-    pub fn add_predicate_variable(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
-        let v = Variable::new(
-            name,
-            VariableType::Estimated,
-            domain[0].has_type(),
-            domain.to_vec(),
-        );
-        self.model.add_item(SPItem::Variable(v))
+        if product {
+            self.add_product_var(v)
+        } else {
+            self.model.add_item(SPItem::Variable(v))
+        }
     }
 
     pub fn add_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
@@ -159,88 +175,9 @@ impl GModel {
             .path()
     }
 
-    // handles the special case where auto transitions are directly mapped
-    // onto the higher level.
-    pub fn add_op_auto(&mut self, name: &str, pre: &Predicate, actions: &[Action]) {
-        // in the planning model, we only have a single transition,
-        // effects are immediate
-        let t = Transition::new(
-            &format!("{}_auto", name),
-            Predicate::AND(vec![pre.clone()]),
-            actions.to_vec(),
-            vec![],
-            false,
-        );
-
-        let m = match self.model.find_item_mut("operations", &[]) {
-            Some(SPMutItemRef::Model(m)) => m,
-            Some(_) => panic!("operations error..."),
-            None => {
-                let temp_model = Model::new("operations", vec![]);
-                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
-                match self.model.find_item_mut("operations", &[]) {
-                    Some(SPMutItemRef::Model(m)) => m,
-                    Some(_) => panic!("operations error..."),
-                    _ => panic!("cannot happen"),
-                }
-            }
-        };
-        m.add_item(SPItem::Transition(t));
-    }
-
-    pub fn add_op(
-        &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate, effects: &[Action],
-        invariant: Option<Predicate>,
-    ) -> SPPath {
-        let state = SPPath::from_slice(&[self.model.name(), "operations", name, "state"]);
-
-        let op_start = Transition::new(
-            "start",
-            Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
-            vec![a!(p: state = "e")],
-            vec![],
-            true,
-        );
-
-        // effect for planning/checking
-        let op_effect = Transition::new(
-            "executing",
-            Predicate::AND(vec![p!(p:state == "e")]),
-            vec![],
-            effects.to_vec(),
-            false,
-        );
-
-        let f_actions = if resets {
-            vec![a!(p: state = "i")]
-        } else {
-            vec![a!(p: state = "f")]
-        };
-
-        let op_finish = Transition::new(
-            "finish",
-            Predicate::AND(vec![p!(p: state == "e"), post.clone()]),
-            f_actions,
-            vec![],
-            false,
-        );
-        let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant);
-
-        // in the planning model, we only have a single transition,
-        // effects are immediate
-        let op_planning = Transition::new(
-            "planning",
-            Predicate::AND(vec![pre.clone()]),
-            vec![],
-            effects.to_vec(),
-            true,
-        );
-
-        let op = Operation::new(
-            name,
-            &[op_start, op_effect, op_finish, op_planning],
-            Some(op_goal),
-        );
+    pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
+                  goal: &Predicate, post_actions: &[Action], resets: bool) -> SPPath {
+        let op = Operation::new(name, guard, effects, goal, post_actions, resets);
 
         let m = match self.model.find_item_mut("operations", &[]) {
             Some(SPMutItemRef::Model(m)) => m,
@@ -256,7 +193,16 @@ impl GModel {
             }
         };
         m.add_item(SPItem::Operation(op))
-        //self.model.add_item(SPItem::Operation(op))
+    }
+
+    pub fn add_op_alt(&mut self, name: &str, guard: &Predicate, effects: &[(&str, &[Action])],
+                      goal: &Predicate, post_actions: &[Action], resets: bool) -> Vec<SPPath> {
+        let mut paths = Vec::new();
+        for e in effects {
+            let name = format!("{}_{}", name, e.0);
+            paths.push(self.add_op(&name, guard, e.1, goal, post_actions, resets));
+        }
+        paths
     }
 
     pub fn add_hl_op(
@@ -287,9 +233,9 @@ impl GModel {
         );
         let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant);
 
-        let op = Operation::new_hl(name, &[op_start, op_finish], Some(op_goal));
+        let i = Intention::new(name, &[op_start, op_finish], Some(op_goal));
 
-        self.model.add_item(SPItem::Operation(op))
+        self.model.add_item(SPItem::Intention(i))
     }
 
     pub fn add_invar(&mut self, name: &str, invariant: &Predicate) {
@@ -316,165 +262,18 @@ impl GModel {
         //     .collect();
         // s.extend(SPState::new_from_values(&state[..]));
 
-        let state = self.model.all_operations().iter()
-            .map(|o|
-            if o.high_level {
-                (o.state_variable().node().path().clone(), "paused".to_spvalue())
-            } else {
-                (o.state_variable().node().path().clone(), "i".to_spvalue())
-            }).collect::<Vec<_>>();
+        let op_state = self.model.all_operations().iter()
+            .map(|o| (o.state_variable().node().path().clone(), "i".to_spvalue()))
+            .collect::<Vec<_>>();
 
-        s.extend(SPState::new_from_values(state.as_slice()));
+        let intention_state = self.model.all_intentions().iter()
+            .map(|i| (i.state_variable().node().path().clone(), "i".to_spvalue()))
+            .collect::<Vec<_>>();
+
+        s.extend(SPState::new_from_values(op_state.as_slice()));
+        s.extend(SPState::new_from_values(intention_state.as_slice()));
 
         // lastly, add all specifications.
         (self.model, s)
-    }
-
-    pub fn generate_operation_model(&mut self, products: &[SPPath],
-                                    related_variables: &HashMap<SPPath, HashSet<SPPath>>) {
-        let tsm = TransitionSystemModel::from(&self.model);
-
-        tsm.transitions.iter().for_each(|t| {
-            let sup = t.guard().support();
-            if products.iter().any(|p| sup.contains(p)) {
-                let cleaned_guard = t.guard().keep_only(&products).unwrap();
-                let acts: Vec<Action> = t.actions().into_iter().filter(|p| products.contains(&p.var)).cloned().collect();
-                let special_case = &cleaned_guard == t.guard() &&
-                    acts.as_slice() == t.actions() &&
-                    !t.controlled;
-
-                // highlevel ops cannot deal with effects
-                // let effs: Vec<_> = t.effects().into_iter().filter(|p| products.contains(&p.var)).collect();
-                // flatten out "all in domain" assignments.
-                let ad: Vec<Vec<(Predicate,Action)>> = acts.iter().flat_map(|a| {
-                    if let Compute::PredicateValue(PredicateValue::SPPath(p,_)) = &a.value {
-                        let v = tsm.vars.iter().find(|v|v.path() == p).unwrap();
-                        let domain = if v.value_type() == SPValueType::Bool {
-                            vec![false.to_spvalue(), true.to_spvalue()]
-                        } else {
-                            v.domain().to_vec()
-                        };
-                        Some(domain.iter().map(|e| {
-                            (Predicate::EQ(PredicateValue::SPPath(p.clone(), None), PredicateValue::SPValue(e.clone())),
-                            Action::new(a.var.clone(),
-                                        Compute::PredicateValue(PredicateValue::SPValue(e.clone()))))
-                        }).collect::<Vec<(Predicate,Action)>>())
-                    } else {
-                        None
-                    }
-                }).collect();
-
-                // keep also the "normal" actions
-                let norm: Vec<Action> = acts.iter().flat_map(|a| {
-                    if let Compute::PredicateValue(PredicateValue::SPPath(_,_)) = &a.value {
-                        None
-                    } else {
-                        Some((*a).clone())
-                    }
-                }).collect();
-
-                if ad.is_empty() {
-                    println!("Generating operation {}", t.name());
-
-                    let post = Predicate::AND(norm.iter().map(|a|a.to_predicate().unwrap()).collect());
-
-                    let mut touches = HashSet::new();
-                    touches.extend(cleaned_guard.support().iter().cloned());
-                    touches.extend(post.support().iter().cloned());
-
-                    // add related variable paths as identity conditions (x=x) -- always true, but encodes
-                    // information about the relations. TODO: change this later...
-                    let mut related: HashSet<SPPath> = HashSet::new();
-                    for c in &touches {
-                        if let Some(r) = related_variables.get(c) {
-                            related.extend(r.iter().cloned());
-                        }
-                    }
-                    let mut related: Vec<SPPath> = related.into_iter().collect();
-                    related.sort();
-
-                    let pre = if related.is_empty() {
-                        cleaned_guard
-                    } else {
-                        let more_pre = Predicate::AND(related.iter()
-                                                      .map(|x|
-                                                           Predicate::EQ(
-                                                               PredicateValue::SPPath(x.clone(), None),
-                                                               PredicateValue::SPPath(x.clone(), None)
-                                                           )).collect());
-                        Predicate::AND(vec![cleaned_guard, more_pre])
-                    };
-
-                    let c = crate::formal_model::clean_pred(&tsm, &pre);
-                    if c != Predicate::FALSE {
-                        println!("precond: {}", pre);
-                        println!("post: {}", post);
-
-                        if special_case {
-                            self.add_op_auto(t.name(), &pre, &norm);
-                        } else {
-                            self.add_op(t.name(), true, &pre, &post, &norm, None);
-                        }
-                    }
-                } else if ad.len() == 1 {
-                    let head = ad[0].clone();
-                    head.iter().for_each(|(g,a)| {
-                        let mut all = norm.clone();
-                        all.push(a.clone());
-
-                        let v = if let Compute::PredicateValue(PredicateValue::SPValue(v)) = &a.value {
-                            v.to_string()
-                        } else { "error".to_string() };
-
-                        let name = format!("{}_{}", t.name(), v);
-                        println!("Generating operation {}", name);
-
-                        let pre = Predicate::AND(vec![cleaned_guard.clone(), g.clone()]);
-                        let post = Predicate::AND(all.iter().map(|a|a.to_predicate().unwrap()).collect());
-
-                        let mut touches = HashSet::new();
-                        touches.extend(pre.support().iter().cloned());
-                        touches.extend(post.support().iter().cloned());
-
-                        // add related variable paths as identity conditions (x=x) -- always true, but encodes
-                        // information about the relations. TODO: change this later...
-                        let mut related: HashSet<SPPath> = HashSet::new();
-                        for c in &touches {
-                            if let Some(r) = related_variables.get(c) {
-                                related.extend(r.iter().cloned());
-                            }
-                        }
-                        let mut related: Vec<SPPath> = related.into_iter().collect();
-                        related.sort();
-
-                        let pre = if related.is_empty() {
-                            pre
-                        } else {
-                            let more_pre = Predicate::AND(related.iter()
-                                                          .map(|x|
-                                                               Predicate::EQ(
-                                                                   PredicateValue::SPPath(x.clone(), None),
-                                                                   PredicateValue::SPPath(x.clone(), None)
-                                                               )).collect());
-                            Predicate::AND(vec![pre, more_pre])
-                        };
-
-                        let c = crate::formal_model::clean_pred(&tsm, &pre);
-                        if c != Predicate::FALSE {
-                            println!("precond: {}", pre);
-                            println!("post: {}", post);
-                            if special_case {
-                                self.add_op_auto(t.name(), &pre, &norm);
-                            } else {
-                                self.add_op(&name, true, &pre, &post, &all, None);
-                            }
-                        }
-                    });
-                } else {
-                    panic!("TODO! model too complicated for now");
-                }
-
-            }
-        });
     }
 }
