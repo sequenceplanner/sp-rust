@@ -1447,6 +1447,7 @@ impl Noder for Operation {
         self.runner_start.update_path(path, changes);
         self.runner_finish.update_path(path, changes);
 
+        self.goal.update_path(path, changes);
         self.state_variable.update_path(path, changes);
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {

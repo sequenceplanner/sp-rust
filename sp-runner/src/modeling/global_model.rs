@@ -267,7 +267,7 @@ impl GModel {
             .collect::<Vec<_>>();
 
         let intention_state = self.model.all_intentions().iter()
-            .map(|i| (i.state_variable().node().path().clone(), "i".to_spvalue()))
+            .map(|i| (i.state_variable().node().path().clone(), "paused".to_spvalue()))
             .collect::<Vec<_>>();
 
         s.extend(SPState::new_from_values(op_state.as_slice()));
