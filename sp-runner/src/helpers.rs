@@ -47,9 +47,6 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         ts_model.specs = new_specs;
     }
 
-    // spit out a nuxmv file for debugging.
-    crate::planning::generate_offline_nuxvm(&ts_model,&initial);
-
     // runner model has everything from planning model + operations and their global state
 
     // add global op transitions
@@ -90,8 +87,31 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         .collect();
 
 
+    // spit out a nuxmv files for debugging.
+    let ops: Vec<_> = global_ops.iter().map(|o| (o.path().to_string(), o.goal.goal.clone())).collect();
+    crate::planning::generate_offline_nuxvm(&ts_model,&initial);
+    crate::planning::generate_offline_nuxvm_ctl(&ts_model, &initial, &ops);
+
     let ts_model_op = TransitionSystemModel::from_op(&model);
     crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
+
+    let mut un_ctrl: Vec<Transition> = ts_model
+        .transitions
+        .iter()
+        .filter(|t| !t.controlled())
+        .cloned()
+        .collect();
+
+    let runner_transitions: Vec<Transition> = model.find_item("runner_transitions",&[])
+        .and_then(|m|
+                  m.as_model()
+                  .map(|m| m
+                       .items().iter().flat_map(|i| match i {
+                           SPItem::Transition(t) => Some(t.clone()),
+                           _ => None,
+                       })
+                       .collect())).unwrap_or(vec![]);
+    un_ctrl.extend(runner_transitions);
 
     let rm = RunnerModel {
         hl_op_transitions: RunnerTransitions {
@@ -109,12 +129,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
                 .filter(|t| t.controlled())
                 .cloned()
                 .collect(),
-            un_ctrl: ts_model
-                .transitions
-                .iter()
-                .filter(|t| !t.controlled())
-                .cloned()
-                .collect(),
+            un_ctrl,
         },
         plans: RunnerPlans::default(),
         state_predicates: ts_model.state_predicates.clone(),

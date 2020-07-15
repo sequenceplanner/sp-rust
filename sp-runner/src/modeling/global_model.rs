@@ -96,23 +96,6 @@ impl GModel {
         }
     }
 
-    fn add_product_var(&mut self, v: Variable) -> SPPath {
-        let m = match self.model.find_item_mut("product_state", &[]) {
-            Some(SPMutItemRef::Model(m)) => m,
-            Some(_) => panic!("error..."),
-            None => {
-                let temp_model = Model::new("product_state", vec![]);
-                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
-                match self.model.find_item_mut("product_state", &[]) {
-                    Some(SPMutItemRef::Model(m)) => m,
-                    Some(_) => panic!("error..."),
-                    _ => panic!("cannot happen"),
-                }
-            }
-        };
-        m.add_item(SPItem::Variable(v))
-    }
-
     pub fn add_estimated_domain(&mut self, name: &str, domain: &[SPValue], product: bool) -> SPPath {
         let v = Variable::new(
             name,
@@ -121,7 +104,7 @@ impl GModel {
             domain.to_vec(),
         );
         if product {
-            self.add_product_var(v)
+            self.add_sub_item("product_state", SPItem::Variable(v))
         } else {
             self.model.add_item(SPItem::Variable(v))
         }
@@ -130,7 +113,7 @@ impl GModel {
     pub fn add_estimated_bool(&mut self, name: &str, product: bool) -> SPPath {
         let v = Variable::new_boolean(name, VariableType::Estimated);
         if product {
-            self.add_product_var(v)
+            self.add_sub_item("product_state", SPItem::Variable(v))
         } else {
             self.model.add_item(SPItem::Variable(v))
         }
@@ -145,6 +128,17 @@ impl GModel {
             false,  // auto!
         );
         self.model.add_item(SPItem::Transition(trans));
+    }
+
+    pub fn add_runner_transition(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            actions.to_vec(),
+            vec![], // no effects
+            false,  // auto!
+        );
+        self.add_sub_item("runner_transitions", SPItem::Transition(trans));
     }
 
     pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
@@ -178,21 +172,7 @@ impl GModel {
     pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
                   goal: &Predicate, post_actions: &[Action], resets: bool) -> SPPath {
         let op = Operation::new(name, guard, effects, goal, post_actions, resets);
-
-        let m = match self.model.find_item_mut("operations", &[]) {
-            Some(SPMutItemRef::Model(m)) => m,
-            Some(_) => panic!("operations error..."),
-            None => {
-                let temp_model = Model::new("operations", vec![]);
-                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
-                match self.model.find_item_mut("operations", &[]) {
-                    Some(SPMutItemRef::Model(m)) => m,
-                    Some(_) => panic!("operations error..."),
-                    _ => panic!("cannot happen"),
-                }
-            }
-        };
-        m.add_item(SPItem::Operation(op))
+        self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     pub fn add_op_alt(&mut self, name: &str, guard: &Predicate, effects: &[(&str, &[Action])],
@@ -205,7 +185,7 @@ impl GModel {
         paths
     }
 
-    pub fn add_hl_op(
+    pub fn add_intention(
         &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate,
         post_actions: &[Action], invariant: Option<Predicate>,
     ) -> SPPath {
@@ -275,5 +255,22 @@ impl GModel {
 
         // lastly, add all specifications.
         (self.model, s)
+    }
+
+    fn add_sub_item(&mut self, subpath: &str, item: SPItem) -> SPPath {
+        let m = match self.model.find_item_mut(subpath, &[]) {
+            Some(SPMutItemRef::Model(m)) => m,
+            Some(_) => panic!("error..."),
+            None => {
+                let temp_model = Model::new(subpath, vec![]);
+                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
+                match self.model.find_item_mut(subpath, &[]) {
+                    Some(SPMutItemRef::Model(m)) => m,
+                    Some(_) => panic!("error..."),
+                    _ => panic!("cannot happen"),
+                }
+            }
+        };
+        m.add_item(item)
     }
 }
