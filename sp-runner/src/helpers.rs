@@ -52,9 +52,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
     // add global op transitions
     let global_ops: Vec<&Operation> = model.all_operations();
 
-    let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_start.clone()).collect();
-    let global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
-    let global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
+    let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_trans.iter().filter(|t|t.controlled()).cloned()).flatten().collect();
+    let global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_trans.iter().filter(|t|!t.controlled()).cloned()).flatten().collect();
+    let global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goals.clone()).flatten().collect();
     let op_states: Vec<Variable> = global_ops.iter().map(|o| o.state_variable()).cloned().collect();
 
     // unchanged. todo
@@ -88,7 +88,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
 
     // spit out a nuxmv files for debugging.
-    let ops: Vec<_> = global_ops.iter().map(|o| (o.path().to_string(), o.goal.goal.clone())).collect();
+    let ops: Vec<_> = global_ops.iter().map(|o| {
+        let name = o.path().clone().to_string();
+        o.goals.iter().map(move |g|(name.clone(), g.goal.clone()))}).flatten().collect();
     crate::planning::generate_offline_nuxvm(&ts_model,&initial);
     crate::planning::generate_offline_nuxvm_ctl(&ts_model, &initial, &ops);
 

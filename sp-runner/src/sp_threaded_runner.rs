@@ -275,7 +275,12 @@ fn runner(
                     let plan = pr.trace.iter().map(|x| x.transition.to_string()).collect::<Vec<_>>().join("\n");
 
                     let spec_names = bad.iter().map(|b| b.path().to_string()).collect::<Vec<_>>().join(", ");
-                    log_error!("We are in a forbidden state! Spec(s) {} are violated. A way to get out could be \n{}", spec_names, plan);
+                    let spec_paths: Vec<SPPath> = bad.iter().map(|b| b.invariant().support().clone()).flatten().collect::<Vec<_>>();
+                    let mut state = runner.state().clone().extract();
+                    state.retain(|(k,_)| spec_paths.contains(k));
+                    let state = SPState::new_from_state_values(state.as_slice());
+
+                    log_error!("We are in a forbidden state! Spec(s) {} are violated. A way to get out could be \n{}\n\n{}", spec_names, plan, state);
 
                     bad_state = true;
                 }

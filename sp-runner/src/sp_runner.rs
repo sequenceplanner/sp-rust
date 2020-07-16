@@ -252,7 +252,9 @@ impl SPRunner {
         // on for executing operations.
         let running = state.projection().state.iter()
             .filter_map(|(k,v)|
-                        if self.operation_states.contains(k) && v.current_value() == &"e".to_spvalue() {
+                        if self.operation_states.contains(k) &&
+                        // terrible hacks o_O. an operation can be in e, e1, e2, etc.
+                        v.current_value().to_string().contains("e") {
                             Some(k.clone())
                         } else {
                             None

@@ -170,17 +170,17 @@ impl GModel {
     }
 
     pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], resets: bool) -> SPPath {
-        let op = Operation::new(name, guard, effects, goal, post_actions, resets);
+                  goal_actions: &[(Predicate, &[Action])], resets: bool) -> SPPath {
+        let op = Operation::new(name, guard, effects, goal_actions, resets);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     pub fn add_op_alt(&mut self, name: &str, guard: &Predicate, effects: &[(&str, &[Action])],
-                      goal: &Predicate, post_actions: &[Action], resets: bool) -> Vec<SPPath> {
+                      goal_actions: &[(Predicate, &[Action])], resets: bool) -> Vec<SPPath> {
         let mut paths = Vec::new();
         for e in effects {
             let name = format!("{}_{}", name, e.0);
-            paths.push(self.add_op(&name, guard, e.1, goal, post_actions, resets));
+            paths.push(self.add_op(&name, guard, e.1, goal_actions, resets));
         }
         paths
     }
