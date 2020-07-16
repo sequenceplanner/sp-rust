@@ -422,59 +422,6 @@ pub fn plan_async_with_cache(
     plan_async(model, goals, state, max_steps, cutoff, lookout, max_time)
 }
 
-
-pub fn plan_check(
-    model: &TransitionSystemModel, pre: &Predicate, goals: &[(Predicate, Option<Predicate>)],max_steps: u32) -> PlanningResult {
-    let lines = create_nuxmv_problem_check(&model, pre, &goals);
-
-    let datetime: DateTime<Local> = SystemTime::now().into();
-    // todo: use non platform way of getting temporary folder
-    // or maybe just output to a subfolder 'plans'
-    let filename = &format!("/tmp/planner_check {}.bmc", datetime);
-    let mut f = File::create(filename).unwrap();
-    write!(f, "{}", lines).unwrap();
-    let mut f = File::create("/tmp/last_check_planning_request.bmc").unwrap();
-    write!(f, "{}", lines).unwrap();
-
-    let start = Instant::now();
-    let result = call_nuxmv(max_steps, filename);
-    let duration = start.elapsed();
-
-    match result {
-        Ok((raw, raw_error)) => {
-            if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
-                // just to more easily find syntax errors
-                panic!("{}", raw_error);
-            }
-            let plan = postprocess_nuxmv_problem(&model, &raw);
-            let plan_found = plan.is_some();
-            let trace = plan.unwrap_or_else(|| {
-                vec![PlanningFrame {
-                    transition: SPPath::new(),
-                    state: SPState::new(),
-                }]
-            });
-
-            PlanningResult {
-                plan_found,
-                plan_length: trace.len() as u32 - 1, // hack :)
-                trace,
-                time_to_solve: duration,
-                raw_output: raw.to_owned(),
-                raw_error_output: raw_error.to_owned(),
-            }
-        }
-        Err(e) => PlanningResult {
-            plan_found: false,
-            plan_length: 0,
-            trace: Vec::new(),
-            time_to_solve: duration,
-            raw_output: "".into(),
-            raw_error_output: e.to_string(),
-        },
-    }
-}
-
 impl Planner for NuXmvPlanner {
     fn plan(
         model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
@@ -551,13 +498,14 @@ fn create_nuxmv_problem(
     return lines;
 }
 
-fn create_nuxmv_problem_check(
-    model: &TransitionSystemModel, pre: &Predicate, goal_invs: &[(Predicate, Option<Predicate>)]) -> String {
+fn create_nuxmv_problem_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate)]) -> String {
     let mut lines = make_base_problem(model);
 
-    add_pre_goals(&mut lines, pre, goal_invs);
+    add_initial_states(&mut lines, initial);
 
-    return lines;
+    add_ctl_specs(&mut lines, ops);
+
+    lines
 }
 
 fn make_base_problem(model: &TransitionSystemModel) -> String {
@@ -583,6 +531,21 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     add_global_specifications(&mut lines, &model.specs);
 
     return lines;
+}
+
+pub fn generate_offline_nuxvm_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate)]) {
+    let lines = create_nuxmv_problem_ctl(&model, initial, ops);
+
+    let datetime: DateTime<Local> = SystemTime::now().into();
+    // todo: use non platform way of getting temporary folder
+    // or maybe just output to a subfolder 'plans'
+    let filename = &format!("/tmp/model_out_{} {}.bmc", model.name, datetime);
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
+
+    let filename = &format!("/tmp/last_model_out_{}.bmc", model.name);
+    let mut f = File::create(filename).unwrap();
+    write!(f, "{}", lines).unwrap();
 }
 
 pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
@@ -777,10 +740,8 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
                     inv = &NuXMVPredicate(inv)
                 )
             } else {
-                // TODO: clean this up!!! compare to commit 6393dba
                 // no invariant, simple "exists" goal.
-                // format!("F ( {} )", &NuXMVPredicate(goal))
-                format!("( {} )", &NuXMVPredicate(goal))
+                format!("F ( {} )", &NuXMVPredicate(goal))
             }
         })
         .collect();
@@ -792,37 +753,21 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
     };
 
     // TODO: clean this up!
-    lines.push_str(&format!("LTLSPEC ! F ( {} );", goals));
+    lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
 }
 
-fn add_pre_goals(lines: &mut String, pre: &Predicate, goal_invs: &[(Predicate, Option<Predicate>)]) {
-    let goal_str: Vec<String> = goal_invs
-        .iter()
-        .map(|(goal, inv)| {
-            if let Some(inv) = inv {
-                // invariant until goal
-                format!(
-                    "({inv} U {goal})",
-                    goal = &NuXMVPredicate(goal),
-                    inv = &NuXMVPredicate(inv)
-                )
-            } else {
-                // TODO: clean this up!!! compare to commit 6393dba
-                // no invariant, simple "exists" goal.
-                // format!("F ( {} )", &NuXMVPredicate(goal))
-                format!("( {} )", &NuXMVPredicate(goal))
+fn add_ctl_specs(lines: &mut String, operations: &[(String, Predicate)]) {
+    let mut checked = Vec::new();
+    for (op_name, goal) in operations {
+        match checked.iter().find(|(_,g)| g == goal) {
+            Some((name, _)) => lines.push_str(&format!("-- {} goal already checked by {}\n\n", op_name, name)),
+            None => {
+                lines.push_str(&format!("-- {}\n", op_name));
+                lines.push_str(&format!("CTLSPEC AG EF ( {} );\n\n", NuXMVPredicate(goal)));
+                checked.push((op_name.clone(), goal.clone()));
             }
-        })
-        .collect();
-    let goals = if goal_str.is_empty() {
-        // TODO: check this before doing everything else....
-        "TRUE".to_string()
-    } else {
-        goal_str.join("&")
-    };
-
-    // TODO: clean this up!
-    lines.push_str(&format!("LTLSPEC ! ({} -> F ( {} ));", &NuXMVPredicate(pre), goals));
+        }
+    }
 }
 
 // #[cfg(test)]
