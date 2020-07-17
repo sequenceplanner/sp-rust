@@ -1412,6 +1412,8 @@ pub struct Operation {
     pub goal: IfThen,
     pub post_actions: Vec<Action>,
 
+    pub sop: Option<SOP>,
+
     // runner transitions
     pub runner_start: Transition, // state = i && guard / state = e
     pub runner_finish: Transition, // state = e && goal.predicate / state = i/f + post_actions + effects
@@ -1523,6 +1525,8 @@ impl Operation {
 
             goal: op_goal,
             post_actions: post_actions.to_vec(),
+
+            sop: None,
 
             runner_start,
             runner_finish,

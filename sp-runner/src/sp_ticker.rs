@@ -107,7 +107,6 @@ impl SPTicker {
             .filter(|t| !t.path().is_child_of_any(disabled_paths))
         {
             let mut found = false;
-            // let t: &Transition = t;  // Keeping these to show how to help the rust-analyzer find the types
             for (paths, ref mut transitions) in temp_xs.iter_mut() {
                 if paths.contains(&t.path()) {
                     transitions.push(t);
