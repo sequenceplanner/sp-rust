@@ -1469,103 +1469,117 @@ impl Noder for Operation {
 impl Operation {
     pub fn new(name: &str, guard: &Predicate, effects: &[Action],
                goal_actions: &[(Predicate, &[Action])], resets: bool) -> Operation {
-        let node = SPNode::new(name);
+        Operation::make_op(name, guard, effects, goal_actions, resets, true)
+    }
 
-        let state_variable = Variable::new(
-            "state",
-            VariableType::Estimated,
-            SPValueType::String,
-            // todo
-            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
-        );
-        let state = state_variable.path();
-
-        // for the runner.
-        let runner_start =
-            if goal_actions.is_empty() {
-                // this operations has no goal, it takes the planning effect immediately
-                let ns = if resets {
-                    "i".to_string()
-                } else {
-                    "f".to_string()
-                };
-                let mut t_actions = vec![a!(p: state = ns)];
-                t_actions.extend(effects.iter().cloned());
-                Transition::new(
-                    "start",
-                    Predicate::AND(vec![p!(p: state == "i"), guard.clone()]),
-                    t_actions,
-                    vec![],
-                    true,
-                )
-            } else {
-                Transition::new(
-                    "start",
-                    Predicate::AND(vec![p!(p: state == "i"), guard.clone()]),
-                    vec![a!(p: state = "e")],
-                    vec![],
-                    true,
-                )
-            };
-
-        let mut runner_trans = vec![runner_start];
-        let mut goals = Vec::new();
-
-        goal_actions.iter().enumerate().for_each(|(i, (g,a))| {
-            let s = if i == 0 { "e".to_string() } else { format!("e{}", i) };
-            let is_last = i == goal_actions.len() - 1;
-            let ns = if is_last && resets {
-                "i".to_string()
-            } else if is_last && !resets {
-                "f".to_string()
-            } else {
-                format!("e{}", i+1)
-            };
-            let mut t_actions = vec![a!(p: state = ns)];
-            t_actions.extend(a.iter().cloned());
-            if is_last {
-                // lastly also run the planning effect
-                t_actions.extend(effects.iter().cloned());
-            }
-
-            let tname = if is_last { "finish".to_string() } else { format!("op_step{}", i) };
-            let t = Transition::new(
-                &tname,
-                Predicate::AND(vec![p!(p: state == s), g.clone()]),
-                t_actions,
-                vec![],
-                false,
-            );
-            runner_trans.push(t);
-            let g = IfThen::new("goal", p!(p: state == s), g.clone(), None);
-            goals.push(g);
-        });
-
-        // in the planning model, we only have a single transition,
-        // effects are immediate
-        let planning_trans = Transition::new("planning",guard.clone(),
-                                             vec![],effects.to_vec(),true);
-
-        Operation {
-            node,
-
-            //guard: guard.clone(),
-            //effects: effects.to_vec(),
-            planning_trans,
-
-            goals,
-            sop: None,
-            // post_actions: post_actions.to_vec(),
-
-            runner_trans,
-            // runner_finish,
-
-            state_variable
-        }
+    pub fn new_auto(name: &str, guard: &Predicate, effects: &[Action],
+                    goal_actions: &[(Predicate, &[Action])], resets: bool) -> Operation {
+        Operation::make_op(name, guard, effects, goal_actions, resets, false)
     }
 
     pub fn state_variable(&self) -> &Variable {
         &self.state_variable
+    }
+
+    fn make_op(name: &str, 
+        guard: &Predicate, 
+        effects: &[Action],
+        goal_actions: &[(Predicate, &[Action])], 
+        resets: bool, 
+        controlled: bool) -> Operation {
+            let node = SPNode::new(name);
+
+            let state_variable = Variable::new(
+                "state",
+                VariableType::Estimated,
+                SPValueType::String,
+                // todo
+                vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+            );
+            let state = state_variable.path();
+    
+            // for the runner.
+            let runner_start =
+                if goal_actions.is_empty() {
+                    // this operations has no goal, it takes the planning effect immediately
+                    let ns = if resets {
+                        "i".to_string()
+                    } else {
+                        "f".to_string()
+                    };
+                    let mut t_actions = vec![a!(p: state = ns)];
+                    t_actions.extend(effects.iter().cloned());
+                    Transition::new(
+                        "start",
+                        Predicate::AND(vec![p!(p: state == "i"), guard.clone()]),
+                        t_actions,
+                        vec![],
+                        controlled,
+                    )
+                } else {
+                    Transition::new(
+                        "start",
+                        Predicate::AND(vec![p!(p: state == "i"), guard.clone()]),
+                        vec![a!(p: state = "e")],
+                        vec![],
+                        controlled,
+                    )
+                };
+    
+            let mut runner_trans = vec![runner_start];
+            let mut goals = Vec::new();
+    
+            goal_actions.iter().enumerate().for_each(|(i, (g,a))| {
+                let s = if i == 0 { "e".to_string() } else { format!("e{}", i) };
+                let is_last = i == goal_actions.len() - 1;
+                let ns = if is_last && resets {
+                    "i".to_string()
+                } else if is_last && !resets {
+                    "f".to_string()
+                } else {
+                    format!("e{}", i+1)
+                };
+                let mut t_actions = vec![a!(p: state = ns)];
+                t_actions.extend(a.iter().cloned());
+                if is_last {
+                    // lastly also run the planning effect
+                    t_actions.extend(effects.iter().cloned());
+                }
+    
+                let tname = if is_last { "finish".to_string() } else { format!("op_step{}", i) };
+                let t = Transition::new(
+                    &tname,
+                    Predicate::AND(vec![p!(p: state == s), g.clone()]),
+                    t_actions,
+                    vec![],
+                    false,
+                );
+                runner_trans.push(t);
+                let g = IfThen::new("goal", p!(p: state == s), g.clone(), None);
+                goals.push(g);
+            });
+    
+            // in the planning model, we only have a single transition,
+            // effects are immediate
+            let planning_trans = Transition::new("planning",guard.clone(),
+                                                 vec![],effects.to_vec(),controlled);
+    
+            Operation {
+                node,
+    
+                //guard: guard.clone(),
+                //effects: effects.to_vec(),
+                planning_trans,
+    
+                goals,
+                sop: None,
+                // post_actions: post_actions.to_vec(),
+    
+                runner_trans,
+                // runner_finish,
+    
+                state_variable
+            }
     }
 
 }

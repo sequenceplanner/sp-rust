@@ -174,6 +174,11 @@ impl GModel {
         let op = Operation::new(name, guard, effects, goal_actions, resets);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
+    pub fn add_auto_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
+                  goal_actions: &[(Predicate, &[Action])], resets: bool) -> SPPath {
+        let op = Operation::new_auto(name, guard, effects, goal_actions, resets);
+        self.add_sub_item("operations", SPItem::Operation(op))
+    }
 
     pub fn add_op_alt(&mut self, name: &str, guard: &Predicate, effects: &[(&str, &[Action])],
                       goal_actions: &[(Predicate, &[Action])], resets: bool) -> Vec<SPPath> {
