@@ -1,6 +1,6 @@
 /// A SOP is a structure that defines a specific plan of transitions / operations that can be used 
-/// by both operations and abilities. The operations/abilities that is used in the SOP will be copied into new 
-/// operations/abilities that will be part of the runner but only activated when the parent is activated.
+/// by both operations and intentions. The operations/intentions that is used in the SOP will be copied into new 
+/// operations/intentions that will be part of the runner but only activated when the parent is activated.
 /// When a planner picks an operation or ability that contains a SOP, the SOP will run based on its preconditions
 
 
