@@ -137,6 +137,7 @@ mod ros {
     }
 
     pub fn log_info(msg: &str, file: &str, line: u32) {
+        println!("{}:{} - {}", file, line, msg);
         r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Info);
     }
 

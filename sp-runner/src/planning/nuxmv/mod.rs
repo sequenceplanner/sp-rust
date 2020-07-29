@@ -498,7 +498,7 @@ fn create_nuxmv_problem(
     return lines;
 }
 
-fn create_nuxmv_problem_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate)]) -> String {
+fn create_nuxmv_problem_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)]) -> String {
     let mut lines = make_base_problem(model);
 
     add_initial_states(&mut lines, initial);
@@ -533,7 +533,7 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     return lines;
 }
 
-pub fn generate_offline_nuxvm_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate)]) {
+pub fn generate_offline_nuxvm_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)]) {
     let lines = create_nuxmv_problem_ctl(&model, initial, ops);
 
     let datetime: DateTime<Local> = SystemTime::now().into();
@@ -756,15 +756,15 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
     lines.push_str(&format!("LTLSPEC ! ( {} );", goals));
 }
 
-fn add_ctl_specs(lines: &mut String, operations: &[(String, Predicate)]) {
+fn add_ctl_specs(lines: &mut String, operations: &[(String, Predicate, Predicate)]) {
     let mut checked = Vec::new();
-    for (op_name, goal) in operations {
-        match checked.iter().find(|(_,g)| g == goal) {
-            Some((name, _)) => lines.push_str(&format!("-- {} goal already checked by {}\n\n", op_name, name)),
+    for (op_name, pre, goal) in operations {
+        match checked.iter().find(|(_,p,g)| p == pre && g == goal) {
+            Some((name, _, _)) => lines.push_str(&format!("-- {} goal already checked by {}\n\n", op_name, name)),
             None => {
                 lines.push_str(&format!("-- {}\n", op_name));
-                lines.push_str(&format!("CTLSPEC AG EF ( {} );\n\n", NuXMVPredicate(goal)));
-                checked.push((op_name.clone(), goal.clone()));
+                lines.push_str(&format!("CTLSPEC AG ( {} -> EF ( {} ));\n\n", NuXMVPredicate(pre), NuXMVPredicate(goal)));
+                checked.push((op_name.clone(), pre.clone(), goal.clone()));
             }
         }
     }

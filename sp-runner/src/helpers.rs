@@ -88,7 +88,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
 
     // spit out a nuxmv files for debugging.
-    let ops: Vec<_> = global_ops.iter().map(|o| (o.path().to_string(), o.goal.goal.clone())).collect();
+    let ops: Vec<_> = global_ops.iter().map(|o| (o.path().to_string(), o.guard.clone(), o.goal.goal.clone())).collect();
     crate::planning::generate_offline_nuxvm(&ts_model,&initial);
     crate::planning::generate_offline_nuxvm_ctl(&ts_model, &initial, &ops);
 

@@ -69,12 +69,15 @@ impl GModel {
                 }
             }
         };
+        let mut mc = m.clone();
+        mc.items.clear();
         let _rp = m.add_item(SPItem::Resource(resource.clone()));
         let r = self.model.find_item(resource.name(), &[name]).unwrap().unwrap_resource();
         let vars = r.get_variables();
         let mut model = self.model.clone();
         model.items.clear();
-        model.add_item(SPItem::Resource(resource));
+        let _rp = mc.add_item(SPItem::Resource(resource.clone()));
+        model.add_item(SPItem::Model(mc));
         GResource {
             name: r.name().to_owned(),
             variables: vars,
@@ -169,20 +172,40 @@ impl GModel {
             .path()
     }
 
-    pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], resets: bool) -> SPPath {
-        let op = Operation::new(name, guard, effects, goal, post_actions, resets);
-        self.add_sub_item("operations", SPItem::Operation(op))
+    // handles the special case where auto transitions are directly mapped
+    // onto the higher level.
+    pub fn add_op_auto(&mut self, name: &str, pre: &Predicate, effects: &[Action]) -> SPPath {
+        // in the planning model, we only have a single transition,
+        // effects are immediate
+        let t = Transition::new(
+            &format!("{}_auto", name),
+            Predicate::AND(vec![pre.clone()]),
+            effects.to_vec(),
+            vec![],
+            false,
+        );
+
+        self.add_sub_item("operations", SPItem::Transition(t))
     }
 
-    pub fn add_op_alt(&mut self, name: &str, guard: &Predicate, effects: &[(&str, &[Action])],
-                      goal: &Predicate, post_actions: &[Action], resets: bool) -> Vec<SPPath> {
-        let mut paths = Vec::new();
-        for e in effects {
-            let name = format!("{}_{}", name, e.0);
-            paths.push(self.add_op(&name, guard, e.1, goal, post_actions, resets));
+    pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
+                  goal: &Predicate, post_actions: &[Action], resets: bool, auto: bool) -> SPPath {
+        let pre = Predicate::AND(vec![guard.clone(), goal.clone()]);
+        let mut act = effects.to_vec();
+        act.extend(post_actions.iter().cloned());
+        // add a new low level transition. goal // effects
+        if auto {
+            self.add_auto(name, &pre, &act);
+        } else {
+            self.add_delib(name, &pre, &act);
         }
-        paths
+
+        if goal == &Predicate::TRUE {
+            self.add_op_auto(name, guard, effects)
+        } else {
+            let op = Operation::new(name, guard, effects, &goal, post_actions, resets);
+            self.add_sub_item("operations", SPItem::Operation(op))
+        }
     }
 
     pub fn add_intention(

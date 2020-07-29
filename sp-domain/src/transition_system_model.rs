@@ -61,6 +61,9 @@ impl TransitionSystemModel {
         // otoh, planning horizons may increase slightly, as we no longer can
         // ignore "useless" (wrt the goal) auto trans.
 
+        // actually we need this; otherwise the planner can "skip"
+        // transitions that does not help it.
+
         // e.g. we get this plan:
         // drm/r1/move_to/start_with_at
         // drm/r1/move_to/finish
@@ -81,22 +84,22 @@ impl TransitionSystemModel {
 
         // for simplicity and clarity we remove this for now.
 
-        // let auto = transitions
-        //     .iter()
-        //     .filter(|t| !t.controlled() && !t.actions().is_empty());
-        // let auto_guards: Vec<Predicate> = auto
-        //     .map(|a| Predicate::NOT(Box::new(a.guard().clone())))
-        //     .collect();
-        // if !auto_guards.is_empty() {
-        //     let auto_guards = Predicate::AND(auto_guards);
-        //     transitions.iter_mut().for_each(|t| {
-        //         if t.controlled() {
-        //             let orig = t.guard().clone();
-        //             let new = Predicate::AND(vec![orig, auto_guards.clone()]);
-        //             *t.mut_guard() = new;
-        //         }
-        //     });
-        // }
+        let auto = transitions
+            .iter()
+            .filter(|t| !t.controlled() && !t.actions().is_empty());
+        let auto_guards: Vec<Predicate> = auto
+            .map(|a| Predicate::NOT(Box::new(a.guard().clone())))
+            .collect();
+        if !auto_guards.is_empty() {
+            let auto_guards = Predicate::AND(auto_guards);
+            transitions.iter_mut().for_each(|t| {
+                if t.controlled() {
+                    let orig = t.guard().clone();
+                    let new = Predicate::AND(vec![orig, auto_guards.clone()]);
+                    *t.mut_guard() = new;
+                }
+            });
+        }
 
         let mut state_predicates: Vec<Variable> = model
             .resources()
@@ -126,7 +129,7 @@ impl TransitionSystemModel {
         // recursively collect sub-models
         model.items.iter().flat_map(|i| match i {
             SPItem::Model(m)
-                if m.name() != "operations" && m.name() != "product_state" &&
+                if m.name() != "operations" && // m.name() != "product_state" &&
                 m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
             _ => None
         }).for_each(|tsm| {
@@ -159,14 +162,17 @@ impl TransitionSystemModel {
             .as_model()
             .map(|m| m
                  .items().iter().flat_map(|i| match i {
-                     SPItem::Operation(o) => Some(o.planning_trans.clone()),
+                     // operations represented by a single transition
+                     SPItem::Operation(o) => {
+                         let mut t = o.planning_trans.clone();
+                         t.node_mut().update_name("start");
+                         Some(t)
+                     },
+                     // "auto planning" transitions. these exist only in the planning world
+                     SPItem::Transition(t) => Some(t.clone()),
                      _ => None,
                  })
                  .collect()).unwrap_or(vec![]);
-
-        transitions.iter_mut().for_each(|t| {
-            t.node_mut().update_name("start"); // rename "planning" -> "start"
-        });
 
         TransitionSystemModel {
             name: format!("op_model_{}", model.name()),
