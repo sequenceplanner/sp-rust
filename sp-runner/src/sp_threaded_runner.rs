@@ -305,8 +305,15 @@ fn runner(
                 println!("--");
             }
 
-            for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
+            println!("OP GOALS");
+            let goals_op = runner.op_goal();
+            for g in &goals_op {
+                println!("op goal... {}", g.0);
+            }
 
+            let goals = vec![goals_op.clone(), goals[1].clone()];
+
+            for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
                 let mut ts = ts.clone();
                 if i == 1 {
                     ts.transitions.retain(|t| !disabled_operations.contains(t.path()));

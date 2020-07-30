@@ -1328,6 +1328,7 @@ pub struct IfThen {
     pub condition: Predicate,
     pub goal: Predicate,
     pub invariant: Option<Predicate>,
+    pub actions: Option<Vec<Action>>,
 }
 
 impl Noder for IfThen {
@@ -1368,7 +1369,7 @@ impl Noder for IfThen {
 
 impl IfThen {
     pub fn new(
-        name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>,
+        name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>, actions: Option<Vec<Action>>
     ) -> IfThen {
         let node = SPNode::new(name);
         IfThen {
@@ -1376,6 +1377,7 @@ impl IfThen {
             condition,
             goal,
             invariant,
+            actions
         }
     }
     pub fn condition(&self) -> &Predicate {
@@ -1418,6 +1420,9 @@ pub struct Operation {
 
     // operation state
     state_variable: Variable,
+
+    // goal when formally verifyinig
+    pub fvg: Predicate
 }
 
 impl Noder for Operation {
@@ -1461,6 +1466,8 @@ impl Noder for Operation {
         self.runner_finish.rewrite_expressions(mapping);
 
         self.state_variable.rewrite_expressions(mapping);
+
+        self.fvg.replace_variable_path(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
@@ -1501,12 +1508,13 @@ impl Operation {
 
         let runner_finish = Transition::new(
             "finish",
-            Predicate::AND(vec![p!(p: state == "e"), goal.clone()]),
+            Predicate::FALSE,
             f_actions,
             vec![],
             false,
         );
-        let op_goal = IfThen::new("goal", p!(p: state == "e"), goal.clone(), None); // invariant = None for now...
+        let eg = effects.to_vec();
+        let op_goal = IfThen::new("goal", p!(p: state == "e"), Predicate::FALSE, None, Some(eg)); // invariant = None for now...
 
         // in the planning model, we only have a single transition,
         // effects are immediate
@@ -1526,7 +1534,8 @@ impl Operation {
             runner_start,
             runner_finish,
 
-            state_variable
+            state_variable,
+            fvg: Predicate::AND(vec![guard.clone(), goal.clone()])
         }
     }
 

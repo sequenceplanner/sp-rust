@@ -377,9 +377,21 @@ impl Action {
 
     pub fn to_predicate(&self) -> Option<Predicate> {
         match &self.value {
-            Compute::PredicateValue(PredicateValue::SPValue(v)) =>
+            Compute::PredicateValue(p) =>
+                Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None), p.clone())),
+            _ => None
+        }
+    }
+
+    pub fn to_concrete_predicate(&self, state: &SPState) -> Option<Predicate> {
+        match &self.value {
+            Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
+                let pv = state.state_value_from_path(p).expect("no such value in the state").current_value();
                 Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None),
-                                   PredicateValue::SPValue(v.clone()))),
+                                   PredicateValue::SPValue(pv.clone())))
+            },
+            Compute::PredicateValue(p) =>
+                Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None), p.clone())),
             _ => None
         }
     }

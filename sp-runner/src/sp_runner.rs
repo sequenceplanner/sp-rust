@@ -169,6 +169,30 @@ impl SPRunner {
             .collect()
     }
 
+    /// For the operation planning level hack it...
+    /// this function remakes the goal and finish condition on the fly
+    pub fn op_goal(&mut self) -> Vec<(Predicate, Option<Predicate>)> {
+        let gs: Vec<IfThen> = self.goals[0].iter().filter(|g| g.condition.eval(&self.ticker.state)).cloned().collect();
+        let mut result = Vec::new();
+        for g in gs {
+            let goal =
+            if let Some(actions) = &g.actions {
+                Predicate::AND(actions.iter().map(|a| a.to_concrete_predicate(&self.ticker.state).expect("weird goal")).collect())
+            } else {
+                Predicate::FALSE
+            };
+            if let Predicate::EQ(PredicateValue::SPPath(p, _), _) = &g.condition {
+                let op_finish = p.parent().add_child("finish");
+                let mut ft = self.ticker.transitions.iter().find(|t| t.path() == &op_finish).expect("missing op trans").clone();
+                ft.guard = Predicate::AND(vec![p!(p: p == "e"), goal.clone()]);
+                self.ticker.transitions.retain(|t| t.path() != &op_finish);
+                self.ticker.transitions.push(ft);
+            }
+            result.push((goal, None))
+        }
+        result
+    }
+
     pub fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
         ts_model.specs.iter().any(|s| !s.invariant().eval(state))
     }

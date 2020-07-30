@@ -234,7 +234,7 @@ impl GModel {
             vec![],
             false,
         );
-        let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant);
+        let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant, None);
 
         let i = Intention::new(name, &[op_start, op_finish], Some(op_goal));
 

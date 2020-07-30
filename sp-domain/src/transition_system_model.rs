@@ -47,6 +47,45 @@ impl TransitionSystemModel {
         });
         transitions.extend(model_transitions);
 
+        let mut state_predicates: Vec<Variable> = model
+            .resources()
+            .iter()
+            .flat_map(|r| r.get_state_predicates())
+            .collect();
+
+        let mut specs: Vec<Spec> = model
+            .items()
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Spec(s) => Some(s),
+                _ => None,
+            })
+            .cloned()
+            .collect();
+        let resource_sub_item_specs: Vec<Spec> = resource_sub_items
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Spec(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect();
+        specs.extend(resource_sub_item_specs.iter().cloned());
+
+
+        // recursively collect sub-models
+        model.items.iter().flat_map(|i| match i {
+            SPItem::Model(m)
+                if m.name() != "operations" && // m.name() != "product_state" &&
+                m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
+            _ => None
+        }).for_each(|tsm| {
+            vars.extend(tsm.vars);
+            state_predicates.extend(tsm.state_predicates);
+            transitions.extend(tsm.transitions);
+            specs.extend(tsm.specs);
+        });
+
+
         // EXPERIMENT:
 
         // pre-process the transitions to force all auto trans to be
@@ -100,44 +139,6 @@ impl TransitionSystemModel {
                 }
             });
         }
-
-        let mut state_predicates: Vec<Variable> = model
-            .resources()
-            .iter()
-            .flat_map(|r| r.get_state_predicates())
-            .collect();
-
-        let mut specs: Vec<Spec> = model
-            .items()
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Spec(s) => Some(s),
-                _ => None,
-            })
-            .cloned()
-            .collect();
-        let resource_sub_item_specs: Vec<Spec> = resource_sub_items
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Spec(s) => Some(s.clone()),
-                _ => None,
-            })
-            .collect();
-        specs.extend(resource_sub_item_specs.iter().cloned());
-
-
-        // recursively collect sub-models
-        model.items.iter().flat_map(|i| match i {
-            SPItem::Model(m)
-                if m.name() != "operations" && // m.name() != "product_state" &&
-                m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
-            _ => None
-        }).for_each(|tsm| {
-            vars.extend(tsm.vars);
-            state_predicates.extend(tsm.state_predicates);
-            transitions.extend(tsm.transitions);
-            specs.extend(tsm.specs);
-        });
 
         TransitionSystemModel {
             name: model.name().into(),
