@@ -157,15 +157,18 @@ impl SPRunner {
 
     /// For each planning level, get the current goal and respective invariant
     /// that runner tries to reach.
-    pub fn goal(&self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
-        self.goals
-            .iter()
-            .map(|list| {
-                list.iter()
-                    .filter(|g| g.condition.eval(&self.ticker.state))
-                    .map(|x| (x.goal.clone(), x.invariant.clone()))
-                    .collect()
-            })
+    pub fn goal(&mut self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
+        let low_level = self.op_goal();
+        let high_level = self.int_goal();
+
+        vec![low_level, high_level]
+    }
+
+    /// Currently we don't perform any concretization on the high level
+    pub fn int_goal(&self) -> Vec<(Predicate, Option<Predicate>)> {
+        self.goals[1].iter()
+            .filter(|g| g.condition.eval(&self.ticker.state))
+            .map(|x| (x.goal.clone(), x.invariant.clone()))
             .collect()
     }
 

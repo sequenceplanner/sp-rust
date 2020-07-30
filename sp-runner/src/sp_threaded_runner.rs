@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use crate::{helpers,planning};
 
 // some planning constants
-const LVL0_MAX_STEPS: u32 = 20;
+const LVL0_MAX_STEPS: u32 = 25;
 const LVL1_MAX_STEPS: u32 = 50;
 const LVL1_CUTOFF: u32 = 15;
 const LVL1_LOOKOUT: f32 = 0.5;
@@ -148,6 +148,20 @@ fn runner(
                         // this check when the state is manually
                         // updated
                         let mut something_was_fixed = false;
+
+                        disabled_operations.retain(|p: &SPPath| {
+                            let e = "error".to_spvalue();
+                            let p = p.parent().add_child("state");
+                            let os = runner.state().sp_value_from_path(&p).unwrap_or(&e);
+                            println!("CHECKING {} {}", p, os);
+                            if os != &e {
+                                // user manually reset the operation
+                                something_was_fixed = true;
+                                false
+                            } else {
+                                true
+                            }
+                        });
                         disabled_operations.retain(|p: &SPPath| {
                             // check if the state if OK so we can remove any error states.
                             println!("checking if we can remove error on low level operation: {}", p);
@@ -157,7 +171,15 @@ fn runner(
                             let g0 = &runner.goals[0];
                             let i: &IfThen = g0.iter().find(|g| g.path() == &goal_name).unwrap();
 
-                            let goal = vec![(i.goal().clone(), None)];
+                            let goal =
+                                if let Some(actions) = &i.actions {
+                                    Predicate::AND(actions.iter().map(|a| a.to_concrete_predicate(runner.state())
+                                                                      .expect("weird goal")).collect())
+                                } else {
+                                    Predicate::FALSE
+                                };
+
+                            let goal = vec![(goal, None)];
 
                             let pr = planning::plan_with_cache(&runner.transition_system_models[0], goal.as_slice(),
                                                                runner.state(), LVL0_MAX_STEPS, &mut store);
@@ -304,14 +326,6 @@ fn runner(
                 }
                 println!("--");
             }
-
-            println!("OP GOALS");
-            let goals_op = runner.op_goal();
-            for g in &goals_op {
-                println!("op goal... {}", g.0);
-            }
-
-            let goals = vec![goals_op.clone(), goals[1].clone()];
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
                 let mut ts = ts.clone();
