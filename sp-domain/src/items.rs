@@ -1504,7 +1504,6 @@ impl Operation {
         } else {
             vec![a!(p: state = "f")]
         };
-        f_actions.extend(post_actions.iter().cloned()); // post actions can change low-level stuff
 
         let runner_finish = Transition::new(
             "finish",
