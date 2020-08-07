@@ -46,6 +46,7 @@ impl SPTicker {
             SPTicker::create_transition_map(&self.transitions, &self.specs, &self.disabled_paths);
 
         let mut fired = Vec::new();
+        let mut counter = 0;
         loop {
             let f = SPTicker::tick(
                 &mut self.state,
@@ -58,6 +59,12 @@ impl SPTicker {
                 // println!("f empty, fired is {:?}", fired);
                 break;
             } else {
+                counter+=1;
+                if counter > 1000 {
+                    // there is probably a self loop in the model
+                    let t_names = f.iter().map(|p|p.to_string()).collect::<Vec<_>>().join(",");
+                    panic!("self loop with transitions {}", t_names);
+                }
                 println!("runner one more time! adding new fired {:?}", f);
                 fired.extend(f);
             }

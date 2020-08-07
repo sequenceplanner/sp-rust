@@ -189,21 +189,34 @@ impl GModel {
     }
 
     pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], resets: bool, auto: bool) -> SPPath {
+                  goal: &Predicate, post_actions: &[Action], resets: bool, auto: bool,
+                  mc_constraint: Option<Predicate>) -> SPPath {
         let pre = Predicate::AND(vec![guard.clone(), goal.clone()]);
         let mut act = effects.to_vec();
         act.extend(post_actions.iter().cloned());
         // add a new low level transition. goal // effects
         if auto {
+
+            // it is important to realize that we cannot freely change
+            // the goals of the high level when we are in this state
+            // or any other state from which this state can
+            // uncontrollably be reached. so we also create a spec here
+            let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
+            self.add_sub_item("replan_specs", SPItem::Spec(spec));
+
             self.add_auto(name, &pre, &act);
         } else {
+
+            // in this case it's fine (compare spec above) as the
+            // variables are not changed uncontrollably.
+
             self.add_delib(name, &pre, &act);
         }
 
         if goal == &Predicate::TRUE {
             self.add_op_auto(name, guard, effects)
         } else {
-            let op = Operation::new(name, guard, effects, &goal, post_actions, resets);
+            let op = Operation::new(name, guard, effects, &goal, post_actions, resets, mc_constraint);
             self.add_sub_item("operations", SPItem::Operation(op))
         }
     }
@@ -255,28 +268,22 @@ impl GModel {
     }
 
     pub fn make_model(self) -> (Model, SPState) {
-        let mut s = self.initial_state.clone();
-
-        // add operation to the initial state here
-        // let global_ops_vars: Vec<Variable> = self.model.all_operations().iter().map(|o| o.state_variable().clone()).collect();
-
-        // let state: Vec<_> = global_ops_vars.iter()
-        //     .map(|v| (v.node().path().clone(), "i".to_spvalue()))
-        //     .collect();
-        // s.extend(SPState::new_from_values(&state[..]));
-
+        // operations start in init
         let op_state = self.model.all_operations().iter()
             .map(|o| (o.state_variable().node().path().clone(), "i".to_spvalue()))
             .collect::<Vec<_>>();
 
+        // intentions are initially "paused"
         let intention_state = self.model.all_intentions().iter()
             .map(|i| (i.state_variable().node().path().clone(), "paused".to_spvalue()))
             .collect::<Vec<_>>();
 
-        s.extend(SPState::new_from_values(op_state.as_slice()));
+        let mut s = SPState::new_from_values(op_state.as_slice());
         s.extend(SPState::new_from_values(intention_state.as_slice()));
 
-        // lastly, add all specifications.
+        // intention state can be set manually in the initial state
+        s.extend(self.initial_state);
+
         (self.model, s)
     }
 

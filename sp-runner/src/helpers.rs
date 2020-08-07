@@ -42,7 +42,9 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         for s in &ts_model.specs {
             println!("refining invariant {}", s.path());
             let ri = refine_invariant(&ts_model, s.invariant());
-            new_specs.push(Spec::new(s.name(), ri));
+            let mut ns = s.clone();
+            ns.invariant = ri;
+            new_specs.push(ns);
         }
         ts_model.specs = new_specs;
     }
@@ -88,9 +90,46 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
 
 
     // spit out a nuxmv files for debugging.
-    let ops: Vec<_> = global_ops.iter().map(|o| (o.path().to_string(), o.guard.clone(), o.fvg.clone())).collect();
-    crate::planning::generate_offline_nuxvm(&ts_model,&initial);
+    let ops: Vec<_> = global_ops.iter().map(|o| {
+        let guard = if let Some(c) = o.fvc.as_ref() {
+            Predicate::AND(vec![o.guard.clone(), c.clone()])
+        } else {
+            o.guard.clone()
+        };
+        // here we should find all unctronllable actions that can
+        // modify the variables of GUARD and disallow them. TODO: we
+        // need to to backwards reachability to catch chains of
+        // transitions. this is just a test
+        let support = guard.support();
+        println!("CHECKING OP: {}, SUPPORT: {:?}", o.name(), support);
+        assert!(ts_model.transitions.len() > 0);
+        let trans = ts_model.transitions.iter().filter_map(|t| {
+            if t.name () == o.name() {
+                println!("SKIPPING OURSELF");
+                return None;
+            }
+            if t.actions.iter().any(|a| {
+                !t.controlled() && support.contains(&a.var)
+            }) {
+                Some(t.guard().clone())
+            } else {
+                None
+            }
+        }).collect::<Vec<_>>();
+
+        let extra = Predicate::NOT(Box::new(
+            Predicate::OR(trans)));
+        let new_guard = Predicate::AND(vec![guard, extra]);
+
+
+        (o.path().to_string(), new_guard, o.fvg.clone())
+    }).collect();
+
+    let old_specs = ts_model.specs.clone();
+    // let replan_specs: Vec<Spec> = ts_model.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
+    ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
     crate::planning::generate_offline_nuxvm_ctl(&ts_model, &initial, &ops);
+    ts_model.specs = old_specs;
 
     let ts_model_op = TransitionSystemModel::from_op(&model);
     crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);

@@ -4,7 +4,7 @@ use failure::Error;
 use sp_domain::*;
 use sp_ros::*;
 use sp_runner_api::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
@@ -12,10 +12,10 @@ use crate::{helpers,planning};
 
 // some planning constants
 const LVL0_MAX_STEPS: u32 = 25;
-const LVL1_MAX_STEPS: u32 = 50;
-const LVL1_CUTOFF: u32 = 15;
-const LVL1_LOOKOUT: f32 = 0.5;
-const LVL1_MAX_TIME: Duration = Duration::from_secs(30);
+const LVL1_MAX_STEPS: u32 = 40;
+const LVL1_CUTOFF: u32 = 20;
+const LVL1_LOOKOUT: f32 = 0.75;
+const LVL1_MAX_TIME: Duration = Duration::from_secs(5);
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (mut node, comm) = set_up_ros_comm(&model)?;
@@ -181,8 +181,8 @@ fn runner(
 
                             let goal = vec![(goal, None)];
 
-                            let pr = planning::plan_with_cache(&runner.transition_system_models[0], goal.as_slice(),
-                                                               runner.state(), LVL0_MAX_STEPS, &mut store);
+                            let pr = planning::plan(&runner.transition_system_models[0], goal.as_slice(),
+                                                    runner.state(), LVL0_MAX_STEPS);
 
                             if !pr.plan_found {
                                 println!("operation still problematic...");
@@ -254,14 +254,17 @@ fn runner(
 
             let disabled = runner.disabled_paths();
             let mut enabled_state = runner.state().projection();
-            enabled_state.state.retain(|(p,_)| !disabled.iter().any(|d| p.is_child_of(d)));
+            let l1 = enabled_state.state.len();
+            enabled_state.state.retain(|(p,v)| !disabled.iter().any(|d| p.is_child_of(d)) &&
+                                       v.current_value() != &SPValue::Unknown);
+            let disabled_states = enabled_state.state.len() < l1;
             tx_state_out
                 .send(enabled_state.clone_state())
                 .expect("tx_state:out");
 
             // send out runner info.
             let mut runner_modes = vec![];
-            if !runner.disabled_paths().is_empty() { runner_modes.push("waiting");}
+            if disabled_states { runner_modes.push("waiting");}
             if bad_state { runner_modes.push("bad state");}
             if !disabled_operations.is_empty() { runner_modes.push("disabled operations"); }
             let runner_info = RunnerInfo {
@@ -272,8 +275,7 @@ fn runner(
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
-            let disabled = runner.disabled_paths();
-            if !disabled.is_empty() {
+            if disabled_states {
                 println!("still waiting... do nothing");
                 continue;
             }
@@ -301,12 +303,6 @@ fn runner(
 
                     bad_state = true;
                 }
-
-                for s in runner.transition_system_models[0].specs.iter() {
-                    if !s.invariant().eval(runner.state()) {
-
-                    }
-                }
             } else {
                 bad_state = SPRunner::bad_state(runner.state(), &runner.transition_system_models[0]);
             }
@@ -328,6 +324,7 @@ fn runner(
             }
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
+                println!("TS {}", i);
                 let mut ts = ts.clone();
                 if i == 1 {
                     ts.transitions.retain(|t| !disabled_operations.contains(t.path()));
@@ -337,8 +334,17 @@ fn runner(
                 let planner = SPPath::from_slice(&["runner", "planner", &i.to_string()]);
                 if runner.ticker.state.sp_value_from_path(&planner)
                     .unwrap_or(&false.to_spvalue()) != &true.to_spvalue() {
+                        prev_goals.insert(i, Vec::new());
+                        runner.input(SPRunnerInput::NewPlan(i as i32, SPPlan {
+                            plan: crate::planning::block_all(ts),
+                            included_trans: Vec::new(),
+                            state_change: SPState::new(),
+                        }));
+
                         continue;
                     }
+
+                println!("TS {} NOT SKIPPED", i);
 
                 // for each namespace, check if we need to replan because
                 // 1. got new goals from the runner or
@@ -356,16 +362,33 @@ fn runner(
                     .iter()
                     .map(|g| &g.0).collect(); // dont care about the invariants for now
 
+                println!("TS {} GOT GOALS", i);
+
                 let replan = {
                     let is_empty = prev_goal.is_none();
                     if is_empty {
-                        log_info!("replanning because previous goal was empty. {}", i);
+                        let pg = Predicate::AND(gr.iter().map(|&c|c.clone()).collect());
+                        log_info!("replanning because previous goal was empty. {}: new goal: {}", i, pg);
                     }
                     is_empty
                 } || {
                     let ok = &prev_goal.map(|g| g == goals).unwrap_or(false);
+                    // let all low-level effects complete before computing a new high level goal.
+                    if i == 1 && !ok {
+                        let active_effects = runner.replan_specs.iter()
+                            .any(|t| {
+                                let x = !t.invariant().eval(runner.state());
+                                if x { println!("Effect in progress: {}", t.path()); }
+                                x
+                            });
+                        if active_effects {
+                            println!("XXX effects in progress, replanning later....");
+                            continue 'outer;
+                        }
+                    }
                     if !ok {
-                        log_info!("replanning because goal changed. {}", i);
+                        let pg = Predicate::AND(gr.iter().map(|&c|c.clone()).collect());
+                        log_info!("replanning because goal changed. {}: new goal: {}", i, pg);
                         prev_goal.map(|g| g.iter().for_each(|g| {
                             println!("prev goals {}", g.0)
                         }));
@@ -373,6 +396,8 @@ fn runner(
                     !ok
                 } || {
                     let now = std::time::Instant::now();
+
+                    println!("TS {} CHECKING GOALS", i);
 
                     let ok = if i == 1 {
                         runner
@@ -384,18 +409,24 @@ fn runner(
                                               &runner.transition_system_models[i])
                     };
 
+                    println!("TS {} CHECKING GOALS DONE", i);
+
                     if now.elapsed().as_millis() > 100 {
                         println!("WARNINIG goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
                     }
 
                     if !ok {
                         println!("goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
-                        log_info!("replanning because we cannot reach goal. {}", i);
+                        let pg = Predicate::AND(gr.iter().map(|&c|c.clone()).collect());
+                        log_info!("replanning because we cannot reach goal. {}: {}", i, pg);
                     }
                     !ok
                 };
 
                 if replan {
+
+                    println!("TS {} REPLAN", i);
+
                     // temporary hack -- actually probably not so
                     // temporary, this is something we need to deal with
                     if i == 1 {
@@ -410,9 +441,34 @@ fn runner(
                     println!("computing plan for namespace {}", i);
 
                     let planner_result = if i == 0 {
-                        // skip heuristic for the low level
-                        let mut pr = planning::plan_with_cache(&ts, &goals, runner.state(),
-                                                               LVL0_MAX_STEPS, &mut store);
+                        // in the default case we should ensure monotonicity of the planning problem,
+                        // because 1) sops and high level plans need it
+                        // 2) operations (and errors!) are more intuitive this way.
+
+                        let mono = SPPath::from_slice(&["runner", "planner", "monotonic"]);
+                        let mut pr = if runner.ticker.state.sp_value_from_path(&mono).unwrap_or(&false.to_spvalue()) == &true.to_spvalue() {
+                            let modifies: HashSet<SPPath> = goals.iter().map(|(a,_)|a.support()).flatten().collect();
+                            let ts_1 = &runner.transition_system_models[1];
+                            let all: HashSet<SPPath> = ts_1.vars.iter().map(|v|v.path().clone()).collect();
+                            let no_change: HashSet<&SPPath> = all.difference(&modifies).collect();
+                            let no_change_spec: Predicate = Predicate::AND(no_change.iter().flat_map(|p| {
+                                runner.state().sp_value_from_path(p)
+                                    .map(|val|
+                                         Predicate::EQ(PredicateValue::SPPath((*p).clone(), None),
+                                                       PredicateValue::SPValue(val.clone())))
+                            }).collect());
+                            // let mut goals = goals.clone();
+                            // goals.push((no_change_spec, None));
+                            let mut tts = ts.clone();
+                            tts.specs.push(Spec::new("om", no_change_spec));
+
+                            // skip heuristic for the low level (cannot use cache if we dont serialize the extra invariants)
+                            planning::plan(&tts, &goals, runner.state(), LVL0_MAX_STEPS)
+                        } else {
+                            // skip heuristic for the low level
+                            planning::plan(ts, &goals, runner.state(), 2 * LVL0_MAX_STEPS)
+                        };
+
                         planning::bubble_up_delibs(ts, &gr, &mut pr);
                         pr
                     } else {
@@ -445,6 +501,10 @@ fn runner(
                     let no_plan = !planner_result.plan_found;
 
                     if no_plan && i == 0 {
+                        // temp
+                        std::fs::copy("/tmp/last_planning_request.bmc",
+                                      "/tmp/last_failed_planning_request.bmc")
+                            .expect("file copy failed");
                         // no low level plan found, we are in trouble.
 
                         // look for the problematic goals
@@ -453,17 +513,37 @@ fn runner(
                             .filter(|g| g.condition.eval(runner.state())).collect();
 
                         for i in ifthens {
-                            let goal = vec![(i.goal().clone(), None)];
 
-                            let pr = planning::plan_with_cache(&ts, goal.as_slice(), runner.state(), LVL0_MAX_STEPS, &mut store);
+                            let goal =
+                                if let Some(actions) = &i.actions {
+                                    Predicate::AND(actions.iter()
+                                                   .map(|a| a
+                                                        .to_concrete_predicate(runner.state())
+                                                        .expect("weird goal on check"))
+                                                   .collect())
+                                } else {
+                                    Predicate::FALSE
+                                };
+
+
+
+                            let goal = vec![(goal, None)];
+
+                            let op_path = i.path().parent();
+                            println!("checking low level operation: {} -- {:?}", op_path, goal);
+                            println!("disabled ops {:?}", disabled_operations);
+                            let pr = planning::plan(&ts, goal.as_slice(), runner.state(), LVL0_MAX_STEPS);
                             if !pr.plan_found {
-                                let offending_op = i.path().parent();
-                                log_warn!("offending low level operation: {}", offending_op);
+                                println!("offending low level operation: {}", op_path);
+                                log_warn!("offending low level operation: {}", op_path);
                                 runner.ticker.state
-                                    .force_from_path(&offending_op.clone().add_child("state"),
+                                    .force_from_path(&op_path.clone().add_child("state"),
                                                      "error".to_spvalue()).unwrap();
-                                disabled_operations.push(offending_op.add_child("start"));
+                                disabled_operations.push(op_path.add_child("start"));
                             }
+                        }
+                        if disabled_operations.is_empty() {
+                            panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
                         }
                     }
 
@@ -508,6 +588,8 @@ fn runner(
                                   i, planner_result.time_to_solve.as_millis());
                         prev_goals.remove(&i);
                     } else {
+                        log_info!("New plan was found for namespace {}! time to solve {}ms",
+                                  i, planner_result.time_to_solve.as_millis());
                         prev_goals.insert(i, goals.clone());
                     }
 
@@ -836,6 +918,12 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
     let mut all_vars = rm.model.vars.clone();
     all_vars.extend(rm.state_predicates);
 
+    let mut tsm0 = rm.model.clone();
+    let replan_specs: Vec<Spec> = tsm0.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
+    tsm0.specs.retain(|s| {
+        println!("YYY: {}", s.path());
+        s.path().parent().leaf() != "replan_specs"});
+
     let mut runner = SPRunner::new(
         "test",
         trans,
@@ -843,10 +931,11 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         vec![rm.goals.clone(), rm.hl_goals.clone()],
         vec![],
         vec![],
-        vec![rm.model.clone(), rm.op_model.clone()],
+        vec![tsm0, rm.op_model.clone()],
         model.all_resources().iter().map(|r| r.path().clone()).collect(),
         ops,
         hl_ops,
+        replan_specs
     );
 
     runner.input(SPRunnerInput::NewPlan(0, SPPlan {
@@ -870,6 +959,13 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         (planner1, true.to_spvalue()),
     ]);
     runner.update_state_variables(planners_initially_on);
+
+    // monotonic planning mode
+    let mono = SPPath::from_slice(&["runner", "planner", "monotonic"]);
+    let monotonic_initially_on = SPState::new_from_values(&[
+        (mono, true.to_spvalue()),
+    ]);
+    runner.update_state_variables(monotonic_initially_on);
 
     runner
 }

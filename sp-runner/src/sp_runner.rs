@@ -21,6 +21,7 @@ pub struct SPRunner {
     pub resources: Vec<SPPath>,
     pub operation_states: Vec<SPPath>,
     pub hl_operation_states: Vec<SPPath>,
+    pub replan_specs: Vec<Spec>
 }
 
 /// The input to the runner.
@@ -66,6 +67,7 @@ impl SPRunner {
         resources: Vec<SPPath>,
         operation_states: Vec<SPPath>,
         hl_operation_states: Vec<SPPath>,
+        replan_specs: Vec<Spec>
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -114,6 +116,7 @@ impl SPRunner {
             resources,
             operation_states,
             hl_operation_states,
+            replan_specs
         }
     }
 
@@ -216,14 +219,21 @@ impl SPRunner {
         let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
 
         let mut state = s.clone();
+        let mut counter = 0;
         loop {
             let state_changed = tm.iter().flat_map(|ts| {
                 if ts.iter().all(|t| {
                     let x = t.eval(&state);
-                    // println!("for {}: {}", t.path(), x);
+                    println!("for {}: {}", t.path(), x);
                     x
                 }) {
-                    // transitions enabled. clone the state to start a new search branch.
+                    // transitions enabled.
+                    counter+=1;
+                    if counter > 1000 {
+                        // there is a self loop in the model
+                        let t_names = ts.iter().map(|t|t.path().to_string()).collect::<Vec<_>>().join(",");
+                        panic!("self loop with transitions {}", t_names);
+                    }
 
                     // take all actions
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
@@ -239,6 +249,8 @@ impl SPRunner {
 
                     // next -> cur
                     let changed = state.take_transition();
+
+                    println!("THE STATE\n{}", state);
 
                     if SPRunner::bad_state(&state, ts_model) {
                         None
@@ -485,7 +497,7 @@ impl SPRunner {
             println!("{}", self.ticker.state);
             println!(
                 "because of the following invariant(s):\n{}",
-                bad.iter().map(|s| s.name()).collect::<Vec<_>>().join(",")
+                bad.iter().map(|s| s.path().to_string()).collect::<Vec<_>>().join("n")
             );
             return;
         }

@@ -1422,7 +1422,10 @@ pub struct Operation {
     state_variable: Variable,
 
     // goal when formally verifyinig
-    pub fvg: Predicate
+    pub fvg: Predicate,
+
+    // extra constraint when formally verifying
+    pub fvc: Option<Predicate>,
 }
 
 impl Noder for Operation {
@@ -1479,7 +1482,8 @@ impl Noder for Operation {
 
 impl Operation {
     pub fn new(name: &str, guard: &Predicate, effects: &[Action],
-               goal: &Predicate, post_actions: &[Action], resets: bool) -> Operation {
+               goal: &Predicate, post_actions: &[Action], resets: bool,
+               fvc: Option<Predicate>) -> Operation {
         let node = SPNode::new(name);
 
         let state_variable = Variable::new(
@@ -1534,7 +1538,8 @@ impl Operation {
             runner_finish,
 
             state_variable,
-            fvg: Predicate::AND(vec![guard.clone(), goal.clone()])
+            fvg: Predicate::AND(vec![guard.clone(), goal.clone()]),
+            fvc,
         }
     }
 
@@ -1550,7 +1555,7 @@ impl Operation {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Spec {
     node: SPNode,
-    invariant: Predicate,
+    pub invariant: Predicate,
 }
 
 impl Noder for Spec {
@@ -1573,7 +1578,8 @@ impl Noder for Spec {
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
+    }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.invariant.replace_variable_path(mapping);
     }
