@@ -1,6 +1,7 @@
 use crate::formal_model::*;
 use sp_domain::*;
 use sp_runner_api::*;
+use std::collections::HashSet;
 
 // remember to also change in planner
 // TODO: make this constant crate-wide and use in more places
@@ -89,8 +90,13 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         .collect();
 
 
-    // spit out a nuxmv files for debugging.
-    let ops: Vec<_> = global_ops.iter().map(|o| {
+    // debug high level model
+    let ts_model_op = TransitionSystemModel::from_op(&model);
+    crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
+
+
+    // debug low level model
+    global_ops.iter().for_each(|o| {
         let guard = if let Some(c) = o.fvc.as_ref() {
             Predicate::AND(vec![o.guard.clone(), c.clone()])
         } else {
@@ -103,7 +109,7 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
         let support = guard.support();
         println!("CHECKING OP: {}, SUPPORT: {:?}", o.name(), support);
         assert!(ts_model.transitions.len() > 0);
-        let trans = ts_model.transitions.iter().filter_map(|t| {
+        let forbidden = ts_model.transitions.iter().filter_map(|t| {
             if t.name () == o.name() {
                 println!("SKIPPING OURSELF");
                 return None;
@@ -117,22 +123,40 @@ pub fn make_runner_model(model: &Model) -> RunnerModel {
             }
         }).collect::<Vec<_>>();
 
-        let extra = Predicate::NOT(Box::new(
-            Predicate::OR(trans)));
-        let new_guard = Predicate::AND(vec![guard, extra]);
+        let extra_spec = Spec::new("other_unc",
+                                   Predicate::NOT(Box::new(Predicate::OR(forbidden))));
+
+        let mut temp_ts_model = ts_model.clone();
+        temp_ts_model.specs.push(extra_spec);
+
+        // remove replan spec
+        temp_ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
 
 
-        (o.path().to_string(), new_guard, o.fvg.clone())
-    }).collect();
+        // filter out any transitions that change unrelated variables, we dont need to check them
+        let modifies: HashSet<SPPath> = o.effects.iter().map(|a|a.var.clone()).collect();
+        let all: HashSet<SPPath> = ts_model_op.vars.iter().map(|v|v.path().clone()).collect();
+        let no_change: HashSet<&SPPath> = all.difference(&modifies).collect();
 
-    let old_specs = ts_model.specs.clone();
-    // let replan_specs: Vec<Spec> = ts_model.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
-    ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
-    crate::planning::generate_offline_nuxvm_ctl(&ts_model, &initial, &ops);
-    ts_model.specs = old_specs;
+        temp_ts_model.transitions.retain(|t| {
+            if
+            t.actions.iter().any(|a| all.contains(&a.var)) ||
+                t.effects.iter().any(|a| all.contains(&a.var)) {
+                    println!("FOR OP: {}, filtering transition: {}", o.name(), t.path());
+                    false
+                } else { true }
+        });
 
-    let ts_model_op = TransitionSystemModel::from_op(&model);
-    crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
+        let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
+        temp_ts_model.name += &format!("_{}", o.name());
+        crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial, &op);
+    });
+
+    // let old_specs = ts_model.specs.clone();
+    // // let replan_specs: Vec<Spec> = ts_model.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
+    // ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
+    // crate::planning::generate_offline_nuxvm_ctl(&ts_model, &initial, &ops);
+    // ts_model.specs = old_specs;
 
     let mut un_ctrl: Vec<Transition> = ts_model
         .transitions
