@@ -432,7 +432,18 @@ impl Model {
         self.items
             .iter()
             .flat_map(|i| match i {
-                SPItem::Model(m) => m.all_operations(),
+                SPItem::Model(m) => if m.name() != "runner_ops" { m.all_operations() } else { vec![] },
+                SPItem::Operation(o) => vec![o],
+                _ => vec![],
+            })
+            .collect()
+    }
+
+    pub fn all_runner_operations(&self) -> Vec<&Operation> {
+        self.items
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Model(m) => if m.name() == "runner_ops" { m.all_operations() } else { vec![] },
                 SPItem::Operation(o) => vec![o],
                 _ => vec![],
             })
@@ -1517,7 +1528,7 @@ impl Operation {
             false,
         );
         let eg = effects.to_vec();
-        let op_goal = IfThen::new("goal", p!(p: state == "e"), Predicate::FALSE, None, Some(eg)); // invariant = None for now...
+        let op_goal = IfThen::new("goal", p!(p: state == "e"), goal.clone(), None, Some(eg)); // invariant = None for now...
 
         // in the planning model, we only have a single transition,
         // effects are immediate

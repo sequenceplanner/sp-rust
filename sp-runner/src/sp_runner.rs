@@ -182,12 +182,22 @@ impl SPRunner {
         let mut result = Vec::new();
         for g in gs {
             let goal =
-            if let Some(actions) = &g.actions {
-                Predicate::AND(actions.iter().map(|a| a.to_concrete_predicate(&self.ticker.state).expect("weird goal")).collect())
+                if let Some(actions) = &g.actions {
+                    if actions.is_empty() {
+                        g.goal.clone()
+                    } else {
+                        Predicate::AND(actions.iter().map(|a| a.to_concrete_predicate(&self.ticker.state).expect("weird goal")).collect())
+                    }
             } else {
                 Predicate::FALSE
             };
             if let Predicate::EQ(PredicateValue::SPPath(p, _), _) = &g.condition {
+                let op_name = p.parent().leaf();
+                if op_name == "SOP" {
+                    continue;
+                }
+
+
                 let op_finish = p.parent().add_child("finish");
                 let mut ft = self.ticker.transitions.iter().find(|t| t.path() == &op_finish).expect("missing op trans").clone();
                 ft.guard = Predicate::AND(vec![p!(p: p == "e"), goal.clone()]);
@@ -299,7 +309,11 @@ impl SPRunner {
                 ).cloned().collect::<Vec<SPPath>>();
         let ok = running.iter().all(|k| {
             let k = k.parent().add_child("start");
-            let t = ts_model.transitions.iter().find(|t| t.path() == &k).unwrap();
+            let t = ts_model.transitions.iter().find(|t| t.path() == &k); // .unwrap();
+            if t.is_none() {
+                true
+            } else {
+                let t = t.unwrap();
 
             let ok = t.eval(&state);
             if ok {
@@ -307,7 +321,8 @@ impl SPRunner {
                     let _res = e.next(&mut state);
                 });
             }
-            ok
+                ok
+            }
         });
 
         if !ok {
