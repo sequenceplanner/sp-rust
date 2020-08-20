@@ -2,6 +2,7 @@
 
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
+use crate::formal_model::*;
 
 /// The SPRunner that keep tracks of the state and the transition execution
 /// When using the runner, call the input method on every state change and probably

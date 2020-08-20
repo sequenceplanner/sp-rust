@@ -8,7 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
-use crate::{helpers,planning};
+use crate::formal_model::*;
+use crate::planning;
 
 // some planning constants
 const LVL0_MAX_STEPS: u32 = 25;
@@ -59,8 +60,7 @@ fn runner(
 ) {
     let model = model.clone();
     thread::spawn(move || {
-        let runner_model = helpers::make_runner_model(&model);
-        let mut runner = make_new_runner(&model, runner_model, initial_state);
+        let mut runner = make_new_runner(&model, initial_state);
         let mut prev_goals: HashMap<usize,
                                     Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
         let mut store = planning::PlanningStore::default();
@@ -874,12 +874,158 @@ fn node_handler(
 }
 
 // TODO: do we keep the old RunnerModel?
-fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SPRunner {
+fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
+    let ts_model = TransitionSystemModel::from(&model);
+
+    // add global op transitions
+    let global_ops: Vec<&Operation> = model.all_operations();
+
+
+    // runner operations
+    let runner_ops: Vec<&Operation> = model.all_runner_operations();
+
+    let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_start.clone()).collect();
+    let mut global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
+
+    let runner_ops_trans: Vec<_> = runner_ops.iter().map(|o| vec![o.runner_start.clone(), o.runner_finish.clone()]).flatten().collect();
+    global_ops_un_ctrl.extend(runner_ops_trans);
+
+    let mut global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
+    let runner_op_goals: Vec<IfThen> = runner_ops.iter().map(|o| o.goal.clone()).collect();
+    global_op_goals.extend(runner_op_goals);
+
+    let mut op_states: Vec<Variable> = global_ops.iter().map(|o| o.state_variable()).cloned().collect();
+
+    let runner_op_states: Vec<Variable> = runner_ops.iter().map(|o| o.state_variable()).cloned().collect();
+    op_states.extend(runner_op_states);
+
+    // unchanged. todo
+    let global_intentions: Vec<&Intention> = model.all_intentions();
+    let global_int_trans: Vec<_> = global_intentions
+        .iter()
+        .flat_map(|i| i.transitions())
+        .cloned()
+        .collect();
+    let global_hl_ops_ctrl: Vec<_> = global_int_trans
+        .iter()
+        .filter(|t| t.controlled)
+        .cloned()
+        .collect();
+    let global_hl_ops_un_ctrl: Vec<_> = global_int_trans
+        .iter()
+        .filter(|t| !t.controlled)
+        .cloned()
+        .collect();
+    let global_hl_goals: Vec<IfThen> = global_intentions
+        .iter()
+        .flat_map(|o| o.goal().as_ref())
+        .cloned()
+        .collect();
+
+    let hl_op_states: Vec<Variable> = global_intentions
+        .iter()
+        .map(|o| o.state_variable())
+        .cloned()
+        .collect();
+
+
+    // debug high level model
+    let ts_model_op = TransitionSystemModel::from_op(&model);
+    crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
+
+
+    let inits: Vec<Predicate> = ts_model.specs.iter()
+        .filter_map(|s| if s.name() == "supervisor" {
+            Some(s.invariant().clone())
+        } else {
+            None
+        })
+        .collect();
+
+    // we need to assume that we are in a state that adheres to the resources
+    let initial = Predicate::AND(inits);
+
+    // debug low level model
+    let all_op_names = global_ops.iter().map(|o|o.name().to_string()).collect::<Vec<_>>();
+    global_ops.iter().for_each(|o| {
+        // here we should find all unctronllable actions that can
+        // modify the variables of GUARD and disallow them.
+        println!("CHECKING OP: {}", o.name());
+        let mut temp_ts_model = ts_model.clone();
+
+        // remove "replan" spec
+        temp_ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
+
+        let mut new_invariants = vec![];
+        temp_ts_model.transitions.retain(|t| {
+            //if t.actions.len() > 0 && t.actions.iter().any(|a| no_change.contains(&a.var)) {
+            if t.name() != o.name() && all_op_names.contains(&t.name().to_string()) {
+                if let Some(op) = global_ops.iter().find(|oo|t.name()==oo.name()) {
+                    println!("FOR OP: {}, filtering transition: {}", o.name(), t.path());
+                    if !t.controlled() && op.fvg != Predicate::TRUE {
+                        // this also means we need to forbid this state!
+                        new_invariants.push(op.fvg.clone());
+                    }
+                }
+                false
+            } else { true }
+        });
+
+        let new_specs = new_invariants.iter().map(|p| {
+            let i = Predicate::NOT(Box::new(p.clone()));
+            println!("REFINING: {}", i);
+            let ri = refine_invariant(&temp_ts_model, &i);
+            Spec::new("extended", ri)
+        }).collect::<Vec<_>>();
+        temp_ts_model.specs.extend(new_specs);
+
+        // here we check if the operation has an assertion
+        // which is assumed to be fulfilled for nominal behavior
+        // (eg "resource not in failure mode")
+        let guard = if let Some(c) = o.fvc.as_ref() {
+            Predicate::AND(vec![o.guard.clone(), c.clone()])
+        } else {
+            o.guard.clone()
+        };
+        let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
+        temp_ts_model.name += &format!("_{}", o.name());
+        crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial, &op);
+    });
+
+    // old runner model as code here.
+
+    let rm_op_transitions = RunnerTransitions {
+        ctrl: global_ops_ctrl,
+        un_ctrl: global_ops_un_ctrl,
+    };
+
+    let rm_hl_op_transitions = RunnerTransitions {
+        ctrl: global_hl_ops_ctrl,
+        un_ctrl: global_hl_ops_un_ctrl,
+    };
+
+
+    let rm_ab_transitions = RunnerTransitions {
+        ctrl: ts_model
+            .transitions
+            .iter()
+            .filter(|t| t.controlled())
+            .cloned()
+            .collect(),
+        un_ctrl: ts_model
+            .transitions
+            .iter()
+            .filter(|t| !t.controlled())
+            .cloned()
+            .collect(),
+    };
+
+
     let mut trans = vec![];
     let mut restrict_controllable = vec![];
     let mut restrict_op_controllable = vec![];
     let false_trans = Transition::new("empty", Predicate::FALSE, vec![], vec![], true);
-    rm.op_transitions.ctrl.iter().for_each(|t| {
+    rm_op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_op_controllable.push(TransitionSpec::new(
             &format!("s_{}_false", t.path()),
@@ -887,19 +1033,19 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
             vec![t.path().clone()],
         ))
     });
-    rm.op_transitions.un_ctrl.iter().for_each(|t| {
+    rm_op_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
 
     // high level ops are never restricted
-    rm.hl_op_transitions.ctrl.iter().for_each(|t| {
+    rm_hl_op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
-    rm.hl_op_transitions.un_ctrl.iter().for_each(|t| {
+    rm_hl_op_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
 
-    rm.ab_transitions.ctrl.iter().for_each(|t| {
+    rm_ab_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_controllable.push(TransitionSpec::new(
             &format!("s_{}_false", t.path()),
@@ -907,18 +1053,18 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
             vec![t.path().clone()],
         ))
     });
-    rm.ab_transitions.un_ctrl.iter().for_each(|t| {
+    rm_ab_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
 
 
-    let ops = rm.op_states.iter().map(|v| v.path().clone()).collect();
-    let hl_ops = rm.hl_op_states.iter().map(|v| v.path().clone()).collect();
+    let ops = op_states.iter().map(|v| v.path().clone()).collect();
+    let hl_ops = hl_op_states.iter().map(|v| v.path().clone()).collect();
 
-    let mut all_vars = rm.model.vars.clone();
-    all_vars.extend(rm.state_predicates);
+    let mut all_vars = ts_model.vars.clone();
+    all_vars.extend(ts_model.state_predicates.iter().cloned());
 
-    let mut tsm0 = rm.model.clone();
+    let mut tsm0 = ts_model.clone();
     let replan_specs: Vec<Spec> = tsm0.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
     tsm0.specs.retain(|s| {
         println!("YYY: {}", s.path());
@@ -928,10 +1074,10 @@ fn make_new_runner(model: &Model, rm: RunnerModel, initial_state: SPState) -> SP
         "test",
         trans,
         all_vars,
-        vec![rm.goals.clone(), rm.hl_goals.clone()],
+        vec![global_op_goals, global_hl_goals],
         vec![],
         vec![],
-        vec![tsm0, rm.op_model.clone()],
+        vec![tsm0, ts_model_op],
         model.all_resources().iter().map(|r| r.path().clone()).collect(),
         ops,
         hl_ops,
