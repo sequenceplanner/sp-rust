@@ -32,8 +32,14 @@ impl fmt::Display for NuXMVValue<'_> {
             SPValue::Float32(f) => write!(fmtr, "{}", f),
             SPValue::Int32(i) => write!(fmtr, "{}", i),
             SPValue::String(s) => write!(fmtr, "{}", s),
-            SPValue::Time(t) => write!(fmtr, "{:?}", t),
-            SPValue::Duration(d) => write!(fmtr, "{:?}", d),
+            SPValue::Time(t, time_out_ms) => {
+                if let Some(ms) = time_out_ms {
+                    write!(fmtr, "time: {:?}, time out: {}ms", t, ms.0)
+                } else {
+                    write!(fmtr, "{:?}", t)
+                }
+            },
+            SPValue::Path(d) => write!(fmtr, "{:?}", d),
             SPValue::Array(_at, a) => write!(fmtr, "{:?}", a),
             SPValue::Unknown => write!(fmtr, "SPUNKNOWN"),
         }
