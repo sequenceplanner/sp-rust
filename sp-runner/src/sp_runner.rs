@@ -22,7 +22,7 @@ pub struct SPRunner {
     pub resources: Vec<SPPath>,
     pub operation_states: Vec<SPPath>,
     pub hl_operation_states: Vec<SPPath>,
-    pub replan_specs: Vec<Spec>
+    pub replan_specs: Vec<Spec>,
 }
 
 /// The input to the runner.

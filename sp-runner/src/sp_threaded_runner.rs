@@ -880,24 +880,12 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
     // add global op transitions
     let global_ops: Vec<&Operation> = model.all_operations();
 
-
-    // runner operations
-    let runner_ops: Vec<&Operation> = model.all_runner_operations();
-
     let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_start.clone()).collect();
-    let mut global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
+    let global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
 
-    let runner_ops_trans: Vec<_> = runner_ops.iter().map(|o| vec![o.runner_start.clone(), o.runner_finish.clone()]).flatten().collect();
-    global_ops_un_ctrl.extend(runner_ops_trans);
+    let global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
 
-    let mut global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
-    let runner_op_goals: Vec<IfThen> = runner_ops.iter().map(|o| o.goal.clone()).collect();
-    global_op_goals.extend(runner_op_goals);
-
-    let mut op_states: Vec<Variable> = global_ops.iter().map(|o| o.state_variable()).cloned().collect();
-
-    let runner_op_states: Vec<Variable> = runner_ops.iter().map(|o| o.state_variable()).cloned().collect();
-    op_states.extend(runner_op_states);
+    let op_states: Vec<Variable> = global_ops.iter().map(|o| o.state_variable()).cloned().collect();
 
     // unchanged. todo
     let global_intentions: Vec<&Intention> = model.all_intentions();

@@ -81,8 +81,7 @@ impl TransitionSystemModel {
         // recursively collect sub-models
         model.items.iter().flat_map(|i| match i {
             SPItem::Model(m)
-                if m.name() != "operations" && // m.name() != "product_state" &&
-                m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
+                if m.name() != "operations" => Some(TransitionSystemModel::from(&m)),
             _ => None
         }).for_each(|tsm| {
             vars.extend(tsm.vars);

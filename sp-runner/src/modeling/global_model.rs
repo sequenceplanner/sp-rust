@@ -133,17 +133,6 @@ impl GModel {
         self.model.add_item(SPItem::Transition(trans));
     }
 
-    pub fn add_runner_transition(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(
-            name,
-            guard.clone(),
-            actions.to_vec(),
-            vec![], // no effects
-            false,  // auto!
-        );
-        self.add_sub_item("runner_transitions", SPItem::Transition(trans));
-    }
-
     pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
         let trans = Transition::new(name, guard.clone(), actions.to_vec(), vec![], true);
         self.model.add_item(SPItem::Transition(trans));
@@ -221,35 +210,6 @@ impl GModel {
         }
     }
 
-    pub fn add_runner_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], resets: bool, auto: bool,
-                  mc_constraint: Option<Predicate>) -> SPPath {
-        let pre = Predicate::AND(vec![guard.clone(), goal.clone()]);
-        let mut act = effects.to_vec();
-        act.extend(post_actions.iter().cloned());
-        // add a new low level transition. goal // effects
-        if auto {
-
-            // it is important to realize that we cannot freely change
-            // the goals of the high level when we are in this state
-            // or any other state from which this state can
-            // uncontrollably be reached. so we also create a spec here
-            // let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
-            // self.add_sub_item("replan_specs", SPItem::Spec(spec));
-
-            self.add_runner_transition(name, &pre, &act);
-        } else {
-
-            // in this case it's fine (compare spec above) as the
-            // variables are not changed uncontrollably.
-
-            self.add_runner_transition(name, &pre, &act);
-        }
-
-        let op = Operation::new(name, guard, effects, &goal, post_actions, resets, mc_constraint);
-        self.add_sub_item("runner_ops", SPItem::Operation(op))
-    }
-
     pub fn add_intention(
         &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate,
         post_actions: &[Action], invariant: Option<Predicate>,
@@ -302,17 +262,12 @@ impl GModel {
             .map(|o| (o.state_variable().node().path().clone(), "i".to_spvalue()))
             .collect::<Vec<_>>();
 
-        let runner_op_state = self.model.all_runner_operations().iter()
-            .map(|o| (o.state_variable().node().path().clone(), "i".to_spvalue()))
-            .collect::<Vec<_>>();
-
         // intentions are initially "paused"
         let intention_state = self.model.all_intentions().iter()
             .map(|i| (i.state_variable().node().path().clone(), "paused".to_spvalue()))
             .collect::<Vec<_>>();
 
         let mut s = SPState::new_from_values(op_state.as_slice());
-        s.extend(SPState::new_from_values(runner_op_state.as_slice()));
         s.extend(SPState::new_from_values(intention_state.as_slice()));
 
         // intention state can be set manually in the initial state
