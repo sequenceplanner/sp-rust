@@ -14,7 +14,7 @@ pub struct SPRunner {
     pub ticker: SPTicker,
     pub variables: Vec<Variable>,
     pub predicates: Vec<Variable>,
-    pub goals: Vec<Vec<IfThen>>,
+    pub intention_goals: Vec<IfThen>,
     pub global_transition_specs: Vec<TransitionSpec>,
     pub plans: Vec<SPPlan>, // one plan per namespace
     pub last_fired_transitions: Vec<SPPath>,
@@ -63,7 +63,7 @@ impl SPRunner {
         name: &str,
         transitions: Vec<Transition>,
         variables: Vec<Variable>,
-        goals: Vec<Vec<IfThen>>, // for now its just a list
+        intention_goals: Vec<IfThen>,
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
@@ -110,7 +110,7 @@ impl SPRunner {
             ticker,
             variables: vars,
             predicates: preds,
-            goals,
+            intention_goals,
             global_transition_specs,
             plans: vec![SPPlan::default(); 2],
             last_fired_transitions: vec![],
@@ -173,7 +173,7 @@ impl SPRunner {
 
     /// Currently we don't perform any concretization on the high level
     pub fn int_goal(&self) -> Vec<(Predicate, Option<Predicate>)> {
-        self.goals[1].iter()
+        self.intention_goals.iter()
             .filter(|g| g.condition.eval(&self.ticker.state))
             .map(|x| (x.goal.clone(), x.invariant.clone()))
             .collect()
@@ -563,10 +563,8 @@ impl SPRunner {
         println!("RELOAD STATE PATHS");
         self.ticker.reload_state_paths();
         self.reload_state_paths_plans();
-        for x in self.goals.iter_mut() {
-            for y in x {
-                y.upd_state_path(&self.ticker.state)
-            }
+        for x in self.intention_goals.iter_mut() {
+            x.upd_state_path(&self.ticker.state)
         }
         for x in self.global_transition_specs.iter_mut() {
             x.spec_transition.upd_state_path(&self.ticker.state)

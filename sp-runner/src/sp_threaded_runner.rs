@@ -151,7 +151,7 @@ fn runner(
 
                         disabled_operations.retain(|p: &SPPath| {
                             let e = "error".to_spvalue();
-                            let p = p.parent().add_child("state");
+                            let p = p.clone().add_child("state");
                             let os = runner.state().sp_value_from_path(&p).unwrap_or(&e);
                             println!("CHECKING {} {}", p, os);
                             if os != &e {
@@ -165,21 +165,8 @@ fn runner(
                         disabled_operations.retain(|p: &SPPath| {
                             // check if the state if OK so we can remove any error states.
                             println!("checking if we can remove error on low level operation: {}", p);
-                            let goal_name = p.parent().add_child("goal");
-                            println!("goal name {}", goal_name);
-
-                            let g0 = &runner.goals[0];
-                            let i: &IfThen = g0.iter().find(|g| g.path() == &goal_name).unwrap();
-
-                            let goal =
-                                if let Some(actions) = &i.actions {
-                                    Predicate::AND(actions.iter().map(|a| a.to_concrete_predicate(runner.state())
-                                                                      .expect("weird goal")).collect())
-                                } else {
-                                    Predicate::FALSE
-                                };
-
-                            let goal = vec![(goal, None)];
+                            let goal = runner.operation_goals.get(p).expect("no goal on disabled op");
+                            let goal = vec![(goal.clone(), None)];
 
                             let pr = planning::plan(&runner.transition_system_models[0], goal.as_slice(),
                                                     runner.state(), LVL0_MAX_STEPS);
@@ -187,7 +174,7 @@ fn runner(
                             if !pr.plan_found {
                                 println!("operation still problematic...");
                             } else {
-                                let state = p.parent().add_child("state");
+                                let state = p.clone().add_child("state");
                                 runner.ticker.state.force_from_path(&state, "i".to_spvalue()).unwrap();
                                 something_was_fixed = true;
                             }
@@ -206,7 +193,7 @@ fn runner(
                                     let goal_path = p.parent().add_child("goal");
                                     println!("goal name {}", goal_path);
 
-                                    let g1 = &runner.goals[1];
+                                    let g1 = &runner.intention_goals;
                                     let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
                                     let goal = vec![(i.goal().clone(), None)];
 
@@ -327,7 +314,7 @@ fn runner(
                 println!("TS {}", i);
                 let mut ts = ts.clone();
                 if i == 1 {
-                    ts.transitions.retain(|t| !disabled_operations.contains(t.path()));
+                    ts.transitions.retain(|t| !disabled_operations.contains(&t.path().parent()));
                 }
                 let ts = &ts;
 
@@ -432,10 +419,13 @@ fn runner(
                     if i == 1 {
                         println!("resetting all operation state");
                         for op in &runner.operations {
-                            let start = op.runner_start.path();
-                            if disabled_operations.contains(&start) { continue }
-                            runner.ticker.state.force_from_path(op.state_variable().path(),
-                                                                "i".to_spvalue()).unwrap();
+                            if disabled_operations.contains(op.path()) { continue }
+                            let path = op.state_variable().path();
+                            if runner.ticker.state.sp_value_from_path(path)
+                                .map(|v| v == &"e".to_spvalue()).unwrap_or(false) {
+                                    runner.ticker.state.force_from_path(path,
+                                                                        "i".to_spvalue()).unwrap();
+                                }
                         }
                     }
 
@@ -509,30 +499,10 @@ fn runner(
                         // no low level plan found, we are in trouble.
 
                         // look for the problematic goals
-                        let g0 = &runner.goals[i];
-                        let ifthens: Vec<&IfThen> = g0.iter()
-                            .filter(|g| g.condition.eval(runner.state())).collect();
-
-                        for i in ifthens {
-
-                            let goal =
-                                if let Some(actions) = &i.actions {
-                                    Predicate::AND(actions.iter()
-                                                   .map(|a| a
-                                                        .to_concrete_predicate(runner.state())
-                                                        .expect("weird goal on check"))
-                                                   .collect())
-                                } else {
-                                    Predicate::FALSE
-                                };
-
-
-
-                            let goal = vec![(goal, None)];
-
-                            let op_path = i.path().parent();
+                        for (op_path,goal) in &runner.operation_goals {
                             println!("checking low level operation: {} -- {:?}", op_path, goal);
                             println!("disabled ops {:?}", disabled_operations);
+                            let goal = vec![(goal.clone(), None)];
                             let pr = planning::plan(&ts, goal.as_slice(), runner.state(), LVL0_MAX_STEPS);
                             if !pr.plan_found {
                                 println!("offending low level operation: {}", op_path);
@@ -540,7 +510,7 @@ fn runner(
                                 runner.ticker.state
                                     .force_from_path(&op_path.clone().add_child("state"),
                                                      "error".to_spvalue()).unwrap();
-                                disabled_operations.push(op_path.add_child("start"));
+                                disabled_operations.push(op_path.clone());
                             }
                         }
                         if disabled_operations.is_empty() {
@@ -552,7 +522,7 @@ fn runner(
                         // no high level plan found, we are in trouble.
 
                         // look for the problematic goals
-                        let g1 = &runner.goals[i];
+                        let g1 = &runner.intention_goals;
                         let ifthens: Vec<&IfThen> = g1.iter().filter(|g| g.condition.eval(runner.state())).collect();
 
                         for i in ifthens {
@@ -884,8 +854,6 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
     let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_start.clone()).collect();
     let global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
 
-    let global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
-
     let operations: Vec<Operation> = model.all_operations().into_iter().cloned().collect();
 
     // unchanged. todo
@@ -1067,7 +1035,7 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
         "test",
         trans,
         all_vars,
-        vec![global_op_goals, global_hl_goals],
+        global_hl_goals,
         vec![],
         vec![],
         vec![tsm0, ts_model_op],
