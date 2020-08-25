@@ -1427,12 +1427,12 @@ pub struct Operation {
 
     // runner transitions
     pub runner_start: Transition, // state = i && guard / state = e
-    pub runner_finish: Transition, // state = e && goal.predicate / state = i/f + post_actions + effects
+    pub runner_finish: Transition, // state = e && [goal.predicate as spec] / state = i/f + post_actions
 
     // operation state
     state_variable: Variable,
 
-    // goal when formally verifyinig
+    // goal when formally verifyiyg
     pub fvg: Predicate,
 
     // extra constraint when formally verifying
@@ -1522,10 +1522,10 @@ impl Operation {
 
         let runner_finish = Transition::new(
             "finish",
-            Predicate::FALSE,
+            p!(p: state == "e"),
             f_actions,
             vec![],
-            false,
+            true,
         );
         let eg = effects.to_vec();
         let op_goal = IfThen::new("goal", p!(p: state == "e"), goal.clone(), None, Some(eg)); // invariant = None for now...

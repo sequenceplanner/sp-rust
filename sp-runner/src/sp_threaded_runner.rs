@@ -431,10 +431,11 @@ fn runner(
                     // temporary, this is something we need to deal with
                     if i == 1 {
                         println!("resetting all operation state");
-                        for p in &runner.operation_states {
-                            let start = p.parent().add_child("start"); // go from /state to /start
+                        for op in &runner.operations {
+                            let start = op.runner_start.path();
                             if disabled_operations.contains(&start) { continue }
-                            runner.ticker.state.force_from_path(&p, "i".to_spvalue()).unwrap();
+                            runner.ticker.state.force_from_path(op.state_variable().path(),
+                                                                "i".to_spvalue()).unwrap();
                         }
                     }
 
@@ -885,7 +886,7 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
 
     let global_op_goals: Vec<IfThen> = global_ops.iter().map(|o| o.goal.clone()).collect();
 
-    let op_states: Vec<Variable> = global_ops.iter().map(|o| o.state_variable()).cloned().collect();
+    let operations: Vec<Operation> = model.all_operations().into_iter().cloned().collect();
 
     // unchanged. todo
     let global_intentions: Vec<&Intention> = model.all_intentions();
@@ -1023,9 +1024,14 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
     });
     rm_op_transitions.un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
+        restrict_op_controllable.push(TransitionSpec::new(
+            &format!("s_{}_false", t.path()),
+            false_trans.clone(),
+            vec![t.path().clone()],
+        ))
     });
 
-    // high level ops are never restricted
+    // intentions are never restricted
     rm_hl_op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
@@ -1046,7 +1052,6 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
     });
 
 
-    let ops = op_states.iter().map(|v| v.path().clone()).collect();
     let hl_ops = hl_op_states.iter().map(|v| v.path().clone()).collect();
 
     let mut all_vars = ts_model.vars.clone();
@@ -1067,9 +1072,9 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
         vec![],
         vec![tsm0, ts_model_op],
         model.all_resources().iter().map(|r| r.path().clone()).collect(),
-        ops,
         hl_ops,
-        replan_specs
+        replan_specs,
+        operations
     );
 
     runner.input(SPRunnerInput::NewPlan(0, SPPlan {
