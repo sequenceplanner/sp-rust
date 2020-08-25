@@ -60,7 +60,7 @@ fn runner(
 ) {
     let model = model.clone();
     thread::spawn(move || {
-        let mut runner = make_new_runner(&model, initial_state);
+        let mut runner = make_new_runner(&model, initial_state, false);
         let mut prev_goals: HashMap<usize,
                                     Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
         let mut store = planning::PlanningStore::default();
@@ -475,6 +475,19 @@ fn runner(
                     };
 
                     let plan_p = SPPath::from_slice(&["runner", "plans", &i.to_string()]);
+
+                    // hack to reset the user visible planning steps when we replan
+                    // because sp_ui cannot remove states anyway (TODO!), we set dummy values
+                    let statevals = runner.ticker.state.clone().extract();
+                    let filtered_state: Vec<_> = statevals.into_iter().map(|(p,v)| {
+                        if p.is_child_of(&plan_p) {
+                            let mut nv = v.clone(); nv.force("-".to_spvalue());
+                            (p, nv)
+                        } else {
+                            (p, v)
+                        }}).collect();
+                    runner.force_new_state(SPState::new_from_state_values(filtered_state.as_slice()));
+
                     let (tr, s) = if i == 1 {
                         planning::convert_planning_result_with_packing_heuristic(&ts, &planner_result, &plan_p)
                     } else {
@@ -502,6 +515,7 @@ fn runner(
                         for (op_path,goal) in &runner.operation_goals {
                             println!("checking low level operation: {} -- {:?}", op_path, goal);
                             println!("disabled ops {:?}", disabled_operations);
+                            if disabled_operations.contains(op_path) { continue; }
                             let goal = vec![(goal.clone(), None)];
                             let pr = planning::plan(&ts, goal.as_slice(), runner.state(), LVL0_MAX_STEPS);
                             if !pr.plan_found {
@@ -844,8 +858,7 @@ fn node_handler(
     });
 }
 
-// TODO: do we keep the old RunnerModel?
-fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
+pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_problems: bool) -> SPRunner {
     let ts_model = TransitionSystemModel::from(&model);
 
     // add global op transitions
@@ -887,67 +900,69 @@ fn make_new_runner(model: &Model, initial_state: SPState) -> SPRunner {
 
 
     // debug high level model
+
     let ts_model_op = TransitionSystemModel::from_op(&model);
-    crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
 
+    if generate_mc_problems {
+        crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
+        let inits: Vec<Predicate> = ts_model.specs.iter()
+            .filter_map(|s| if s.name() == "supervisor" {
+                Some(s.invariant().clone())
+            } else {
+                None
+            })
+            .collect();
 
-    let inits: Vec<Predicate> = ts_model.specs.iter()
-        .filter_map(|s| if s.name() == "supervisor" {
-            Some(s.invariant().clone())
-        } else {
-            None
-        })
-        .collect();
+        // we need to assume that we are in a state that adheres to the resources
+        let initial = Predicate::AND(inits);
 
-    // we need to assume that we are in a state that adheres to the resources
-    let initial = Predicate::AND(inits);
+        // debug low level model
+        let all_op_names = global_ops.iter().map(|o|o.name().to_string()).collect::<Vec<_>>();
+        global_ops.iter().for_each(|o| {
+            // here we should find all unctronllable actions that can
+            // modify the variables of GUARD and disallow them.
+            println!("CHECKING OP: {}", o.name());
+            let mut temp_ts_model = ts_model.clone();
 
-    // debug low level model
-    let all_op_names = global_ops.iter().map(|o|o.name().to_string()).collect::<Vec<_>>();
-    global_ops.iter().for_each(|o| {
-        // here we should find all unctronllable actions that can
-        // modify the variables of GUARD and disallow them.
-        println!("CHECKING OP: {}", o.name());
-        let mut temp_ts_model = ts_model.clone();
+            // remove "replan" spec
+            temp_ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
 
-        // remove "replan" spec
-        temp_ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
-
-        let mut new_invariants = vec![];
-        temp_ts_model.transitions.retain(|t| {
-            //if t.actions.len() > 0 && t.actions.iter().any(|a| no_change.contains(&a.var)) {
-            if t.name() != o.name() && all_op_names.contains(&t.name().to_string()) {
-                if let Some(op) = global_ops.iter().find(|oo|t.name()==oo.name()) {
-                    println!("FOR OP: {}, filtering transition: {}", o.name(), t.path());
-                    if !t.controlled() && op.fvg != Predicate::TRUE {
-                        // this also means we need to forbid this state!
-                        new_invariants.push(op.fvg.clone());
+            let mut new_invariants = vec![];
+            temp_ts_model.transitions.retain(|t| {
+                //if t.actions.len() > 0 && t.actions.iter().any(|a| no_change.contains(&a.var)) {
+                if t.name() != o.name() && all_op_names.contains(&t.name().to_string()) {
+                    if let Some(op) = global_ops.iter().find(|oo|t.name()==oo.name()) {
+                        println!("FOR OP: {}, filtering transition: {}", o.name(), t.path());
+                        if !t.controlled() && op.fvg != Predicate::TRUE {
+                            // this also means we need to forbid this state!
+                            new_invariants.push(op.fvg.clone());
+                        }
                     }
-                }
-                false
-            } else { true }
+                    false
+                } else { true }
+            });
+
+            let new_specs = new_invariants.iter().map(|p| {
+                let i = Predicate::NOT(Box::new(p.clone()));
+                println!("REFINING: {}", i);
+                let ri = refine_invariant(&temp_ts_model, &i);
+                Spec::new("extended", ri)
+            }).collect::<Vec<_>>();
+            temp_ts_model.specs.extend(new_specs);
+
+            // here we check if the operation has an assertion
+            // which is assumed to be fulfilled for nominal behavior
+            // (eg "resource not in failure mode")
+            let guard = if let Some(c) = o.fvc.as_ref() {
+                Predicate::AND(vec![o.guard.clone(), c.clone()])
+            } else {
+                o.guard.clone()
+            };
+            let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
+            temp_ts_model.name += &format!("_{}", o.name());
+            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial, &op);
         });
-
-        let new_specs = new_invariants.iter().map(|p| {
-            let i = Predicate::NOT(Box::new(p.clone()));
-            println!("REFINING: {}", i);
-            let ri = refine_invariant(&temp_ts_model, &i);
-            Spec::new("extended", ri)
-        }).collect::<Vec<_>>();
-        temp_ts_model.specs.extend(new_specs);
-
-        // here we check if the operation has an assertion
-        // which is assumed to be fulfilled for nominal behavior
-        // (eg "resource not in failure mode")
-        let guard = if let Some(c) = o.fvc.as_ref() {
-            Predicate::AND(vec![o.guard.clone(), c.clone()])
-        } else {
-            o.guard.clone()
-        };
-        let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
-        temp_ts_model.name += &format!("_{}", o.name());
-        crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial, &op);
-    });
+    }
 
     // old runner model as code here.
 

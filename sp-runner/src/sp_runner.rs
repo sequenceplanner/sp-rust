@@ -520,6 +520,7 @@ impl SPRunner {
         for op in &self.operations {
             let sp = op.state_variable().path();
             let is_running = res.0.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
+            let is_error = res.0.sp_value_from_path(sp).map(|v| v == &"error".to_spvalue()).unwrap_or(false);
             if is_running {
                 let goal = self.operation_goals.get(op.path()).unwrap_or(&Predicate::FALSE);
                 let spec = TransitionSpec::new(
@@ -530,7 +531,10 @@ impl SPRunner {
                 new_specs.push(spec);
             } else {
                 // clear goal
-                self.operation_goals.remove(op.path());
+                if !is_error {
+                    // when error, remember goal.
+                    self.operation_goals.remove(op.path());
+                }
 
                 // block finish
                 let spec = TransitionSpec::new(
