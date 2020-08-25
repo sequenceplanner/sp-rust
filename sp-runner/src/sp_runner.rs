@@ -165,7 +165,16 @@ impl SPRunner {
     /// For each planning level, get the current goal and respective invariant
     /// that runner tries to reach.
     pub fn goal(&mut self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
-        let low_level = self.operation_goals.values().map(|g| (g.clone(), None)).collect();
+        let low_level = self.operation_goals.iter().filter_map(|(op,g)| {
+            let op = self.operations.iter().find(|o| o.path() == op).unwrap();
+            let sp = op.state_variable().path();
+            let is_running = self.ticker.state.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
+            if is_running {
+                Some((g.clone(), None))
+            } else {
+                None
+            }
+        }).collect();
         let high_level = self.int_goal();
 
         vec![low_level, high_level]

@@ -1042,9 +1042,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
 
     let mut tsm0 = ts_model.clone();
     let replan_specs: Vec<Spec> = tsm0.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
-    tsm0.specs.retain(|s| {
-        println!("YYY: {}", s.path());
-        s.path().parent().leaf() != "replan_specs"});
+    tsm0.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
 
     let mut runner = SPRunner::new(
         "test",
