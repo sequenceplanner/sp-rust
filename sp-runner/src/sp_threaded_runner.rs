@@ -311,7 +311,7 @@ fn runner(
                 continue;
             }
 
-            println!("The State:\n{}", runner.state());
+            //println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -502,8 +502,8 @@ fn runner(
 
                     if no_plan && i == 0 {
                         // temp
-                        std::fs::copy("/tmp/last_planning_request.bmc",
-                                      "/tmp/last_failed_planning_request.bmc")
+                        std::fs::copy("./last_planning_request.bmc",
+                                      "./last_failed_planning_request.bmc")
                             .expect("file copy failed");
                         // no low level plan found, we are in trouble.
 
