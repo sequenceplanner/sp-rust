@@ -2,6 +2,9 @@ use guard_extraction::*;
 use sp_domain::*;
 use std::collections::HashMap;
 
+mod transition_system_model;
+pub use transition_system_model::*;
+
 pub struct FormalContext {
     pub context: Context,
     var_map: HashMap<SPPath, (usize, Variable)>,

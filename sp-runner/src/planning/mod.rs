@@ -36,6 +36,7 @@ pub use sat_planner::*;
 mod algorithms;
 pub use algorithms::*;
 
+use crate::formal_model::*;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 struct PlannerRequestKey {

@@ -48,6 +48,8 @@ pub fn convert_planning_result(
     let mut tr = vec![];
     let mut i = 0;
 
+    let mut plan_visualization = vec![];
+
     // trace[0] is always the initial state.
     let mut cur_state: &SPState = &res.trace[0].state;
     let mut last_ctrl_state: Option<&SPState> = Some(cur_state);
@@ -92,6 +94,13 @@ pub fn convert_planning_result(
 
             last_ctrl_state = Some(cur_state);
             i += 1;
+
+            // add counter+transition for ui purposes. we do it after incrementing
+            // to make it easier to see where in the plan we are as we increment
+            // it as soon as an operation is started.
+            let np = plan_counter.clone().add_child(&format!("{:0>2}", i));
+            let val = pf.transition.clone().to_string().to_spvalue();
+            plan_visualization.push((np,val));
         }
         cur_state = &pf.state;
     }
@@ -117,7 +126,10 @@ pub fn convert_planning_result(
     in_plan.iter().for_each(|x| println!("{}", x));
     println!();
 
-    (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
+    let mut new_state = plan_visualization;
+    new_state.push((plan_counter.clone(), 0.to_spvalue()));
+
+    (tr, SPState::new_from_values(new_state.as_slice()))
 }
 
 
@@ -179,6 +191,8 @@ pub fn convert_planning_result_with_packing_heuristic(
 
     starts.sort_by(|&(x0, y0, _), &(x1, y1, _)| y0.cmp(&y1).then(x0.cmp(&x1)));
 
+    let mut plan_visualization = vec![];
+
     let mut counter = 0;
     for (idx, high_dep, intersections) in starts {
         let current = &res.trace[idx];
@@ -225,7 +239,15 @@ pub fn convert_planning_result_with_packing_heuristic(
             st,
             vec![res.trace[idx].transition.clone()],
         ));
+
         counter+=1;
+
+        // add counter+transition for ui purposes. we do it after incrementing
+        // to make it easier to see where in the plan we are as we increment
+        // it as soon as an operation is started.
+        let np = plan_counter.clone().add_child(&format!("{:0>2}", counter));
+        let val = res.trace[idx].transition.clone().to_string().to_spvalue();
+        plan_visualization.push((np,val));
     };
 
     let blocked: Vec<TransitionSpec> = model.transitions
@@ -249,7 +271,10 @@ pub fn convert_planning_result_with_packing_heuristic(
     in_plan.iter().for_each(|x| println!("{}", x));
     println!();
 
-    (tr, SPState::new_from_values(&[(plan_counter.clone(), 0.to_spvalue())]))
+    let mut new_state = plan_visualization;
+    new_state.push((plan_counter.clone(), 0.to_spvalue()));
+
+    (tr, SPState::new_from_values(new_state.as_slice()))
 }
 
 // create a planning result based on an initial state and a sequence

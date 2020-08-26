@@ -3,51 +3,6 @@ use serde::{Deserialize, Serialize};
 use sp_domain::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct RunnerModel {
-    // temporary!
-    pub hl_op_transitions: RunnerTransitions,
-
-    pub op_transitions: RunnerTransitions,
-    pub ab_transitions: RunnerTransitions,
-    pub plans: RunnerPlans,
-    pub state_predicates: Vec<Variable>,
-
-    // temporary!
-    pub goals: Vec<IfThen>,
-    pub hl_goals: Vec<IfThen>,
-
-    // temporary!
-    pub model: TransitionSystemModel,
-    pub op_model: TransitionSystemModel,
-
-    // temporary!
-    pub op_states: Vec<Variable>,
-    pub hl_op_states: Vec<Variable>,
-}
-
-impl RunnerModel {
-    pub fn upd_state_paths(&mut self, state: &SPState) {
-        // TODO. Add all other actions, preds etc...
-        self.op_transitions
-            .ctrl
-            .iter_mut()
-            .for_each(|t| t.upd_state_path(state));
-        self.op_transitions
-            .un_ctrl
-            .iter_mut()
-            .for_each(|t| t.upd_state_path(state));
-        self.ab_transitions
-            .ctrl
-            .iter_mut()
-            .for_each(|t| t.upd_state_path(state));
-        self.ab_transitions
-            .un_ctrl
-            .iter_mut()
-            .for_each(|t| t.upd_state_path(state));
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AbPlanItem {
     pub transition: SPPath,
     pub guard: Predicate,

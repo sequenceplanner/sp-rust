@@ -2,6 +2,8 @@
 
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
+use crate::formal_model::*;
+use std::collections::HashMap;
 
 /// The SPRunner that keep tracks of the state and the transition execution
 /// When using the runner, call the input method on every state change and probably
@@ -12,16 +14,17 @@ pub struct SPRunner {
     pub ticker: SPTicker,
     pub variables: Vec<Variable>,
     pub predicates: Vec<Variable>,
-    pub goals: Vec<Vec<IfThen>>,
+    pub intention_goals: Vec<IfThen>,
     pub global_transition_specs: Vec<TransitionSpec>,
     pub plans: Vec<SPPlan>, // one plan per namespace
     pub last_fired_transitions: Vec<SPPath>,
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub in_sync: bool,
     pub resources: Vec<SPPath>,
-    pub operation_states: Vec<SPPath>,
     pub hl_operation_states: Vec<SPPath>,
-    pub replan_specs: Vec<Spec>
+    pub replan_specs: Vec<Spec>,
+    pub operations: Vec<Operation>,
+    pub operation_goals: HashMap<SPPath,Predicate>, // todo: move to the state
 }
 
 /// The input to the runner.
@@ -60,14 +63,14 @@ impl SPRunner {
         name: &str,
         transitions: Vec<Transition>,
         variables: Vec<Variable>,
-        goals: Vec<Vec<IfThen>>, // for now its just a list
+        intention_goals: Vec<IfThen>,
         global_transition_specs: Vec<TransitionSpec>,
         forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
         resources: Vec<SPPath>,
-        operation_states: Vec<SPPath>,
         hl_operation_states: Vec<SPPath>,
-        replan_specs: Vec<Spec>
+        replan_specs: Vec<Spec>,
+        operations: Vec<Operation>,
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -107,16 +110,17 @@ impl SPRunner {
             ticker,
             variables: vars,
             predicates: preds,
-            goals,
+            intention_goals,
             global_transition_specs,
             plans: vec![SPPlan::default(); 2],
             last_fired_transitions: vec![],
             transition_system_models,
             in_sync: false,
             resources,
-            operation_states,
             hl_operation_states,
-            replan_specs
+            replan_specs,
+            operations,
+            operation_goals: HashMap::new(),
         }
     }
 
@@ -161,7 +165,16 @@ impl SPRunner {
     /// For each planning level, get the current goal and respective invariant
     /// that runner tries to reach.
     pub fn goal(&mut self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
-        let low_level = self.op_goal();
+        let low_level = self.operation_goals.iter().filter_map(|(op,g)| {
+            let op = self.operations.iter().find(|o| o.path() == op).unwrap();
+            let sp = op.state_variable().path();
+            let is_running = self.ticker.state.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
+            if is_running {
+                Some((g.clone(), None))
+            } else {
+                None
+            }
+        }).collect();
         let high_level = self.int_goal();
 
         vec![low_level, high_level]
@@ -169,44 +182,10 @@ impl SPRunner {
 
     /// Currently we don't perform any concretization on the high level
     pub fn int_goal(&self) -> Vec<(Predicate, Option<Predicate>)> {
-        self.goals[1].iter()
+        self.intention_goals.iter()
             .filter(|g| g.condition.eval(&self.ticker.state))
             .map(|x| (x.goal.clone(), x.invariant.clone()))
             .collect()
-    }
-
-    /// For the operation planning level hack it...
-    /// this function remakes the goal and finish condition on the fly
-    pub fn op_goal(&mut self) -> Vec<(Predicate, Option<Predicate>)> {
-        let gs: Vec<IfThen> = self.goals[0].iter().filter(|g| g.condition.eval(&self.ticker.state)).cloned().collect();
-        let mut result = Vec::new();
-        for g in gs {
-            let goal =
-                if let Some(actions) = &g.actions {
-                    if actions.is_empty() {
-                        g.goal.clone()
-                    } else {
-                        Predicate::AND(actions.iter().map(|a| a.to_concrete_predicate(&self.ticker.state).expect("weird goal")).collect())
-                    }
-            } else {
-                Predicate::FALSE
-            };
-            if let Predicate::EQ(PredicateValue::SPPath(p, _), _) = &g.condition {
-                let op_name = p.parent().leaf();
-                if op_name == "SOP" {
-                    continue;
-                }
-
-
-                let op_finish = p.parent().add_child("finish");
-                let mut ft = self.ticker.transitions.iter().find(|t| t.path() == &op_finish).expect("missing op trans").clone();
-                ft.guard = Predicate::AND(vec![p!(p: p == "e"), goal.clone()]);
-                self.ticker.transitions.retain(|t| t.path() != &op_finish);
-                self.ticker.transitions.push(ft);
-            }
-            result.push((goal, None))
-        }
-        result
     }
 
     pub fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
@@ -300,16 +279,16 @@ impl SPRunner {
         // first apply all effects that we are waiting
         // on for executing operations.
         let running = state.projection().state.iter()
-            .filter_map(|(k,v)|
-                        if self.operation_states.contains(k) && v.current_value() == &"e".to_spvalue() {
-                            Some(k.clone())
-                        } else {
-                            None
-                        }
-                ).cloned().collect::<Vec<SPPath>>();
-        let ok = running.iter().all(|k| {
-            let k = k.parent().add_child("start");
-            let t = ts_model.transitions.iter().find(|t| t.path() == &k); // .unwrap();
+            .filter_map(|(k,v)| {
+                if v.current_value() != &"e".to_spvalue() {
+                    return None
+                }
+
+                self.operations.iter().find(|op| &op.state_variable().path() == k)
+            }).collect::<Vec<&Operation>>();
+        let ok = running.iter().all(|op| {
+            let tp = op.runner_start.path();
+            let t = ts_model.transitions.iter().find(|t| t.path() == tp);
             if t.is_none() {
                 true
             } else {
@@ -518,7 +497,71 @@ impl SPRunner {
         }
 
         let res = self.ticker.tick_transitions();
+
+        let mut new_state = vec![];
+        // check if we started any operations.
+        for taken in &res.1 {
+            for o in &self.operations {
+                if o.runner_start.path() == taken {
+                    println!("ZZZ OPERTION STARTED: {}", o.path().clone());
+                    // we need to update the goal and postcond.
+
+                    let goal = Predicate::AND(
+                        o.effects
+                            .iter()
+                            .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
+                            .collect());
+
+                    let goal_sp_val = goal.to_string().to_spvalue();
+                    let goal_path = o.path().clone().add_child("goal");
+                    new_state.push((goal_path, goal_sp_val));
+
+                    self.operation_goals.insert(o.path().clone(), goal);
+                }
+            }
+        }
+
+
+        let new_state = SPState::new_from_values(&new_state);
+
+        // update operation specs and clean goals
+        let mut new_specs = Vec::new();
+        for op in &self.operations {
+            let sp = op.state_variable().path();
+            let is_running = res.0.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
+            let is_error = res.0.sp_value_from_path(sp).map(|v| v == &"error".to_spvalue()).unwrap_or(false);
+            if is_running {
+                let goal = self.operation_goals.get(op.path()).unwrap_or(&Predicate::FALSE);
+                let spec = TransitionSpec::new(
+                    &format!("{}_post", op.path()),
+                    Transition::new("post", goal.clone(), vec![], vec![], true),
+                    vec![op.runner_finish.path().clone()],
+                );
+                new_specs.push(spec);
+            } else {
+                // clear goal
+                if !is_error {
+                    // when error, remember goal.
+                    self.operation_goals.remove(op.path());
+                }
+
+                // block finish
+                let spec = TransitionSpec::new(
+                    &format!("{}_post", op.path()),
+                    Transition::new("post", Predicate::FALSE, vec![], vec![], true),
+                    vec![op.runner_finish.path().clone()],
+                );
+                new_specs.push(spec);
+            }
+        }
+        // temp: using this field for now as its not used for anything else...
+        // make one for operations later.
+        self.global_transition_specs = new_specs;
+
         self.last_fired_transitions = res.1;
+
+        self.load_plans(); // only here to update ticker specs. do it better later
+        self.update_state_variables(new_state); // show goals in the state.
     }
 
     fn load_plans(&mut self) {
@@ -533,10 +576,8 @@ impl SPRunner {
         println!("RELOAD STATE PATHS");
         self.ticker.reload_state_paths();
         self.reload_state_paths_plans();
-        for x in self.goals.iter_mut() {
-            for y in x {
-                y.upd_state_path(&self.ticker.state)
-            }
+        for x in self.intention_goals.iter_mut() {
+            x.upd_state_path(&self.ticker.state)
         }
         for x in self.global_transition_specs.iter_mut() {
             x.spec_transition.upd_state_path(&self.ticker.state)
