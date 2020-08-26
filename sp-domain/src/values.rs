@@ -12,7 +12,7 @@ pub enum SPValue {
     Float32(f32),
     Int32(i32),
     String(String),
-    Time(std::time::SystemTime, Option<(u32, super::SPPath)>), // time, optional time out in ms and path to action
+    Time(std::time::SystemTime), 
     Path(super::SPPath),
     Array(SPValueType, Vec<SPValue>),
     Unknown,
@@ -55,7 +55,7 @@ impl SPValue {
             SPValue::Float32(_) => SPValueType::Float32 == t,
             SPValue::Int32(_) => SPValueType::Int32 == t,
             SPValue::String(_) => SPValueType::String == t,
-            SPValue::Time(_, _) => SPValueType::Time == t,
+            SPValue::Time(_) => SPValueType::Time == t,
             SPValue::Path(_) => SPValueType::Path == t,
             SPValue::Array(at, _) => at == &t,
             SPValue::Unknown => SPValueType::Unknown == t,
@@ -75,7 +75,7 @@ impl SPValue {
             SPValue::Float32(_) => SPValueType::Float32,
             SPValue::Int32(_) => SPValueType::Int32,
             SPValue::String(_) => SPValueType::String,
-            SPValue::Time(_, _) => SPValueType::Time,
+            SPValue::Time(_) => SPValueType::Time,
             SPValue::Path(_) => SPValueType::Path,
             SPValue::Array(t, _) => *t,
             SPValue::Unknown => SPValueType::Unknown,
@@ -153,13 +153,7 @@ impl fmt::Display for SPValue {
             SPValue::Float32(f) => write!(fmtr, "{}", f),
             SPValue::Int32(i) => write!(fmtr, "{}", i),
             SPValue::String(s) => write!(fmtr, "{}", s),
-            SPValue::Time(t, time_out_ms) => {
-                if let Some(ms) = time_out_ms {
-                    write!(fmtr, "time: {:?}, time out: {}ms", t, ms.0)
-                } else {
-                    write!(fmtr, "{:?}", t)
-                }
-            },
+            SPValue::Time(t) => write!(fmtr, "time: {:?}", t),
             SPValue::Path(d) => write!(fmtr, "{:?}", d),
             SPValue::Array(_, a) => write!(fmtr, "{:?}", a),
             SPValue::Unknown => write!(fmtr, "[unknown]"),

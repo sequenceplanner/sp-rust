@@ -1,12 +1,13 @@
 use crate::planning::*;
-use chrono::offset::Local;
-use chrono::DateTime;
+// use chrono::offset::Local;
+// use chrono::DateTime;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
-use std::time::{Instant, SystemTime};
+use std::time::{Instant};
+// use std::time::{SystemTime};
 use std::time::Duration;
 
 mod nuxmv_async;
@@ -32,13 +33,7 @@ impl fmt::Display for NuXMVValue<'_> {
             SPValue::Float32(f) => write!(fmtr, "{}", f),
             SPValue::Int32(i) => write!(fmtr, "{}", i),
             SPValue::String(s) => write!(fmtr, "{}", s),
-            SPValue::Time(t, time_out_ms) => {
-                if let Some(ms) = time_out_ms {
-                    write!(fmtr, "time: {:?}, time out: {}ms", t, ms.0)
-                } else {
-                    write!(fmtr, "{:?}", t)
-                }
-            },
+            SPValue::Time(t) => write!(fmtr, "time: {:?}", t),
             SPValue::Path(d) => write!(fmtr, "{:?}", d),
             SPValue::Array(_at, a) => write!(fmtr, "{:?}", a),
             SPValue::Unknown => write!(fmtr, "SPUNKNOWN"),
@@ -243,7 +238,7 @@ pub fn plan_async(
 ) -> PlanningResult {
     let lines = create_nuxmv_problem(&model, &goals, &state);
 
-    let datetime: DateTime<Local> = SystemTime::now().into();
+    //let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
     // or maybe just output to a subfolder 'plans'
     // let filename = &format!("/tmp/async_planner {}.bmc", datetime);
@@ -436,7 +431,7 @@ impl Planner for NuXmvPlanner {
     ) -> PlanningResult {
         let lines = create_nuxmv_problem(&model, &goals, &state);
 
-        let datetime: DateTime<Local> = SystemTime::now().into();
+        //let datetime: DateTime<Local> = SystemTime::now().into();
         // todo: use non platform way of getting temporary folder
         // or maybe just output to a subfolder 'plans'
         //let filename = &format!("/tmp/planner {}.bmc", datetime);
@@ -544,7 +539,7 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
 pub fn generate_offline_nuxvm_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)]) {
     let lines = create_nuxmv_problem_ctl(&model, initial, ops);
 
-    let datetime: DateTime<Local> = SystemTime::now().into();
+    //let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
     // or maybe just output to a subfolder 'plans'
     // let filename = &format!("/tmp/model_out_{} {}.bmc", model.name, datetime);
@@ -559,7 +554,7 @@ pub fn generate_offline_nuxvm_ctl(model: &TransitionSystemModel, initial: &Predi
 pub fn generate_offline_nuxvm(model: &TransitionSystemModel, initial: &Predicate) {
     let lines = create_offline_nuxmv_problem(&model, initial);
 
-    let datetime: DateTime<Local> = SystemTime::now().into();
+    //let datetime: DateTime<Local> = SystemTime::now().into();
     // todo: use non platform way of getting temporary folder
     // or maybe just output to a subfolder 'plans'
     // let filename = &format!("/tmp/model_out_{} {}.bmc", model.name, datetime);
