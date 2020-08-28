@@ -43,7 +43,7 @@ struct GOperation {
 pub struct GModel {
     model: Model,
     initial_state: SPState,
-    products: Vec<SPPath>,
+    resource_products: Vec<SPPath>,
 }
 
 impl GModel {
@@ -51,7 +51,7 @@ impl GModel {
         GModel {
             model: Model::new_root(name, Vec::new()),
             initial_state: SPState::new(),
-            products: Vec::new(),
+            resource_products: Vec::new(),
         }
     }
 
@@ -122,6 +122,20 @@ impl GModel {
         }
     }
 
+    /// This makes a "low level" variable usable also in the
+    /// operation model.
+    pub fn make_product_var(&mut self, var: &SPPath) {
+        self.resource_products.push(var.clone());
+        let mut var = self.model.get(var)
+            .expect(&format!("trying to make product var of var: {} which does not exist", var))
+            .as_variable().expect(&format!("trying to make product var of var: {} which was not a variable", var));
+        // hack to store a path as a name...
+        let path = var.path().to_string();
+        var.node_mut().update_name(&path);
+        *var.node_mut().path_mut() = SPPath::new();
+        self.add_sub_item("resource_products", SPItem::Variable(var));
+    }
+
     pub fn add_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
         let trans = Transition::new(
             name,
@@ -141,6 +155,17 @@ impl GModel {
     pub fn add_effect(&mut self, name: &str, guard: &Predicate, effects: &[Action]) {
         let trans = Transition::new(name, guard.clone(), vec![], effects.to_vec(), false);
         self.model.add_item(SPItem::Transition(trans));
+    }
+
+    pub fn add_runner_transition(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            actions.to_vec(),
+            vec![], // no effects
+            false,  // always auto!
+        );
+        self.add_sub_item("runner_transitions", SPItem::Transition(trans));
     }
 
     pub fn add_simulation_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
@@ -183,23 +208,26 @@ impl GModel {
         let pre = Predicate::AND(vec![guard.clone(), goal.clone()]);
         let mut act = effects.to_vec();
         act.extend(post_actions.iter().cloned());
+        act.retain(|a| !self.resource_products.iter().any(|p|p==&a.var));
         // add a new low level transition. goal // effects
-        if auto {
+        if !act.is_empty() {
+            if auto {
 
-            // it is important to realize that we cannot freely change
-            // the goals of the high level when we are in this state
-            // or any other state from which this state can
-            // uncontrollably be reached. so we also create a spec here
-            let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
-            self.add_sub_item("replan_specs", SPItem::Spec(spec));
+                // it is important to realize that we cannot freely change
+                // the goals of the high level when we are in this state
+                // or any other state from which this state can
+                // uncontrollably be reached. so we also create a spec here
+                let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
+                self.add_sub_item("replan_specs", SPItem::Spec(spec));
 
-            self.add_auto(name, &pre, &act);
-        } else {
+                self.add_auto(name, &pre, &act);
+            } else {
 
-            // in this case it's fine (compare spec above) as the
-            // variables are not changed uncontrollably.
+                // in this case it's fine (compare spec above) as the
+                // variables are not changed uncontrollably.
 
-            self.add_delib(name, &pre, &act);
+                self.add_delib(name, &pre, &act);
+            }
         }
 
         if goal == &Predicate::TRUE {

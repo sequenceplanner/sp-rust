@@ -325,12 +325,6 @@ impl SPItemUnwrapper for SPItemRef<'_> {
     }
 }
 
-impl SPItemUnwrapper for Option<SPItemRef<'_>> {
-    fn item(&self) -> SPItem {
-        self.clone().unwrap().item()
-    }
-}
-
 impl SPItemUnwrapper for SPItem {
     fn item(&self) -> SPItem {
         self.clone()
@@ -1535,6 +1529,16 @@ impl Operation {
         let planning_trans = Transition::new("planning",guard.clone(),
                                              vec![],effects.to_vec(),true);
 
+        // TODO: does not handle the case where we have mixed resource
+        // and product states. perhaps we should not allow that anyway.
+        let x = guard.support();
+        let fvg = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
+            goal.clone()
+        } else {
+            Predicate::AND(vec![guard.clone(), goal.clone()])
+        };
+
+
         Operation {
             node,
 
@@ -1549,7 +1553,7 @@ impl Operation {
             runner_finish,
 
             state_variable,
-            fvg: Predicate::AND(vec![guard.clone(), goal.clone()]),
+            fvg,
             fvc,
         }
     }

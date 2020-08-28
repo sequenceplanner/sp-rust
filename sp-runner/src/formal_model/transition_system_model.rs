@@ -81,7 +81,9 @@ impl TransitionSystemModel {
         // recursively collect sub-models
         model.items.iter().flat_map(|i| match i {
             SPItem::Model(m)
-                if m.name() != "operations" => Some(TransitionSystemModel::from(&m)),
+                if m.name() != "operations" &&
+                m.name() != "resource_products" &&
+                m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
             _ => None
         }).for_each(|tsm| {
             vars.extend(tsm.vars);
@@ -198,30 +200,49 @@ impl TransitionSystemModel {
     }
 
     pub fn from_op(model: &Model) -> Self {
-        let vars: Vec<Variable> =
+        let mut rps: Vec<Variable> = model.find_item("resource_products",&[])
+            .and_then(|m| m
+                 .as_model()
+                 .map(|m| m.items.iter().flat_map(|i| match i {
+                     SPItem::Variable(s) => Some(s.clone()),
+                     _ => None,
+                 }).collect())).unwrap_or(vec![]);
+
+        for rp in &mut rps {
+            // terrible hacks. we use the name to store a path...
+            let new_path = SPPath::from_string(rp.node().name());
+            // then we forcefully update the path to reflect the one stored in the name.
+            *rp.node_mut().path_mut() = new_path;
+        }
+
+        let mut vars: Vec<Variable> =
             model.find_item("product_state",&[])
-            .as_model()
-            .map(|m| m.items.iter().flat_map(|i| match i {
-                SPItem::Variable(s) => Some(s.clone()),
-                _ => None,
-            }).collect()).unwrap_or(vec![]);
+            .and_then(|m| m
+                      .as_model()
+                      .map(|m| m.items.iter().flat_map(|i| match i {
+                          SPItem::Variable(s) => Some(s.clone()),
+                          _ => None,
+                      }).collect())).unwrap_or(vec![]);
+
+        vars.extend(rps);
 
         let transitions: Vec<Transition> =
             model.find_item("operations",&[])
-            .as_model()
-            .map(|m| m
-                 .items().iter().flat_map(|i| match i {
-                     // operations represented by a single transition
-                     SPItem::Operation(o) => {
-                         let mut t = o.planning_trans.clone();
-                         t.node_mut().update_name("start");
-                         Some(t)
-                     },
-                     // "auto planning" transitions. these exist only in the planning world
-                     SPItem::Transition(t) => Some(t.clone()),
-                     _ => None,
-                 })
-                 .collect()).unwrap_or(vec![]);
+            .and_then(|m| m
+                      .as_model()
+                      .map(|m| m
+                           .items().iter().flat_map(|i| match i {
+                               // operations represented by a single transition
+                               SPItem::Operation(o) => {
+                                   let mut t = o.planning_trans.clone();
+                                   t.node_mut().update_name("start");
+                                   Some(t)
+                               },
+                               // "auto planning" transitions. these exist only in the planning world
+                               SPItem::Transition(t) => Some(t.clone()),
+                               _ => None,
+                           })
+                           .collect())).unwrap_or(vec![]);
 
         TransitionSystemModel {
             name: format!("op_model_{}", model.name()),

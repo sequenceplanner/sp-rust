@@ -440,7 +440,9 @@ fn runner(
                         let mut pr = if runner.ticker.state.sp_value_from_path(&mono).unwrap_or(&false.to_spvalue()) == &true.to_spvalue() {
                             let modifies: HashSet<SPPath> = goals.iter().map(|(a,_)|a.support()).flatten().collect();
                             let ts_1 = &runner.transition_system_models[1];
-                            let all: HashSet<SPPath> = ts_1.vars.iter().map(|v|v.path().clone()).collect();
+                            let mut all: HashSet<SPPath> = ts_1.vars.iter().map(|v|v.path().clone()).collect();
+                            // HACK below!
+                            all.retain(|p| p.path.contains(&"product_state".to_string()));
                             let no_change: HashSet<&SPPath> = all.difference(&modifies).collect();
                             let no_change_spec: Predicate = Predicate::AND(no_change.iter().flat_map(|p| {
                                 runner.state().sp_value_from_path(p)
@@ -448,8 +450,9 @@ fn runner(
                                          Predicate::EQ(PredicateValue::SPPath((*p).clone(), None),
                                                        PredicateValue::SPValue(val.clone())))
                             }).collect());
-                            // let mut goals = goals.clone();
-                            // goals.push((no_change_spec, None));
+                            // TODO: these specs should really be extended to include any auto trans which can change them.
+                            // the extending should be computed whenever the model changes
+                            // this is temporary.
                             let mut tts = ts.clone();
                             tts.specs.push(Spec::new("om", no_change_spec));
 
