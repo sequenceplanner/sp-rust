@@ -102,10 +102,20 @@ impl SPValue {
             SPValueType::Float32 => {
                 (json.as_f64().unwrap_or_else(|| panic!(tm("float"))) as f32).to_spvalue()
             }
-            SPValueType::String => json
+            SPValueType::String => {
+                json
                 .as_str()
                 .unwrap_or_else(|| panic!(tm("string")))
-                .to_spvalue(),
+                .to_spvalue()
+            }
+            SPValueType::Time => {
+                let t: std::time::SystemTime = serde_json::from_value(json.clone()).expect(&tm("time"));
+                SPValue::Time(t)
+            }
+            SPValueType::Path => {
+                let p: super::SPPath = serde_json::from_value(json.clone()).expect(&tm("path"));
+                SPValue::Path(p)
+            }
             // todo: check is_array
             _ => unimplemented!("TODO {:?}", spv_t),
         }
@@ -117,6 +127,8 @@ impl SPValue {
             SPValue::Int32(x) => serde_json::json!(*x),
             SPValue::Float32(x) => serde_json::json!(*x),
             SPValue::String(x) => serde_json::json!(x),
+            SPValue::Time(x) => serde_json::json!(x),
+            SPValue::Path(x) => serde_json::json!(x),
             SPValue::Array(_, x) => {
                 let v: Vec<serde_json::Value> = x.iter().map(|spval| spval.to_json()).collect();
                 serde_json::json!(v)
@@ -153,8 +165,8 @@ impl fmt::Display for SPValue {
             SPValue::Float32(f) => write!(fmtr, "{}", f),
             SPValue::Int32(i) => write!(fmtr, "{}", i),
             SPValue::String(s) => write!(fmtr, "{}", s),
-            SPValue::Time(t) => write!(fmtr, "time: {:?}", t),
-            SPValue::Path(d) => write!(fmtr, "{:?}", d),
+            SPValue::Time(t) => write!(fmtr, "Time({:?} ago)", t.elapsed().unwrap_or_default()),
+            SPValue::Path(d) => write!(fmtr, "{}", d),
             SPValue::Array(_, a) => write!(fmtr, "{:?}", a),
             SPValue::Unknown => write!(fmtr, "[unknown]"),
         }
@@ -172,21 +184,6 @@ impl ToSPValue for f32 {
         SPValue::Float32(*self)
     }
 }
-// impl ToSPValue for f64 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Float64(*self)
-//     }
-// }
-// impl ToSPValue for i8 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Int8(*self)
-//     }
-// }
-// impl ToSPValue for i16 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Int16(*self)
-//     }
-// }
 impl ToSPValue for i32 {
     fn to_spvalue(&self) -> SPValue {
         SPValue::Int32(*self)
@@ -197,31 +194,7 @@ impl ToSPValue for usize {
         SPValue::Int32(*self as i32)
     }
 }
-// impl ToSPValue for i64 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Int64(*self)
-//     }
-// }
-// impl ToSPValue for u8 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint8(*self)
-//     }
-// }
-// impl ToSPValue for u16 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint16(*self)
-//     }
-// }
-// impl ToSPValue for u32 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint32(*self)
-//     }
-// }
-// impl ToSPValue for u64 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint64(*self)
-//     }
-// }
+
 impl ToSPValue for String {
     fn to_spvalue(&self) -> SPValue {
         SPValue::String(self.clone())
@@ -232,11 +205,17 @@ impl ToSPValue for &str {
         SPValue::String((*self).to_string())
     }
 }
-// impl ToSPValue for Uuid {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::ID(*self)
-//     }
-// }
+impl ToSPValue for super::SPPath {
+    fn to_spvalue(&self) -> SPValue {
+        SPValue::Path(self.clone())
+    }
+}
+impl ToSPValue for std::time::SystemTime {
+    fn to_spvalue(&self) -> SPValue {
+        SPValue::Time(*self)
+    }
+}
+
 impl<T> ToSPValue for Vec<T>
 where
     T: ToSPValue,
