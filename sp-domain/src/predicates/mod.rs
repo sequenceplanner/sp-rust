@@ -156,10 +156,10 @@ impl fmt::Display for Predicate {
                 format!("{} != {}", x, y)
             }
             Predicate::TON(t, d) => {
-                format!{"TON(t:{}, d:{}", t, d}
+                format!{"TON(t:{} d:{})", t, d}
             }
             Predicate::TOFF(t, d) => {
-                format!{"TOFF(t:{}, d:{}", t, d}
+                format!{"TOFF(t:{} d:{})", t, d}
             }
         };
 
@@ -516,7 +516,7 @@ impl NextAction for Action {
                 res.to_spvalue()
             },
             Compute::Function(xs) => {
-                let res = xs.iter().find(|(p, v)| p.eval(state)).map(|(p, v)| v.sp_value(state)).flatten();
+                let res = xs.iter().find(|(p, _)| p.eval(state)).map(|(_, v)| v.sp_value(state)).flatten();
                 match res {
                     Some(x) => {
                         println!("Found function value! {}", x);
@@ -702,6 +702,21 @@ macro_rules! p {
         )
     }};
 
+    // TON predicate where t is the path to the timestamp and d the delay in ms
+    (TON(t:$timer:ident d:$delay:ident)) => {{
+        Predicate::TON(
+            PredicateValue::SPPath($timer.clone(), None),
+            PredicateValue::SPPath($delay.clone(), None),
+        )
+    }};
+    // TOFF predicate where t is the path to the timestamp and d the delay in ms
+    (TOFF(t:$timer:ident d:$delay:ident)) => {{
+        Predicate::TOFF(
+            PredicateValue::SPPath($timer.clone(), None),
+            PredicateValue::SPPath($delay.clone(), None),
+        )
+    }};
+
 }
 
 #[macro_export]
@@ -837,6 +852,23 @@ mod sp_value_test {
     }
 
     #[test]
+    fn macro_pred() {
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let ac = SPPath::from_slice(&["a", "c"]);
+        let kl = SPPath::from_slice(&["k", "l"]);
+
+        p!( [ p:ab] && [p:ac] && [p:kl ]);
+        p!( [ !p:ab] && [p:ac] && [p:kl ]);
+        p!( [[ !p:ab] && [p:ac]] || [p:kl ]);
+        p!( [[ !p:ab] && [p:ac]] => [p:kl ]);
+        p!( [[ !p:ab] && [p:ac]] => [p:kl ]);
+
+        let p = p!(TON(t:ab d:ac));
+        println!("{}", p);
+
+    }
+
+    #[test]
     fn eval_pred() {
         let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
         let v = SPPath::from_slice(&["a", "b"]);
@@ -955,7 +987,7 @@ mod sp_value_test {
 
 
     #[test]
-    fn TON_TOFF_testing() {
+    fn ton_toff_predicate_testing() {
         let ab = SPPath::from_slice(&["a", "b"]);
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
@@ -981,7 +1013,7 @@ mod sp_value_test {
     }
 
     #[test]
-    fn TimeStamp_testing() {
+    fn timestamp_testing() {
         let ab = SPPath::from_slice(&["a", "b"]);
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
@@ -1027,14 +1059,14 @@ mod sp_value_test {
 
         println!{"{}", &s};
         println!();
-        a.next(&mut s);
+        a.next(&mut s).unwrap();
         s.take_transition();
         println!{"{}", s};
         println!();
         
-        a2.next(&mut s);
+        a2.next(&mut s).unwrap();
         s.take_transition();
-        a.next(&mut s);
+        a.next(&mut s).unwrap();
         s.take_transition();
         println!{"{}", s};
         println!();
@@ -1044,7 +1076,7 @@ mod sp_value_test {
         std::thread::sleep(std::time::Duration::from_millis(20));
         
         println!{"{}", p1.eval(&s)};
-        a.next(&mut s);
+        a.next(&mut s).unwrap();
         s.take_transition();
         println!{"a2: {}", &s};
         

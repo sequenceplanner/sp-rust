@@ -47,48 +47,28 @@ impl fmt::Display for NuXMVPredicate<'_> {
     fn fmt<'a>(&'a self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s: String = match &self.0 {
             Predicate::AND(x) => {
-                let children: Vec<_> = x
-                    .iter()
-                    .map(|p| format!("{}", NuXMVPredicate(&p)))
-                    .collect();
-                // assert!(!children.is_empty());
-                format!("( {} )", children.join("&"))
+                let children: Vec<_> = x.iter().map(|p| format!("{}", p)).collect();
+                format!("({})", children.join(" && "))
             }
             Predicate::OR(x) => {
-                let children: Vec<_> = x
-                    .iter()
-                    .map(|p| format!("{}", NuXMVPredicate(&p)))
-                    .collect();
-                // assert!(!children.is_empty());
-                format!("( {} )", children.join("|"))
+                let children: Vec<_> = x.iter().map(|p| format!("{}", p)).collect();
+                format!("({})", children.join(" || "))
             }
             Predicate::XOR(_) => "TODO".into(), // remove from pred?
-            Predicate::NOT(p) => format!("!({})", NuXMVPredicate(&p)),
+            Predicate::NOT(p) => format!("!({})", p),
             Predicate::TRUE => "TRUE".into(),
             Predicate::FALSE => "FALSE".into(),
             Predicate::EQ(x, y) => {
-                let xx = match x {
-                    PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p, _) => format!("{}", NuXMVPath(p)),
-                };
-                let yy = match y {
-                    PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p, _) => format!("{}", NuXMVPath(p)),
-                };
-
-                format!("( {} = {} )", xx, yy)
+                format!("{} = {}", x, y)
             }
             Predicate::NEQ(x, y) => {
-                let xx = match x {
-                    PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p, _) => format!("{}", NuXMVPath(p)),
-                };
-                let yy = match y {
-                    PredicateValue::SPValue(v) => format!("{}", NuXMVValue(&v)),
-                    PredicateValue::SPPath(p, _) => format!("{}", NuXMVPath(p)),
-                };
-
-                format!("( {} != {} )", xx, yy)
+                format!("{} != {}", x, y)
+            }
+            Predicate::TON(t, d) => {
+                format!{"TON(t:{} d:{})", t, d}
+            }
+            Predicate::TOFF(t, d) => {
+                format!{"TOFF(t:{} d:{})", t, d}
             }
         };
 
