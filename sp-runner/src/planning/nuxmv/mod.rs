@@ -251,7 +251,7 @@ pub fn plan_async(
                                            lookout, max_time);
     let duration = start.elapsed();
 
-    match result {
+    let res = match result {
         Ok((_, raw, raw_error)) => {
             if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
                 // just to more easily find syntax errors
@@ -283,7 +283,14 @@ pub fn plan_async(
             raw_output: "".into(),
             raw_error_output: e.to_string(),
         },
+    };
+
+    if res.plan_found {
+        // usually dont care to debug these
+        let _ = std::fs::remove_file(filename);
     }
+
+    res
 }
 
 // this version is a bit more interesting... we can only store optimal
@@ -442,7 +449,7 @@ impl Planner for NuXmvPlanner {
         let result = call_nuxmv(max_steps, filename);
         let duration = start.elapsed();
 
-        match result {
+        let res = match result {
             Ok((raw, raw_error)) => {
                 if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
                     // just to more easily find syntax errors
@@ -474,7 +481,12 @@ impl Planner for NuXmvPlanner {
                 raw_output: "".into(),
                 raw_error_output: e.to_string(),
             },
+        };
+        if res.plan_found {
+            // usually dont care to debug these
+            let _ = std::fs::remove_file(filename);
         }
+        res
     }
 }
 
