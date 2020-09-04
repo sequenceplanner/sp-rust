@@ -1,6 +1,5 @@
 use crate::formal_model::*;
 use sp_domain::*;
-use std::collections::HashMap;
 use std::iter::FromIterator;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -12,20 +11,19 @@ pub struct Domain {
 pub struct CommandTopic {
     pub topic: String,
     pub ros_type: String,
-    pub vars: HashMap<String, Domain>,
-    pub initial_values: HashMap<String, SPValue>, // initial states
+    pub vars: Vec<(String, Domain)>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MeasuredTopic {
     pub topic: String,
     pub ros_type: String,
-    pub vars: HashMap<String, Domain>,
+    pub vars: Vec<(String, Domain)>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct EstimatedVars {
-    pub vars: HashMap<String, Domain>,
+    pub vars: Vec<(String, Domain)>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -37,16 +35,19 @@ pub struct MTransition {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct MAbility {
-    pub name: String,
-    pub predicates: HashMap<String, Predicate>,
-    pub transitions: HashMap<String, MTransition>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
 pub struct MInvariant {
     pub name: String,
     pub prop: Predicate,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ModelItem {
+    CommandTopic(CommandTopic),
+    MeasuredTopic(MeasuredTopic),
+    EstimatedVars(EstimatedVars),
+    MInvariant(MInvariant),
+    Transitions(Vec<Transition>),
+    Predicates(Vec<Variable>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -55,18 +56,9 @@ pub struct MResource {
     pub items: Vec<ModelItem>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum ModelItem {
-    CommandTopic(CommandTopic),
-    MeasuredTopic(MeasuredTopic),
-    EstimatedVars(EstimatedVars),
-    MAbility(MAbility),
-    MInvariant(MInvariant),
-    Transitions(Vec<Transition>),
-    Predicates(Vec<Variable>),
-}
-
 pub fn build_resource(r: &MResource) -> Resource {
+    use std::collections::HashMap;
+
     let mut transitions: Vec<_> = r
         .items
         .iter()
@@ -121,10 +113,9 @@ pub fn build_resource(r: &MResource) -> Resource {
         .collect();
 
     let mut valid_remaps = Vec::new();
-    let mut echos = Vec::new();
 
     for (mt, t) in out_topics.iter().enumerate() {
-        for name in t.vars.keys() {
+        for (name,_) in &t.vars {
             let path = SPPath::from_slice(&[
                 r.name.clone(),
                 t.topic.clone(),
@@ -137,26 +128,22 @@ pub fn build_resource(r: &MResource) -> Resource {
     }
 
     for (mt, t) in in_topics.iter().enumerate() {
-        for name in t.vars.keys() {
-            // take care of our special "echo" here.
-            println!("measured: {}", name);
+        for (name,_) in &t.vars {
+            let path = SPPath::from_slice(&[
+                r.name.clone(),
+                t.topic.clone(),
+                mt.to_string(),
+                name.clone(),
+            ]);
             let op = SPPath::from_string(name);
-            let mut path = SPPath::from_slice(&[r.name.clone(), t.topic.clone(), mt.to_string()]);
-            path.add_child_path(&op);
-            let is_echo = op.path.iter().nth(0).map(|s| s == "echo").unwrap_or(false);
-            if is_echo {
-                println!("ECHO {}", path);
-                echos.push(path);
-            } else {
-                valid_remaps.push((op, path));
-            }
+            valid_remaps.push((op, path));
         }
     }
 
     for t in &estimated_vars {
-        for name in t.vars.keys() {
-            let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
+        for (name,_) in &t.vars {
             let op = SPPath::from_string(name);
+            let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
             valid_remaps.push((op, path));
         }
     }
@@ -257,8 +244,6 @@ pub fn build_resource(r: &MResource) -> Resource {
         });
         subs.dedup();
 
-        // let mut belongs_to: HashMap<SPPath, Vec<SPPath>> = t.vars
-
         let sub_leafs: HashMap<SPPath, HashMap<String, MessageField>> = subs
             .iter()
             .map(|s| {
@@ -357,7 +342,7 @@ pub fn build_resource(r: &MResource) -> Resource {
                 let sp_val_type = dom[0].has_type();
                 Variable::new(name, VariableType::Estimated, sp_val_type, dom)
             };
-            r.add_sub_item(SPItem::Variable(var));
+            r.add_estimated(var);
         });
     }
 
@@ -368,7 +353,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_predicate(p);
     }
     for i in invariants {
-        r.add_sub_item(SPItem::Spec(Spec::new(&i.name, i.prop.clone())));
+        r.add_spec(Spec::new(&i.name, i.prop.clone()));
     }
 
     let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
@@ -383,8 +368,7 @@ macro_rules! command {
         let mut cmd = CommandTopic {
             topic: String::from($t),
             ros_type: String::new(),
-            vars: HashMap::new(),
-            initial_values: HashMap::new(),
+            vars: Vec::new(),
         };
         command!(private cmd $($rest)*)
     }};
@@ -397,8 +381,8 @@ macro_rules! command {
 
     // no domain defaults to boolean variable
     (private $cmd:ident $var_name:tt : bool, $($rest:tt)*) => {{
-        $cmd.vars.insert(stringify!($var_name).to_string(),
-                         Domain { domain: None } );
+        $cmd.vars.push((stringify!($var_name).to_string(),
+                         Domain { domain: None } ));
         command!(private $cmd $($rest)*)
     }};
 
@@ -411,8 +395,8 @@ macro_rules! command {
     (private $cmd:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
-            $cmd.vars.insert(stringify!($var_name).to_string(),
-                             Domain { domain: Some(domain) } );
+            $cmd.vars.push((stringify!($var_name).to_string(),
+                             Domain { domain: Some(domain) } ));
         }
         command!(private $cmd $($rest)*)
     }};
@@ -433,7 +417,7 @@ macro_rules! measured {
         let mut measured = MeasuredTopic {
             topic: String::from($t),
             ros_type: String::new(),
-            vars: HashMap::new(),
+            vars: Vec::new(),
         };
         measured!(private measured $($rest)*)
     }};
@@ -446,8 +430,8 @@ macro_rules! measured {
     (private $measured:ident $($var_name:ident $(/)?)+ : bool, $($rest:tt)*) => {{
         let name = vec![ $( stringify!($var_name) , )+ ];
         let name = name.join("/");
-        $measured.vars.insert(name,
-                              Domain { domain: None } );
+        $measured.vars.push((name,
+                              Domain { domain: None } ));
         measured!(private $measured $($rest)*)
     }};
 
@@ -462,8 +446,8 @@ macro_rules! measured {
             let name = vec![ $( stringify!($var_name) , )+ ];
             let name = name.join("/");
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
-            $measured.vars.insert(name,
-                                  Domain { domain: Some(domain) } );
+            $measured.vars.push((name,
+                                  Domain { domain: Some(domain) } ));
         }
         measured!(private $measured $($rest)*)
     }};
@@ -482,8 +466,8 @@ macro_rules! measured {
 macro_rules! estimated {
     // no domain defaults to boolean variable
     (private $estimated:ident $var_name:tt : bool, $($rest:tt)*) => {{
-        $estimated.vars.insert(stringify!($var_name).to_string(),
-                              Domain { domain: None } );
+        $estimated.vars.push((stringify!($var_name).to_string(),
+                              Domain { domain: None } ));
         estimated!(private $estimated $($rest)*)
     }};
 
@@ -496,8 +480,8 @@ macro_rules! estimated {
     (private $estimated:ident $var_name:tt : $dom:expr, $($rest:tt)*) => {{
         {
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
-            $estimated.vars.insert(stringify!($var_name).to_string(),
-                                  Domain { domain: Some(domain) } );
+            $estimated.vars.push((stringify!($var_name).to_string(),
+                                  Domain { domain: Some(domain) } ));
         }
         estimated!(private $estimated $($rest)*)
     }};
@@ -514,7 +498,7 @@ macro_rules! estimated {
     // didnt match any private. start fresh
     ($($rest:tt)*) => {{
         let mut estimated = EstimatedVars {
-            vars: HashMap::new(),
+            vars: Vec::new(),
         };
         estimated!(private estimated $($rest)*)
     }};
@@ -539,69 +523,6 @@ macro_rules! never {
             prop: Predicate::NOT(Box::new($pred.clone())),
         };
         ModelItem::MInvariant(spec)
-    }};
-}
-
-#[macro_export]
-macro_rules! ability {
-    (name: $n:tt , $($rest:tt)*) => {{
-        let mut ability = MAbility {
-            name: String::from(stringify!($n)),
-            predicates: HashMap::new(),
-            transitions: HashMap::new(),
-        };
-        ability!(private ability $($rest)*)
-    }};
-
-    // list of predicates
-    (private $ability:ident $name:tt : $p:expr, $($rest:tt)*) => {{
-        $ability.predicates.insert(stringify!($name).to_string(),
-                                   $p.clone());
-        ability!(private $ability $($rest)*)
-    }};
-
-    // no trailing comma...
-    (private $ability:ident $name:tt : $p:expr) => {{
-        ability!(private $ability $name : $p, )
-    }};
-
-
-    // list of transitions
-    (private $ability:ident * $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
-        ability!(private $ability true $name : $g => [$($a,)*] / [$($e,)*], $($rest)*)
-    }};
-
-    (private $ability:ident $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
-        ability!(private $ability false $name : $g => [$($a,)*] / [$($e,)*], $($rest)*)
-    }};
-
-    // without trailing commas
-    (private $ability:ident * $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*]) => {{
-        ability!(private $ability true $name : $g => [$($a,)*] / [$($e,)*],)
-    }};
-
-    (private $ability:ident $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*]) => {{
-        ability!(private $ability false $name : $g => [$($a,)*] / [$($e,)*],)
-    }};
-
-
-    (private $ability:ident $controlled:tt $name:tt : $g:expr => [ $($a:expr $(,)?)* ] / [ $($e:expr $(,)?)*], $($rest:tt)*) => {{
-        let actions = vec![ $($a.clone() ,)* ];
-        let effects = vec![ $($e.clone() ,)* ];
-
-        let t = MTransition {
-            controlled: $controlled,
-            guard: $g.clone(),
-            actions: actions,
-            effects: effects,
-        };
-        $ability.transitions.insert(stringify!($name).to_string(), t);
-        ability!(private $ability $($rest)*)
-    }};
-
-    // all done
-    (private $ability:expr) => {{
-        ModelItem::MAbility($ability)
     }};
 }
 
@@ -632,6 +553,7 @@ macro_rules! resource {
     }};
 }
 
+#[macro_export]
 macro_rules! predicates {
     ($($name: tt: $p: expr),* $(,)?) => {{
         let mut preds = Vec::new();
@@ -640,6 +562,7 @@ macro_rules! predicates {
     }};
 }
 
+#[macro_export]
 macro_rules! transitions {
     ($($name: tt: $guard: expr , $actions: expr),* $(,)?) => {{
         let mut trans = Vec::new();
@@ -651,6 +574,8 @@ macro_rules! transitions {
                 trans.push(Transition::new(name.trim_start_matches("a_"), $guard, $actions, TransitionType::Auto));
             } else if name.starts_with("e_") {
                 trans.push(Transition::new(name.trim_start_matches("e_"), $guard, $actions, TransitionType::Effect));
+            } else if name.starts_with("r_") {
+                trans.push(Transition::new(name.trim_start_matches("e_"), $guard, $actions, TransitionType::Runner));
             }
         )*
         ModelItem::Transitions(trans)
@@ -689,6 +614,9 @@ fn resource_test() {
         transitions!{
             c_start: p!(to_away_enabled), vec![ a!(ref_pos = "at") ],
             e_finish: p!(to_away_exeucting), vec![a!(act_pos = "at") ],
+
+            r_activate: p!(!active), vec![a!(activate) ],
+            a_deactivate: p!(active), vec![a!(!activate) ],
         },
 
         never!{

@@ -455,8 +455,9 @@ pub struct Resource {
     node: SPNode,
     pub transitions: Vec<Transition>,
     pub predicates: Vec<Variable>,
-    pub messages: Vec<Topic>, // Also include estimated here on an estimated topic
-    pub sub_items: Vec<SPItem>,
+    pub estimated: Vec<Variable>,
+    pub messages: Vec<Topic>,
+    pub specs: Vec<Spec>,
 }
 
 impl Noder for Resource {
@@ -469,16 +470,18 @@ impl Noder for Resource {
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
         get_from_list(self.transitions.as_slice(), next, path)
             .or_else(|| get_from_list(self.predicates.as_slice(), next, path))
-            .or_else(|| get_from_list(self.sub_items.as_slice(), next, path))
+            .or_else(|| get_from_list(self.estimated.as_slice(), next, path))
             .or_else(|| get_from_list(self.messages.as_slice(), next, path))
+            .or_else(|| get_from_list(self.specs.as_slice(), next, path))
     }
     fn find_item_among_children<'a>(
         &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
             .or_else(|| find_item_in_list(self.predicates.as_slice(), name, path_sections))
-            .or_else(|| find_item_in_list(self.sub_items.as_slice(), name, path_sections))
+            .or_else(|| find_item_in_list(self.estimated.as_slice(), name, path_sections))
             .or_else(|| find_item_in_list(self.messages.as_slice(), name, path_sections))
+            .or_else(|| find_item_in_list(self.specs.as_slice(), name, path_sections))
     }
     fn find_item_mut_among_children<'a>(
         &'a mut self, name: &str, path_sections: &[&str],
@@ -490,19 +493,24 @@ impl Noder for Resource {
         {
             Some(x)
         } else if let Some(x) =
-            find_item_mut_in_list(self.sub_items.as_mut_slice(), name, path_sections)
+            find_item_mut_in_list(self.estimated.as_mut_slice(), name, path_sections)
+        {
+            Some(x)
+        } else if let Some(x) =
+            find_item_mut_in_list(self.messages.as_mut_slice(), name, path_sections)
         {
             Some(x)
         } else {
-            find_item_mut_in_list(self.messages.as_mut_slice(), name, path_sections)
+            find_item_mut_in_list(self.specs.as_mut_slice(), name, path_sections)
         }
     }
 
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
+        update_path_in_list(self.estimated.as_mut_slice(), &path, changes);
         update_path_in_list(self.messages.as_mut_slice(), &path, changes);
         update_path_in_list(self.transitions.as_mut_slice(), path, changes);
         update_path_in_list(self.predicates.as_mut_slice(), path, changes);
-        update_path_in_list(self.sub_items.as_mut_slice(), path, changes);
+        update_path_in_list(self.specs.as_mut_slice(), path, changes);
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.messages
@@ -514,10 +522,12 @@ impl Noder for Resource {
         self.predicates
             .iter_mut()
             .for_each(|i| i.rewrite_expressions(mapping));
-        self.sub_items
+        self.estimated
             .iter_mut()
             .for_each(|i| i.rewrite_expressions(mapping));
-
+        self.specs
+            .iter_mut()
+            .for_each(|i| i.rewrite_expressions(mapping));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Resource(self)
@@ -548,13 +558,17 @@ impl Resource {
         path
     }
 
-    pub fn sub_items(&self) -> &[SPItem] {
-        self.sub_items.as_slice()
-    }
-    pub fn add_sub_item(&mut self, mut sub_item: SPItem) -> SPPath {
+    pub fn add_spec(&mut self, mut spec: Spec) -> SPPath {
         let mut changes = HashMap::new();
-        let path = sub_item.update_path(self.node.path(), &mut changes);
-        self.sub_items.push(sub_item);
+        let path = spec.update_path(self.node.path(), &mut changes);
+        self.specs.push(spec);
+        path
+    }
+
+    pub fn add_estimated(&mut self, mut estimated: Variable) -> SPPath {
+        let mut changes = HashMap::new();
+        let path = estimated.update_path(self.node.path(), &mut changes);
+        self.estimated.push(estimated);
         path
     }
 
@@ -592,13 +606,7 @@ impl Resource {
             r(&t.msg, &mut vs);
         }
 
-        // add estimated vars
-        self.sub_items.iter().for_each(|si| {
-            if let SPItem::Variable(v) = si {
-                vs.push(v.clone());
-            }
-        });
-
+        vs.extend(self.estimated.iter().cloned());
         vs
     }
 

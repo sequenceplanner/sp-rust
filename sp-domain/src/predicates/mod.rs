@@ -395,18 +395,24 @@ impl Action {
             _ => None
         }
     }
-}
 
-impl fmt::Display for Action {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match &self.value {
+    pub fn val_to_string(&self) -> String {
+        match &self.value {
             Compute::PredicateValue(PredicateValue::SPValue(v)) => v.to_string(),
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => p.to_string(),
             Compute::Predicate(p) => p.to_string(),
             Compute::Any => "?".to_string(),
-        };
+        }
+    }
 
-        let s = format!("{} := {}", self.var, s);
+    pub fn to_string_short(&self) -> String {
+        format!("{} := {}", self.var.leaf(), self.val_to_string())
+    }
+}
+
+impl fmt::Display for Action {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = format!("{} := {}", self.var, self.val_to_string());
         write!(fmtr, "{}", &s)
     }
 }
@@ -485,7 +491,7 @@ impl NextAction for Action {
     fn next(&self, state: &mut SPState) -> SPResult<()> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => match pv.sp_value(state).cloned() {
-                Some(x) => x,
+                Some(x) => Some(x),
                 None => {
                     eprintln!(
                         "The action PredicateValue, next did not find a value for variable: {:?}",
@@ -499,14 +505,18 @@ impl NextAction for Action {
             },
             Compute::Predicate(p) => {
                 let res = p.eval(state);
-                res.to_spvalue()
+                Some(res.to_spvalue())
             }
-            Compute::Any => SPValue::Unknown,
+            Compute::Any => None,
         };
 
-        match &self.state_path {
-            Some(sp) => state.next(&sp, c),
-            None => state.next_from_path(&self.var, c),
+        if let Some(c) = c {
+            match &self.state_path {
+                Some(sp) => state.next(&sp, c),
+                None => state.next_from_path(&self.var, c),
+            }
+        } else {
+            Ok(())
         }
     }
 }

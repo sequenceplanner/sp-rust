@@ -4,10 +4,6 @@ use serde::{Deserialize, Serialize};
 use sp_domain::*;
 use super::*;
 
-// remember to also change in planner
-// TODO: make this constant crate-wide and use in more places
-const USE_GUARD_EXTRACTION: bool = false;
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct TransitionSystemModel {
     pub name: String,
@@ -25,13 +21,7 @@ impl TransitionSystemModel {
             .flat_map(|r| r.get_variables())
             .collect();
 
-        let resource_sub_items: Vec<_> = model
-            .resources()
-            .iter()
-            .flat_map(|r| r.sub_items())
-            .collect();
-
-        let model_item_vars: Vec<Variable> = model
+        let global_vars: Vec<Variable> = model
             .items()
             .iter()
             .flat_map(|i| match i {
@@ -39,19 +29,19 @@ impl TransitionSystemModel {
                 _ => None,
             })
             .collect();
-        vars.extend(model_item_vars.iter().cloned());
+        vars.extend(global_vars.iter().cloned());
 
         let mut transitions: Vec<Transition> = model
             .resources()
             .iter()
-            .flat_map(|r| r.get_transitions())
+            .flat_map(|r| r.transitions.clone())
             .collect();
 
-        let model_transitions = model.items().iter().flat_map(|i| match i {
+        let global_transitions = model.items().iter().flat_map(|i| match i {
             SPItem::Transition(t) => Some(t.clone()),
             _ => None,
         });
-        transitions.extend(model_transitions);
+        transitions.extend(global_transitions);
 
         let mut state_predicates: Vec<Variable> = model
             .resources()
@@ -59,23 +49,20 @@ impl TransitionSystemModel {
             .flat_map(|r| r.get_state_predicates())
             .collect();
 
-        let mut specs: Vec<Spec> = model
-            .items()
+        let mut specs: Vec<Spec> = model.resources()
             .iter()
-            .flat_map(|i| match i {
-                SPItem::Spec(s) => Some(s),
-                _ => None,
-            })
-            .cloned()
+            .flat_map(|r| r.specs.clone())
             .collect();
-        let resource_sub_item_specs: Vec<Spec> = resource_sub_items
+        let global_specs: Vec<Spec> = model
+            .items()
             .iter()
             .flat_map(|i| match i {
                 SPItem::Spec(s) => Some(s.clone()),
                 _ => None,
             })
             .collect();
-        specs.extend(resource_sub_item_specs.iter().cloned());
+
+        specs.extend(global_specs);
 
 
         // recursively collect sub-models
@@ -127,9 +114,6 @@ impl TransitionSystemModel {
         // drm/r1/move_to/start_with_at
         // drm/r1/move_to/finish
 
-
-        // for simplicity and clarity we remove this for now.
-
         let auto = transitions
             .iter()
             .filter(|t| !t.controlled() && !t.actions().is_empty());
@@ -157,44 +141,16 @@ impl TransitionSystemModel {
 
         // MD 2020-08-20: Moved "magic" from runner model helper to here.
 
-        // TODO:
-        // for now we dont do guard extraction because it appears we plan alot faster
-        // using just the invariants instead. but we need to make proper measurements
-
-        // each resource contains a supervisor defining its good states
-        let inits: Vec<Predicate> = ts_model.specs.iter()
-            .filter_map(|s| if s.name() == "supervisor" {
-                Some(s.invariant().clone())
-            } else {
-                None
-            })
-            .collect();
-
-        // we need to assume that we are in a state that adheres to the resources
-        let initial = Predicate::AND(inits);
-
-        if USE_GUARD_EXTRACTION {
-            let (new_guards, supervisor) = extract_guards(&ts_model, &initial);
-
-            // The specs are converted into guards + a global supervisor
-            ts_model.specs.clear();
-            ts_model.specs.push(Spec::new("global_supervisor", supervisor));
-
-            // TODO: right now its very cumbersome to update the original Model.
-            // but it would be nice if we could.
-            update_guards(&mut ts_model, &new_guards);
-        } else {
-            // we can refine all invariants instead of performing GE
-            let mut new_specs = Vec::new();
-            for s in &ts_model.specs {
-                println!("refining invariant {}", s.path());
-                let ri = refine_invariant(&ts_model, s.invariant());
-                let mut ns = s.clone();
-                ns.invariant = ri;
-                new_specs.push(ns);
-            }
-            ts_model.specs = new_specs;
+        // MD 2020-09-04: Removed guard extraction completely.
+        let mut new_specs = Vec::new();
+        for s in &ts_model.specs {
+            println!("refining invariant {}", s.path());
+            let ri = refine_invariant(&ts_model, s.invariant());
+            let mut ns = s.clone();
+            ns.invariant = ri;
+            new_specs.push(ns);
         }
+        ts_model.specs = new_specs;
 
         ts_model
     }

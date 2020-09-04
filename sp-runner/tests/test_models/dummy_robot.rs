@@ -1,7 +1,6 @@
 use serial_test::serial;
 use sp_domain::*;
 use sp_runner::*;
-use std::collections::HashMap; // todo: macro depends on this...
 
 pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
     // domain is a list of saved poses. add "unknown" to this list.
@@ -27,46 +26,29 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
             prev_pos: domain,
         },
 
-        ability!{
-            name: move_to,
+        predicates!{
+            move_enabled : p!([active] && [ref_pos <-> act_pos]),
+            move_executing : p!([active] && [ref_pos <!> act_pos]),
+            move_finished : p!([active] && [ref_pos <-> act_pos]),
+        },
 
-            enabled : p!([active] && [ref_pos <-> act_pos]),
-            executing : p!([active] && [ref_pos <!> act_pos]),
-            finished : p!([active] && [ref_pos <-> act_pos]),
+        transitions!{
+            c_move_start : p!(move_enabled), vec![a!(ref_pos?)],
+            e_move_finish : p!(move_executing), vec![a!(act_pos <- ref_pos)],
 
-            *start : p!(enabled) => [ a!(ref_pos?) ] / [a!(act_pos = "unknown")],
-            finish : p!(executing) => [] / [a!(act_pos <- ref_pos)],
+            a_sync_prev: p!([prev_pos <!> ref_pos] && [ref_pos <-> act_pos]), vec![ a!(prev_pos <- ref_pos) ],
 
-            sync_prev: p!([prev_pos <!> ref_pos] && [ref_pos <-> act_pos]) => [ a!(prev_pos <- ref_pos) ] / []
+            c_activate_start: p!([!activate] && [!active]), vec![ a!(activate) ],
+            e_activate_finish: p!([activate] && [!active]), vec![ a!(active) ],
+
+            c_deactivate_start: p!([activate] && [active]), vec![ a!(!activate) ],
+            e_deactivate_finish: p!([!activate] && [active]), vec![ a!(!active) ],
         },
 
         never!{
             name: cannot_go_to_unknown,
             prop: p!(ref_pos == "unknown")
         },
-
-        ability!{
-            name: activate,
-
-            enabled: p!([!activate] && [!active]),
-            executing: p!([activate] && [!active]),
-            finished: p!([activate] && [active]),
-
-            *start: p!(enabled) => [ a!(activate) ] / [],
-            finish: p!(executing) => [] / [ a!(active) ],
-        },
-
-        ability!{
-            name: deactivate,
-
-            enabled: p!([activate] && [active]),
-            executing: p!([!activate] && [active]),
-            finished: p!([!activate] && [!active]),
-
-            *start: p!(enabled) => [ a!(!activate) ] / [],
-            finish: p!(executing) => [] / [ a!(!active) ],
-        },
-
     }
 }
 

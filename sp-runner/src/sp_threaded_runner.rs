@@ -550,7 +550,6 @@ fn runner(
                                                      "error".to_spvalue()).unwrap();
                                 disabled_operations.push(op_path.clone());
                             }
-                            let s = "hej";
                         }
                         if disabled_operations.is_empty() {
                             panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
@@ -1006,13 +1005,13 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         ctrl: ts_model
             .transitions
             .iter()
-            .filter(|t| t.controlled())
+            .filter(|t| t.type_ == TransitionType::Controlled)
             .cloned()
             .collect(),
         un_ctrl: ts_model
             .transitions
             .iter()
-            .filter(|t| !t.controlled())
+            .filter(|t| t.type_ == TransitionType::Auto || t.type_ == TransitionType::Runner)
             .cloned()
             .collect(),
     };
