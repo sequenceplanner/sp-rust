@@ -19,8 +19,7 @@ pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
                 &format!("Blocked {}", p),
                 Predicate::FALSE,
                 vec![],
-                vec![],
-                true,
+                TransitionType::Controlled
             );
             TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
         })
@@ -82,8 +81,7 @@ pub fn convert_planning_result(
                 &format!("step{:?}", i),
                 guard,
                 vec![a!(p: plan_counter = { i + 1 })],
-                vec![],
-                true,
+                TransitionType::Controlled,
             );
 
             tr.push(TransitionSpec::new(
@@ -113,8 +111,7 @@ pub fn convert_planning_result(
                 &format!("Blocked {}", p),
                 Predicate::FALSE,
                 vec![],
-                vec![],
-                true,
+                TransitionType::Controlled
             );
             TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
         })
@@ -230,8 +227,7 @@ pub fn convert_planning_result_with_packing_heuristic(
             &format!("hlstep{:?}", idx),
             guard,
             action,
-            vec![],
-            true,
+            TransitionType::Controlled
         );
 
         tr.push(TransitionSpec::new(
@@ -258,8 +254,7 @@ pub fn convert_planning_result_with_packing_heuristic(
                 &format!("Blocked {}", x.path()),
                 Predicate::FALSE,
                 vec![],
-                vec![],
-                true,
+                TransitionType::Controlled
             );
             TransitionSpec::new(&format!("Blocked {}", x.path()), t, vec![x.path().clone()])
         })
@@ -292,9 +287,6 @@ pub fn make_planning_trace(model: &TransitionSystemModel, plan: &[SPPath], initi
     for pt in plan {
         let t = model.transitions.iter().find(|c| c.path() == pt).expect("Model does not match plan");
         t.actions.iter().for_each(|a| {
-            a.next(&mut state).unwrap();
-        });
-        t.effects.iter().for_each(|a| {
             a.next(&mut state).unwrap();
         });
         state.take_transition();
@@ -330,10 +322,6 @@ fn check_goals_exact(s: &SPState, goals: &[&Predicate], plan: &[SPPath], ts_mode
         // take all actions
         t.actions.iter().for_each(|a| {
             let _res = a.next(&mut state);
-        });
-        // and effects
-        t.effects.iter().for_each(|e| {
-            let _res = e.next(&mut state);
         });
 
         // update state predicates

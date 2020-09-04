@@ -141,19 +141,18 @@ impl GModel {
             name,
             guard.clone(),
             actions.to_vec(),
-            vec![], // no effects
-            false,  // auto!
+            TransitionType::Auto,  // auto!
         );
         self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(name, guard.clone(), actions.to_vec(), vec![], true);
+        let trans = Transition::new(name, guard.clone(), actions.to_vec(), TransitionType::Controlled);
         self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn add_effect(&mut self, name: &str, guard: &Predicate, effects: &[Action]) {
-        let trans = Transition::new(name, guard.clone(), vec![], effects.to_vec(), false);
+        let trans = Transition::new(name, guard.clone(), effects.to_vec(), TransitionType::Effect);
         self.model.add_item(SPItem::Transition(trans));
     }
 
@@ -162,21 +161,9 @@ impl GModel {
             name,
             guard.clone(),
             actions.to_vec(),
-            vec![], // no effects
-            false,  // always auto!
+            TransitionType::Auto
         );
         self.add_sub_item("runner_transitions", SPItem::Transition(trans));
-    }
-
-    pub fn add_simulation_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(
-            name,
-            guard.clone(),
-            actions.to_vec(),
-            vec![], // no effects
-            false,  // auto!
-        );
-        self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn find(&mut self, name: &str, path_sections: &[&str]) -> SPPath {
@@ -195,8 +182,7 @@ impl GModel {
             &format!("{}_auto", name),
             Predicate::AND(vec![pre.clone()]),
             effects.to_vec(),
-            vec![],
-            false,
+            TransitionType::Auto
         );
 
         self.add_sub_item("operations", SPItem::Transition(t))
@@ -248,8 +234,7 @@ impl GModel {
             "start",
             Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
             vec![a!(p: state = "e")],
-            vec![],
-            true,
+            TransitionType::Controlled,
         );
         let mut f_actions = if resets {
             vec![a!(p: state = "i")]
@@ -261,8 +246,7 @@ impl GModel {
             "finish",
             Predicate::AND(vec![p!(p: state == "e"), post.clone()]),
             f_actions,
-            vec![],
-            false,
+            TransitionType::Auto
         );
         let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant, None);
 

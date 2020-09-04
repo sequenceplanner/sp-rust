@@ -903,12 +903,12 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         .collect();
     let global_hl_ops_ctrl: Vec<_> = global_int_trans
         .iter()
-        .filter(|t| t.controlled)
+        .filter(|t| t.controlled())
         .cloned()
         .collect();
     let global_hl_ops_un_ctrl: Vec<_> = global_int_trans
         .iter()
-        .filter(|t| !t.controlled)
+        .filter(|t| !t.controlled())
         .cloned()
         .collect();
     let global_hl_goals: Vec<IfThen> = global_intentions
@@ -1021,7 +1021,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
     let mut trans = vec![];
     let mut restrict_controllable = vec![];
     let mut restrict_op_controllable = vec![];
-    let false_trans = Transition::new("empty", Predicate::FALSE, vec![], vec![], true);
+    let false_trans = Transition::new("empty", Predicate::FALSE, vec![], TransitionType::Controlled);
     rm_op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_op_controllable.push(TransitionSpec::new(

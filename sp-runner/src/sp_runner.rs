@@ -233,10 +233,6 @@ impl SPRunner {
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                         let _res = a.next(&mut state);
                     });
-                    // and effects
-                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
-                        let _res = e.next(&mut state);
-                    });
 
                     // update state predicates
                     SPTicker::upd_preds(&mut state, &self.ticker.predicates);
@@ -308,7 +304,7 @@ impl SPRunner {
                     t.eval(&state)
                 };
                 if ok {
-                    t.effects.iter().for_each(|e| {
+                    t.actions.iter().for_each(|e| {
                         let _res = e.next(&mut state);
                     });
                 }
@@ -346,7 +342,7 @@ impl SPRunner {
                         // outside the lvl1 plan, let it through anyway so
                         // we can step the counter.
                         let post =
-                            Predicate::AND(t.effects
+                            Predicate::AND(t.actions
                                            .iter()
                                            .flat_map(|e| e.to_predicate())
                                            .collect());
@@ -362,10 +358,6 @@ impl SPRunner {
                     // take all actions
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                         let _res = a.next(&mut state);
-                    });
-                    // and effects
-                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
-                        let _res = e.next(&mut state);
                     });
 
                     // update state predicates
@@ -423,10 +415,6 @@ impl SPRunner {
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                         // if actions write to the same path, only the first will be used
                         let _res = a.next(&mut state);
-                    });
-                    // and effects
-                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
-                        let _res = e.next(&mut state);
                     });
 
                     // update state predicates
@@ -540,7 +528,7 @@ impl SPRunner {
                 let goal = self.operation_goals.get(op.path()).unwrap_or(&Predicate::FALSE);
                 let spec = TransitionSpec::new(
                     &format!("{}_post", op.path()),
-                    Transition::new("post", goal.clone(), vec![], vec![], true),
+                    Transition::new("post", goal.clone(), vec![], TransitionType::Controlled),
                     vec![op.runner_finish.path().clone()],
                 );
                 new_specs.push(spec);
@@ -554,7 +542,7 @@ impl SPRunner {
                 // block finish
                 let spec = TransitionSpec::new(
                     &format!("{}_post", op.path()),
-                    Transition::new("post", Predicate::FALSE, vec![], vec![], true),
+                    Transition::new("post", Predicate::FALSE, vec![], TransitionType::Controlled),
                     vec![op.runner_finish.path().clone()],
                 );
                 new_specs.push(spec);

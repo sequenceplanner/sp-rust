@@ -637,8 +637,6 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     let mut r = HashSet::new();
 
     r.extend(t.actions().iter().map(|a| a.var.clone()));
-    r.extend(t.effects().iter().map(|a| a.var.clone()));
-
     r
 }
 
@@ -672,7 +670,6 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
             })
             .collect();
         let mut updates: Vec<_> = upd.iter().map(assign).collect();
-        updates.extend(t.effects().iter().map(assign));
         updates.extend(keep);
 
         let g = NuXMVPredicate(&t.guard());
@@ -706,7 +703,7 @@ fn add_global_specifications(lines: &mut String, specs: &[Spec]) {
     lines.push_str("INVAR\n\n");
     let mut global = Vec::new();
     for s in specs {
-        global.push(format!("{}", NuXMVPredicate(s.invariant())));
+        global.push(format!("-- spec: {}\n{}\n", s.path(), NuXMVPredicate(s.invariant())));
     }
     let invars = if global.is_empty() {
         "TRUE".to_string()
