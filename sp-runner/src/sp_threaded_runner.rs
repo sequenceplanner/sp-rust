@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
+use std::panic;
 use crate::formal_model::*;
 use crate::planning;
 
@@ -19,6 +20,26 @@ const LVL1_LOOKOUT: f32 = 0.75;
 const LVL1_MAX_TIME: Duration = Duration::from_secs(5);
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
+    // we use this as the main entry point for SP.
+    // so here we register our panic handler to send out
+    // fatal messages to ROS
+    panic::set_hook(Box::new(|panic_info| {
+        let msg = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s
+        } else if  let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            &s[..]
+        } else {
+            ""
+        };
+        let (file, line) = if let Some(location) = panic_info.location() {
+            (location.file(), location.line())
+        } else {
+            ("",0)
+        };
+        log_fatal(msg, file, line);
+        println!("\n\n\nSP PANIC: {}\n\n\nfile: {}:{}", msg, file, line);
+    }));
+
     let (mut node, comm) = set_up_ros_comm(&model)?;
 
     let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
@@ -529,9 +550,10 @@ fn runner(
                                                      "error".to_spvalue()).unwrap();
                                 disabled_operations.push(op_path.clone());
                             }
+                            let s = "hej";
                         }
                         if disabled_operations.is_empty() {
-                            // panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
+                            panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
                         }
                     }
 
@@ -824,7 +846,7 @@ fn node_handler(
                     resource_state.push((r.clone(), enabled.to_spvalue()));
                 }
                 let rs = SPState::new_from_values(&resource_state);
-                tx_runner.send(SPRunnerInput::NodeChange(rs)).unwrap();
+                tx_runner.send(SPRunnerInput::NodeChange(rs)).expect("could not send, channel dead");
 
                 true
             }
