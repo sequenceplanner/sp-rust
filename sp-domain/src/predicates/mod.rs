@@ -55,8 +55,6 @@ pub enum Compute {
                           // Join(Box<Compute>, Box<Compute>),
 }
 
-
-
 impl<'a> PredicateValue {
     pub fn sp_value(&'a self, state: &'a SPState) -> Option<&'a SPValue> {
         match self {
@@ -150,10 +148,28 @@ impl fmt::Display for Predicate {
             Predicate::TRUE => "TRUE".into(),
             Predicate::FALSE => "FALSE".into(),
             Predicate::EQ(x, y) => {
-                format!("{} = {}", x, y)
+                let xx = match x {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+                let yy = match y {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+
+                format!("{} = {}", xx, yy)
             }
             Predicate::NEQ(x, y) => {
-                format!("{} != {}", x, y)
+                let xx = match x {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+                let yy = match y {
+                    PredicateValue::SPValue(v) => format!("{}", v),
+                    PredicateValue::SPPath(p, _) => format!("{}", p),
+                };
+
+                format!("{} != {}", xx, yy)
             }
             Predicate::TON(t, d) => {
                 format!{"TON(t:{} d:{})", t, d}
@@ -364,11 +380,9 @@ impl Action {
             _ => None
         }
     }
-}
 
-impl fmt::Display for Action {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match &self.value {
+    pub fn val_to_string(&self) -> String {
+        match &self.value {
             Compute::PredicateValue(PredicateValue::SPValue(v)) => v.to_string(),
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => p.to_string(),
             Compute::Predicate(p) => p.to_string(),
@@ -379,9 +393,17 @@ impl fmt::Display for Action {
             },
             Compute::Any => "?".to_string(),
             Compute::TimeStamp => "T".to_string(),
-        };
+        }
+    }
 
-        let s = format!("{} := {}", self.var, s);
+    pub fn to_string_short(&self) -> String {
+        format!("{} := {}", self.var.leaf(), self.val_to_string())
+    }
+}
+
+impl fmt::Display for Action {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = format!("{} := {}", self.var, self.val_to_string());
         write!(fmtr, "{}", &s)
     }
 }
@@ -499,7 +521,7 @@ impl NextAction for Action {
     fn next(&self, state: &mut SPState) -> SPResult<()> {
         let c = match &self.value {
             Compute::PredicateValue(pv) => match pv.sp_value(state).cloned() {
-                Some(x) => x,
+                Some(x) => Some(x),
                 None => {
                     eprintln!(
                         "The action PredicateValue, next did not find a value for variable: {:?}",
@@ -513,14 +535,14 @@ impl NextAction for Action {
             },
             Compute::Predicate(p) => {
                 let res = p.eval(state);
-                res.to_spvalue()
+                Some(res.to_spvalue())
             },
             Compute::Function(xs) => {
                 let res = xs.iter().find(|(p, _)| p.eval(state)).map(|(_, v)| v.sp_value(state)).flatten();
                 match res {
                     Some(x) => {
                         println!("Found function value! {}", x);
-                        x.clone()
+                        Some(x.clone())
                     },
                     None => {
                         eprintln!(
@@ -534,13 +556,17 @@ impl NextAction for Action {
                     }
                 }
             }
-            Compute::TimeStamp => SPValue::Time(std::time::SystemTime::now()),
-            Compute::Any => SPValue::Unknown,
+            Compute::TimeStamp => Some(SPValue::Time(std::time::SystemTime::now())),
+            Compute::Any => None,
         };
 
-        match &self.state_path {
-            Some(sp) => state.next(&sp, c),
-            None => state.next_from_path(&self.var, c),
+        if let Some(c) = c {
+            match &self.state_path {
+                Some(sp) => state.next(&sp, c),
+                None => state.next_from_path(&self.var, c),
+            }
+        } else {
+            Ok(())
         }
     }
 }

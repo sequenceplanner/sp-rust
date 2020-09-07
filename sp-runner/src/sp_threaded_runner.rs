@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
+use std::panic;
 use crate::formal_model::*;
 use crate::planning;
 
@@ -19,6 +20,26 @@ const LVL1_LOOKOUT: f32 = 0.75;
 const LVL1_MAX_TIME: Duration = Duration::from_secs(5);
 
 pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
+    // we use this as the main entry point for SP.
+    // so here we register our panic handler to send out
+    // fatal messages to ROS
+    panic::set_hook(Box::new(|panic_info| {
+        let msg = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s
+        } else if  let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            &s[..]
+        } else {
+            ""
+        };
+        let (file, line) = if let Some(location) = panic_info.location() {
+            (location.file(), location.line())
+        } else {
+            ("",0)
+        };
+        log_fatal(msg, file, line);
+        println!("\n\n\nSP PANIC: {}\n\n\nfile: {}:{}", msg, file, line);
+    }));
+
     let (mut node, comm) = set_up_ros_comm(&model)?;
 
     let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
@@ -444,7 +465,9 @@ fn runner(
                         let mut pr = if runner.ticker.state.sp_value_from_path(&mono).unwrap_or(&false.to_spvalue()) == &true.to_spvalue() {
                             let modifies: HashSet<SPPath> = goals.iter().map(|(a,_)|a.support()).flatten().collect();
                             let ts_1 = &runner.transition_system_models[1];
-                            let all: HashSet<SPPath> = ts_1.vars.iter().map(|v|v.path().clone()).collect();
+                            let mut all: HashSet<SPPath> = ts_1.vars.iter().map(|v|v.path().clone()).collect();
+                            // HACK below!
+                            all.retain(|p| p.path.contains(&"product_state".to_string()));
                             let no_change: HashSet<&SPPath> = all.difference(&modifies).collect();
                             let no_change_spec: Predicate = Predicate::AND(no_change.iter().flat_map(|p| {
                                 runner.state().sp_value_from_path(p)
@@ -452,8 +475,9 @@ fn runner(
                                          Predicate::EQ(PredicateValue::SPPath((*p).clone(), None),
                                                        PredicateValue::SPValue(val.clone())))
                             }).collect());
-                            // let mut goals = goals.clone();
-                            // goals.push((no_change_spec, None));
+                            // TODO: these specs should really be extended to include any auto trans which can change them.
+                            // the extending should be computed whenever the model changes
+                            // this is temporary.
                             let mut tts = ts.clone();
                             tts.specs.push(Spec::new("om", no_change_spec));
 
@@ -532,7 +556,7 @@ fn runner(
                             }
                         }
                         if disabled_operations.is_empty() {
-                            // panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
+                            panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
                         }
                     }
 
@@ -865,7 +889,7 @@ fn node_handler(
                     resource_state.push((r.clone(), enabled.to_spvalue()));
                 }
                 let rs = SPState::new_from_values(&resource_state);
-                tx_runner.send(SPRunnerInput::NodeChange(rs)).unwrap();
+                tx_runner.send(SPRunnerInput::NodeChange(rs)).expect("could not send, channel dead");
 
                 true
             }
@@ -922,12 +946,12 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         .collect();
     let global_hl_ops_ctrl: Vec<_> = global_int_trans
         .iter()
-        .filter(|t| t.controlled)
+        .filter(|t| t.controlled())
         .cloned()
         .collect();
     let global_hl_ops_un_ctrl: Vec<_> = global_int_trans
         .iter()
-        .filter(|t| !t.controlled)
+        .filter(|t| !t.controlled())
         .cloned()
         .collect();
     let global_hl_goals: Vec<IfThen> = global_intentions
@@ -949,16 +973,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
 
     if generate_mc_problems {
         crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
-        let inits: Vec<Predicate> = ts_model.specs.iter()
-            .filter_map(|s| if s.name() == "supervisor" {
-                Some(s.invariant().clone())
-            } else {
-                None
-            })
-            .collect();
-
-        // we need to assume that we are in a state that adheres to the resources
-        let initial = Predicate::AND(inits);
+        crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
 
         // debug low level model
         let all_op_names = global_ops.iter().map(|o|o.name().to_string()).collect::<Vec<_>>();
@@ -1004,7 +1019,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             };
             let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
             temp_ts_model.name += &format!("_{}", o.name());
-            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial, &op);
+            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
         });
     }
 
@@ -1025,13 +1040,13 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         ctrl: ts_model
             .transitions
             .iter()
-            .filter(|t| t.controlled())
+            .filter(|t| t.type_ == TransitionType::Controlled)
             .cloned()
             .collect(),
         un_ctrl: ts_model
             .transitions
             .iter()
-            .filter(|t| !t.controlled())
+            .filter(|t| t.type_ == TransitionType::Auto || t.type_ == TransitionType::Runner)
             .cloned()
             .collect(),
     };
@@ -1040,7 +1055,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
     let mut trans = vec![];
     let mut restrict_controllable = vec![];
     let mut restrict_op_controllable = vec![];
-    let false_trans = Transition::new("empty", Predicate::FALSE, vec![], vec![], true);
+    let false_trans = Transition::new("empty", Predicate::FALSE, vec![], TransitionType::Controlled);
     rm_op_transitions.ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_op_controllable.push(TransitionSpec::new(

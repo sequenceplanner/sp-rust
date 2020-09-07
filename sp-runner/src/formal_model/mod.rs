@@ -42,15 +42,11 @@ impl FormalContext {
         for t in &model.transitions {
             let guard = fc.sp_pred_to_ex(t.guard());
             let actions: Vec<_> = t.actions().iter().map(|a| fc.sp_action_to_ac(a)).collect();
-            let effects: Vec<_> = t.effects().iter().map(|a| fc.sp_action_to_ac(a)).collect();
-            let mut a = Vec::new();
-            a.extend(actions.iter().cloned());
-            a.extend(effects.iter().cloned());
 
             if t.controlled() {
-                fc.context.add_c_trans(&t.path().to_string(), &guard, &a);
+                fc.context.add_c_trans(&t.path().to_string(), &guard, &actions);
             } else {
-                fc.context.add_uc_trans(&t.path().to_string(), &guard, &a);
+                fc.context.add_uc_trans(&t.path().to_string(), &guard, &actions);
             }
         }
 
@@ -296,7 +292,6 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     let mut r = HashSet::new();
 
     r.extend(t.actions().iter().map(|a| a.var.clone()));
-    r.extend(t.effects().iter().map(|a| a.var.clone()));
 
     r
 }

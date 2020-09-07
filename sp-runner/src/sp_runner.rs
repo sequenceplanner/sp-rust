@@ -166,6 +166,8 @@ impl SPRunner {
     /// that runner tries to reach.
     pub fn goal(&mut self) -> Vec<Vec<(Predicate, Option<Predicate>)>> {
         let low_level = self.operation_goals.iter().filter_map(|(op,g)| {
+            // we need to check if the operation is running, because
+            // the goal is still there in error mode.
             let op = self.operations.iter().find(|o| o.path() == op).unwrap();
             let sp = op.state_variable().path();
             let is_running = self.ticker.state.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
@@ -207,6 +209,9 @@ impl SPRunner {
 
         let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
 
+        // we need to make sure goals can be ticked off when reached.
+        let mut goals = goals.to_vec();
+
         let mut state = s.clone();
         let mut counter = 0;
         loop {
@@ -227,10 +232,6 @@ impl SPRunner {
                     // take all actions
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                         let _res = a.next(&mut state);
-                    });
-                    // and effects
-                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
-                        let _res = e.next(&mut state);
                     });
 
                     // update state predicates
@@ -256,7 +257,8 @@ impl SPRunner {
             //     return false;
             // }
 
-            if goals.iter().all(|g| g.eval(&state)) {
+            goals.retain(|g| !g.eval(&state));
+            if goals.is_empty() {
                 return true;
             }
             else if !state_changed {
@@ -266,7 +268,7 @@ impl SPRunner {
                 // above. worst case we waste some time here but but
                 // it should be faster than replanning anyway.
 
-                return self.check_goals_complete(s, goals, plan, ts_model);
+                return self.check_goals_complete(s, &goals, plan, ts_model);
                 // return false; // think about how we want to do it...
             }
         }
@@ -294,12 +296,18 @@ impl SPRunner {
             } else {
                 let t = t.unwrap();
 
-            let ok = t.eval(&state);
-            if ok {
-                t.effects.iter().for_each(|e| {
-                    let _res = e.next(&mut state);
-                });
-            }
+                let x = t.guard.support();
+                // TODO: again, does not handle "mixed" operations
+                let ok = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
+                    true
+                } else {
+                    t.eval(&state)
+                };
+                if ok {
+                    t.actions.iter().for_each(|e| {
+                        let _res = e.next(&mut state);
+                    });
+                }
                 ok
             }
         });
@@ -312,9 +320,9 @@ impl SPRunner {
 
         state.take_transition();
 
-        let mut goals_reached = goals.iter().map(|g| (g, g.eval(s))).collect::<Vec<_>>();
-
-        if goals_reached.iter().all(|(_g, r)| *r) {
+        let mut goals = goals.to_vec();
+        goals.retain(|g| !g.eval(&state));
+        if goals.is_empty() {
             return true;
         }
 
@@ -334,12 +342,12 @@ impl SPRunner {
                         // outside the lvl1 plan, let it through anyway so
                         // we can step the counter.
                         let post =
-                            Predicate::AND(t.effects
+                            Predicate::AND(t.actions
                                            .iter()
                                            .flat_map(|e| e.to_predicate())
                                            .collect());
                         if post.eval(&state) {
-                            // println!("GOT THROUGH ON: {}", post);
+                            println!("GOT THROUGH ON: {}", post);
                             x = true;
                         }
                     }
@@ -350,10 +358,6 @@ impl SPRunner {
                     // take all actions
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                         let _res = a.next(&mut state);
-                    });
-                    // and effects
-                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
-                        let _res = e.next(&mut state);
                     });
 
                     // update state predicates
@@ -372,14 +376,8 @@ impl SPRunner {
                 }
             }).any(|x|x);
 
-            goals_reached.iter_mut().for_each(|(g,r)| {
-                if !*r && g.eval(&state) {
-                    *r = true;
-                    // println!("for {}: {}", g, r);
-                }
-            });
-
-            if goals_reached.iter().all(|(_g, r)| *r) {
+            goals.retain(|g| !g.eval(&state));
+            if goals.is_empty() {
                 return true;
             }
             else if !state_changed {
@@ -417,10 +415,6 @@ impl SPRunner {
                     ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                         // if actions write to the same path, only the first will be used
                         let _res = a.next(&mut state);
-                    });
-                    // and effects
-                    ts.iter().flat_map(|t| t.effects.iter()).for_each(|e| {
-                        let _res = e.next(&mut state);
                     });
 
                     // update state predicates
@@ -534,7 +528,7 @@ impl SPRunner {
                 let goal = self.operation_goals.get(op.path()).unwrap_or(&Predicate::FALSE);
                 let spec = TransitionSpec::new(
                     &format!("{}_post", op.path()),
-                    Transition::new("post", goal.clone(), vec![], vec![], true),
+                    Transition::new("post", goal.clone(), vec![], TransitionType::Controlled),
                     vec![op.runner_finish.path().clone()],
                 );
                 new_specs.push(spec);
@@ -548,7 +542,7 @@ impl SPRunner {
                 // block finish
                 let spec = TransitionSpec::new(
                     &format!("{}_post", op.path()),
-                    Transition::new("post", Predicate::FALSE, vec![], vec![], true),
+                    Transition::new("post", Predicate::FALSE, vec![], TransitionType::Controlled),
                     vec![op.runner_finish.path().clone()],
                 );
                 new_specs.push(spec);
