@@ -43,7 +43,9 @@ struct GOperation {
 pub struct GModel {
     model: Model,
     initial_state: SPState,
-    resource_products: Vec<SPPath>,
+    resource_products: Vec<SPPath>, // Probably remove this...
+    // When we synchronize with transitions, the original is removed
+    synchronized_paths: Vec<SPPath>,
 }
 
 impl GModel {
@@ -52,6 +54,7 @@ impl GModel {
             model: Model::new_root(name, Vec::new()),
             initial_state: SPState::new(),
             resource_products: Vec::new(),
+            synchronized_paths: Vec::new(),
         }
     }
 
@@ -268,7 +271,36 @@ impl GModel {
         self.initial_state.add_variables(s);
     }
 
-    pub fn make_model(self) -> (Model, SPState) {
+    /// Add new guard/actions to existing transition. The original
+    /// transition will be removed from the model and a new one with
+    /// the new name will be added. (we don't send in a new transition
+    /// as we want to keep the transition type).
+    pub fn synchronize(&mut self, sync_with: &SPPath, new_name: &str,
+                       guard: Predicate, actions: &[Action]) -> SPPath {
+        let sync_t = self.model
+            .get(sync_with)
+            .expect(&format!("cannot find transition {}", sync_with));
+        if let SPItemRef::Transition(t) = sync_t {
+            let mut new_t = t.clone();
+            new_t.guard = Predicate::AND(vec![guard, t.guard.clone()]);
+            new_t.actions.extend(actions.iter().cloned());
+            new_t.node_mut().update_name(&format!("{}_{}", t.name(), new_name));
+            self.synchronized_paths.push(sync_with.clone());
+            self.model.add_item(SPItem::Transition(new_t))
+        } else {
+            panic!("syncronizing with {}, but {} is not a transition",
+                   sync_with, sync_with);
+        }
+    }
+
+    pub fn make_model(mut self) -> (Model, SPState) {
+        // disable all synchronized transitions (we keep only the new ones)
+        for tp in &self.synchronized_paths {
+            if let Some(SPMutItemRef::Transition(t)) = self.model.get_mut(tp) {
+                t.guard = Predicate::FALSE;
+            }
+        }
+
         // operations start in init
         let op_state = self.model.all_operations().iter()
             .map(|o| (o.state_variable().node().path().clone(), "i".to_spvalue()))

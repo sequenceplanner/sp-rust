@@ -74,6 +74,7 @@ pub trait Noder {
     fn node(&self) -> &SPNode;
     fn node_mut(&mut self) -> &mut SPNode;
     fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>>;
+    fn get_child_mut<'a>(&'a mut self, next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>>;
     fn find_item_among_children<'a>(
         &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>>;
@@ -103,6 +104,19 @@ pub trait Noder {
         let next = path.next_node_in_path(self.path());
         next.as_ref().and_then(|n| self.get_child(n, path))
     }
+
+    /// Finds the item with a specific SPPath. Will only find locals if asked from the
+    /// correct resource (or below)
+    fn get_mut<'a>(&'a mut self, path: &SPPath) -> Option<SPMutItemRef<'a>> {
+        if self.node().is_eq(path) {
+            return Some(self.as_mut_ref());
+        }
+        if let Some(n) = path.next_node_in_path(self.path()) {
+            return self.get_child_mut(&n, path)
+        }
+        return None
+    }
+
 
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item<'a>(&'a self, name: &str, path_sections: &[&str]) -> Option<SPItemRef<'a>> {
@@ -152,6 +166,23 @@ where
     for i in xs.iter() {
         if i.node().name() == next {
             if let Some(x) = i.get(path) {
+                return Some(x);
+            }
+        }
+    }
+    None
+}
+
+/// A method used by the items when impl the Noder trait
+/// Tries to find an item with the path in a list that incl
+/// items that impl Noder
+pub fn get_from_list_mut<'a, T>(xs: &'a mut [T], next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>>
+where
+    T: Noder,
+{
+    for i in xs.iter_mut() {
+        if i.node_mut().name() == next {
+            if let Some(x) = i.get_mut(path) {
                 return Some(x);
             }
         }

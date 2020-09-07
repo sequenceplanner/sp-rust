@@ -929,16 +929,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
 
     if generate_mc_problems {
         crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
-        let inits: Vec<Predicate> = ts_model.specs.iter()
-            .filter_map(|s| if s.name() == "supervisor" {
-                Some(s.invariant().clone())
-            } else {
-                None
-            })
-            .collect();
-
-        // we need to assume that we are in a state that adheres to the resources
-        let initial = Predicate::AND(inits);
+        crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
 
         // debug low level model
         let all_op_names = global_ops.iter().map(|o|o.name().to_string()).collect::<Vec<_>>();
@@ -984,7 +975,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             };
             let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
             temp_ts_model.name += &format!("_{}", o.name());
-            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial, &op);
+            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
         });
     }
 
