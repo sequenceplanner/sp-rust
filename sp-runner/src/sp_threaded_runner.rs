@@ -26,6 +26,8 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (tx_planner, _rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) =
         channel::unbounded();
 
+    resource_handler(comm.rx_resources, tx_runner.clone());
+
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(100), tx_runner.clone());
 
@@ -89,6 +91,8 @@ fn runner(
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::StateChange(s));
                             state_has_probably_changed = true;
+                        } else {
+                            runner.update_state_variables(s);
                         }
                     }
                     SPRunnerInput::NodeChange(s) => {
@@ -311,7 +315,7 @@ fn runner(
             }
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
-                println!("TS {}", i);
+                //println!("TS {}", i);
                 let mut ts = ts.clone();
                 if i == 1 {
                     ts.transitions.retain(|t| !disabled_operations.contains(&t.path().parent()));
@@ -331,7 +335,7 @@ fn runner(
                         continue;
                     }
 
-                println!("TS {} NOT SKIPPED", i);
+                //println!("TS {} NOT SKIPPED", i);
 
                 // for each namespace, check if we need to replan because
                 // 1. got new goals from the runner or
@@ -349,7 +353,7 @@ fn runner(
                     .iter()
                     .map(|g| &g.0).collect(); // dont care about the invariants for now
 
-                println!("TS {} GOT GOALS", i);
+                //println!("TS {} GOT GOALS", i);
 
                 let replan = {
                     let is_empty = prev_goal.is_none();
@@ -384,7 +388,7 @@ fn runner(
                 } || {
                     let now = std::time::Instant::now();
 
-                    println!("TS {} CHECKING GOALS", i);
+                    //println!("TS {} CHECKING GOALS", i);
 
                     let ok = if i == 1 {
                         runner
@@ -396,7 +400,7 @@ fn runner(
                                               &runner.transition_system_models[i])
                     };
 
-                    println!("TS {} CHECKING GOALS DONE", i);
+                    //println!("TS {} CHECKING GOALS DONE", i);
 
                     if now.elapsed().as_millis() > 100 {
                         println!("WARNINIG goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
@@ -412,7 +416,7 @@ fn runner(
 
                 if replan {
 
-                    println!("TS {} REPLAN", i);
+                    //println!("TS {} REPLAN", i);
 
                     // temporary hack -- actually probably not so
                     // temporary, this is something we need to deal with
@@ -594,6 +598,7 @@ struct RosCommSetup {
     rx_mess: Receiver<RosMessage>,
     rx_commands: Receiver<RunnerCommand>,
     rx_node: Receiver<NodeMode>,
+    rx_resources: Receiver<ROSResource>,
     tx_state_out: Sender<SPState>,
     tx_runner_info: Sender<RunnerInfo>,
     tx_node_cmd: Sender<NodeCmd>,
@@ -617,17 +622,56 @@ fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
     let (tx_in_node, rx_node) = channel::unbounded();
     let tx_node_cmd = ros_node_comm_setup(&mut node, model, tx_in_node)?;
 
+    let (tx_in_resources, rx_resources) = channel::unbounded();
+    ros_resource_comm_setup(&mut node, tx_in_resources)?;
+
     Ok((
         node,
         RosCommSetup {
             rx_mess,
             rx_commands: rx_commands,
             rx_node,
+            rx_resources,
             tx_state_out,
             tx_runner_info,
             tx_node_cmd,
         },
     ))
+}
+
+fn resource_handler(rx_resources: Receiver<ROSResource>, tx_runner: Sender<SPRunnerInput>) {
+    let mut resources: Vec<SPPath> = vec!();
+    let path_to_list = SPPath::from_string("resources");
+    thread::spawn(move || loop {
+        match rx_resources.recv() {
+            Ok(x) => {
+                log_info!("Got resource: {:?}", x);
+                if !resources.contains(&x.path) {
+                    resources.push(x.path.clone());
+                    log_info!("Got new resource: {:?}", x);
+                    let res_list = SPValue::Array(SPValueType::Path, resources.iter().map(|p| SPValue::Path(p.clone())).collect());
+                    let mut state_to_send = SPState::new_from_values(&[(path_to_list.clone(), res_list)]);
+                    if let Some(goal) = x.last_goal_from_sp {
+                        state_to_send.extend(goal);
+                    }
+                log_info!("resource state: {}", state_to_send);
+                let res = tx_runner.send(SPRunnerInput::StateChange(state_to_send));
+                if res.is_err() {
+                    println!("The runner channel is dead (in the merger)!: {:?}", res);
+                    break;
+                }
+                } else {
+                    log_info!("Got existing resource: {:?}", x);
+                }
+                
+            }
+            Err(e) => {
+                println!("The ticker is dead (in ticker)!: {:?}", e);
+                break;
+            }
+        }
+    });
+
 }
 
 fn merger(rx_mess: Receiver<RosMessage>, tx_runner: Sender<SPRunnerInput>) {

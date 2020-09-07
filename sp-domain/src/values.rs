@@ -82,7 +82,7 @@ impl SPValue {
         }
     }
 
-    pub fn from_json(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
+    pub fn from_json_type_hint(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
         // as we have more options than json we switch on the spval type
         let tm = |msg: &str| {
             format!(
@@ -134,6 +134,39 @@ impl SPValue {
                 serde_json::json!(v)
             }
             SPValue::Unknown => serde_json::json!("[Unknown]"), 
+        }
+    }
+
+    pub fn from_json(value: &serde_json::Value) -> SPValue {
+        match value {
+            serde_json::Value::Array(x) => {
+                let value_type = SPValue::from_json(x.first().unwrap_or(&serde_json::Value::Null)).has_type();
+                let array = x.iter().map(|v| SPValue::from_json(v)).collect();
+                SPValue::Array(value_type, array)
+            },
+            serde_json::Value::Bool(x) => {
+                SPValue::Bool(x.clone())
+            }
+            serde_json::Value::Number(x) if x.is_f64() => {
+                SPValue::Float32(x.as_f64().unwrap() as f32)
+            }
+            serde_json::Value::Number(x) if x.is_i64() => {
+                SPValue::Int32(x.as_i64().unwrap() as i32)
+            }
+            serde_json::Value::String(x) => {
+                SPValue::String(x.clone())
+            }
+            serde_json::Value::Object(x) => {
+                if let Some(p) = serde_json::from_value(value.clone()).ok() {
+                    return SPValue::Path(p);
+                } 
+                if let Some(p) = serde_json::from_value(value.clone()).ok() {
+                    return SPValue::Time(p);
+                } 
+                println!("Object not an SPValue: {}", value);
+                SPValue::Unknown
+            }
+            x => SPValue::Unknown
         }
     }
 }

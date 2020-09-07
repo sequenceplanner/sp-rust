@@ -154,5 +154,8 @@ mod tests_paths {
     }
 
     #[test]
-    fn get_next_name() {}
+    fn get_next_name() {
+        let p = SPPath::from_string("a/b/c/d");
+        println!{"{}", serde_json::to_string(&p).unwrap()};
+    }
 }
