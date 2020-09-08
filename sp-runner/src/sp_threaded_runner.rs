@@ -465,17 +465,20 @@ fn runner(
                             // HACK below!
                             all.retain(|p| p.path.contains(&"product_state".to_string()));
                             let no_change: HashSet<&SPPath> = all.difference(&modifies).collect();
-                            let no_change_spec: Predicate = Predicate::AND(no_change.iter().flat_map(|p| {
+                            let no_change_specs: Vec<Predicate> = no_change.iter().flat_map(|p| {
                                 runner.state().sp_value_from_path(p)
                                     .map(|val|
                                          Predicate::EQ(PredicateValue::SPPath((*p).clone(), None),
                                                        PredicateValue::SPValue(val.clone())))
-                            }).collect());
+                            }).collect();
                             // TODO: these specs should really be extended to include any auto trans which can change them.
                             // the extending should be computed whenever the model changes
                             // this is temporary.
                             let mut tts = ts.clone();
-                            tts.specs.push(Spec::new("om", no_change_spec));
+                            if !no_change_specs.is_empty() {
+                                let no_change_pred = Predicate::AND(no_change_specs);
+                                tts.specs.push(Spec::new("monotonicity_constraints", no_change_pred));
+                            }
 
                             // skip heuristic for the low level (cannot use cache if we dont serialize the extra invariants)
                             planning::plan(&tts, &goals, runner.state(), LVL0_MAX_STEPS)
