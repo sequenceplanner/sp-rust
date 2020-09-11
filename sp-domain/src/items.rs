@@ -297,6 +297,21 @@ impl<'a> SPMutItemRef<'a> {
     pub fn name(&self) -> &str {
         self.node().name()
     }
+    pub fn item_type_as_string(&self) -> String {
+        match self {
+            SPMutItemRef::Model(_) => "model".to_string(),
+            SPMutItemRef::Resource(_) => "resource".to_string(),
+            SPMutItemRef::Message(_) => "message".to_string(),
+            SPMutItemRef::Topic(_) => "topic".to_string(),
+            SPMutItemRef::Variable(_) => "variable".to_string(),
+            SPMutItemRef::Intention(_) => "intention".to_string(),
+            SPMutItemRef::Operation(_) => "operation".to_string(),
+            SPMutItemRef::Transition(_) => "transition".to_string(),
+            SPMutItemRef::IfThen(_) => "ifthen".to_string(),
+            SPMutItemRef::Spec(_) => "spec".to_string(),
+            SPMutItemRef::TransitionSpec(_) => "transitionspec".to_string(),
+        }
+    }
 }
 
 /// A trait for unwrapping SPItemRefs and cloning the items
@@ -1377,14 +1392,14 @@ pub struct Operation {
 
     // for the planning model -- no low-level variables allowed here
     pub guard: Predicate,
-    pub effects: Vec<Action>,
+    pub effects: Vec<Vec<Action>>,
 
     // planning transition
-    pub planning_trans: Transition, // guard / effects
+    pub planning_trans: Vec<Transition>, // guard / effects
 
     // for the runner -- syncing with the low-level
-    pub goal: IfThen,
-    pub post_actions: Vec<Action>,
+    pub goals: Vec<IfThen>,
+//    pub post_actions: Vec<Action>,
 
     // runner transitions
     pub runner_start: Transition, // state = i && guard / state = e
@@ -1426,21 +1441,23 @@ impl Noder for Operation {
         self.state_variable.find_item_mut(name, path_sections)
     }
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        self.planning_trans.update_path(path, changes);
+        update_path_in_list(self.planning_trans.as_mut_slice(), path, changes);
 
         self.runner_start.update_path(path, changes);
         self.runner_finish.update_path(path, changes);
 
-        self.goal.update_path(path, changes);
+        update_path_in_list(self.goals.as_mut_slice(), path, changes);
         self.state_variable.update_path(path, changes);
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(mapping);
-        self.effects.iter_mut().for_each(|e| e.replace_variable_path(mapping));
-        self.planning_trans.rewrite_expressions(mapping);
+        self.effects.iter_mut().for_each(|e| {
+            e.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+        });
+        self.planning_trans.iter_mut().for_each(|p|p.rewrite_expressions(mapping));
 
-        self.goal.rewrite_expressions(mapping);
-        self.post_actions.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+        self.goals.iter_mut().for_each(|g|g.rewrite_expressions(mapping));
+//        self.post_actions.iter_mut().for_each(|e| e.replace_variable_path(mapping));
         self.runner_start.rewrite_expressions(mapping);
         self.runner_finish.rewrite_expressions(mapping);
 
@@ -1457,9 +1474,8 @@ impl Noder for Operation {
 }
 
 impl Operation {
-    pub fn new(name: &str, guard: &Predicate, effects: &[Action],
-               goal: &Predicate, post_actions: &[Action], resets: bool,
-               fvc: Option<Predicate>) -> Operation {
+    pub fn new(name: &str, guard: &Predicate, effects_goals: &[(&[Action], &Predicate)],
+               post_actions: &[Action], resets: bool, fvc: Option<Predicate>) -> Operation {
         let node = SPNode::new(name);
 
         let state_variable = Variable::new(
@@ -1490,36 +1506,41 @@ impl Operation {
             f_actions,
             TransitionType::Auto
         );
-        let eg = effects.to_vec();
-        let op_goal = IfThen::new("goal", p!(p: state == "e"), goal.clone(), None, Some(eg)); // invariant = None for now...
+        let op_goals: Vec<_> = effects_goals.iter()
+            .map(|(e,g)| IfThen::new("goal", p!(p: state == "e"), (*g).clone(), None, Some(e.to_vec())) // invariant = None for now...
+            ).collect();
 
         // in the planning model, we only have a single transition,
         // effects are immediate
-        let planning_trans = Transition::new(
-            "planning",
-            guard.clone(),
-            effects.to_vec(),
-            TransitionType::Controlled);
+        let planning_trans = effects_goals.iter().enumerate()
+            .map(|(i,(e,_))|
+                 Transition::new(
+                     &format!("{}", i),
+                     guard.clone(),
+                     e.to_vec(),
+                     TransitionType::Controlled)
+        ).collect();
 
         // TODO: does not handle the case where we have mixed resource
         // and product states. perhaps we should not allow that anyway.
         let x = guard.support();
+        let goals = Predicate::OR(effects_goals.iter().map(|(_,g)| (*g).clone()).collect());
         let fvg = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
-            goal.clone()
+            goals.clone()
         } else {
-            Predicate::AND(vec![guard.clone(), goal.clone()])
+            Predicate::AND(vec![guard.clone(), goals.clone()])
         };
 
-
+        let effects = effects_goals.iter().map(|(e,_)| e.to_vec()).collect();
         Operation {
             node,
 
             guard: guard.clone(),
-            effects: effects.to_vec(),
+            effects,
             planning_trans,
 
-            goal: op_goal,
-            post_actions: post_actions.to_vec(),
+            goals: op_goals,
+            // post_actions: post_actions.to_vec(),
 
             runner_start,
             runner_finish,
@@ -1591,9 +1612,6 @@ impl Spec {
     }
 }
 
-/// Specs are used to define global constraints
-/// TODO: should we allow ltl expressions?
-/// For now its just simple forbidden states
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TransitionSpec {
     node: SPNode,

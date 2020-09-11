@@ -230,6 +230,7 @@ pub fn convert_planning_result_with_packing_heuristic(
                 .state
                 .iter()
                 .filter(|(p, _)| intersections.contains(p))
+                .filter(|(p, _)| p.path.contains(&"product_state".to_string())) // hack...
                 .map(|(p, v)| {
                     Predicate::EQ(
                         PredicateValue::path((*p).clone()),

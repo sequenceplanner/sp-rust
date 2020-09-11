@@ -556,7 +556,8 @@ fn runner(
                         }
                         if disabled_operations.is_empty() {
                             // panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
-                            log_error!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
+                            log_error!("NO PLAN FOUND BUT ALSO NO OFFENDING OPS.\n\
+                                       It could be that the planning horizon needs to be increased.");
                         }
                     }
 

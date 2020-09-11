@@ -275,12 +275,14 @@ impl SPRunner {
     }
 
     /// Same as above but with special hacks for level 1...
+    /// We need to branch whenever there are alternatives.
+    /// We only care about reaching the end goal.
     pub fn check_goals_op_model(&self, s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
-        let mut state = s.clone();
+        let mut states = vec![s.clone()];
 
         // first apply all effects that we are waiting
         // on for executing operations.
-        let running = state.projection().state.iter()
+        let running = s.projection().state.iter()
             .filter_map(|(k,v)| {
                 if v.current_value() != &"e".to_spvalue() {
                     return None
@@ -290,100 +292,141 @@ impl SPRunner {
             }).collect::<Vec<&Operation>>();
         let ok = running.iter().all(|op| {
             let tp = op.runner_start.path();
-            let t = ts_model.transitions.iter().find(|t| t.path() == tp);
-            if t.is_none() {
-                true
-            } else {
-                let t = t.unwrap();
+            let t: Vec<_> = ts_model.transitions.iter().filter(|t| t.path().parent() == tp.parent()).collect();
+            if t.is_empty() {
+                panic!("no such transition: {}", tp);
+            } else if t.len() == 1 {
+                // no alternative, just apply.
+                let t = t.first().unwrap();
 
-                let x = t.guard.support();
-                // TODO: again, does not handle "mixed" operations
-                let ok = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
-                    true
-                } else {
-                    t.eval(&state)
-                };
-                if ok {
-                    t.actions.iter().for_each(|e| {
-                        let _res = e.next(&mut state);
+                let mut ok = false;
+                states.iter_mut().for_each(|mut state| {
+                    let x = t.guard.support();
+                    // TODO: again, does not handle "mixed" operations
+                    let iok = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
+                        true
+                    } else {
+                        t.eval(s)
+                    };
+
+                    if iok {
+                        t.actions.iter().for_each(|e| {
+                            let _res = e.next(&mut state);
+                        });
+                        ok = true;
+                    }
+                });
+                ok
+            } else {
+                // alternatives, add them later.
+                let mut states_to_add = vec![];
+                let mut ok = false;
+                t.iter().for_each(|t| {
+                    states.iter_mut().for_each(|state| {
+                        let x = t.guard.support();
+                        // TODO: again, does not handle "mixed" operations
+                        let iok = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
+                            true
+                        } else {
+                            t.eval(state)
+                        };
+                        if iok {
+                            println!("ADDING STATE FOR {}", t.path());
+                            let mut ns = state.clone();
+                            t.actions.iter().for_each(|e| {
+                                let _res = e.next(&mut ns);
+                            });
+                            states_to_add.push(ns);
+                            ok = true;
+                        }
                     });
-                }
+                });
+                states.clear();
+                states.extend(states_to_add);
                 ok
             }
         });
 
         if !ok {
-            // could not apply transitions of running transitions, the state must have
+            // could not apply all transitions of running transitions, the state must have
             // changed in an unexpected way.
+            println!("could not apply transitions. false");
             return false;
         }
 
-        state.take_transition();
+        for mut state in &mut states {
+            state.take_transition();
 
-        let mut goals = goals.to_vec();
-        goals.retain(|g| !g.eval(&state));
-        if goals.is_empty() {
-            return true;
-        }
+            println!("NEW STARTING STATE:\n{}", state);
 
-        let trans: Vec<Transition> = ts_model.transitions.iter()
-            .filter(|t| plan.included_trans.contains(t.path()))
-            .cloned().collect();
-
-        let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
-
-        loop {
-            let state_changed = tm.iter().flat_map(|ts| {
-                if ts.iter().all(|t| {
-                    let mut x = t.eval(&state);
-                    // println!("for {}: {}", t.path(), x);
-                    if t.controlled() && trans.contains(t) && !x {
-                        // if we have an operation here that has been completed
-                        // outside the lvl1 plan, let it through anyway so
-                        // we can step the counter.
-                        let post =
-                            Predicate::AND(t.actions
-                                           .iter()
-                                           .flat_map(|e| e.to_predicate())
-                                           .collect());
-                        if post.eval(&state) {
-                            println!("GOT THROUGH ON: {}", post);
-                            x = true;
-                        }
-                    }
-                    x
-                }) {
-                    // transitions enabled. clone the state to start a new search branch.
-
-                    // take all actions
-                    ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
-                        let _res = a.next(&mut state);
-                    });
-
-                    // update state predicates
-                    SPTicker::upd_preds(&mut state, &self.ticker.predicates);
-
-                    // next -> cur
-                    let changed = state.take_transition();
-
-                    if SPRunner::bad_state(&state, ts_model) {
-                        None
-                    } else {
-                        Some(changed)
-                    }
-                } else {
-                    None
-                }
-            }).any(|x|x);
-
-            goals.retain(|g| !g.eval(&state));
+            let mut goals = goals.to_vec();
+            goals.retain(|g| !g.eval(state));
             if goals.is_empty() {
                 return true;
             }
-            else if !state_changed {
-                return false;
+
+            let trans: Vec<Transition> = ts_model.transitions.iter()
+                .filter(|t| plan.included_trans.contains(t.path()))
+                .cloned().collect();
+
+            let tm = SPTicker::create_transition_map(&trans, &plan.plan, &self.ticker.disabled_paths);
+
+            // create
+
+            loop {
+                let state_changed = tm.iter().flat_map(|ts| {
+                    if ts.iter().all(|t| {
+                        let mut x = t.eval(&state);
+                        println!("for {}: {}", t.path(), x);
+                        // if t.controlled() && trans.contains(t) && !x {
+                        //     // if we have an operation here that has been completed
+                        //     // outside the lvl1 plan, let it through anyway so
+                        //     // we can step the counter.
+                        //     let post =
+                        //         Predicate::AND(t.actions
+                        //                        .iter()
+                        //                        .flat_map(|e| e.to_predicate())
+                        //                        .collect());
+                        //     if post.eval(&state) {
+                        //         println!("GOT THROUGH ON: {}", post);
+                        //         x = true;
+                        //     }
+                        // }
+                        x
+                    }) {
+                        // transitions enabled. clone the state to start a new search branch.
+
+                        // take all actions
+                        ts.iter().flat_map(|t| {println!("XXX: {}", t.path()); t.actions.iter()}).for_each(|a| {
+                            let _res = a.next(&mut state);
+                        });
+
+                        // update state predicates
+                        SPTicker::upd_preds(&mut state, &self.ticker.predicates);
+
+                        // next -> cur
+                        let changed = state.take_transition();
+
+                        if SPRunner::bad_state(&state, ts_model) {
+                            None
+                        } else {
+                            Some(changed)
+                        }
+                    } else {
+                        None
+                    }
+                }).any(|x|x);
+
+                goals.retain(|g| !g.eval(&state));
+                if goals.is_empty() {
+                    return true;
+                }
+                else if !state_changed {
+                    break;
+                }
             }
         }
+        return false; // all branches break:d
     }
 
     /// A slower, but more forgiving forward search to goal.
@@ -495,16 +538,29 @@ impl SPRunner {
         let mut new_state = vec![];
         // check if we started any operations.
         for taken in &res.1 {
+            println!("taken... {}", taken);
             for o in &self.operations {
                 if o.runner_start.path() == taken {
-                    println!("ZZZ OPERTION STARTED: {}", o.path().clone());
-                    // we need to update the goal and postcond.
+                    // since there is no way to control the outcome of
+                    // operations with multiple effects, we must be ok
+                    // with any
 
-                    let goal = Predicate::AND(
-                        o.effects
-                            .iter()
-                            .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
-                            .collect());
+                    let goal = if o.effects.len() == 1 {
+                        // we need to update the goal and postcond.
+                        Predicate::AND(
+                            o.effects[0]
+                                .iter()
+                                .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
+                                .collect())
+                    } else {
+                        // we need to update the goal and postcond.
+                        let inner = o.effects.iter()
+                            .map(|e| Predicate::AND(
+                                e.iter()
+                                    .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
+                                    .collect())).collect();
+                        Predicate::OR(inner)
+                    };
 
                     let goal_sp_val = goal.to_string().to_spvalue();
                     let goal_path = o.path().clone().add_child("goal");
@@ -560,7 +616,26 @@ impl SPRunner {
 
     fn load_plans(&mut self) {
         self.reload_state_paths_plans();
-        self.ticker.specs = self.plans.iter().flat_map(|p|p.plan.clone()).collect();
+        self.ticker.specs = self.plans[0].plan.clone();
+        let ts1 = self.transition_system_models[1].clone();
+
+        let a = self.plans[1].plan.iter().map(|p| {
+            let mut np = p.clone();
+            let sync = np.syncronized_with.clone();
+            let new_sync = sync.iter().map(|p| {
+                if ts1.transitions.iter().any(|t| t.path() == p) {
+                    p.parent().add_child("start")
+                } else {
+                    p.clone()
+                }
+            }).collect();
+            println!("replacling {:?} with {:?}", sync, new_sync);
+            np.syncronized_with = new_sync;
+            np
+        });
+
+        self.ticker.specs.extend(a);
+
         self.ticker
             .specs
             .extend(self.global_transition_specs.clone());

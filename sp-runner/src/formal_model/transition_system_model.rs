@@ -189,16 +189,12 @@ impl TransitionSystemModel {
                       .map(|m| m
                            .items().iter().flat_map(|i| match i {
                                // operations represented by a single transition
-                               SPItem::Operation(o) => {
-                                   let mut t = o.planning_trans.clone();
-                                   t.node_mut().update_name("start");
-                                   Some(t)
-                               },
+                               SPItem::Operation(o) => Some(o.planning_trans.clone()),
                                // "auto planning" transitions. these exist only in the planning world
-                               SPItem::Transition(t) => Some(t.clone()),
+                               SPItem::Transition(t) => Some(vec![t.clone()]),
                                _ => None,
                            })
-                           .collect())).unwrap_or(vec![]);
+                        .flatten().collect())).unwrap_or(vec![]);
 
         TransitionSystemModel {
             name: format!("op_model_{}", model.name()),

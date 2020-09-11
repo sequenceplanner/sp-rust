@@ -222,9 +222,62 @@ impl GModel {
         if goal == &Predicate::TRUE {
             self.add_op_auto(name, guard, effects)
         } else {
-            let op = Operation::new(name, guard, effects, &goal, post_actions, resets, mc_constraint);
+            let effects_goals = vec![(effects, goal)];
+            let op = Operation::new(name, guard, &effects_goals, post_actions, resets, mc_constraint);
             self.add_sub_item("operations", SPItem::Operation(op))
         }
+    }
+
+    /// Add an operation that models a non-deteministic plant, ie multiple possible outcomes.
+    pub fn add_op_nd(&mut self, name: &str, guard: &Predicate,
+                     effects_goals: &[(&[Action], &Predicate)],
+                     post_actions: &[Action], resets: bool, auto: bool,
+                     mc_constraint: Option<Predicate>) -> SPPath {
+        for (i, (effects, goal)) in effects_goals.iter().enumerate() {
+            if *goal == &Predicate::TRUE {
+                panic!("add op nd true goal todo");
+            }
+
+            let pre = Predicate::AND(vec![guard.clone(), (*goal).clone()]);
+            let mut act = effects.to_vec();
+            act.extend(post_actions.iter().cloned());
+            act.retain(|a| !self.resource_products.iter().any(|p|p==&a.var));
+            // add a new low level transition. goal // effects
+            if !act.is_empty() {
+                if auto {
+
+                    // it is important to realize that we cannot freely change
+                    // the goals of the high level when we are in this state
+                    // or any other state from which this state can
+                    // uncontrollably be reached. so we also create a spec here
+                    let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
+                    self.add_sub_item("replan_specs", SPItem::Spec(spec));
+
+                    let trans = Transition::new(
+                        &i.to_string(),
+                        pre.clone(),
+                        act.clone(),
+                        TransitionType::Auto,  // auto!
+                    );
+                    self.add_sub_item(name, SPItem::Transition(trans));
+                } else {
+
+                    // in this case it's fine (compare spec above) as the
+                    // variables are not changed uncontrollably.
+
+                    let trans = Transition::new(
+                        &i.to_string(),
+                        pre.clone(),
+                        act.clone(),
+                        TransitionType::Controlled,  // auto!
+                    );
+                    self.add_sub_item(name, SPItem::Transition(trans));
+                }
+            }
+        }
+
+        let op = Operation::new(name, guard, effects_goals, post_actions, resets, mc_constraint);
+        self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     pub fn add_intention(
@@ -320,16 +373,17 @@ impl GModel {
         (self.model, s)
     }
 
-    fn add_sub_item(&mut self, subpath: &str, item: SPItem) -> SPPath {
-        let m = match self.model.find_item_mut(subpath, &[]) {
+    fn add_sub_item(&mut self, root: &str, item: SPItem) -> SPPath {
+        let root_path = SPPath::from_string(root);
+        let m = match self.model.get_mut(&root_path) {
             Some(SPMutItemRef::Model(m)) => m,
-            Some(_) => panic!("error..."),
+            Some(item) => panic!("trying to add submodel {}, but that path is already a '{}'.",
+                                 root, item.item_type_as_string()),
             None => {
-                let temp_model = Model::new(subpath, vec![]);
-                let _temp_model_path = self.model.add_item(SPItem::Model(temp_model));
-                match self.model.find_item_mut(subpath, &[]) {
+                let temp_model = Model::new(root, vec![]);
+                let temp_model_path = self.model.add_item(SPItem::Model(temp_model));
+                match self.model.get_mut(&temp_model_path) {
                     Some(SPMutItemRef::Model(m)) => m,
-                    Some(_) => panic!("error..."),
                     _ => panic!("cannot happen"),
                 }
             }
