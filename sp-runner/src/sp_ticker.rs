@@ -162,11 +162,20 @@ impl SPTicker {
     pub fn upd_preds(state: &mut SPState, predicates: &[RunnerPredicate]) {
         predicates.iter().for_each(|pr| {
             let value = pr.1.eval(state).to_spvalue();
-            if let Err(e) = state.force(&pr.0, value) {
-                eprintln!(
-                    "The predicate {:?} could not be updated in the runner. Got error: {}",
-                    pr.0, e
-                );
+            if let Err(e) = state.force(&pr.0, &value) {
+                // eprintln!(
+                //     "The predicate {:?} does not have an updated state path. Got error: {}",
+                //     pr.0, e
+                // );
+                if let Err(e) = state.force_from_path(&pr.0.path, &value) {
+                    eprintln!(
+                        "The predicate {:?} could not be updated in the runner. Got error: {}",
+                        pr.0, e
+                    );
+                }
+                
+
+
             }
         })
     }

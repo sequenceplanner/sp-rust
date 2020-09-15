@@ -383,14 +383,13 @@ mod ros {
         }
         
         let topic = "/sp/resources";
-        let path = SPPath::from_string("resources");
+        let path = SPPath::from_string("registered_resources");
         let rp = node.0.create_publisher::<r2r::sp_messages::msg::Resources>(topic)?;
         let send_resource_list = move |s: &SPState| {
-            let res = s.sp_value_from_path(&path);
             if let Some(SPValue::Array(SPValueType::Path, xs)) = s.sp_value_from_path(&path) {
                 let resources: Vec<String> = xs.iter().map(|x| {
                     if let SPValue::Path(p) = x {
-                        p.to_string()
+                        p.drop_root().to_string()
                     } else {
                         x.to_json().to_string()
                     }
@@ -594,24 +593,33 @@ mod ros {
     pub fn ros_resource_comm_setup(
         node: &mut RosNode, 
         tx_to_runner: channel::Sender<ROSResource>,
+        prefix_path: &SPPath,
     ) -> Result<(), Error> {
         let resource_topic = "sp/resource";
+        let prefix_path = prefix_path.clone();
 
         let tx_in = tx_to_runner.clone();
         let cb = move |msg: r2r::sp_messages::msg::RegisterResource| {
-                println!{"*!*!*!*!**!*!*!*!"}
-                println!("Got resource: {:?}", msg);
-
-                let p = SPPath::from_string(&msg.path);
+                let mut p = SPPath::from_string(&msg.path);
+                p.add_parent_path(&prefix_path);
                 let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
-                let last_goal_from_sp: Result<SPState, _> = serde_json::from_str(&msg.last_goal_from_sp);
-                let msg = ROSResource{
+                let last_goal_from_sp: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                let last_goal_print: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                let last = last_goal_from_sp.map(|x| {
+                    let mut s = x.to_state();
+                    let mut goal_path = p.clone();
+                    goal_path.add_child_path(&SPPath::from_string("goal/0"));
+                    s.prefix_paths(&goal_path);
+                    s
+                });
+                let resource = ROSResource{
                     path:  p,
                     model: model.ok(),
-                    last_goal_from_sp: last_goal_from_sp.ok(),
+                    last_goal_from_sp: last.ok(),
                 };
-
-                tx_in.send(msg).expect("Can not send the ROSResource. Threads are dead?");
+                
+                let last_goal_value: Result<serde_json::Value, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                tx_in.send(resource).expect("Can not send the ROSResource. Threads are dead?");
             
         };
         println!("setting up subscription to topic: {}", resource_topic);

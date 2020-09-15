@@ -11,7 +11,7 @@ pub struct SPPath {
 
 impl std::fmt::Display for SPPath {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.path.join("/"))
+        write!(f, "/{}", self.path.join("/"))
     }
 }
 

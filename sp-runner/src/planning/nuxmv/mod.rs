@@ -290,10 +290,10 @@ pub fn plan_async(
         },
     };
 
-    if res.plan_found {
-        // usually dont care to debug these
-        let _ = std::fs::remove_file(filename);
-    }
+    // if res.plan_found {
+    //     // usually dont care to debug these
+    //     let _ = std::fs::remove_file(filename);
+    // }
 
     res
 }
@@ -488,10 +488,10 @@ impl Planner for NuXmvPlanner {
                 raw_error_output: e.to_string(),
             },
         };
-        if res.plan_found {
-            // usually dont care to debug these
-            let _ = std::fs::remove_file(filename);
-        }
+        // if res.plan_found {
+        //     // usually dont care to debug these
+        //     let _ = std::fs::remove_file(filename);
+        // }
         res
     }
 }

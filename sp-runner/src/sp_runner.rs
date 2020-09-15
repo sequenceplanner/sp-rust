@@ -130,7 +130,7 @@ impl SPRunner {
         use sp_runner_api::RunnerCommand;
         match input {
             SPRunnerInput::Tick => {
-                self.take_a_tick(SPState::new(), false);
+                self.take_a_tick(SPState::new(), true);
             }
             SPRunnerInput::StateChange(s) => {
                 self.take_a_tick(s, false);
@@ -218,7 +218,7 @@ impl SPRunner {
             let state_changed = tm.iter().flat_map(|ts| {
                 if ts.iter().all(|t| {
                     let x = t.eval(&state);
-                    println!("for {}: {}", t.path(), x);
+                    //println!("for {}: {}", t.path(), x);
                     x
                 }) {
                     // transitions enabled.
@@ -240,7 +240,7 @@ impl SPRunner {
                     // next -> cur
                     let changed = state.take_transition();
 
-                    println!("THE STATE\n{}", state);
+                    //println!("THE STATE\n{}", state);
 
                     if SPRunner::bad_state(&state, ts_model) {
                         None
@@ -463,10 +463,10 @@ impl SPRunner {
     }
 
     fn take_a_tick(&mut self, state: SPState, check_resources: bool) {
-        self.update_state_variables(state);
         if check_resources {
             self.check_resources();
         }
+        self.update_state_variables(state);
 
         // do nothing if we are in a (globally) bad state.
         // these exprs can be pretty big. do some benchmark here.
@@ -587,20 +587,43 @@ impl SPRunner {
     }
 
     fn check_resources(&mut self) {
-        // TODO: Maybe not clone these, but probably ok since not many resources.
-        let missing_resources: Vec<SPPath> = self
-            .resources
-            .iter()
-            .filter(|r| {
-                self.state()
-                    .sp_value_from_path(r)
-                    .map(|v| v != &true.to_spvalue())
-                    .unwrap_or(true)
-            })
-            .cloned()
-            .collect();
+        // TODO: Move these to transitions into each resource
+        let all_resources = self.resources.clone();
+        let resources_state = self.state().sp_value_from_path(&SPPath::from_string("registered_resources"));
+        let missing_resources: Vec<SPPath> = all_resources
+        .iter()
+        .filter(|r| {
+            let r = r.clone();
+            if let Some(SPValue::Array(SPValueType::Path, xs)) = resources_state {
+                let res = xs.contains(&SPValue::Path(r.clone()));
+                !res
+            } else {
+                true
+            }
+        })
+        .cloned()
+        .collect();
+        
         self.ticker.disabled_paths = missing_resources;
-        println!("Disabled paths: {:?}", self.ticker.disabled_paths);
+        self.upd_resource_enabled();
+        if !self.ticker.disabled_paths.is_empty() {
+            println!("Disabled paths: {:?}", self.ticker.disabled_paths);
+        }
+    }
+
+    fn upd_resource_enabled(&mut self) {
+        let rs = self.resources.clone();
+        rs.iter().for_each(|r| {
+            let r = r.clone();
+            // Move this to transitions on each resource
+            let enabled = !self.ticker.disabled_paths.contains(&r) && {
+                let toff = Predicate::TOFF(PredicateValue::path(r.clone().add_child("timestamp")), PredicateValue::SPValue(SPValue::Int32(5000))); // Hardcoded 5 seconds
+                toff.eval(&self.ticker.state)
+            };
+            self.ticker.state.add_variable(r.clone(), SPValue::Bool(enabled));
+
+        });
+        
     }
 }
 
