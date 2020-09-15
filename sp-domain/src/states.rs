@@ -442,6 +442,7 @@ impl SPState {
 
     pub fn next(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
+            panic!("The state path is wrong: {:?}", state_path);
             Err(SPError::No("The state path is wrong".to_string()))
         } else if !self.values[state_path.index].next(value) {
             Err(SPError::No(

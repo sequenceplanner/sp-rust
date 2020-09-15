@@ -229,10 +229,10 @@ impl GModel {
     }
 
     /// Add an operation that models a non-deteministic plant, ie multiple possible outcomes.
-    pub fn add_op_nd(&mut self, name: &str, guard: &Predicate,
-                     effects_goals: &[(&[Action], &Predicate)],
-                     post_actions: &[Action], resets: bool, auto: bool,
-                     mc_constraint: Option<Predicate>) -> SPPath {
+    pub fn add_op_alt(&mut self, name: &str, guard: &Predicate,
+                      effects_goals: &[(&[Action], &Predicate)],
+                      post_actions: &[Action], resets: bool, auto: bool,
+                      mc_constraint: Option<Predicate>) -> SPPath {
         for (i, (effects, goal)) in effects_goals.iter().enumerate() {
             if *goal == &Predicate::TRUE {
                 panic!("add op nd true goal todo");

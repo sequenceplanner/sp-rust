@@ -278,7 +278,24 @@ impl SPRunner {
     /// We need to branch whenever there are alternatives.
     /// We only care about reaching the end goal.
     pub fn check_goals_op_model(&self, s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
-        let mut states = vec![s.clone()];
+        // filter out unrelated state
+        let rp = SPPath::from_slice(&["runner", "plans", "1"]);
+        let new_state = s.clone();
+        let new_state: Vec<_> = new_state.extract().into_iter().filter(|(p,_)| {
+            p == &rp || ts_model.vars.iter().any(|v|v.path() == p)
+        }).map(|(p,v)| (p, v.extract())).collect();
+        let new_state = SPState::new_from_values(&new_state);
+        let mut states = vec![new_state.clone()];
+
+
+        // TODO: we need to do something about this, I spent a lot of time.... figuring out
+        // why some actions were not applied. atleast we should panic if the state path is wrong.
+
+        // we need to clone the plan dues to our state getting a new id above....
+        let mut plan = plan.clone();
+        for x in plan.plan.iter_mut() {
+            x.spec_transition.upd_state_path(&new_state);
+        }
 
         // first apply all effects that we are waiting
         // on for executing operations.
@@ -376,42 +393,21 @@ impl SPRunner {
             loop {
                 let state_changed = tm.iter().flat_map(|ts| {
                     if ts.iter().all(|t| {
-                        let mut x = t.eval(&state);
-                        println!("for {}: {}", t.path(), x);
-                        // if t.controlled() && trans.contains(t) && !x {
-                        //     // if we have an operation here that has been completed
-                        //     // outside the lvl1 plan, let it through anyway so
-                        //     // we can step the counter.
-                        //     let post =
-                        //         Predicate::AND(t.actions
-                        //                        .iter()
-                        //                        .flat_map(|e| e.to_predicate())
-                        //                        .collect());
-                        //     if post.eval(&state) {
-                        //         println!("GOT THROUGH ON: {}", post);
-                        //         x = true;
-                        //     }
-                        // }
+                        let x = t.eval(&state);
+                        // println!("for {}: {}", t.path(), x);
                         x
                     }) {
                         // transitions enabled. clone the state to start a new search branch.
 
                         // take all actions
-                        ts.iter().flat_map(|t| {println!("XXX: {}", t.path()); t.actions.iter()}).for_each(|a| {
-                            let _res = a.next(&mut state);
+                        ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
+                            let res = a.next(&mut state);
+                            println!("for: res: {:?} -- {:?}", res, a);
                         });
-
-                        // update state predicates
-                        SPTicker::upd_preds(&mut state, &self.ticker.predicates);
 
                         // next -> cur
                         let changed = state.take_transition();
-
-                        if SPRunner::bad_state(&state, ts_model) {
-                            None
-                        } else {
-                            Some(changed)
-                        }
+                        Some(changed)
                     } else {
                         None
                     }

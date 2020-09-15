@@ -61,7 +61,8 @@ impl FormalContext {
         let val = match &a.value {
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
                 // assign p to var
-                let (other, _var) = self.var_map.get(p).expect("variable not found");
+                let (other, _var) = self.var_map.get(p).expect(
+                    &format!("variable not found: {}, looked in {:?}\n", p, self.var_map.keys()));
                 Value::Var(*other)
             }
             Compute::PredicateValue(PredicateValue::SPValue(value)) => {
@@ -349,7 +350,7 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
     // });
 
     // finally filter out any variables left
-    model.vars.retain(|v| support_all.contains(v.path()));
+    // model.vars.retain(|v| support_all.contains(v.path()));
 
     // TODO: also filter out all variables and state predicates which
     // are not included in any of our transitions/invariants
