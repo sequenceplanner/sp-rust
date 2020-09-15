@@ -659,6 +659,12 @@ macro_rules! p {
         Predicate::NOT(Box::new( inner ))
     }};
 
+    // if we already have a predicate we need to prefix it with pp:
+    (pp:$i:expr) => {{
+        // println!("matched base: {}", stringify!($p));
+        $i.clone()
+    }};
+
     // if we already have a path reference we need to prefix it with p:
     (p:$i:ident) => {{
         // println!("matched base: {}", stringify!($p));
