@@ -329,15 +329,15 @@ fn runner(
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
-            for (i,g) in goals.iter().enumerate() {
-                if !g.is_empty() {
-                    //println!("Goals for {}", i);
-                    for g in g {
-                        println!("{}", g.0);
-                    }
-                    //println!("--");
-                }
-            }
+            // for (i,g) in goals.iter().enumerate() {
+            //     if !g.is_empty() {
+            //         println!("Goals for {}", i);
+            //         for g in g {
+            //             println!("{}", g.0);
+            //         }
+            //         println!("--");
+            //     }
+            // }
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
                 //println!("TS {}", i);
