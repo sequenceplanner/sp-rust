@@ -586,42 +586,41 @@ impl SPRunner {
         });
     }
 
-    fn check_resources(&mut self) {
-        // TODO: Move these to transitions into each resource
+    fn check_resources(&mut self) { 
+        self.upd_resource_enabled();
         let all_resources = self.resources.clone();
-        let resources_state = self.state().sp_value_from_path(&SPPath::from_string("registered_resources"));
         let missing_resources: Vec<SPPath> = all_resources
         .iter()
         .filter(|r| {
             let r = r.clone();
-            if let Some(SPValue::Array(SPValueType::Path, xs)) = resources_state {
-                let res = xs.contains(&SPValue::Path(r.clone()));
-                !res
-            } else {
-                true
-            }
+            let is_not_enabled = Predicate::NEQ(
+                PredicateValue::path(r.clone()),
+                PredicateValue::value(SPValue::Bool(true))
+            );
+            is_not_enabled.eval(&self.ticker.state)
         })
         .cloned()
         .collect();
         
         self.ticker.disabled_paths = missing_resources;
-        self.upd_resource_enabled();
         if !self.ticker.disabled_paths.is_empty() {
             println!("Disabled paths: {:?}", self.ticker.disabled_paths);
         }
     }
 
     fn upd_resource_enabled(&mut self) {
+        // TODO: Move these to transitions into each resource
         let rs = self.resources.clone();
+        let registered = SPPath::from_string("registered_resources");
         rs.iter().for_each(|r| {
-            let r = r.clone();
-            // Move this to transitions on each resource
-            let enabled = !self.ticker.disabled_paths.contains(&r) && {
-                let toff = Predicate::TOFF(PredicateValue::path(r.clone().add_child("timestamp")), PredicateValue::SPValue(SPValue::Int32(5000))); // Hardcoded 5 seconds
-                toff.eval(&self.ticker.state)
-            };
+            let is_member = Predicate::MEMBER(
+                PredicateValue::SPValue(r.to_spvalue()),
+                PredicateValue::path(registered.clone())
+            );
+            let toff = Predicate::TOFF(PredicateValue::path(r.clone().add_child("timestamp")), PredicateValue::SPValue(SPValue::Int32(5000))); // Hardcoded 5 seconds
+            let enabled_pred = Predicate::AND(vec!(is_member.clone(), toff.clone()));
+            let enabled = enabled_pred.eval(&self.ticker.state);
             self.ticker.state.add_variable(r.clone(), SPValue::Bool(enabled));
-
         });
         
     }
