@@ -55,6 +55,7 @@ impl SPTicker {
                 &self.forbidden,
             );
             self.state.take_transition();
+
             if f.is_empty() {
                 // println!("f empty, fired is {:?}", fired);
                 break;
@@ -63,6 +64,12 @@ impl SPTicker {
                 if counter > 1000 {
                     // there is probably a self loop in the model
                     let t_names = f.iter().map(|p|p.to_string()).collect::<Vec<_>>().join(",");
+                    let fired_names = fired.iter().map(|p:&SPPath|p.to_string()).collect::<Vec<_>>().join(",");
+                    println!("self loop with transitions {}", t_names);
+                    //println!("The state: {}", &self.state);
+                    //temp_transition_map.iter().for_each(|x| println!("T: {:?}", x));
+                    //let error_msg = format!("SELF LOOP: {}, ----, THE TRANSITIONS: {}", t_names, fired_names);
+                    //let error_msg = format!("SELF LOOP: {}, ----, THE STATE: {}, ----, Transitions: {:?}", t_names, &self.state, &temp_transition_map);
                     panic!("self loop with transitions {}", t_names);
                 }
                 println!("runner one more time! adding new fired {:?}", f);
@@ -162,11 +169,18 @@ impl SPTicker {
     pub fn upd_preds(state: &mut SPState, predicates: &[RunnerPredicate]) {
         predicates.iter().for_each(|pr| {
             let value = pr.1.eval(state).to_spvalue();
-            if let Err(e) = state.force(&pr.0, value) {
+            if let Err(e) = state.force(&pr.0, &value) {
                 eprintln!(
-                    "The predicate {:?} could not be updated in the runner. Got error: {}",
+                    "The predicate {:?} does not have an updated state path. Got error: {}",
                     pr.0, e
                 );
+                if let Err(e) = state.force_from_path(&pr.0.path, &value) {
+                    eprintln!(
+                        "The predicate {:?} could not be updated in the runner. Got error: {}",
+                        pr.0, e
+                    );
+                }
+                
             }
         })
     }
@@ -177,13 +191,18 @@ impl SPTicker {
         state: &mut SPState, ts: &[&Transition], forbidden_states: &[IfThen],
     ) -> Vec<SPPath> {
         let enabled = ts.iter().all(|t| t.eval(state)) && ts.iter().any(|t| !t.actions.is_empty());
-        if enabled {
+        if enabled && !ts.is_empty() {
             ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                 let _res = a.next(state); // if actions write to the same path, only the first will be used
+                if _res.is_err() {
+                    println!("The transitions {:?} could not fire! {:?}", ts, _res);
+                }
             });
             if SPTicker::check_forbidden(state, forbidden_states) {
+                println!("Transitions {:?} tries to enter a FORBIDDEN STATE: {:?}", ts, state);
                 ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                     let _res = a.revert_action(state); // reverts the actions by removing next if we are in a forbidden state
+                    println!("The transitions {:?} could not be reverted! {:?}", ts, _res);
                 });
             } else {
                 return ts.iter().map(|t| t.node().path().clone()).collect();

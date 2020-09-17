@@ -351,9 +351,9 @@ fn check_goals_exact(s: &SPState, goals: &[&Predicate], plan: &[SPPath], ts_mode
         ts_model.state_predicates.iter().for_each(|sp| {
             if let VariableType::Predicate(p) = sp.variable_type() {
                 let value = p.eval(&state).to_spvalue();
-                if let Err(e) = state.force_from_path(sp.path(), value) {
+                if let Err(e) = state.force_from_path(sp.path(), &value) {
                     eprintln!(
-                        "The predicate {:?} could not be updated in the runner. Got error: {}",
+                        "The predicate {:?} could not be updated in the check_goals_exact. Got error: {}",
                         sp.path(), e
                     );
                 }

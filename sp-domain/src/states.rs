@@ -124,6 +124,32 @@ impl<'a> StateProjection<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
+pub struct SPStateJson(HashMap<String, serde_json::Value>);
+
+
+impl SPStateJson {
+    pub fn new(state: HashMap<String, serde_json::Value>) -> Self {
+        SPStateJson(state)
+    }
+
+    pub fn to_state(self) -> SPState {
+        let res: Vec<(SPPath, SPValue)> = self.0.into_iter().map(|(k, v)|{
+            let p = SPPath::from_string(&k);
+            let v = SPValue::from_json(&v);
+            (p, v)
+        }).collect();
+        SPState::new_from_values(&res)
+    }
+
+    pub fn from_state(state: &SPState) -> SPStateJson {
+        let state = state.projection().state.iter().map(|(k, v)| {
+            (k.to_string(), v.value().to_json())
+        }).collect();
+        SPStateJson(state)
+    }
+}
+
 /// StateValue includes the current and an optional next and prev value.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default, Clone)]
 pub struct StateValue {
@@ -387,8 +413,10 @@ impl SPState {
 
     pub fn are_new_values_the_same(&self, new_values: &SPState) -> bool {
         new_values.index.iter().all(|(key, i)| {
+            let new_value = new_values.values[*i].value();
+            new_value.is_type(SPValueType::Time) ||
             self.sp_value_from_path(key)
-                .map(|x| x == new_values.values[*i].value())
+                .map(|x| x == new_value)
                 .unwrap_or(false)
         })
     }
@@ -443,7 +471,7 @@ impl SPState {
     pub fn next(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
             panic!("The state path is wrong: {:?}", state_path);
-            Err(SPError::No("The state path is wrong".to_string()))
+            Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
         } else if !self.values[state_path.index].next(value) {
             Err(SPError::No(
                 "The state already have a next value".to_string(),
@@ -459,24 +487,24 @@ impl SPState {
             Err(SPError::No(format! {"Can not find the path: {:?}", path}))
         }
     }
-    pub fn force(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
+    pub fn force(&mut self, state_path: &StatePath, value: &SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
-            Err(SPError::No("The state path is wrong".to_string()))
+            Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
         } else {
-            self.values[state_path.index].force(value);
+            self.values[state_path.index].force(value.clone());
             Ok(())
         }
     }
-    pub fn force_from_path(&mut self, path: &SPPath, value: SPValue) -> SPResult<()> {
+    pub fn force_from_path(&mut self, path: &SPPath, value: &SPValue) -> SPResult<()> {
         if let Some(sp) = self.state_path(&path) {
-            self.force(&sp, value)
+            self.force(&sp, &value)
         } else {
             Err(SPError::No(format! {"Can not find the path: {:?}", path}))
         }
     }
     pub fn revert_next(&mut self, state_path: &StatePath) -> SPResult<()> {
         if !self.check_state_path(state_path) {
-            Err(SPError::No("The state path is wrong".to_string()))
+            Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
         } else {
             self.values[state_path.index].revert_next();
             Ok(())
@@ -542,6 +570,10 @@ impl SPState {
             Some(other_state)
         }
     }
+
+    pub fn to_state_json(&self) -> SPStateJson {
+        SPStateJson::from_state(self)
+    }
 }
 
 impl fmt::Display for SPState {
@@ -598,12 +630,19 @@ mod sp_value_test {
         let ab = SPPath::from_slice(&["a", "b"]);
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
-        let s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
+        let mut s = state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true);
         let s2 = state!(ab => 2, ac => true, kl => true);
         println!("s proj {:?}", s.projection());
         println!("s2 proj {:?}", s2.projection());
 
         assert_eq!(s, s2);
+
+        s.add_variable(SPPath::from_string("timer/test"), SPValue::Time(std::time::SystemTime::now()));
+        s.add_variable(SPPath::from_string("path/test"), SPValue::Path(ac.clone()));
+
+
+        let x = serde_json::to_string_pretty(&s.to_state_json()).unwrap();
+        println!("{}", x);
     }
 
     #[test]
@@ -678,18 +717,18 @@ mod sp_value_test {
         let ac = s.state_path(&SPPath::from_slice(&["a", "c"])).unwrap();
 
         let mut new_s = s.clone();
-        new_s.force(&ab, 3.to_spvalue()).unwrap();
+        new_s.force(&ab, &3.to_spvalue()).unwrap();
 
         println!("{}", s.difference(&new_s));
         println!();
 
-        new_s.force(&ab, 2.to_spvalue()).unwrap();
+        new_s.force(&ab, &2.to_spvalue()).unwrap();
 
         println!("{}", s.difference(&new_s));
         println!();
 
-        new_s.force(&ab, 4.to_spvalue()).unwrap();
-        new_s.force(&ac, 2.to_spvalue()).unwrap();
+        new_s.force(&ab, &4.to_spvalue()).unwrap();
+        new_s.force(&ac, &2.to_spvalue()).unwrap();
 
         println!("{}", s.difference(&new_s));
         println!();

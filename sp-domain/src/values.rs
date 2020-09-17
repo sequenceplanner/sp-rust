@@ -12,8 +12,8 @@ pub enum SPValue {
     Float32(f32),
     Int32(i32),
     String(String),
-    Time(u32),
-    Duration(u32),
+    Time(std::time::SystemTime), 
+    Path(super::SPPath),
     Array(SPValueType, Vec<SPValue>),
     Unknown,
     //byte(u8), //deprecated
@@ -38,7 +38,7 @@ pub enum SPValueType {
     Int32,
     String,
     Time,
-    Duration,
+    Path,
     Array,
     Unknown,
 }
@@ -56,7 +56,7 @@ impl SPValue {
             SPValue::Int32(_) => SPValueType::Int32 == t,
             SPValue::String(_) => SPValueType::String == t,
             SPValue::Time(_) => SPValueType::Time == t,
-            SPValue::Duration(_) => SPValueType::Duration == t,
+            SPValue::Path(_) => SPValueType::Path == t,
             SPValue::Array(at, _) => at == &t,
             SPValue::Unknown => SPValueType::Unknown == t,
         }
@@ -76,13 +76,13 @@ impl SPValue {
             SPValue::Int32(_) => SPValueType::Int32,
             SPValue::String(_) => SPValueType::String,
             SPValue::Time(_) => SPValueType::Time,
-            SPValue::Duration(_) => SPValueType::Duration,
+            SPValue::Path(_) => SPValueType::Path,
             SPValue::Array(t, _) => *t,
             SPValue::Unknown => SPValueType::Unknown,
         }
     }
 
-    pub fn from_json(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
+    pub fn from_json_type_hint(json: &serde_json::Value, spv_t: SPValueType) -> SPValue {
         // as we have more options than json we switch on the spval type
         let tm = |msg: &str| {
             format!(
@@ -102,10 +102,20 @@ impl SPValue {
             SPValueType::Float32 => {
                 (json.as_f64().unwrap_or_else(|| panic!(tm("float"))) as f32).to_spvalue()
             }
-            SPValueType::String => json
+            SPValueType::String => {
+                json
                 .as_str()
                 .unwrap_or_else(|| panic!(tm("string")))
-                .to_spvalue(),
+                .to_spvalue()
+            }
+            SPValueType::Time => {
+                let t: std::time::SystemTime = serde_json::from_value(json.clone()).expect(&tm("time"));
+                SPValue::Time(t)
+            }
+            SPValueType::Path => {
+                let p: super::SPPath = serde_json::from_value(json.clone()).expect(&tm("path"));
+                SPValue::Path(p)
+            }
             // todo: check is_array
             _ => unimplemented!("TODO {:?}", spv_t),
         }
@@ -117,12 +127,46 @@ impl SPValue {
             SPValue::Int32(x) => serde_json::json!(*x),
             SPValue::Float32(x) => serde_json::json!(*x),
             SPValue::String(x) => serde_json::json!(x),
+            SPValue::Time(x) => serde_json::json!(x),
+            SPValue::Path(x) => serde_json::json!(x),
             SPValue::Array(_, x) => {
                 let v: Vec<serde_json::Value> = x.iter().map(|spval| spval.to_json()).collect();
                 serde_json::json!(v)
             }
-            SPValue::Unknown => serde_json::json!("[Unknown]"),
-            _ => unimplemented!("TODO: {}", self),
+            SPValue::Unknown => serde_json::json!("[Unknown]"), 
+        }
+    }
+
+    pub fn from_json(value: &serde_json::Value) -> SPValue {
+        match value {
+            serde_json::Value::Array(x) => {
+                let value_type = SPValue::from_json(x.first().unwrap_or(&serde_json::Value::Null)).has_type();
+                let array = x.iter().map(|v| SPValue::from_json(v)).collect();
+                SPValue::Array(value_type, array)
+            },
+            serde_json::Value::Bool(x) => {
+                SPValue::Bool(x.clone())
+            }
+            serde_json::Value::Number(x) if x.is_f64() => {
+                SPValue::Float32(x.as_f64().unwrap() as f32)
+            }
+            serde_json::Value::Number(x) if x.is_i64() => {
+                SPValue::Int32(x.as_i64().unwrap() as i32)
+            }
+            serde_json::Value::String(x) => {
+                SPValue::String(x.clone())
+            }
+            serde_json::Value::Object(x) => {
+                if let Some(p) = serde_json::from_value(value.clone()).ok() {
+                    return SPValue::Path(p);
+                } 
+                if let Some(p) = serde_json::from_value(value.clone()).ok() {
+                    return SPValue::Time(p);
+                } 
+                println!("Object not an SPValue: {}", value);
+                SPValue::Unknown
+            }
+            x => SPValue::Unknown
         }
     }
 }
@@ -153,8 +197,8 @@ impl fmt::Display for SPValue {
             SPValue::Float32(f) => write!(fmtr, "{}", f),
             SPValue::Int32(i) => write!(fmtr, "{}", i),
             SPValue::String(s) => write!(fmtr, "{}", s),
-            SPValue::Time(t) => write!(fmtr, "{:?}", t),
-            SPValue::Duration(d) => write!(fmtr, "{:?}", d),
+            SPValue::Time(t) => write!(fmtr, "Time({:?} ago)", t.elapsed().unwrap_or_default()),
+            SPValue::Path(d) => write!(fmtr, "{}", d),
             SPValue::Array(_, a) => write!(fmtr, "{:?}", a),
             SPValue::Unknown => write!(fmtr, "[unknown]"),
         }
@@ -172,21 +216,6 @@ impl ToSPValue for f32 {
         SPValue::Float32(*self)
     }
 }
-// impl ToSPValue for f64 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Float64(*self)
-//     }
-// }
-// impl ToSPValue for i8 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Int8(*self)
-//     }
-// }
-// impl ToSPValue for i16 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Int16(*self)
-//     }
-// }
 impl ToSPValue for i32 {
     fn to_spvalue(&self) -> SPValue {
         SPValue::Int32(*self)
@@ -197,31 +226,7 @@ impl ToSPValue for usize {
         SPValue::Int32(*self as i32)
     }
 }
-// impl ToSPValue for i64 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Int64(*self)
-//     }
-// }
-// impl ToSPValue for u8 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint8(*self)
-//     }
-// }
-// impl ToSPValue for u16 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint16(*self)
-//     }
-// }
-// impl ToSPValue for u32 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint32(*self)
-//     }
-// }
-// impl ToSPValue for u64 {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::Uint64(*self)
-//     }
-// }
+
 impl ToSPValue for String {
     fn to_spvalue(&self) -> SPValue {
         SPValue::String(self.clone())
@@ -232,11 +237,17 @@ impl ToSPValue for &str {
         SPValue::String((*self).to_string())
     }
 }
-// impl ToSPValue for Uuid {
-//     fn to_spvalue(&self) -> SPValue {
-//         SPValue::ID(*self)
-//     }
-// }
+impl ToSPValue for super::SPPath {
+    fn to_spvalue(&self) -> SPValue {
+        SPValue::Path(self.clone())
+    }
+}
+impl ToSPValue for std::time::SystemTime {
+    fn to_spvalue(&self) -> SPValue {
+        SPValue::Time(*self)
+    }
+}
+
 impl<T> ToSPValue for Vec<T>
 where
     T: ToSPValue,

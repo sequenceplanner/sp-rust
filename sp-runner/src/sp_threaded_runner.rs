@@ -19,7 +19,7 @@ const LVL1_CUTOFF: u32 = 20;
 const LVL1_LOOKOUT: f32 = 0.75;
 const LVL1_MAX_TIME: Duration = Duration::from_secs(5);
 
-pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
+pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Error> {
     // we use this as the main entry point for SP.
     // so here we register our panic handler to send out
     // fatal messages to ROS
@@ -47,18 +47,22 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
     let (tx_planner, _rx_planner): (Sender<PlannerTask>, Receiver<PlannerTask>) =
         channel::unbounded();
 
+    let resource_list_path = SPPath::from_string("registered_resources");
+    resource_handler(comm.rx_resources, comm.rx_commands, tx_runner.clone(), &resource_list_path);
+    initial_state.add_variable(resource_list_path, SPValue::Array(SPValueType::Path, vec!()));
+
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(100), tx_runner.clone());
 
-    node_handler(
-        Duration::from_millis(1000),
-        Duration::from_secs(1000),
-        &model,
-        comm.rx_node.clone(),
-        comm.tx_node_cmd.clone(),
-        tx_runner.clone(),
-        comm.rx_commands.clone()
-    );
+    // node_handler(
+    //     Duration::from_millis(1000),
+    //     Duration::from_secs(1000),
+    //     &model,
+    //     comm.rx_node.clone(),
+    //     comm.tx_node_cmd.clone(),
+    //     tx_runner.clone(),
+    //     comm.rx_commands.clone()
+    // );
     runner(
         &model,
         initial_state,
@@ -67,6 +71,8 @@ pub fn launch_model(model: Model, initial_state: SPState) -> Result<(), Error> {
         comm.tx_runner_info,
         tx_planner,
     );
+
+    
 
     loop {
         // blocking ros spinning
@@ -110,6 +116,8 @@ fn runner(
                         if !runner.state().are_new_values_the_same(&s) {
                             runner.input(SPRunnerInput::StateChange(s));
                             state_has_probably_changed = true;
+                        } else {
+                            runner.update_state_variables(s);
                         }
                     }
                     SPRunnerInput::NodeChange(s) => {
@@ -196,7 +204,7 @@ fn runner(
                                 println!("operation still problematic...");
                             } else {
                                 let state = p.clone().add_child("state");
-                                runner.ticker.state.force_from_path(&state, "i".to_spvalue()).unwrap();
+                                runner.ticker.state.force_from_path(&state, &"i".to_spvalue()).unwrap();
                                 something_was_fixed = true;
                             }
 
@@ -226,7 +234,7 @@ fn runner(
                                         log_info!("automatically restarting operation {}", p);
                                         runner.ticker.state
                                             .force_from_path(&state_path,
-                                                             "e".to_spvalue()).unwrap();
+                                                             &"e".to_spvalue()).unwrap();
                                     }
                                 }
                             }
@@ -255,9 +263,9 @@ fn runner(
                 !ticked {
                 continue;
             } else {
-                println!("state changed? {}", state_has_probably_changed);
-                println!("transition fired? {}", !runner.last_fired_transitions.is_empty());
-                println!("ticked? {}", ticked);
+                // println!("state changed? {}", state_has_probably_changed);
+                // println!("transition fired? {}", !runner.last_fired_transitions.is_empty());
+                // println!("ticked? {}", ticked);
             }
 
             let disabled = runner.disabled_paths();
@@ -319,20 +327,22 @@ fn runner(
                 continue;
             }
 
-            println!("The State:\n{}", runner.state());
+            //println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
-            for (i,g) in goals.iter().enumerate() {
-                println!("Goals for {}", i);
-                for g in g {
-                    println!("{}", g.0);
-                }
-                println!("--");
-            }
+            // for (i,g) in goals.iter().enumerate() {
+            //     if !g.is_empty() {
+            //         println!("Goals for {}", i);
+            //         for g in g {
+            //             println!("{}", g.0);
+            //         }
+            //         println!("--");
+            //     }
+            // }
 
             for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
-                println!("TS {}", i);
+                //println!("TS {}", i);
                 let mut ts = ts.clone();
                 if i == 1 {
                     ts.transitions.retain(|t| !disabled_operations.contains(&t.path().parent()));
@@ -352,7 +362,7 @@ fn runner(
                         continue;
                     }
 
-                println!("TS {} NOT SKIPPED", i);
+                //println!("TS {} NOT SKIPPED", i);
 
                 // for each namespace, check if we need to replan because
                 // 1. got new goals from the runner or
@@ -370,7 +380,7 @@ fn runner(
                     .iter()
                     .map(|g| &g.0).collect(); // dont care about the invariants for now
 
-                println!("TS {} GOT GOALS", i);
+                //println!("TS {} GOT GOALS", i);
 
                 let replan = {
                     let is_empty = prev_goal.is_none();
@@ -405,7 +415,7 @@ fn runner(
                 } || {
                     let now = std::time::Instant::now();
 
-                    println!("TS {} CHECKING GOALS", i);
+                    //println!("TS {} CHECKING GOALS", i);
 
                     let ok = if i == 1 {
                         runner
@@ -417,7 +427,7 @@ fn runner(
                                               &runner.transition_system_models[i])
                     };
 
-                    println!("TS {} CHECKING GOALS DONE", i);
+                    //println!("TS {} CHECKING GOALS DONE", i);
 
                     if now.elapsed().as_millis() > 100 {
                         println!("WARNINIG goal check for {}: {} (took {}ms)", i, ok, now.elapsed().as_millis());
@@ -433,7 +443,7 @@ fn runner(
 
                 if replan {
 
-                    println!("TS {} REPLAN", i);
+                    //println!("TS {} REPLAN", i);
 
                     // temporary hack -- actually probably not so
                     // temporary, this is something we need to deal with
@@ -445,7 +455,7 @@ fn runner(
                             if runner.ticker.state.sp_value_from_path(path)
                                 .map(|v| v == &"e".to_spvalue()).unwrap_or(false) {
                                     runner.ticker.state.force_from_path(path,
-                                                                        "i".to_spvalue()).unwrap();
+                                                                        &"i".to_spvalue()).unwrap();
                                 }
                         }
                     }
@@ -533,8 +543,8 @@ fn runner(
 
                     if no_plan && i == 0 {
                         // temp
-                        std::fs::copy("/tmp/last_planning_request.bmc",
-                                      "/tmp/last_failed_planning_request.bmc")
+                        std::fs::copy("./last_planning_request.bmc",
+                                      "./last_failed_planning_request.bmc")
                             .expect("file copy failed");
                         // no low level plan found, we are in trouble.
 
@@ -550,7 +560,7 @@ fn runner(
                                 log_warn!("offending low level operation: {}", op_path);
                                 runner.ticker.state
                                     .force_from_path(&op_path.clone().add_child("state"),
-                                                     "error".to_spvalue()).unwrap();
+                                                     &"error".to_spvalue()).unwrap();
                                 disabled_operations.push(op_path.clone());
                             }
                         }
@@ -584,7 +594,7 @@ fn runner(
                                 log_warn!("offending high level operation: {}", offending_op);
                                 runner.ticker.state
                                     .force_from_path(&offending_op.clone().add_child("state"),
-                                                     "error".to_spvalue()).unwrap();
+                                                     &"error".to_spvalue()).unwrap();
                             }
                         }
                     }
@@ -622,10 +632,9 @@ fn runner(
 struct RosCommSetup {
     rx_mess: Receiver<RosMessage>,
     rx_commands: Receiver<RunnerCommand>,
-    rx_node: Receiver<NodeMode>,
+    rx_resources: Receiver<ROSResource>,
     tx_state_out: Sender<SPState>,
     tx_runner_info: Sender<RunnerInfo>,
-    tx_node_cmd: Sender<NodeCmd>,
 }
 
 fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
@@ -642,21 +651,90 @@ fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
     let (tx_in_misc, rx_commands) = channel::bounded(20);
     let tx_runner_info = roscomm_setup_misc(&mut node, tx_in_misc)?;
 
-    // Node handler comm
-    let (tx_in_node, rx_node) = channel::unbounded();
-    let tx_node_cmd = ros_node_comm_setup(&mut node, model, tx_in_node)?;
+    let (tx_in_resources, rx_resources) = channel::unbounded();
+    ros_resource_comm_setup(&mut node, tx_in_resources, model.path())?;
 
     Ok((
         node,
         RosCommSetup {
             rx_mess,
             rx_commands: rx_commands,
-            rx_node,
+            rx_resources,
             tx_state_out,
             tx_runner_info,
-            tx_node_cmd,
         },
     ))
+}
+
+fn resource_handler(
+    rx_resources: Receiver<ROSResource>, 
+    rx_commands: Receiver<RunnerCommand>, 
+    tx_runner: Sender<SPRunnerInput>, 
+    registered_resources: &SPPath
+
+) {
+    
+
+    fn ros_resource(
+        msg: Result<ROSResource, channel::RecvError>,
+        resources: &mut Vec<SPPath>,
+        registered_resources:  &SPPath,
+        tx_runner: Sender<SPRunnerInput>
+    ) -> bool {
+        match msg {
+            Ok(x) => {
+                //log_info!("Got resource: {:?}", x);
+                if !resources.contains(&x.path) {
+                    resources.push(x.path.clone());
+                    log_info!("Got new resource: {:?}", x);
+                    let res_list = SPValue::Array(SPValueType::Path, resources.iter().map(|p| SPValue::Path(p.clone())).collect());
+                    let mut state_to_send = SPState::new_from_values(&[(registered_resources.clone(), res_list)]);
+                    if let Some(goal) = x.last_goal_from_sp {
+                        state_to_send.extend(goal);
+                    }
+                    log_info!("resource state: {}", state_to_send);
+                    let res = tx_runner.send(SPRunnerInput::StateChange(state_to_send));
+                    if res.is_err() {
+                        println!("The runner channel is dead (in the merger)!: {:?}", res);
+                        return false
+                    } 
+                }
+                true
+            }
+            Err(e) => {
+                println!("The ticker is dead (in ticker)!: {:?}", e);
+                false
+            }
+        }
+    }
+
+    fn cmd_from_node(
+        cmd: Result<RunnerCommand, channel::RecvError>,
+        tx_runner: Sender<SPRunnerInput>,
+    ) -> bool {
+        if let Ok(cmd) = cmd {
+            // TODO: Handle bad commands here and reply to commander if needed. Probably use service?
+            tx_runner.send(SPRunnerInput::Settings(cmd)).expect("cmd from node could not talk to the runner");
+            true
+        } else {
+            true
+        }
+    }
+
+    let mut resources: Vec<SPPath> = vec!();
+    let registered_resources = registered_resources.clone();
+    thread::spawn(move || loop {
+        let res;
+        crossbeam::select! {
+            recv(rx_resources) -> resource => res = ros_resource(resource, &mut resources, &registered_resources, tx_runner.clone()),
+            recv(rx_commands) -> cmd => res = cmd_from_node(cmd, tx_runner.clone()),
+        };
+        if !res {
+            break;
+        }
+
+    });
+
 }
 
 fn merger(rx_mess: Receiver<RosMessage>, tx_runner: Sender<SPRunnerInput>) {
