@@ -587,6 +587,7 @@ impl SPRunner {
     }
 
     fn check_resources(&mut self) { 
+        let old_id = self.ticker.state.id();
         self.upd_resource_enabled();
         let all_resources = self.resources.clone();
         let missing_resources: Vec<SPPath> = all_resources
@@ -605,6 +606,9 @@ impl SPRunner {
         self.ticker.disabled_paths = missing_resources;
         if !self.ticker.disabled_paths.is_empty() {
             println!("Disabled paths: {:?}", self.ticker.disabled_paths);
+        }
+        if (old_id != self.ticker.state.id()) {
+            self.reload_state_paths();
         }
     }
 

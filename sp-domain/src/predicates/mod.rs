@@ -549,11 +549,11 @@ impl NextAction for Action {
                     },
                     None => {
                         eprintln!(
-                            "No predicates in the aciton Function was true: {:?}",
+                            "No predicates in the action Function was true: {:?}",
                             self
                         );
                         return Err(SPError::No(format!(
-                            "No predicates in the aciton Function was true: {:?}",
+                            "No predicates in the action Function was true: {:?}",
                             self
                         )));
                     }

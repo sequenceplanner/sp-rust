@@ -72,6 +72,8 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         tx_planner,
     );
 
+    
+
     loop {
         // blocking ros spinning
         spin(&mut node);
