@@ -22,6 +22,13 @@ mod ros {
         pub echo: SPState,
     }
 
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct ROSResource {
+        pub path: SPPath,
+        pub model: Option<SPItem>,
+        pub last_goal_from_sp: Option<SPState>,
+    }
+
     pub fn log(msg: &str, file: &str, line: u32, severity: u32) {
         println!("{}:{}:[{}] - {}", file, line, severity, msg);
     }
@@ -87,6 +94,13 @@ mod ros {
         bail!(format_err!("ROS support not compiled in"));
     }
 
+    pub fn ros_resource_comm_setup(
+        node: &mut RosNode, 
+        tx_to_runner: channel::Sender<ROSResource>,
+    ) -> Result<(), Error> {
+        bail!(format_err!("ROS support not compiled in"));
+    }
+
     pub fn spin(_node: &mut RosNode) {}
 }
 
@@ -121,6 +135,13 @@ mod ros {
         pub mode: String,
         pub time_stamp: std::time::Instant,
         pub echo: SPState,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct ROSResource {
+        pub path: SPPath,
+        pub model: Option<SPItem>,
+        pub last_goal_from_sp: Option<SPState>,
     }
 
     const SP_NODE_NAME: &str = "sp";
@@ -200,7 +221,7 @@ mod ros {
                     // p.pop();
                 }
                 MessageField::Var(var) => {
-                    let sp_val = SPValue::from_json(json, var.value_type());
+                    let sp_val = SPValue::from_json_type_hint(json, var.value_type());
                     a.push((p.clone(), sp_val));
                 }
             }
@@ -311,6 +332,7 @@ mod ros {
                             let json = msg.unwrap();
                             let mut state = json_to_state(&json, &msg_cb);
                             state.prefix_paths(&msg_cb.path());
+                            state.add_variable(r_path.clone().add_child("timestamp"), SPValue::Time(std::time::SystemTime::now()));
                             let time_stamp = std::time::Instant::now();
                             let m = RosMessage {
                                 state,
@@ -359,14 +381,43 @@ mod ros {
                 }
             }
         }
+        
+        let topic = "/sp/resources";
+        let path = SPPath::from_string("registered_resources");
+        let rp = node.0.create_publisher::<r2r::sp_messages::msg::Resources>(topic)?;
+        let send_resource_list = move |s: &SPState| {
+            if let Some(SPValue::Array(SPValueType::Path, xs)) = s.sp_value_from_path(&path) {
+                let resources: Vec<String> = xs.iter().map(|x| {
+                    if let SPValue::Path(p) = x {
+                        p.drop_root().to_string()
+                    } else {
+                        x.to_json().to_string()
+                    }
+                }).collect();
+                let msg =  r2r::sp_messages::msg::Resources {
+                    resources 
+                };
+                let res = rp.publish(&msg);
+                if res.is_err() {
+                    println!(
+                        "RosComm resources not working for {}, error: {:?}",
+                        &topic,
+                        res
+                    );
+                }
+            }
+            
+        };
 
-        let (tx_out, rx_out) = channel::unbounded();
+        let (tx_out, rx_out): (channel::Sender<SPState>, channel::Receiver<SPState>) = channel::unbounded();
         thread::spawn(move || loop {
             match rx_out.recv() {
                 Ok(state) => {
                     for rp in &ros_pubs {
-                        (rp)(&state);
+                        (rp)(&state.clone());
                     }
+
+                    (send_resource_list)(&state)
                 }
                 Err(e) => {
                     println!("RosComm out did not work: {:?}", e);
@@ -427,7 +478,12 @@ mod ros {
                     .into_iter()
                     .map(|(k, v)| {
                         let s = k.to_string();
-                        let val = v.to_json().to_string();
+
+                        let val = match v {
+                            SPValue::Path(x) => x.to_string(),
+                            SPValue::Time(x) => format!("elapsed: {}ms", x.elapsed().unwrap_or_default().as_millis()),
+                            x => x.to_json().to_string()
+                        };
                         r2r::sp_messages::msg::State {
                             path: s,
                             value_as_json: val,
@@ -532,6 +588,44 @@ mod ros {
         });
 
         Ok(tx_out)
+    }
+
+    pub fn ros_resource_comm_setup(
+        node: &mut RosNode, 
+        tx_to_runner: channel::Sender<ROSResource>,
+        prefix_path: &SPPath,
+    ) -> Result<(), Error> {
+        let resource_topic = "sp/resource";
+        let prefix_path = prefix_path.clone();
+
+        let tx_in = tx_to_runner.clone();
+        let cb = move |msg: r2r::sp_messages::msg::RegisterResource| {
+                let mut p = SPPath::from_string(&msg.path);
+                p.add_parent_path(&prefix_path);
+                let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
+                let last_goal_from_sp: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                let last_goal_print: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                let last = last_goal_from_sp.map(|x| {
+                    let mut s = x.to_state();
+                    let mut goal_path = p.clone();
+                    goal_path.add_child_path(&SPPath::from_string("goal/0"));
+                    s.prefix_paths(&goal_path);
+                    s
+                });
+                let resource = ROSResource{
+                    path:  p,
+                    model: model.ok(),
+                    last_goal_from_sp: last.ok(),
+                };
+                
+                let last_goal_value: Result<serde_json::Value, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                tx_in.send(resource).expect("Can not send the ROSResource. Threads are dead?");
+            
+        };
+        println!("setting up subscription to topic: {}", resource_topic);
+        let _subref = node.0.subscribe(resource_topic, Box::new(cb))?;
+
+        Ok(())
     }
 
     #[cfg(test)]
