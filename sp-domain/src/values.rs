@@ -156,7 +156,7 @@ impl SPValue {
             serde_json::Value::String(x) => {
                 SPValue::String(x.clone())
             }
-            serde_json::Value::Object(x) => {
+            serde_json::Value::Object(_) => {
                 if let Some(p) = serde_json::from_value(value.clone()).ok() {
                     return SPValue::Path(p);
                 } 
@@ -166,7 +166,7 @@ impl SPValue {
                 println!("Object not an SPValue: {}", value);
                 SPValue::Unknown
             }
-            x => SPValue::Unknown
+            _ => SPValue::Unknown
         }
     }
 }

@@ -471,7 +471,8 @@ impl SPState {
     pub fn next(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
             panic!("The state path is wrong: {:?}", state_path);
-            Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
+            // TODO: Probably try with the path. But for now, we panic to find bugs in the runner.
+            //Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
         } else if !self.values[state_path.index].next(value) {
             Err(SPError::No(
                 "The state already have a next value".to_string(),

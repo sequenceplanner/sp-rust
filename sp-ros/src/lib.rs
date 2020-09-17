@@ -604,7 +604,6 @@ mod ros {
                 p.add_parent_path(&prefix_path);
                 let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
                 let last_goal_from_sp: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
-                let last_goal_print: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
                 let last = last_goal_from_sp.map(|x| {
                     let mut s = x.to_state();
                     let mut goal_path = p.clone();
@@ -618,7 +617,6 @@ mod ros {
                     last_goal_from_sp: last.ok(),
                 };
                 
-                let last_goal_value: Result<serde_json::Value, _> = serde_json::from_str(&msg.last_goal_from_sp);
                 tx_in.send(resource).expect("Can not send the ROSResource. Threads are dead?");
             
         };

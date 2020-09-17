@@ -64,12 +64,7 @@ impl SPTicker {
                 if counter > 1000 {
                     // there is probably a self loop in the model
                     let t_names = f.iter().map(|p|p.to_string()).collect::<Vec<_>>().join(",");
-                    let fired_names = fired.iter().map(|p:&SPPath|p.to_string()).collect::<Vec<_>>().join(",");
                     println!("self loop with transitions {}", t_names);
-                    //println!("The state: {}", &self.state);
-                    //temp_transition_map.iter().for_each(|x| println!("T: {:?}", x));
-                    //let error_msg = format!("SELF LOOP: {}, ----, THE TRANSITIONS: {}", t_names, fired_names);
-                    //let error_msg = format!("SELF LOOP: {}, ----, THE STATE: {}, ----, Transitions: {:?}", t_names, &self.state, &temp_transition_map);
                     panic!("self loop with transitions {}", t_names);
                 }
                 println!("runner one more time! adding new fired {:?}", f);

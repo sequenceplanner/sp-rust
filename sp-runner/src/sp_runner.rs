@@ -678,7 +678,7 @@ impl SPRunner {
         if !self.ticker.disabled_paths.is_empty() {
             println!("Disabled paths: {:?}", self.ticker.disabled_paths);
         }
-        if (old_id != self.ticker.state.id()) {
+        if old_id != self.ticker.state.id() {
             self.reload_state_paths();
         }
     }
