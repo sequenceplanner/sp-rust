@@ -348,7 +348,7 @@ impl SPRunner {
                             t.eval(state)
                         };
                         if iok {
-                            println!("ADDING STATE FOR {}", t.path());
+                            // println!("ADDING STATE FOR {}", t.path());
                             let mut ns = state.clone();
                             t.actions.iter().for_each(|e| {
                                 let _res = e.next(&mut ns);
@@ -374,7 +374,7 @@ impl SPRunner {
         for mut state in &mut states {
             state.take_transition();
 
-            println!("NEW STARTING STATE:\n{}", state);
+            // println!("NEW STARTING STATE:\n{}", state);
 
             let mut goals = goals.to_vec();
             goals.retain(|g| !g.eval(state));
@@ -401,8 +401,7 @@ impl SPRunner {
 
                         // take all actions
                         ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
-                            let res = a.next(&mut state);
-                            println!("for: res: {:?} -- {:?}", res, a);
+                            let _res = a.next(&mut state);
                         });
 
                         // next -> cur
@@ -625,7 +624,6 @@ impl SPRunner {
                     p.clone()
                 }
             }).collect();
-            println!("replacling {:?} with {:?}", sync, new_sync);
             np.syncronized_with = new_sync;
             np
         });
@@ -657,7 +655,7 @@ impl SPRunner {
         });
     }
 
-    fn check_resources(&mut self) { 
+    fn check_resources(&mut self) {
         let old_id = self.ticker.state.id();
         self.upd_resource_enabled();
         let all_resources = self.resources.clone();
@@ -673,12 +671,12 @@ impl SPRunner {
         })
         .cloned()
         .collect();
-        
+
         self.ticker.disabled_paths = missing_resources;
         if !self.ticker.disabled_paths.is_empty() {
             println!("Disabled paths: {:?}", self.ticker.disabled_paths);
         }
-        if (old_id != self.ticker.state.id()) {
+        if old_id != self.ticker.state.id() {
             self.reload_state_paths();
         }
     }
@@ -697,7 +695,7 @@ impl SPRunner {
             let enabled = enabled_pred.eval(&self.ticker.state);
             self.ticker.state.add_variable(r.clone(), SPValue::Bool(enabled));
         });
-        
+
     }
 }
 
