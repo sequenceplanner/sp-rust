@@ -74,6 +74,10 @@ impl SPPath {
         others.iter().any(|o| self.is_child_of(o))
     }
 
+    pub fn root(&self) -> String {
+        self.path.first().unwrap_or(&String::default()).clone()
+    }
+
     pub fn parent(&self) -> SPPath {
         if self.path.len() <= 1 {
             SPPath::new()

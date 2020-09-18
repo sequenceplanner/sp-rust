@@ -163,7 +163,6 @@ impl SPValue {
                 if let Some(p) = serde_json::from_value(value.clone()).ok() {
                     return SPValue::Time(p);
                 } 
-                println!("Object not an SPValue: {}", value);
                 SPValue::Unknown
             }
             _ => SPValue::Unknown

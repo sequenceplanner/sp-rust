@@ -124,30 +124,94 @@ impl<'a> StateProjection<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
-pub struct SPStateJson(HashMap<String, serde_json::Value>);
+#[derive(Debug, PartialEq, Serialize, Deserialize, Default, Clone)]
+pub struct SPStateJson(serde_json::Map<String, serde_json::Value>);
 
 
 impl SPStateJson {
     pub fn new(state: HashMap<String, serde_json::Value>) -> Self {
-        SPStateJson(state)
+        let map: serde_json::Map<String, serde_json::Value> = state.into_iter().map(|(k, v)| (k, v)).collect();
+        SPStateJson(map)
     }
 
-    pub fn to_state(self) -> SPState {
-        let res: Vec<(SPPath, SPValue)> = self.0.into_iter().map(|(k, v)|{
-            let p = SPPath::from_string(&k);
-            let v = SPValue::from_json(&v);
-            (p, v)
-        }).collect();
+
+    pub fn to_state(&self) -> SPState {
+        fn dig(obj: &serde_json::Map<String, serde_json::Value>, path: &SPPath) -> Vec<(SPPath, SPValue)> {
+            obj.iter().flat_map(|(k, v)| {
+                let mut p = SPPath::from_string(&k.replace("_children", ""));
+                p.add_parent_path(path);
+                let spv = SPValue::from_json(v);
+                match spv {
+                    SPValue::Unknown => {
+                        if let serde_json::Value::Object(map) = v {
+                            dig(map, &p)
+                        } else {
+                            vec!((p, SPValue::Unknown))
+                        }
+                    }
+                    x => vec!((p, x))
+                }
+            }).collect()
+        }
+        let res = dig(&self.0, &SPPath::new());
         SPState::new_from_values(&res)
     }
 
-    pub fn from_state(state: &SPState) -> SPStateJson {
+    pub fn from_state_flat(state: &SPState) -> SPStateJson {
         let state = state.projection().state.iter().map(|(k, v)| {
             (k.to_string(), v.value().to_json())
         }).collect();
         SPStateJson(state)
     }
+
+    pub fn from_state_recursive(state: &SPState) -> SPStateJson {
+        fn insert(xs: &mut serde_json::Map<String, serde_json::Value>, p: &SPPath, v: &SPValue) {
+            if p.is_empty() {
+                return;
+            }
+            let root = p.root();
+            let x = xs.get(&root);
+            match x {
+                None => {
+                    if p.path.len() == 1 {
+                        xs.insert(root, v.to_json());
+                    } else {
+                        let mut map = serde_json::Map::new();
+                        insert(&mut map, &p.drop_root(), v);
+                        xs.insert(root, serde_json::Value::Object(map));
+                    }
+                },
+                Some(serde_json::Value::Object(_)) => {
+                    if p.path.len() == 1 {
+                        let ch_p = format!("{}_children", root);
+                        xs.insert(ch_p, x.unwrap().clone());
+                        let x = xs.entry(&root).or_insert(serde_json::Value::Null);
+                        *x = v.to_json();
+                    } else {
+                        if let serde_json::Value::Object(map) = xs.entry(&root).or_insert(serde_json::Value::Object(serde_json::Map::new())) {
+                            insert(map, &p.drop_root(), v);
+                        }
+                    }
+                },
+                _ => {
+                    let ch_p = format!("{}_children", root);
+                    println!("NEED A CHILD: {}", ch_p.clone());
+                    let mut ch = xs.entry(&ch_p).or_insert(serde_json::Value::Object(serde_json::Map::new()));
+                    if let serde_json::Value::Object(ref mut map) = ch {
+                        insert(map, &p.drop_root(), v);
+                    } 
+                }
+            }
+            
+        }
+        let mut map = serde_json::Map::new();
+        state.projection().state.into_iter().for_each(|(k, v)| {
+            insert(&mut map, k, v.value());
+        });
+        SPStateJson(map)
+    }
+
+
 }
 
 /// StateValue includes the current and an optional next and prev value.
@@ -573,7 +637,7 @@ impl SPState {
     }
 
     pub fn to_state_json(&self) -> SPStateJson {
-        SPStateJson::from_state(self)
+        SPStateJson::from_state_flat(self)
     }
 }
 
@@ -735,5 +799,32 @@ mod sp_value_test {
         println!();
         println!("{}", new_s.difference(&s));
         println!();
+    }
+
+    #[test]
+    fn state_json() {
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let abc = SPPath::from_slice(&["a", "b", "c"]);
+        let ac = SPPath::from_slice(&["a", "c"]);
+        let kl = SPPath::from_slice(&["k", "l"]);
+        let mut s = state!(ab => 2, ac => true, kl => true, abc => false);
+        s.add_variable(SPPath::from_string("timer/test"), SPValue::Time(std::time::SystemTime::now()));
+        s.add_variable(SPPath::from_string("a/b/c/d/e"), SPValue::Time(std::time::SystemTime::now()));
+
+        let json_flat = SPStateJson::from_state_flat(&s);
+        let json_rec = SPStateJson::from_state_recursive(&s);
+
+        let from_flat = json_flat.clone().to_state();
+        let from_rec_flat = json_rec.clone().to_state();
+
+        println!("flat: {}", serde_json::to_string_pretty(&json_flat).unwrap());
+        println!("rec: {}", serde_json::to_string_pretty(&json_rec).unwrap());
+        
+        println!("from_flat: {}", &from_flat);
+        println!("from_rec_flat: {}", &from_rec_flat);
+
+        assert_eq!(from_flat, from_rec_flat);
+        assert_eq!(from_flat, s);
+        assert_eq!(s, from_rec_flat);
     }
 }
