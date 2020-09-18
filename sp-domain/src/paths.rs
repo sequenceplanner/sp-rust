@@ -119,7 +119,7 @@ mod tests_paths {
         let ab_v2 = ab_v2.add_child("a").add_child("b");
         let ab_v3 = SPPath::from_string("a/b");
 
-        assert_eq!(ab.to_string(), "a/b".to_string());
+        assert_eq!(ab.to_string(), "/a/b".to_string());
         assert_eq!(ab_v2, ab);
         assert_eq!(ab_v3, ab);
         assert_ne!(SPPath::from_string("b/a"), ab);

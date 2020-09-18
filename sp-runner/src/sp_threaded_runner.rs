@@ -90,7 +90,6 @@ fn runner(
         let mut runner = make_new_runner(&model, initial_state, false);
         let mut prev_goals: HashMap<usize,
                                     Vec<(Predicate, Option<Predicate>)>> = HashMap::new();
-        let mut store = planning::PlanningStore::default();
         let store_async = Arc::new(Mutex::new(
             planning::AsyncPlanningStore::load(&runner.transition_system_models[1])));
         // let timer = Instant::now();
@@ -152,7 +151,6 @@ fn runner(
                                                 &runner.transition_system_models[0], &pred);
                                         let spec = Spec::new(name, refined_pred);
                                         runner.transition_system_models[0].specs.push(spec);
-                                        store = planning::PlanningStore::default();
                                     },
                                     None => log_error!("Failed to parse predicate {}: {}", name, pred_str)
                                 }
@@ -163,7 +161,6 @@ fn runner(
                                 runner.transition_system_models[0].specs.retain(|s| s.name() != name);
                                 if runner.transition_system_models[0].specs.len() != ol {
                                     log_info!("Removed specification {}.", name);
-                                    store = planning::PlanningStore::default();
                                 }
                             }
                         }
@@ -818,151 +815,6 @@ struct PlannerTask {
     state: SPState,
     goals: Vec<(Predicate, Option<Predicate>)>,
     disabled_paths: Vec<SPPath>,
-}
-
-#[derive(Debug)]
-struct NodeState {
-    resource: SPPath,
-    cmd: String,
-    mode: String,
-    time: Instant,
-    cmd_msg: Option<MessageField>,
-}
-
-fn node_handler(
-    freq: Duration,
-    deadline: Duration,
-    model: &Model,
-    rx_node: Receiver<NodeMode>,
-    tx_node: Sender<NodeCmd>,
-    tx_runner: Sender<SPRunnerInput>,
-    rx_commands: Receiver<RunnerCommand>
-) {
-    let mut nodes: HashMap<SPPath, NodeState> = model
-        .all_resources()
-        .iter()
-        .map(|r| {
-            let r: &Resource = r;
-            let cmd_msg = r.get_message("command");
-            (
-                r.path().clone(),
-                NodeState {
-                    resource: r.path().clone(),
-                    cmd: "init".to_string(),
-                    mode: String::new(),
-                    time: Instant::now(),
-                    cmd_msg,
-                },
-            )
-        })
-        .collect();
-
-    let tick = channel::tick(freq);
-
-    fn mode_from_node(
-        mode: Result<NodeMode,
-        channel::RecvError>,
-        nodes: &mut HashMap<SPPath, NodeState>,
-        tx_runner: Sender<SPRunnerInput>,
-    ) -> bool {
-        match mode {
-            Ok(n) => {
-                let x = nodes.entry(n.resource.clone()).or_insert(NodeState {
-                    resource: n.resource.clone(),
-                    cmd: "init".to_string(),
-                    mode: n.mode.clone(),
-                    time: n.time_stamp.clone(),
-                    cmd_msg: None,
-                });
-
-                x.mode = n.mode;
-                if x.cmd == "init" {
-                    // update goal state vars
-                    tx_runner
-                        .send(SPRunnerInput::NodeChange(n.echo))
-                        .expect("Hmm, why is the runner dead?");
-                }
-                x.cmd = "run".to_string();
-                x.time = n.time_stamp;
-                true
-            }
-            Err(e) => {
-                println!(
-                    "The node ROS channel is dead (in the node handler)!: {:?}",
-                    e
-                );
-                false
-            }
-        }
-    }
-    fn tick_node(
-        time: Result<Instant, channel::RecvError>,
-        nodes: &mut HashMap<SPPath, NodeState>,
-        deadline: Duration,
-        tx_node: Sender<NodeCmd>,
-        tx_runner: Sender<SPRunnerInput>,
-    ) -> bool {
-        match time {
-            Ok(time) => {
-                let mut resource_state: Vec<(SPPath, SPValue)> = vec![];
-                for (r, n) in nodes {
-                    // TODO: Handle handshake with SP and node and change cmd when echo is written
-
-                    // Handle lack of response
-                    if n.time.elapsed() > deadline {
-                        println!("Node {} is not responding", r.clone());
-                        n.mode = String::new();
-                        n.cmd = "init".to_string();
-                    }
-
-                    let cmd = NodeCmd {
-                        resource: r.clone(),
-                        mode: n.cmd.clone(),
-                        time_stamp: time.clone(),
-                    };
-
-                    tx_node.send(cmd).unwrap();
-
-                    let enabled = n.cmd == "run".to_string()
-                        && (!n.mode.is_empty() || n.mode != "init".to_string());
-                    resource_state.push((r.clone(), enabled.to_spvalue()));
-                }
-                let rs = SPState::new_from_values(&resource_state);
-                tx_runner.send(SPRunnerInput::NodeChange(rs)).expect("could not send, channel dead");
-
-                true
-            }
-            Err(e) => {
-                println!("The ticker is dead (in the node handler)!: {:?}", e);
-                false
-            }
-        }
-    }
-
-    fn cmd_from_node(
-        cmd: Result<RunnerCommand, channel::RecvError>,
-        tx_runner: Sender<SPRunnerInput>,
-    ) -> bool {
-        if let Ok(cmd) = cmd {
-            // TODO: Handle bad commands here and reply to commander if needed. Probably use service?
-            tx_runner.send(SPRunnerInput::Settings(cmd)).expect("cmd from node could not talk to the runner");
-            true
-        } else {
-            true
-        }
-    }
-
-    thread::spawn(move || loop {
-        let res;
-        crossbeam::select! {
-            recv(rx_node) -> mode => res = mode_from_node(mode, &mut nodes, tx_runner.clone()),
-            recv(tick) -> tick_time => res = tick_node(tick_time, &mut nodes, deadline, tx_node.clone(), tx_runner.clone()),
-            recv(rx_commands) -> cmd => res = cmd_from_node(cmd, tx_runner.clone()),
-        };
-        if !res {
-            break;
-        }
-    });
 }
 
 pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_problems: bool) -> SPRunner {

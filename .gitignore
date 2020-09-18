@@ -24,3 +24,5 @@ Cargo.lock
 
 # MAC
 .DS_Store
+
+*.bmc

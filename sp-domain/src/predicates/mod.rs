@@ -544,7 +544,6 @@ impl NextAction for Action {
                 let res = xs.iter().find(|(p, _)| p.eval(state)).map(|(_, v)| v.sp_value(state)).flatten();
                 match res {
                     Some(x) => {
-                        println!("Found function value! {}", x);
                         Some(x.clone())
                     },
                     None => {
@@ -1141,19 +1140,19 @@ mod sp_value_test {
         let ab = SPPath::from_slice(&["a", "b"]);
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
-        let now = std::time::SystemTime::now();
 
-        let mut s = state!(ab => 2, ac => false, kl => now);
-        let p1 = Predicate::TON(PredicateValue::path(kl.clone()), PredicateValue::SPValue(10.to_spvalue()));
+        let mut s = state!(ab => true, ac => false, kl => false);
+        let p1 = p!(p: ab);
         let p2 = p!(p: ac);
         
-        let a = Action::new(ab.clone(), Compute::Function(
+        let a = Action::new(kl.clone(), Compute::Function(
             vec!(
                 (p1.clone(), PredicateValue::value("hej".to_spvalue())),
                 (p2.clone(), PredicateValue::value("då".to_spvalue())),
             )
         ));
-        let a2 = Action::new(ac.clone(), Compute::PredicateValue(PredicateValue::value(true.to_spvalue())));
+        let a2 = Action::new(ab.clone(), Compute::PredicateValue(PredicateValue::value(false.to_spvalue())));
+        let a3 = Action::new(ac.clone(), Compute::PredicateValue(PredicateValue::value(true.to_spvalue())));
 
         println!{"{}", &s};
         println!();
@@ -1161,24 +1160,24 @@ mod sp_value_test {
         s.take_transition();
         println!{"{}", s};
         println!();
+        assert!(s.sp_value_from_path(&kl.clone()).unwrap() == &"hej".to_spvalue());
         
         a2.next(&mut s).unwrap();
         s.take_transition();
+        println!{"{}", s};
+        println!();
+
+        let e = a.next(&mut s);
+        assert!(e.is_err());
+
+        a3.next(&mut s).unwrap();
         a.next(&mut s).unwrap();
         s.take_transition();
         println!{"{}", s};
         println!();
+        assert!(s.sp_value_from_path(&kl.clone()).unwrap() == &"då".to_spvalue());
         
-        
-        
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        
-        println!{"{}", p1.eval(&s)};
-        a.next(&mut s).unwrap();
-        s.take_transition();
-        println!{"a2: {}", &s};
-        
-        assert!(s.sp_value_from_path(&ab).unwrap() == &"hej".to_spvalue());
+
  
     }
 }

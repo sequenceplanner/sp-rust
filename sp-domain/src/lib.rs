@@ -40,7 +40,7 @@ type SPResult<T> = std::result::Result<T, SPError>;
 pub enum SPError {
     No(String),
     Undefined,
-}
+} 
 
 impl fmt::Display for SPError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
