@@ -1162,11 +1162,12 @@ impl NextAction for Transition {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Intention {
     node: SPNode,
-    transitions: Vec<Transition>,
-    goal: Option<IfThen>,
-    state_variable: Variable,
-    // temporary
-    pub high_level: bool,
+
+    resets: bool,
+    pre: Predicate,
+    post: Predicate,
+    post_actions: Vec<Action>,
+    invariant: Option<Predicate>,
 }
 
 impl Noder for Intention {
@@ -1176,68 +1177,33 @@ impl Noder for Intention {
     fn node_mut(&mut self) -> &mut SPNode {
         &mut self.node
     }
-    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        if let Some(x) = get_from_list(self.transitions.as_slice(), next, path) {
-            return Some(x);
-        }
-        if let Some(x) = self.state_variable.get(path) {
-            return Some(x);
-        }
-        if let Some(x) = self.goal.as_ref().and_then(|x| x.get(path)) {
-            return Some(x);
-        }
-        return None;
+    fn get_child<'a>(&'a self, _next: &str, _path: &SPPath) -> Option<SPItemRef<'a>> {
+        None
     }
-    fn get_child_mut<'a>(&'a mut self, next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>> {
-        if let Some(x) = get_from_list_mut(self.transitions.as_mut_slice(), next, path) {
-            return Some(x);
-        }
-        if let Some(x) = self.state_variable.get_mut(path) {
-            return Some(x);
-        }
-        if let Some(x) = self.goal.as_mut().and_then(|x| x.get_mut(path)) {
-            return Some(x);
-        }
-        return None;
+    fn get_child_mut<'a>(&'a mut self, _next: &str, _path: &SPPath) -> Option<SPMutItemRef<'a>> {
+        None
     }
     fn find_item_among_children<'a>(
-        &'a self, name: &str, path_sections: &[&str],
+        &'a self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.transitions.as_slice(), name, path_sections)
-            .or_else(|| self.state_variable.find_item(name, path_sections))
-            .or_else(|| {
-                self.goal
-                    .as_ref()
-                    .and_then(|x| x.find_item(name, path_sections))
-            })
+        None
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self, name: &str, path_sections: &[&str],
+        &'a mut self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
-        if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections)
-        {
-            Some(x)
-        } else if let Some(x) = self.state_variable.find_item_mut(name, path_sections) {
-            Some(x)
-        } else {
-            self.goal
-                .as_mut()
-                .and_then(|x| x.find_item_mut(name, path_sections))
-        }
+        None
     }
-    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        update_path_in_list(self.transitions.as_mut_slice(), path, changes);
-        self.goal.as_mut().map(|mut x| x.update_path(path, changes));
-        self.state_variable.update_path(path, changes);
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.transitions
+        self.pre.replace_variable_path(mapping);
+        self.post.replace_variable_path(mapping);
+        self.post_actions
             .iter_mut()
-            .for_each(|i| i.rewrite_expressions(mapping));
-        if let Some(goal) = &mut self.goal {
-            goal.rewrite_expressions(mapping)
+            .for_each(|a| a.replace_variable_path(mapping));
+        if let Some(invar) = &mut self.invariant {
+            invar.replace_variable_path(mapping);
         };
-        self.state_variable.rewrite_expressions(mapping);
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Intention(self)
@@ -1248,54 +1214,52 @@ impl Noder for Intention {
 }
 
 impl Intention {
-    pub fn new(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Intention {
+    pub fn new(name: &str, resets: bool, pre: &Predicate, post: &Predicate,
+               post_actions: &[Action], invariant: Option<Predicate>) -> Intention {
         let node = SPNode::new(name);
-
-        let op_state = Variable::new(
-            "state",
-            VariableType::Estimated,
-            SPValueType::String,
-            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
-        );
 
         Intention {
             node,
-            transitions: trans.to_vec(),
-            state_variable: op_state,
-            goal,
-            high_level: false,
+            resets,
+            pre: pre.clone(),
+            post: post.clone(),
+            post_actions: post_actions.to_vec(),
+            invariant,
         }
     }
 
-    pub fn new_hl(name: &str, trans: &[Transition], goal: Option<IfThen>) -> Intention {
-        let node = SPNode::new(name);
+    pub fn make_goal(&self) -> IfThen {
+        let state = self.path();
+        let mut it = IfThen::new("goal", p!(p: state == "e"), self.post.clone(), self.invariant.clone(), None);
+        it.node_mut().update_path(self.path());
+        it
+    }
 
-        let op_state = Variable::new(
-            "state",
-            VariableType::Estimated,
-            SPValueType::String,
-            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
+    pub fn make_runner_transitions(&self) -> Vec<Transition> {
+        let state = self.path();
+
+        let mut runner_start = Transition::new(
+            "start",
+            Predicate::AND(vec![p!(p: state == "i"), self.pre.clone()]),
+            vec![a!(p: state = "e")],
+            TransitionType::Controlled,
         );
+        runner_start.node_mut().update_path(self.path());
+        let mut f_actions = if self.resets {
+            vec![a!(p: state = "i")]
+        } else {
+            vec![a!(p: state = "f")]
+        };
+        f_actions.extend(self.post_actions.iter().cloned());
+        let mut runner_finish = Transition::new(
+            "finish",
+            Predicate::AND(vec![p!(p: state == "e"), self.post.clone()]),
+            f_actions,
+            TransitionType::Auto
+        );
+        runner_finish.node_mut().update_path(self.path());
 
-        Intention {
-            node,
-            transitions: trans.to_vec(),
-            state_variable: op_state,
-            goal,
-            high_level: true,
-        }
-    }
-
-    pub fn goal(&self) -> &Option<IfThen> {
-        &self.goal
-    }
-
-    pub fn state_variable(&self) -> &Variable {
-        &self.state_variable
-    }
-
-    pub fn transitions(&self) -> &Vec<Transition> {
-        &self.transitions
+        vec![runner_start, runner_finish]
     }
 }
 
@@ -1390,29 +1354,11 @@ impl IfThen {
 pub struct Operation {
     node: SPNode,
 
-    // for the planning model -- no low-level variables allowed here
+    pub auto: bool,
     pub guard: Predicate,
-    pub effects: Vec<Vec<Action>>,
-
-    // planning transition
-    pub planning_trans: Vec<Transition>, // guard / effects
-
-    // for the runner -- syncing with the low-level
-    pub goals: Vec<IfThen>,
-//    pub post_actions: Vec<Action>,
-
-    // runner transitions
-    pub runner_start: Transition, // state = i && guard / state = e
-    pub runner_finish: Transition, // state = e && [goal.predicate as spec] / state = i/f + post_actions
-
-    // operation state
-    state_variable: Variable,
-
-    // goal when formally verifyiyg
-    pub fvg: Predicate,
-
-    // extra constraint when formally verifying
-    pub fvc: Option<Predicate>,
+    pub effects_goals: Vec<(Vec<Action>, Predicate)>,
+    pub post_actions: Vec<Action>, // TODO: this should be synchronization only
+    pub mc_constraint: Option<Predicate>,
 }
 
 impl Noder for Operation {
@@ -1422,48 +1368,34 @@ impl Noder for Operation {
     fn node_mut(&mut self) -> &mut SPNode {
         &mut self.node
     }
-    fn get_child<'a>(&'a self, _next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        self.state_variable.get(path)
+    fn get_child<'a>(&'a self, _next: &str, _path: &SPPath) -> Option<SPItemRef<'a>> {
+        None
     }
 
-    fn get_child_mut<'a>(&'a mut self, _next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>> {
-        self.state_variable.get_mut(path)
+    fn get_child_mut<'a>(&'a mut self, _next: &str, _path: &SPPath) -> Option<SPMutItemRef<'a>> {
+        None
     }
 
     fn find_item_among_children<'a>(
-        &'a self, name: &str, path_sections: &[&str],
+        &'a self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
-        self.state_variable.find_item(name, path_sections)
+        None
     }
     fn find_item_mut_among_children<'a>(
-        &'a mut self, name: &str, path_sections: &[&str],
+        &'a mut self, _name: &str, _path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
-        self.state_variable.find_item_mut(name, path_sections)
+        None
     }
-    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        update_path_in_list(self.planning_trans.as_mut_slice(), path, changes);
-
-        self.runner_start.update_path(path, changes);
-        self.runner_finish.update_path(path, changes);
-
-        update_path_in_list(self.goals.as_mut_slice(), path, changes);
-        self.state_variable.update_path(path, changes);
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(mapping);
-        self.effects.iter_mut().for_each(|e| {
+        self.effects_goals.iter_mut().for_each(|(e,g)| {
             e.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+            g.replace_variable_path(mapping);
         });
-        self.planning_trans.iter_mut().for_each(|p|p.rewrite_expressions(mapping));
-
-        self.goals.iter_mut().for_each(|g|g.rewrite_expressions(mapping));
-//        self.post_actions.iter_mut().for_each(|e| e.replace_variable_path(mapping));
-        self.runner_start.rewrite_expressions(mapping);
-        self.runner_finish.rewrite_expressions(mapping);
-
-        self.state_variable.rewrite_expressions(mapping);
-
-        self.fvg.replace_variable_path(mapping);
+        self.post_actions.iter_mut().for_each(|e| e.replace_variable_path(mapping));
+        self.mc_constraint.as_mut().map(|c| c.replace_variable_path(mapping));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
@@ -1474,85 +1406,130 @@ impl Noder for Operation {
 }
 
 impl Operation {
-    pub fn new(name: &str, guard: &Predicate, effects_goals: &[(&[Action], &Predicate)],
-               post_actions: &[Action], resets: bool, fvc: Option<Predicate>) -> Operation {
+
+    pub fn new(name: &str, auto: bool, guard: &Predicate,
+               effects_goals: &[(&[Action], &Predicate)],
+               post_actions: &[Action],
+               mc_constraint: Option<Predicate>) -> Operation {
         let node = SPNode::new(name);
 
-        let state_variable = Variable::new(
-            "state",
-            VariableType::Estimated,
-            SPValueType::String,
-            vec!["i", "e", "f"].iter().map(|v| v.to_spvalue()).collect(),
-        );
-        let state = state_variable.path();
-
-        // for the runner.
-        let runner_start = Transition::new(
-            "start",
-            Predicate::AND(vec![p!(p: state == "i"), guard.clone()]),
-            vec![a!(p: state = "e")],
-            TransitionType::Controlled
-        );
-
-        let mut f_actions = if resets {
-            vec![a!(p: state = "i")]
-        } else {
-            vec![a!(p: state = "f")]
-        };
-
-        let runner_finish = Transition::new(
-            "finish",
-            p!(p: state == "e"),
-            f_actions,
-            TransitionType::Auto
-        );
-        let op_goals: Vec<_> = effects_goals.iter()
-            .map(|(e,g)| IfThen::new("goal", p!(p: state == "e"), (*g).clone(), None, Some(e.to_vec())) // invariant = None for now...
-            ).collect();
-
-        // in the planning model, we only have a single transition,
-        // effects are immediate
-        let planning_trans = effects_goals.iter().enumerate()
-            .map(|(i,(e,_))|
-                 Transition::new(
-                     &format!("{}", i),
-                     guard.clone(),
-                     e.to_vec(),
-                     TransitionType::Controlled)
-        ).collect();
-
-        // TODO: does not handle the case where we have mixed resource
-        // and product states. perhaps we should not allow that anyway.
-        let x = guard.support();
-        let goals = Predicate::OR(effects_goals.iter().map(|(_,g)| (*g).clone()).collect());
-        let fvg = if x.iter().any(|p| !p.path.contains(&"product_state".to_string())) {
-            goals.clone()
-        } else {
-            Predicate::AND(vec![guard.clone(), goals.clone()])
-        };
-
-        let effects = effects_goals.iter().map(|(e,_)| e.to_vec()).collect();
         Operation {
             node,
-
+            auto,
             guard: guard.clone(),
-            effects,
-            planning_trans,
-
-            goals: op_goals,
-            // post_actions: post_actions.to_vec(),
-
-            runner_start,
-            runner_finish,
-
-            state_variable,
-            fvg,
-            fvc,
+            effects_goals: effects_goals.iter().map(|(a,p)| (a.to_vec(), (*p).clone())).collect(),
+            post_actions: post_actions.to_vec(),
+            mc_constraint,
         }
     }
 
-    pub fn state_variable(&self) -> &Variable {
-        &self.state_variable
+    pub fn make_replan_specs(&self) -> Vec<Spec> {
+        let mut specs = vec![];
+        for (effects, goal) in self.effects_goals.iter() {
+            let pre = Predicate::AND(vec![self.guard.clone(), (*goal).clone()]);
+            let mut act = effects.to_vec();
+            act.extend(self.post_actions.iter().cloned());
+            if !act.is_empty() {
+                if self.auto {
+                    // it is important to realize that we cannot freely change
+                    // the goals of the high level when we are in this state
+                    // or any other state from which this state can
+                    // uncontrollably be reached. so we also create a spec here
+                    let mut spec = Spec::new("replan_spec",
+                                             Predicate::NOT(Box::new(pre.clone())));
+                    spec.node_mut().update_path(self.path());
+                    specs.push(spec);
+                }
+            }
+        }
+        specs
+    }
+
+    pub fn make_lowlevel_transitions(&self) -> Vec<Transition> {
+        let mut trans = vec![];
+        for (i, (effects, goal)) in self.effects_goals.iter().enumerate() {
+            let pre = Predicate::AND(vec![self.guard.clone(), (*goal).clone()]);
+            let mut act = effects.to_vec();
+            act.extend(self.post_actions.iter().cloned());
+            // add a new low level transition. goal // effects
+            if !act.is_empty() {
+                let name = i.to_string();
+                let mut t = Transition::new(
+                    &name,
+                    pre.clone(),
+                    act.clone(),
+                    if self.auto {
+                        TransitionType::Auto
+                    } else {
+                        TransitionType::Controlled
+                    }
+                );
+                t.node_mut().update_path(self.path());
+                trans.push(t);
+            }
+        }
+        trans
+    }
+
+    pub fn make_runner_transitions(&self) -> Vec<Transition> {
+        // auto ops are not actually operations...
+        let is_auto = self.effects_goals.iter()
+            .all(|(_,g)| g == &Predicate::TRUE);
+        if is_auto {
+            return vec![]
+        }
+
+        let state = self.path();
+        let mut runner_start = Transition::new(
+            "start",
+            Predicate::AND(vec![p!(p: state == "i"), self.guard.clone()]),
+            vec![a!(p: state = "e")],
+            TransitionType::Controlled
+        );
+        runner_start.node_mut().update_path(self.path());
+
+        let mut runner_finish = Transition::new(
+            "finish",
+            p!(p: state == "e"),
+            // note that the missing "goal" is added when running...
+            vec![a!(p: state = "i")],
+            TransitionType::Auto
+        );
+        runner_finish.node_mut().update_path(self.path());
+
+        vec![runner_start, runner_finish]
+    }
+
+    pub fn make_planning_trans(&self) -> Vec<Transition> {
+        self.effects_goals.iter().enumerate()
+            .map(|(i,(e,g))| {
+                let is_auto = g == &Predicate::TRUE;
+                let auto = if is_auto {
+                    "_auto".to_string()
+                } else {
+                    "".to_string()
+                };
+                let name = format!("{}{}", i, auto);
+                let mut t = Transition::new(
+                    &name,
+                    self.guard.clone(),
+                    e.to_vec(),
+                    if is_auto {
+                        TransitionType::Auto
+                    } else {
+                        TransitionType::Controlled
+                    });
+                t.node_mut().update_path(self.path());
+                t
+            }
+        ).collect()
+    }
+
+    pub fn make_verification_goal(&self) -> Predicate {
+        let goals = Predicate::OR(self.effects_goals.iter()
+                                  .map(|(_,g)| (*g).clone())
+                                  .collect());
+        Predicate::AND(vec![self.guard.clone(), goals.clone()])
     }
 
 }

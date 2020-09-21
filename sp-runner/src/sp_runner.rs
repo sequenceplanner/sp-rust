@@ -21,7 +21,7 @@ pub struct SPRunner {
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub in_sync: bool,
     pub resources: Vec<SPPath>,
-    pub hl_operation_states: Vec<SPPath>,
+    pub intentions: Vec<SPPath>,
     pub replan_specs: Vec<Spec>,
     pub operations: Vec<Operation>,
     pub operation_goals: HashMap<SPPath,Predicate>, // todo: move to the state
@@ -68,7 +68,7 @@ impl SPRunner {
         forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
         resources: Vec<SPPath>,
-        hl_operation_states: Vec<SPPath>,
+        intentions: Vec<SPPath>,
         replan_specs: Vec<Spec>,
         operations: Vec<Operation>,
     ) -> Self {
@@ -117,7 +117,7 @@ impl SPRunner {
             transition_system_models,
             in_sync: false,
             resources,
-            hl_operation_states,
+            intentions,
             replan_specs,
             operations,
             operation_goals: HashMap::new(),
@@ -169,7 +169,7 @@ impl SPRunner {
             // we need to check if the operation is running, because
             // the goal is still there in error mode.
             let op = self.operations.iter().find(|o| o.path() == op).unwrap();
-            let sp = op.state_variable().path();
+            let sp = op.node().path();
             let is_running = self.ticker.state.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
             if is_running {
                 Some((g.clone(), None))
@@ -305,10 +305,10 @@ impl SPRunner {
                     return None
                 }
 
-                self.operations.iter().find(|op| &op.state_variable().path() == k)
+                self.operations.iter().find(|op| &op.node().path() == k)
             }).collect::<Vec<&Operation>>();
         let ok = running.iter().all(|op| {
-            let tp = op.runner_start.path();
+            let tp = op.node().path().clone().add_child("start"); // hack
             let t: Vec<_> = ts_model.transitions.iter().filter(|t| t.path().parent() == tp.parent()).collect();
             if t.is_empty() {
                 panic!("no such transition: {}", tp);
@@ -535,22 +535,23 @@ impl SPRunner {
         for taken in &res.1 {
             println!("taken... {}", taken);
             for o in &self.operations {
-                if o.runner_start.path() == taken {
+                let start = o.node().path().clone().add_child("start"); // hack
+                if &start == taken {
                     // since there is no way to control the outcome of
                     // operations with multiple effects, we must be ok
                     // with any
 
-                    let goal = if o.effects.len() == 1 {
+                    let goal = if o.effects_goals.len() == 1 {
                         // we need to update the goal and postcond.
                         Predicate::AND(
-                            o.effects[0]
+                            o.effects_goals[0].0
                                 .iter()
                                 .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
                                 .collect())
                     } else {
                         // we need to update the goal and postcond.
-                        let inner = o.effects.iter()
-                            .map(|e| Predicate::AND(
+                        let inner = o.effects_goals.iter()
+                            .map(|(e,_goal)| Predicate::AND(
                                 e.iter()
                                     .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
                                     .collect())).collect();
@@ -572,15 +573,16 @@ impl SPRunner {
         // update operation specs and clean goals
         let mut new_specs = Vec::new();
         for op in &self.operations {
-            let sp = op.state_variable().path();
+            let sp = op.node().path();
             let is_running = res.0.sp_value_from_path(sp).map(|v| v == &"e".to_spvalue()).unwrap_or(false);
             let is_error = res.0.sp_value_from_path(sp).map(|v| v == &"error".to_spvalue()).unwrap_or(false);
+            let finish = op.node().path().clone().add_child("finish"); // hack
             if is_running {
                 let goal = self.operation_goals.get(op.path()).unwrap_or(&Predicate::FALSE);
                 let spec = TransitionSpec::new(
                     &format!("{}_post", op.path()),
                     Transition::new("post", goal.clone(), vec![], TransitionType::Controlled),
-                    vec![op.runner_finish.path().clone()],
+                    vec![finish],
                 );
                 new_specs.push(spec);
             } else {
@@ -594,7 +596,7 @@ impl SPRunner {
                 let spec = TransitionSpec::new(
                     &format!("{}_post", op.path()),
                     Transition::new("post", Predicate::FALSE, vec![], TransitionType::Controlled),
-                    vec![op.runner_finish.path().clone()],
+                    vec![finish],
                 );
                 new_specs.push(spec);
             }
@@ -612,6 +614,8 @@ impl SPRunner {
     fn load_plans(&mut self) {
         self.reload_state_paths_plans();
         self.ticker.specs = self.plans[0].plan.clone();
+
+        // big hack to fix plan path names.
         let ts1 = self.transition_system_models[1].clone();
 
         let a = self.plans[1].plan.iter().map(|p| {

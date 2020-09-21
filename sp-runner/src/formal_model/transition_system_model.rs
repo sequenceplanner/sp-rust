@@ -43,6 +43,19 @@ impl TransitionSystemModel {
         });
         transitions.extend(global_transitions);
 
+        let op_trans: Vec<_> =
+            model.find_item("operations",&[])
+            .and_then(|m| m
+                      .as_model()
+                      .map(|m| m
+                           .items().iter().flat_map(|i| match i {
+                               SPItem::Operation(o) => Some(o.make_lowlevel_transitions()),
+                               _ => None,
+                           })
+                           .flatten().collect())).unwrap_or(vec![]);
+
+        transitions.extend(op_trans);
+
         let mut state_predicates: Vec<Variable> = model
             .resources()
             .iter()
@@ -69,7 +82,6 @@ impl TransitionSystemModel {
         model.items.iter().flat_map(|i| match i {
             SPItem::Model(m)
                 if m.name() != "operations" &&
-                m.name() != "resource_products" &&
                 m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
             _ => None
         }).for_each(|tsm| {
@@ -155,23 +167,12 @@ impl TransitionSystemModel {
         ts_model
     }
 
+    pub fn refine_invariant(&self, invar: &Predicate) -> Predicate {
+        refine_invariant(&self, invar)
+    }
+
     pub fn from_op(model: &Model) -> Self {
-        let mut rps: Vec<Variable> = model.find_item("resource_products",&[])
-            .and_then(|m| m
-                 .as_model()
-                 .map(|m| m.items.iter().flat_map(|i| match i {
-                     SPItem::Variable(s) => Some(s.clone()),
-                     _ => None,
-                 }).collect())).unwrap_or(vec![]);
-
-        for rp in &mut rps {
-            // terrible hacks. we use the name to store a path...
-            let new_path = SPPath::from_string(rp.node().name());
-            // then we forcefully update the path to reflect the one stored in the name.
-            *rp.node_mut().path_mut() = new_path;
-        }
-
-        let mut vars: Vec<Variable> =
+        let vars: Vec<Variable> =
             model.find_item("product_state",&[])
             .and_then(|m| m
                       .as_model()
@@ -180,8 +181,6 @@ impl TransitionSystemModel {
                           _ => None,
                       }).collect())).unwrap_or(vec![]);
 
-        vars.extend(rps);
-
         let transitions: Vec<Transition> =
             model.find_item("operations",&[])
             .and_then(|m| m
@@ -189,9 +188,7 @@ impl TransitionSystemModel {
                       .map(|m| m
                            .items().iter().flat_map(|i| match i {
                                // operations represented by a single transition
-                               SPItem::Operation(o) => Some(o.planning_trans.clone()),
-                               // "auto planning" transitions. these exist only in the planning world
-                               SPItem::Transition(t) => Some(vec![t.clone()]),
+                               SPItem::Operation(o) => Some(o.make_planning_trans()),
                                _ => None,
                            })
                         .flatten().collect())).unwrap_or(vec![]);

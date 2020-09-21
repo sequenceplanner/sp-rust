@@ -43,7 +43,6 @@ struct GOperation {
 pub struct GModel {
     model: Model,
     initial_state: SPState,
-    resource_products: Vec<SPPath>, // Probably remove this...
     // When we synchronize with transitions, the original is removed
     synchronized_paths: Vec<SPPath>,
 }
@@ -53,7 +52,6 @@ impl GModel {
         GModel {
             model: Model::new_root(name, Vec::new()),
             initial_state: SPState::new(),
-            resource_products: Vec::new(),
             synchronized_paths: Vec::new(),
         }
     }
@@ -125,20 +123,6 @@ impl GModel {
         }
     }
 
-    /// This makes a "low level" variable usable also in the
-    /// operation model.
-    pub fn make_product_var(&mut self, var: &SPPath) {
-        self.resource_products.push(var.clone());
-        let mut var = self.model.get(var)
-            .expect(&format!("trying to make product var of var: {} which does not exist", var))
-            .as_variable().expect(&format!("trying to make product var of var: {} which was not a variable", var));
-        // hack to store a path as a name...
-        let path = var.path().to_string();
-        var.node_mut().update_name(&path);
-        *var.node_mut().path_mut() = SPPath::new();
-        self.add_sub_item("resource_products", SPItem::Variable(var));
-    }
-
     pub fn add_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
         let trans = Transition::new(
             name,
@@ -176,107 +160,20 @@ impl GModel {
             .path()
     }
 
-    // handles the special case where auto transitions are directly mapped
-    // onto the higher level.
-    pub fn add_op_auto(&mut self, name: &str, pre: &Predicate, effects: &[Action]) -> SPPath {
-        // in the planning model, we only have a single transition,
-        // effects are immediate
-        let t = Transition::new(
-            &format!("{}_auto", name),
-            Predicate::AND(vec![pre.clone()]),
-            effects.to_vec(),
-            TransitionType::Auto
-        );
-
-        self.add_sub_item("operations", SPItem::Transition(t))
-    }
-
     pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], resets: bool, auto: bool,
+                  goal: &Predicate, post_actions: &[Action], _resets: bool, auto: bool,
                   mc_constraint: Option<Predicate>) -> SPPath {
-        let pre = Predicate::AND(vec![guard.clone(), goal.clone()]);
-        let mut act = effects.to_vec();
-        act.extend(post_actions.iter().cloned());
-        act.retain(|a| !self.resource_products.iter().any(|p|p==&a.var));
-        // add a new low level transition. goal // effects
-        if !act.is_empty() {
-            if auto {
-
-                // it is important to realize that we cannot freely change
-                // the goals of the high level when we are in this state
-                // or any other state from which this state can
-                // uncontrollably be reached. so we also create a spec here
-                let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
-                self.add_sub_item("replan_specs", SPItem::Spec(spec));
-
-                self.add_auto(name, &pre, &act);
-            } else {
-
-                // in this case it's fine (compare spec above) as the
-                // variables are not changed uncontrollably.
-
-                self.add_delib(name, &pre, &act);
-            }
-        }
-
-        if goal == &Predicate::TRUE {
-            self.add_op_auto(name, guard, effects)
-        } else {
-            let effects_goals = vec![(effects, goal)];
-            let op = Operation::new(name, guard, &effects_goals, post_actions, resets, mc_constraint);
-            self.add_sub_item("operations", SPItem::Operation(op))
-        }
+        let effects_goals = vec![(effects, goal)];
+        let op = Operation::new(name, auto, guard, &effects_goals, post_actions, mc_constraint);
+        self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     /// Add an operation that models a non-deteministic plant, ie multiple possible outcomes.
     pub fn add_op_alt(&mut self, name: &str, guard: &Predicate,
                       effects_goals: &[(&[Action], &Predicate)],
-                      post_actions: &[Action], resets: bool, auto: bool,
+                      post_actions: &[Action], _resets: bool, auto: bool,
                       mc_constraint: Option<Predicate>) -> SPPath {
-        for (i, (effects, goal)) in effects_goals.iter().enumerate() {
-            if *goal == &Predicate::TRUE {
-                panic!("add op nd true goal todo");
-            }
-
-            let pre = Predicate::AND(vec![guard.clone(), (*goal).clone()]);
-            let mut act = effects.to_vec();
-            act.extend(post_actions.iter().cloned());
-            act.retain(|a| !self.resource_products.iter().any(|p|p==&a.var));
-            // add a new low level transition. goal // effects
-            if !act.is_empty() {
-                if auto {
-
-                    // it is important to realize that we cannot freely change
-                    // the goals of the high level when we are in this state
-                    // or any other state from which this state can
-                    // uncontrollably be reached. so we also create a spec here
-                    let spec = Spec::new(name, Predicate::NOT(Box::new(pre.clone())));
-                    self.add_sub_item("replan_specs", SPItem::Spec(spec));
-
-                    let trans = Transition::new(
-                        &i.to_string(),
-                        pre.clone(),
-                        act.clone(),
-                        TransitionType::Auto,  // auto!
-                    );
-                    self.add_sub_item(name, SPItem::Transition(trans));
-                } else {
-
-                    // in this case it's fine (compare spec above) as the
-                    // variables are not changed uncontrollably.
-
-                    let trans = Transition::new(
-                        &i.to_string(),
-                        pre.clone(),
-                        act.clone(),
-                        TransitionType::Controlled,  // auto!
-                    );
-                    self.add_sub_item(name, SPItem::Transition(trans));
-                }
-            }
-        }
-
-        let op = Operation::new(name, guard, effects_goals, post_actions, resets, mc_constraint);
+        let op = Operation::new(name, auto, guard, effects_goals, post_actions, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 
@@ -284,31 +181,8 @@ impl GModel {
         &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate,
         post_actions: &[Action], invariant: Option<Predicate>,
     ) -> SPPath {
-        let state = SPPath::from_slice(&[self.model.name(), name, "state"]);
-
-        let op_start = Transition::new(
-            "start",
-            Predicate::AND(vec![p!(p: state == "i"), pre.clone()]),
-            vec![a!(p: state = "e")],
-            TransitionType::Controlled,
-        );
-        let mut f_actions = if resets {
-            vec![a!(p: state = "i")]
-        } else {
-            vec![a!(p: state = "f")]
-        };
-        f_actions.extend(post_actions.iter().cloned());
-        let op_finish = Transition::new(
-            "finish",
-            Predicate::AND(vec![p!(p: state == "e"), post.clone()]),
-            f_actions,
-            TransitionType::Auto
-        );
-        let op_goal = IfThen::new("goal", p!(p: state == "e"), post.clone(), invariant, None);
-
-        let i = Intention::new(name, &[op_start, op_finish], Some(op_goal));
-
-        self.model.add_item(SPItem::Intention(i))
+        let i = Intention::new(name, resets, pre, post, post_actions, invariant);
+        self.add_sub_item("intentions", SPItem::Intention(i))
     }
 
     pub fn add_invar(&mut self, name: &str, invariant: &Predicate) {
@@ -356,12 +230,12 @@ impl GModel {
 
         // operations start in init
         let op_state = self.model.all_operations().iter()
-            .map(|o| (o.state_variable().node().path().clone(), "i".to_spvalue()))
+            .map(|o| (o.path().clone(), "i".to_spvalue()))
             .collect::<Vec<_>>();
 
         // intentions are initially "paused"
         let intention_state = self.model.all_intentions().iter()
-            .map(|i| (i.state_variable().node().path().clone(), "paused".to_spvalue()))
+            .map(|i| (i.path().clone(), "paused".to_spvalue()))
             .collect::<Vec<_>>();
 
         let mut s = SPState::new_from_values(op_state.as_slice());

@@ -72,7 +72,7 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         tx_planner,
     );
 
-    
+
 
     loop {
         // blocking ros spinning
@@ -177,8 +177,7 @@ fn runner(
 
                         disabled_operations.retain(|p: &SPPath| {
                             let e = "error".to_spvalue();
-                            let p = p.clone().add_child("state");
-                            let os = runner.state().sp_value_from_path(&p).unwrap_or(&e);
+                            let os = runner.state().sp_value_from_path(p).unwrap_or(&e);
                             println!("CHECKING {} {}", p, os);
                             if os != &e {
                                 // user manually reset the operation
@@ -200,8 +199,7 @@ fn runner(
                             if !pr.plan_found {
                                 println!("operation still problematic...");
                             } else {
-                                let state = p.clone().add_child("state");
-                                runner.ticker.state.force_from_path(&state, &"i".to_spvalue()).unwrap();
+                                runner.ticker.state.force_from_path(&p, &"i".to_spvalue()).unwrap();
                                 something_was_fixed = true;
                             }
 
@@ -213,10 +211,10 @@ fn runner(
                             // back to their executing state.
                             // HACKS!
 
-                            for p in &runner.hl_operation_states {
+                            for p in &runner.intentions {
                                 if runner.state().sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
                                     println!("checking if we can remove error on high level operation: {}", p);
-                                    let goal_path = p.parent().add_child("goal");
+                                    let goal_path = p.clone().add_child("goal");
                                     println!("goal name {}", goal_path);
 
                                     let g1 = &runner.intention_goals;
@@ -227,10 +225,9 @@ fn runner(
                                                                              LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME, store_async.clone());
 
                                     if pr.plan_found {
-                                        let state_path = p.parent().add_child("state");
                                         log_info!("automatically restarting operation {}", p);
                                         runner.ticker.state
-                                            .force_from_path(&state_path,
+                                            .force_from_path(&p,
                                                              &"e".to_spvalue()).unwrap();
                                     }
                                 }
@@ -448,7 +445,7 @@ fn runner(
                         println!("resetting all operation state");
                         for op in &runner.operations {
                             if disabled_operations.contains(op.path()) { continue }
-                            let path = op.state_variable().path();
+                            let path = op.node().path();
                             if runner.ticker.state.sp_value_from_path(path)
                                 .map(|v| v == &"e".to_spvalue()).unwrap_or(false) {
                                     runner.ticker.state.force_from_path(path,
@@ -556,8 +553,7 @@ fn runner(
                                 println!("offending low level operation: {}", op_path);
                                 log_warn!("offending low level operation: {}", op_path);
                                 runner.ticker.state
-                                    .force_from_path(&op_path.clone().add_child("state"),
-                                                     &"error".to_spvalue()).unwrap();
+                                    .force_from_path(op_path, &"error".to_spvalue()).unwrap();
                                 disabled_operations.push(op_path.clone());
                             }
                         }
@@ -590,8 +586,7 @@ fn runner(
                                 let offending_op = i.path().parent();
                                 log_warn!("offending high level operation: {}", offending_op);
                                 runner.ticker.state
-                                    .force_from_path(&offending_op.clone().add_child("state"),
-                                                     &"error".to_spvalue()).unwrap();
+                                    .force_from_path(&offending_op, &"error".to_spvalue()).unwrap();
                             }
                         }
                     }
@@ -664,13 +659,13 @@ fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
 }
 
 fn resource_handler(
-    rx_resources: Receiver<ROSResource>, 
-    rx_commands: Receiver<RunnerCommand>, 
-    tx_runner: Sender<SPRunnerInput>, 
+    rx_resources: Receiver<ROSResource>,
+    rx_commands: Receiver<RunnerCommand>,
+    tx_runner: Sender<SPRunnerInput>,
     registered_resources: &SPPath
 
 ) {
-    
+
 
     fn ros_resource(
         msg: Result<ROSResource, channel::RecvError>,
@@ -694,7 +689,7 @@ fn resource_handler(
                     if res.is_err() {
                         println!("The runner channel is dead (in the merger)!: {:?}", res);
                         return false
-                    } 
+                    }
                 }
                 true
             }
@@ -822,41 +817,42 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
 
     // add global op transitions
     let global_ops: Vec<&Operation> = model.all_operations();
+    let global_ops_trans: Vec<Transition> = global_ops.iter().
+        map(|o|o.make_runner_transitions()).flatten().collect();
 
-    let global_ops_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_start.clone()).collect();
-    let global_ops_un_ctrl: Vec<_> = global_ops.iter().map(|o| o.runner_finish.clone()).collect();
+    let global_ops_ctrl: Vec<_> = global_ops_trans
+        .iter()
+        .filter(|t|t.type_ == TransitionType::Controlled)
+        .cloned()
+        .collect();
+    let global_ops_un_ctrl: Vec<_> = global_ops_trans
+        .iter()
+        .filter(|t|t.type_ == TransitionType::Auto)
+        .cloned()
+        .collect();
 
     let operations: Vec<Operation> = model.all_operations().into_iter().cloned().collect();
 
     // unchanged. todo
     let global_intentions: Vec<&Intention> = model.all_intentions();
     let global_int_trans: Vec<_> = global_intentions
-        .iter()
-        .flat_map(|i| i.transitions())
-        .cloned()
+        .iter().map(|i| i.make_runner_transitions())
+        .flatten()
         .collect();
-    let global_hl_ops_ctrl: Vec<_> = global_int_trans
+    let global_int_ctrl: Vec<_> = global_int_trans
         .iter()
         .filter(|t| t.controlled())
         .cloned()
         .collect();
-    let global_hl_ops_un_ctrl: Vec<_> = global_int_trans
+    let global_int_un_ctrl: Vec<_> = global_int_trans
         .iter()
         .filter(|t| !t.controlled())
         .cloned()
         .collect();
     let global_hl_goals: Vec<IfThen> = global_intentions
         .iter()
-        .flat_map(|o| o.goal().as_ref())
-        .cloned()
+        .map(|o| o.make_goal())
         .collect();
-
-    let hl_op_states: Vec<Variable> = global_intentions
-        .iter()
-        .map(|o| o.state_variable())
-        .cloned()
-        .collect();
-
 
     // debug high level model
 
@@ -867,29 +863,33 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
 
         // debug low level model
-        let all_op_names = global_ops.iter().map(|o|o.name().to_string()).collect::<Vec<_>>();
+        let all_op_trans = global_ops.iter().map(|o|(o.clone(),o.make_lowlevel_transitions()))
+            .collect::<Vec<_>>();
         global_ops.iter().for_each(|o| {
             // here we should find all unctronllable actions that can
             // modify the variables of GUARD and disallow them.
             println!("CHECKING OP: {}", o.name());
             let mut temp_ts_model = ts_model.clone();
 
-            // remove "replan" spec
-            temp_ts_model.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
-
             let mut new_invariants = vec![];
             temp_ts_model.transitions.retain(|t| {
-                //if t.actions.len() > 0 && t.actions.iter().any(|a| no_change.contains(&a.var)) {
-                if t.name() != o.name() && all_op_names.contains(&t.name().to_string()) {
-                    if let Some(op) = global_ops.iter().find(|oo|t.name()==oo.name()) {
-                        println!("FOR OP: {}, filtering transition: {}", o.name(), t.path());
-                        if !t.controlled() && op.fvg != Predicate::TRUE {
-                            // this also means we need to forbid this state!
-                            new_invariants.push(op.fvg.clone());
-                        }
+                let belongs_to_other_op = all_op_trans.iter()
+                    .find(|(op,ts)|
+                          o.path() != op.path() &&
+                          ts.iter().any(|x|x.path() == t.path()));
+
+                if let Some((op,_)) = belongs_to_other_op {
+                    println!("FOR OP: {}, filtering transition: {}", op.path(), t.path());
+                    let opg = op.make_verification_goal();
+                    if !t.controlled() {
+                        // this also means we need to forbid this state!
+                        println!("FOR OP: {}, forbidding: {}", op.path(), opg);
+                        new_invariants.push(opg);
                     }
                     false
-                } else { true }
+                } else {
+                    true
+                }
             });
 
             let new_specs = new_invariants.iter().map(|p| {
@@ -903,12 +903,12 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             // here we check if the operation has an assertion
             // which is assumed to be fulfilled for nominal behavior
             // (eg "resource not in failure mode")
-            let guard = if let Some(c) = o.fvc.as_ref() {
+            let guard = if let Some(c) = o.mc_constraint.as_ref() {
                 Predicate::AND(vec![o.guard.clone(), c.clone()])
             } else {
                 o.guard.clone()
             };
-            let op = vec![(o.path().to_string(), guard, o.fvg.clone())];
+            let op = vec![(o.path().to_string(), guard, o.make_verification_goal())];
             temp_ts_model.name += &format!("_{}", o.name());
             crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
         });
@@ -922,8 +922,8 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
     };
 
     let rm_hl_op_transitions = RunnerTransitions {
-        ctrl: global_hl_ops_ctrl,
-        un_ctrl: global_hl_ops_un_ctrl,
+        ctrl: global_int_ctrl,
+        un_ctrl: global_int_un_ctrl,
     };
 
 
@@ -984,15 +984,19 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         trans.push(t.clone());
     });
 
-
-    let hl_ops = hl_op_states.iter().map(|v| v.path().clone()).collect();
+    let intentions = global_intentions.iter().map(|v| v.path().clone()).collect();
 
     let mut all_vars = ts_model.vars.clone();
     all_vars.extend(ts_model.state_predicates.iter().cloned());
 
-    let mut tsm0 = ts_model.clone();
-    let replan_specs: Vec<Spec> = tsm0.specs.iter().filter(|s| s.path().parent().leaf() == "replan_specs").cloned().collect();
-    tsm0.specs.retain(|s| s.path().parent().leaf() != "replan_specs");
+    let replan_specs: Vec<Spec> = operations.iter().map(|o| {
+        let mut s = o.make_replan_specs();
+        for mut s in &mut s {
+            // Hmm this probably does not belong here...
+            s.invariant = ts_model.refine_invariant(&s.invariant);
+        }
+        s
+    }).flatten().collect();
 
     let mut runner = SPRunner::new(
         "test",
@@ -1001,9 +1005,9 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         global_hl_goals,
         vec![],
         vec![],
-        vec![tsm0, ts_model_op],
+        vec![ts_model, ts_model_op],
         model.all_resources().iter().map(|r| r.path().clone()).collect(),
-        hl_ops,
+        intentions,
         replan_specs,
         operations
     );
