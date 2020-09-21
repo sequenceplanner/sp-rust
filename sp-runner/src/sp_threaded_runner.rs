@@ -866,6 +866,8 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         let all_op_trans = global_ops.iter().map(|o|(o.clone(),o.make_lowlevel_transitions()))
             .collect::<Vec<_>>();
         global_ops.iter().for_each(|o| {
+            // check if a "real" operation or really just an autotransition
+            if o.make_runner_transitions().is_empty() { return; }
             // here we should find all unctronllable actions that can
             // modify the variables of GUARD and disallow them.
             println!("CHECKING OP: {}", o.name());
@@ -879,12 +881,16 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
                           ts.iter().any(|x|x.path() == t.path()));
 
                 if let Some((op,_)) = belongs_to_other_op {
+                    if op.make_runner_transitions().is_empty() {
+                        // "auto transition operation", keep this
+                        return true;
+                    }
                     println!("FOR OP: {}, filtering transition: {}", op.path(), t.path());
-                    let opg = op.make_verification_goal();
                     if !t.controlled() {
                         // this also means we need to forbid this state!
+                        let opg = op.make_verification_goal();
                         println!("FOR OP: {}, forbidding: {}", op.path(), opg);
-                        new_invariants.push(opg);
+                        new_invariants.push((op.path(), opg));
                     }
                     false
                 } else {
@@ -892,11 +898,13 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
                 }
             });
 
-            let new_specs = new_invariants.iter().map(|p| {
+            let new_specs = new_invariants.iter().map(|(op, p)| {
                 let i = Predicate::NOT(Box::new(p.clone()));
                 println!("REFINING: {}", i);
                 let ri = refine_invariant(&temp_ts_model, &i);
-                Spec::new("extended", ri)
+                let mut s = Spec::new("extended", ri);
+                s.node_mut().update_path(op);
+                s
             }).collect::<Vec<_>>();
             temp_ts_model.specs.extend(new_specs);
 
@@ -910,7 +918,16 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             };
             let op = vec![(o.path().to_string(), guard, o.make_verification_goal())];
             temp_ts_model.name += &format!("_{}", o.name());
-            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
+
+            let inits: Vec<_> = ts_model_op.specs.iter().map(|s|s.invariant.clone()).collect();
+            let initial_states = if inits.is_empty() {
+                Predicate::TRUE
+            } else {
+                Predicate::AND(inits)
+            };
+
+
+            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial_states, &op);
         });
     }
 

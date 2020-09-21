@@ -16,6 +16,7 @@ pub enum SPItem {
     IfThen(IfThen),
     TransitionSpec(TransitionSpec),
     Spec(Spec),
+    ProductSpec(ProductSpec),
     //SOP(SOP),
 }
 
@@ -32,6 +33,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.node(),
             SPItem::IfThen(x) => x.node(),
             SPItem::Spec(x) => x.node(),
+            SPItem::ProductSpec(x) => x.node(),
             SPItem::TransitionSpec(x) => x.node(),
         }
     }
@@ -47,6 +49,7 @@ impl Noder for SPItem {
             SPItem::Transition(ref mut x) => x.node_mut(),
             SPItem::IfThen(ref mut x) => x.node_mut(),
             SPItem::Spec(ref mut x) => x.node_mut(),
+            SPItem::ProductSpec(ref mut x) => x.node_mut(),
             SPItem::TransitionSpec(ref mut x) => x.node_mut(),
         }
     }
@@ -62,6 +65,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.get_child(next, path),
             SPItem::IfThen(x) => x.get_child(next, path),
             SPItem::Spec(x) => x.get_child(next, path),
+            SPItem::ProductSpec(x) => x.get_child(next, path),
             SPItem::TransitionSpec(x) => x.get_child(next, path),
         }
     }
@@ -77,6 +81,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.get_child_mut(next, path),
             SPItem::IfThen(x) => x.get_child_mut(next, path),
             SPItem::Spec(x) => x.get_child_mut(next, path),
+            SPItem::ProductSpec(x) => x.get_child_mut(next, path),
             SPItem::TransitionSpec(x) => x.get_child_mut(next, path),
         }
     }
@@ -94,6 +99,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.find_item_among_children(name, path_sections),
             SPItem::IfThen(x) => x.find_item_among_children(name, path_sections),
             SPItem::Spec(x) => x.find_item_among_children(name, path_sections),
+            SPItem::ProductSpec(x) => x.find_item_among_children(name, path_sections),
             SPItem::TransitionSpec(x) => x.find_item_among_children(name, path_sections),
         }
     }
@@ -111,6 +117,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::IfThen(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Spec(x) => x.find_item_mut_among_children(name, path_sections),
+            SPItem::ProductSpec(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::TransitionSpec(x) => x.find_item_mut_among_children(name, path_sections),
         }
     }
@@ -126,6 +133,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.update_path_children(path, changes),
             SPItem::IfThen(x) => x.update_path_children(path, changes),
             SPItem::Spec(x) => x.update_path_children(path, changes),
+            SPItem::ProductSpec(x) => x.update_path_children(path, changes),
             SPItem::TransitionSpec(x) => x.update_path_children(path, changes),
         }
     }
@@ -141,6 +149,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.rewrite_expressions(mapping),
             SPItem::IfThen(x) => x.rewrite_expressions(mapping),
             SPItem::Spec(x) => x.rewrite_expressions(mapping),
+            SPItem::ProductSpec(x) => x.rewrite_expressions(mapping),
             SPItem::TransitionSpec(x) => x.rewrite_expressions(mapping),
         }
     }
@@ -156,6 +165,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.as_ref(),
             SPItem::IfThen(x) => x.as_ref(),
             SPItem::Spec(x) => x.as_ref(),
+            SPItem::ProductSpec(x) => x.as_ref(),
             SPItem::TransitionSpec(x) => x.as_ref(),
         }
     }
@@ -171,6 +181,7 @@ impl Noder for SPItem {
             SPItem::Transition(x) => x.as_mut_ref(),
             SPItem::IfThen(x) => x.as_mut_ref(),
             SPItem::Spec(x) => x.as_mut_ref(),
+            SPItem::ProductSpec(x) => x.as_mut_ref(),
             SPItem::TransitionSpec(x) => x.as_mut_ref(),
         }
     }
@@ -189,6 +200,7 @@ pub enum SPItemRef<'a> {
     IfThen(&'a IfThen),
     TransitionSpec(&'a TransitionSpec),
     Spec(&'a Spec),
+    ProductSpec(&'a ProductSpec),
     //SOP(SOP),
 }
 
@@ -205,6 +217,7 @@ pub enum SPMutItemRef<'a> {
     IfThen(&'a mut IfThen),
     TransitionSpec(&'a mut TransitionSpec),
     Spec(&'a mut Spec),
+    ProductSpec(&'a mut ProductSpec),
     //SOP(SOP),
 }
 
@@ -221,6 +234,7 @@ impl<'a> SPItemRef<'a> {
             SPMutItemRef::Transition(x) => SPItemRef::Transition(x),
             SPMutItemRef::IfThen(x) => SPItemRef::IfThen(x),
             SPMutItemRef::Spec(x) => SPItemRef::Spec(x),
+            SPMutItemRef::ProductSpec(x) => SPItemRef::ProductSpec(x),
             SPMutItemRef::TransitionSpec(x) => SPItemRef::TransitionSpec(x),
         }
     }
@@ -245,6 +259,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Transition(x) => &x.node,
             SPItemRef::IfThen(x) => &x.node,
             SPItemRef::Spec(x) => &x.node,
+            SPItemRef::ProductSpec(x) => &x.node,
             SPItemRef::TransitionSpec(x) => &x.node,
         }
     }
@@ -260,6 +275,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Transition(x) => SPItem::Transition({ *x }.clone()),
             SPItemRef::IfThen(x) => SPItem::IfThen({ *x }.clone()),
             SPItemRef::Spec(x) => SPItem::Spec({ *x }.clone()),
+            SPItemRef::ProductSpec(x) => SPItem::ProductSpec({ *x }.clone()),
             SPItemRef::TransitionSpec(x) => SPItem::TransitionSpec({ *x }.clone()),
         }
     }
@@ -285,6 +301,7 @@ impl<'a> SPMutItemRef<'a> {
             SPMutItemRef::Transition(x) => &x.node,
             SPMutItemRef::IfThen(x) => &x.node,
             SPMutItemRef::Spec(x) => &x.node,
+            SPMutItemRef::ProductSpec(x) => &x.node,
             SPMutItemRef::TransitionSpec(x) => &x.node,
         }
     }
@@ -309,6 +326,7 @@ impl<'a> SPMutItemRef<'a> {
             SPMutItemRef::Transition(_) => "transition".to_string(),
             SPMutItemRef::IfThen(_) => "ifthen".to_string(),
             SPMutItemRef::Spec(_) => "spec".to_string(),
+            SPMutItemRef::ProductSpec(_) => "prodspec".to_string(),
             SPMutItemRef::TransitionSpec(_) => "transitionspec".to_string(),
         }
     }
@@ -1583,6 +1601,58 @@ impl Spec {
     pub fn new(name: &str, invariant: Predicate) -> Spec {
         let node = SPNode::new(name);
         Spec { node, invariant }
+    }
+    pub fn invariant(&self) -> &Predicate {
+        &self.invariant
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+pub struct ProductSpec {
+    node: SPNode,
+    pub invariant: Predicate,
+}
+
+impl Noder for ProductSpec {
+    fn node(&self) -> &SPNode {
+        &self.node
+    }
+    fn node_mut(&mut self) -> &mut SPNode {
+        &mut self.node
+    }
+    fn get_child<'a>(&'a self, _: &str, _: &SPPath) -> Option<SPItemRef<'a>> {
+        None
+    }
+    fn get_child_mut<'a>(&'a mut self, _: &str, _: &SPPath) -> Option<SPMutItemRef<'a>> {
+        None
+    }
+    fn find_item_among_children<'a>(
+        &'a self, _name: &str, _path_sections: &[&str],
+    ) -> Option<SPItemRef<'a>> {
+        None
+    }
+    fn find_item_mut_among_children<'a>(
+        &'a mut self, _name: &str, _path_sections: &[&str],
+    ) -> Option<SPMutItemRef<'a>> {
+        None
+    }
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
+    }
+    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
+        self.invariant.replace_variable_path(mapping);
+    }
+    fn as_ref(&self) -> SPItemRef<'_> {
+        SPItemRef::ProductSpec(self)
+    }
+    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
+        SPMutItemRef::ProductSpec(self)
+    }
+}
+
+impl ProductSpec {
+    pub fn new(name: &str, invariant: Predicate) -> ProductSpec {
+        let node = SPNode::new(name);
+        ProductSpec { node, invariant }
     }
     pub fn invariant(&self) -> &Predicate {
         &self.invariant

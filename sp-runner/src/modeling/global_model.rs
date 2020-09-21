@@ -190,6 +190,11 @@ impl GModel {
             .add_item(SPItem::Spec(Spec::new(name, invariant.clone())));
     }
 
+    pub fn add_product_invar(&mut self, name: &str, invariant: &Predicate) {
+        self.model
+            .add_item(SPItem::ProductSpec(ProductSpec::new(name, invariant.clone())));
+    }
+
     pub fn initial_state(&mut self, state: &[(&SPPath, SPValue)]) {
         let s: Vec<(SPPath, SPValue)> = state
             .iter()

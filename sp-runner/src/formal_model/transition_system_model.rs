@@ -191,14 +191,28 @@ impl TransitionSystemModel {
                                SPItem::Operation(o) => Some(o.make_planning_trans()),
                                _ => None,
                            })
-                        .flatten().collect())).unwrap_or(vec![]);
+                           .flatten().collect())).unwrap_or(vec![]);
+
+        let global_specs: Vec<Spec> = model
+            .items()
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::ProductSpec(s) => {
+                    // convert "product spec" to "spec"
+                    let mut ns = Spec::new(s.name(), s.invariant.clone());
+                    ns.node_mut().update_path(&s.path().parent());
+                    Some(ns)
+                },
+                _ => None,
+            })
+            .collect();
 
         TransitionSystemModel {
             name: format!("op_model_{}", model.name()),
             vars,
             state_predicates: vec![],
             transitions,
-            specs: vec![],
+            specs: global_specs,
         }
     }
 
