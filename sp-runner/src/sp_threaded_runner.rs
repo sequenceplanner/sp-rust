@@ -321,7 +321,7 @@ fn runner(
                 continue;
             }
 
-            //println!("The State:\n{}", runner.state());
+            println!("The State:\n{}", runner.state());
 
             let ts_models = runner.transition_system_models.clone();
             let goals = runner.goal();
@@ -841,12 +841,12 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         .collect();
     let global_int_ctrl: Vec<_> = global_int_trans
         .iter()
-        .filter(|t| t.controlled())
+        .filter(|t| t.type_ == TransitionType::Controlled)
         .cloned()
         .collect();
     let global_int_un_ctrl: Vec<_> = global_int_trans
         .iter()
-        .filter(|t| !t.controlled())
+        .filter(|t| t.type_ == TransitionType::Auto)
         .cloned()
         .collect();
     let global_hl_goals: Vec<IfThen> = global_intentions
@@ -886,7 +886,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
                         return true;
                     }
                     println!("FOR OP: {}, filtering transition: {}", op.path(), t.path());
-                    if !t.controlled() {
+                    if t.type_ == TransitionType::Auto {
                         // this also means we need to forbid this state!
                         let opg = op.make_verification_goal();
                         println!("FOR OP: {}, forbidding: {}", op.path(), opg);
@@ -958,7 +958,6 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             .cloned()
             .collect(),
     };
-
 
     let mut trans = vec![];
     let mut restrict_controllable = vec![];
