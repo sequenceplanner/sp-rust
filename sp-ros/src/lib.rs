@@ -619,13 +619,13 @@ mod ros {
         let tx_in = tx_to_runner.clone();
         let cb = move |msg: r2r::sp_messages::msg::RegisterResource| {
                 let mut p = SPPath::from_string(&msg.path);
-                p.add_parent_path(&prefix_path);
+                p.add_parent_path_mut(&prefix_path);
                 let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
                 let last_goal_from_sp: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
                 let last = last_goal_from_sp.map(|x| {
                     let mut s = x.to_state();
                     let mut goal_path = p.clone();
-                    goal_path.add_child_path(&SPPath::from_string("goal/0"));
+                    goal_path.add_child_path_mut(&SPPath::from_string("goal/0"));
                     s.prefix_paths(&goal_path);
                     s
                 });

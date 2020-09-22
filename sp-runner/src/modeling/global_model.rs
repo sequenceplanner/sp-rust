@@ -73,7 +73,7 @@ impl GModel {
         let mut mc = m.clone();
         mc.items.clear();
         let _rp = m.add_item(SPItem::Resource(resource.clone()));
-        let r = self.model.find_item(resource.name(), &[name]).unwrap().unwrap_resource();
+        let r = self.model.find_item(&(resource.name()), &[name]).unwrap().unwrap_resource();
         let vars = r.get_variables();
         let mut model = self.model.clone();
         model.items.clear();

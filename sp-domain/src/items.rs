@@ -279,7 +279,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::TransitionSpec(x) => SPItem::TransitionSpec({ *x }.clone()),
         }
     }
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         self.node().name()
     }
 }
@@ -311,7 +311,7 @@ impl<'a> SPMutItemRef<'a> {
             _ => panic!(format!("trying to unwrap variable but we have {:?}", self)),
         }
     }
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         self.node().name()
     }
     pub fn item_type_as_string(&self) -> String {
@@ -525,6 +525,8 @@ pub struct Resource {
     pub estimated: Vec<Variable>,
     pub messages: Vec<Topic>,
     pub specs: Vec<Spec>,
+    pub variables: Vec<Variable>,
+    pub new_messages: Vec<NewMessage>,
 }
 
 impl Noder for Resource {
@@ -725,6 +727,44 @@ impl Resource {
         });
         res
     }
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
+pub struct NewMessage{
+    pub topic: SPPath,
+    pub relative_topic: bool,
+    pub message_type: MessageType,
+    pub message_format: MessageFormat,
+    pub variables: Vec<MessageVariable>,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum MessageType{
+    OutGoing,
+    Incoming,
+}
+impl Default for MessageType {
+    fn default() -> Self {
+        MessageType::OutGoing
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum MessageFormat{
+    Ros(String),
+    JsonFlat,
+    Json
+}
+impl Default for MessageFormat {
+    fn default() -> Self {
+        MessageFormat::Json
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
+pub struct MessageVariable{
+    pub name: SPPath,
+    pub path: SPPath
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -1035,7 +1075,7 @@ pub enum VariableType {
     Measured,
     Estimated,
     Command,
-    Parameter(Option<SPPath>),
+    Parameter,
     Predicate(Predicate),
 }
 

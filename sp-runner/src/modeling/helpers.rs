@@ -356,7 +356,7 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_spec(Spec::new(&i.name, i.prop.clone()));
     }
 
-    let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
+    let temp_model = Model::new_no_root(&r.name(), vec![SPItem::Resource(r.clone())]);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
     crate::planning::generate_offline_nuxvm(&temp_ts_model, &Predicate::TRUE);
     return r;

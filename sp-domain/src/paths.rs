@@ -1,6 +1,7 @@
 //! The SPPath is used for identifying items in the model
 
 use serde::{Deserialize, Serialize};
+use super::{SPResult, SPError};
 
 /// The SPPath is used for identifying all objects in a model. The path will be defined
 /// based on where the item is in the model hierarchy
@@ -30,35 +31,55 @@ impl SPPath {
         let res: Vec<&str> = s.trim_start_matches('/').split('/').collect();
         SPPath::from_slice(&res)
     }
-    pub fn add_child(mut self, sub: &str) -> Self {
+    pub fn add_child(&self, sub: &str) -> Self {
+        let mut p = self.path.clone();
+        p.push(sub.to_string());
+        SPPath::from(p)
+    }
+    pub fn add_child_mut(&mut self, sub: &str) {
         self.path.push(sub.to_string());
-        self
     }
-    pub fn add_parent(mut self, root: &str) -> Self {
+    pub fn add_parent(&self, root: &str) -> Self {
+        let mut p = self.path.clone();
+        p.insert(0, root.to_string());
+        SPPath::from(p)
+    }
+    pub fn add_parent_mut(&mut self, root: &str) {
         self.path.insert(0, root.to_string());
-        self
     }
-    pub fn add_child_path(&mut self, sub: &SPPath) {
+    pub fn add_child_path_mut(&mut self, sub: &SPPath) {
         self.path.append(&mut sub.path.clone())
     }
-    pub fn add_parent_path(&mut self, root: &SPPath) {
+    pub fn add_parent_path_mut(&mut self, root: &SPPath) {
         let mut new_path = root.path.clone();
         new_path.append(&mut self.path);
         self.path = new_path;
     }
-    // maybe should return result instead of panicing. use with caution.
-    pub fn drop_parent(&mut self, parent: &SPPath) {
+    pub fn add_child_path(&self, sub: &SPPath) -> SPPath {
+        let mut p = self.path.clone();
+        p.append(&mut sub.path.clone());
+        SPPath::from(p)
+    }
+    pub fn add_parent_path(&self, root: &SPPath) -> SPPath {
+        let mut new_path = root.path.clone();
+        new_path.append(&mut self.path.clone());
+        SPPath::from(new_path)
+    }
+    
+
+    pub fn drop_parent(&mut self, parent: &SPPath) -> SPResult<()> {
         let zipped = self.path.iter().zip(parent.path.iter());
         let match_len = zipped.filter(|(a, b)| a == b).count();
         if match_len == parent.path.len() {
             // all parent paths matched, remove
             self.path.drain(0..match_len);
         } else {
-            panic!(
+            SPError::No(format!(
                 "cannot drop parent as it does not exist: {} - {}",
                 self, parent
-            );
+            ));
         }
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -102,6 +123,14 @@ impl SPPath {
         }
     }
 
+    pub fn drop_leaf(&mut self) -> String {
+        if !self.path.is_empty() {
+            self.path.remove(self.path.len()-1)
+        } else {
+            String::new()
+        }
+    }
+
     /// returns the next name in the path of this SPPath based on a path
     /// that is the current parent to this path
     pub fn next_node_in_path(&self, parent_path: &SPPath) -> Option<String> {
@@ -135,17 +164,17 @@ mod tests_paths {
     fn drop_parent() {
         let mut ab = SPPath::from_slice(&["a", "b", "c"]);
         let parent = SPPath::from_slice(&["a", "b"]);
-        ab.drop_parent(&parent);
+        ab.drop_parent(&parent).unwrap();
         assert_eq!(ab, SPPath::from_slice(&["c"]));
 
         let mut ab = SPPath::from_slice(&["a", "b", "c"]);
         let parent = SPPath::from_slice(&["a", "b", "c"]);
-        ab.drop_parent(&parent);
+        ab.drop_parent(&parent).unwrap();
         assert_eq!(ab, SPPath::new());
 
         let mut ab = SPPath::from_slice(&["a", "b", "c"]);
         let parent = SPPath::from_slice(&["a"]);
-        ab.drop_parent(&parent);
+        ab.drop_parent(&parent).unwrap();
         assert_eq!(ab, SPPath::from_slice(&["b", "c"]));
     }
 
@@ -154,7 +183,7 @@ mod tests_paths {
     fn drop_parent_fail() {
         let mut ab = SPPath::from_slice(&["a", "b", "c"]);
         let parent = SPPath::from_slice(&["a", "c"]);
-        ab.drop_parent(&parent);
+        ab.drop_parent(&parent).unwrap();
     }
 
     #[test]

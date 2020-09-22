@@ -199,7 +199,7 @@ impl TransitionSystemModel {
             .flat_map(|i| match i {
                 SPItem::ProductSpec(s) => {
                     // convert "product spec" to "spec"
-                    let mut ns = Spec::new(s.name(), s.invariant.clone());
+                    let mut ns = Spec::new(&(s.name()), s.invariant.clone());
                     ns.node_mut().update_path(&s.path().parent());
                     Some(ns)
                 },

@@ -139,7 +139,7 @@ impl SPStateJson {
         fn dig(obj: &serde_json::Map<String, serde_json::Value>, path: &SPPath) -> Vec<(SPPath, SPValue)> {
             obj.iter().flat_map(|(k, v)| {
                 let mut p = SPPath::from_string(&k.replace("_children", ""));
-                p.add_parent_path(path);
+                p.add_parent_path_mut(path);
                 let spv = SPValue::from_json(v);
                 match spv {
                     SPValue::Unknown => {
@@ -170,7 +170,7 @@ impl SPStateJson {
                 return;
             }
             let root = p.root();
-            let x = xs.get(&root);
+            let x = xs.get(&root).cloned();
             match x {
                 None => {
                     if p.path.len() == 1 {
@@ -509,7 +509,7 @@ impl SPState {
         let mut xs = HashMap::new();
         for (path, i) in self.index.iter() {
             let mut new_p = path.clone();
-            new_p.add_parent_path(parent);
+            new_p.add_parent_path_mut(parent);
             xs.insert(new_p, *i);
         }
         self.index = xs;
@@ -521,7 +521,7 @@ impl SPState {
         let mut new_index = HashMap::new();
         for (path, i) in &self.index {
             let mut new_key = path.clone();
-            new_key.drop_parent(parent);
+            let _e = new_key.drop_parent(parent);
             new_index.insert(new_key, *i);
         }
         self.index = new_index;
