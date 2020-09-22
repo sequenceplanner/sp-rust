@@ -530,7 +530,6 @@ impl SPRunner {
 
         let res = self.ticker.tick_transitions();
 
-        let mut new_state = vec![];
         // check if we started any operations.
         for taken in &res.1 {
             println!("taken... {}", taken);
@@ -557,18 +556,10 @@ impl SPRunner {
                                     .collect())).collect();
                         Predicate::OR(inner)
                     };
-
-                    let goal_sp_val = goal.to_string().to_spvalue();
-                    let goal_path = o.path().clone().add_child("goal");
-                    new_state.push((goal_path, goal_sp_val));
-
                     self.operation_goals.insert(o.path().clone(), goal);
                 }
             }
         }
-
-
-        let new_state = SPState::new_from_values(&new_state);
 
         // update operation specs and clean goals
         let mut new_specs = Vec::new();
@@ -608,7 +599,6 @@ impl SPRunner {
         self.last_fired_transitions = res.1;
 
         self.load_plans(); // only here to update ticker specs. do it better later
-        self.update_state_variables(new_state); // show goals in the state.
     }
 
     fn load_plans(&mut self) {
