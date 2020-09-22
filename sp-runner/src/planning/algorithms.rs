@@ -480,6 +480,6 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
 
 
     // change original planner result
-    let trace = rebuild_planning_trace(&plan, &pr.trace[0].state);
+    let trace = rebuild_planning_trace(&new_plan, &pr.trace[0].state);
     pr.trace = trace;
 }
