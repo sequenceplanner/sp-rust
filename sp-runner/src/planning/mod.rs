@@ -30,7 +30,9 @@ pub trait Planner {
 mod nuxmv;
 pub use nuxmv::*;
 
+#[cfg(feature = "sat_planner")]
 mod sat_planner;
+#[cfg(feature = "sat_planner")]
 pub use sat_planner::*;
 
 mod algorithms;

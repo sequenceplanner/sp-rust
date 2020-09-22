@@ -33,6 +33,22 @@ mod ros {
         println!("{}:{}:[{}] - {}", file, line, severity, msg);
     }
 
+    pub fn log_debug(msg: &str, file: &str, line: u32) {
+        log(msg, file, line, 1);
+    }
+    pub fn log_info(msg: &str, file: &str, line: u32) {
+        log(msg, file, line, 2);
+    }
+    pub fn log_warn(msg: &str, file: &str, line: u32) {
+        log(msg, file, line, 3);
+    }
+    pub fn log_error(msg: &str, file: &str, line: u32) {
+        log(msg, file, line, 4);
+    }
+    pub fn log_fatal(msg: &str, file: &str, line: u32) {
+        log(msg, file, line, 5);
+    }
+
     #[macro_export]
     macro_rules! log_debug {
         ($($args:tt)*) => {{
@@ -95,13 +111,15 @@ mod ros {
     }
 
     pub fn ros_resource_comm_setup(
-        node: &mut RosNode, 
-        tx_to_runner: channel::Sender<ROSResource>,
+        _node: &mut RosNode,
+        _tx_to_runner: channel::Sender<ROSResource>,
+        _prefix_path: &SPPath,
     ) -> Result<(), Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
-    pub fn spin(_node: &mut RosNode) {}
+    pub fn spin(_node: &mut RosNode) {
+    }
 }
 
 #[cfg(feature = "ros")]
@@ -381,7 +399,7 @@ mod ros {
                 }
             }
         }
-        
+
         let topic = "/sp/resources";
         let path = SPPath::from_string("registered_resources");
         let rp = node.0.create_publisher::<r2r::sp_messages::msg::Resources>(topic)?;
@@ -395,7 +413,7 @@ mod ros {
                     }
                 }).collect();
                 let msg =  r2r::sp_messages::msg::Resources {
-                    resources 
+                    resources
                 };
                 let res = rp.publish(&msg);
                 if res.is_err() {
@@ -406,7 +424,7 @@ mod ros {
                     );
                 }
             }
-            
+
         };
 
         let (tx_out, rx_out): (channel::Sender<SPState>, channel::Receiver<SPState>) = channel::unbounded();
@@ -591,7 +609,7 @@ mod ros {
     }
 
     pub fn ros_resource_comm_setup(
-        node: &mut RosNode, 
+        node: &mut RosNode,
         tx_to_runner: channel::Sender<ROSResource>,
         prefix_path: &SPPath,
     ) -> Result<(), Error> {
@@ -616,9 +634,9 @@ mod ros {
                     model: model.ok(),
                     last_goal_from_sp: last.ok(),
                 };
-                
+
                 tx_in.send(resource).expect("Can not send the ROSResource. Threads are dead?");
-            
+
         };
         println!("setting up subscription to topic: {}", resource_topic);
         let _subref = node.0.subscribe(resource_topic, Box::new(cb))?;
