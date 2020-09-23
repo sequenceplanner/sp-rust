@@ -1161,9 +1161,6 @@ impl Transition {
     pub fn actions(&self) -> &[Action] {
         self.actions.as_slice()
     }
-    pub fn controlled(&self) -> bool {
-        self.type_ == TransitionType::Controlled
-    }
     pub fn upd_state_path(&mut self, state: &SPState) {
         self.guard.upd_state_path(state);
         self.actions

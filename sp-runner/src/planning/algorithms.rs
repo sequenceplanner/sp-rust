@@ -8,7 +8,7 @@ pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
         .transitions
         .iter()
         .filter_map(|t: &Transition| {
-            if t.controlled() {
+            if t.type_ == TransitionType::Controlled {
                 Some(t.path().clone())
             } else {
                 None
@@ -36,7 +36,7 @@ pub fn convert_planning_result(
         .transitions
         .iter()
         .filter_map(|t: &Transition| {
-            if t.controlled() {
+            if t.type_ == TransitionType::Controlled {
                 Some(t.path().clone())
             } else {
                 None
@@ -164,7 +164,7 @@ pub fn convert_planning_result_with_packing_heuristic(
         .transitions
         .iter()
         .filter_map(|t: &Transition| {
-            if t.controlled() {
+            if t.type_ == TransitionType::Controlled {
                 Some(t.path().clone())
             } else {
                 None
@@ -272,7 +272,7 @@ pub fn convert_planning_result_with_packing_heuristic(
 
     let blocked: Vec<TransitionSpec> = model.transitions
         .iter()
-        .filter(|t| t.controlled() && !in_plan.contains(t.path()))
+        .filter(|t| t.type_ == TransitionType::Controlled && !in_plan.contains(t.path()))
         .map(|x| {
             let t = Transition::new(
                 &format!("Blocked {}", x.path()),
@@ -326,19 +326,14 @@ fn rebuild_planning_trace(plan: &[Transition], initial: &SPState) -> Vec<Plannin
 
 /// Checks wheter we can reach a goal exactly applying
 /// a list of transitions in their given order
-fn check_goals_exact(s: &SPState, goals: &[&Predicate], plan: &[SPPath], ts_model: &TransitionSystemModel) -> bool {
+fn check_goals_exact(s: &SPState, goals: &[&Predicate], plan: &[Transition], ts_model: &TransitionSystemModel) -> bool {
     if goals.iter().all(|g| g.eval(s)) {
         return true;
     }
 
-    let trans: Vec<&Transition> = ts_model.transitions.iter()
-        .filter(|t| plan.contains(t.path()))
-        .collect();
-
     let mut state = s.clone();
-    for p in plan {
-        let t = trans.iter().find(|t| t.path() == p).unwrap();
-        if !t.eval(&state) {
+    for t in plan {
+        if !t.guard.eval(&state) {
             return false;
         }
 
@@ -412,7 +407,7 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
         })
         .collect::<Vec<_>>();
 
-    let delib = plan.iter().filter(|t| t.controlled()).collect::<Vec<_>>();
+    let delib = plan.iter().filter(|t| t.type_ != TransitionType::Effect).collect::<Vec<_>>();
 
     println!("original plan");
     for t in &plan {
@@ -454,18 +449,19 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
         p.insert(idx - 1, t);
 
         // check if the new plan successfully reaches the goals
-        let plan: Vec<SPPath> = p.iter().map(|t|t.path().clone()).collect();
-
-        let result = check_goals_exact(state, goals, &plan, &ts);
-        println!("plan takes us to goal? {}", result);
+        let result = check_goals_exact(state, goals, &p, &ts);
+        // if the previous transition is auto, the check will fail,
+        // but it makes sense to keep searching. see below.
+        let prev_auto = p[idx].type_ == TransitionType::Auto;
+        println!("plan takes us to goal? {} (prev auto {})", result, prev_auto);
 
         // transition is done if we could not move it, or we moved it
         // to the top
-        if !result || (result && idx == 1) {
+        if (!result && !prev_auto) || (result && idx == 1) {
             done_paths.insert(path);
         }
 
-        if result {
+        if result || prev_auto {
             new_plan = p;
             // can only move up to zero
             if idx > 1 {
@@ -484,6 +480,6 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
 
 
     // change original planner result
-    let trace = rebuild_planning_trace(&plan, &pr.trace[0].state);
+    let trace = rebuild_planning_trace(&new_plan, &pr.trace[0].state);
     pr.trace = trace;
 }

@@ -43,7 +43,7 @@ impl FormalContext {
             let guard = fc.sp_pred_to_ex(t.guard());
             let actions: Vec<_> = t.actions().iter().map(|a| fc.sp_action_to_ac(a)).collect();
 
-            if t.controlled() {
+            if t.type_ == TransitionType::Controlled {
                 fc.context.add_c_trans(&t.path().to_string(), &guard, &actions);
             } else {
                 fc.context.add_uc_trans(&t.path().to_string(), &guard, &actions);
@@ -301,7 +301,7 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
     let mut model = model.clone();
 
     // only look at the uncontrollable transitions.
-    model.transitions.retain(|t| !t.controlled());
+    model.transitions.retain(|t| t.type_ != TransitionType::Controlled);
 
     // check if there are no unc transitions that can modify the state defined
     // by the invariants.
@@ -370,7 +370,7 @@ pub fn extend_forward(model: &TransitionSystemModel, pred: &Predicate) -> Predic
     let mut model = model.clone();
 
     // only look at the uncontrollable transitions.
-    model.transitions.retain(|t| !t.controlled());
+    model.transitions.retain(|t| t.type_ != TransitionType::Controlled);
 
     let c = FormalContext::from(&model);
 

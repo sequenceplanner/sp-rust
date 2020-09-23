@@ -181,10 +181,11 @@ impl SPStateJson {
                         xs.insert(root, serde_json::Value::Object(map));
                     }
                 },
-                Some(serde_json::Value::Object(_)) => {
+                Some(obj @ serde_json::Value::Object(_)) => {
                     if p.path.len() == 1 {
                         let ch_p = format!("{}_children", root);
-                        xs.insert(ch_p, x.unwrap().clone());
+                        let obj = obj.clone();
+                        xs.insert(ch_p, obj);
                         let x = xs.entry(&root).or_insert(serde_json::Value::Null);
                         *x = v.to_json();
                     } else {
@@ -199,10 +200,10 @@ impl SPStateJson {
                     let mut ch = xs.entry(&ch_p).or_insert(serde_json::Value::Object(serde_json::Map::new()));
                     if let serde_json::Value::Object(ref mut map) = ch {
                         insert(map, &p.drop_root(), v);
-                    } 
+                    }
                 }
             }
-            
+
         }
         let mut map = serde_json::Map::new();
         state.projection().state.into_iter().for_each(|(k, v)| {
@@ -819,7 +820,7 @@ mod sp_value_test {
 
         println!("flat: {}", serde_json::to_string_pretty(&json_flat).unwrap());
         println!("rec: {}", serde_json::to_string_pretty(&json_rec).unwrap());
-        
+
         println!("from_flat: {}", &from_flat);
         println!("from_rec_flat: {}", &from_rec_flat);
 

@@ -128,14 +128,14 @@ impl TransitionSystemModel {
 
         let auto = transitions
             .iter()
-            .filter(|t| !t.controlled() && !t.actions().is_empty());
+            .filter(|t| t.type_ == TransitionType::Auto);
         let auto_guards: Vec<Predicate> = auto
             .map(|a| Predicate::NOT(Box::new(a.guard().clone())))
             .collect();
         if !auto_guards.is_empty() {
             let auto_guards = Predicate::AND(auto_guards);
             transitions.iter_mut().for_each(|t| {
-                if t.controlled() {
+                if t.type_ == TransitionType::Controlled {
                     let orig = t.guard().clone();
                     let new = Predicate::AND(vec![orig, auto_guards.clone()]);
                     *t.mut_guard() = new;
