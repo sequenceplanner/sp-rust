@@ -260,6 +260,69 @@ fn runner(
                 // println!("state changed? {}", state_has_probably_changed);
                 // println!("transition fired? {}", !runner.last_fired_transitions.is_empty());
                 // println!("ticked? {}", ticked);
+                }
+
+            if ticked {
+
+
+                                println!("checking all errors");
+
+                let mut something_was_fixed = false;
+
+                disabled_operations.retain(|p: &SPPath| {
+                    let e = "error".to_spvalue();
+                    let os = runner.state().sp_value_from_path(p).unwrap_or(&e);
+                    println!("CHECKING {} {}", p, os);
+                    if os != &e {
+                        // user manually reset the operation
+                        something_was_fixed = true;
+                        false
+                    } else {
+                        true
+                    }
+                });
+                disabled_operations.retain(|p: &SPPath| {
+                    // check if the state if OK so we can remove any error states.
+                    println!("checking if we can remove error on low level operation: {}", p);
+                    let goal = runner.operation_goals.get(p).expect("no goal on disabled op");
+                    let goal = vec![(goal.clone(), None)];
+
+                    let pr = planning::plan(&runner.transition_system_models[0], goal.as_slice(),
+                                            runner.state(), LVL0_MAX_STEPS);
+
+                    if !pr.plan_found {
+                        println!("operation still problematic...");
+                    } else {
+                        runner.ticker.state.force_from_path(&p, &"i".to_spvalue()).unwrap();
+                        something_was_fixed = true;
+                    }
+
+                    !pr.plan_found
+                });
+
+
+
+                for p in &runner.intentions {
+                    if runner.state().sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
+                        println!("checking if we can remove error on high level operation: {}", p);
+                        let goal_path = p.clone().add_child("goal");
+                        println!("goal name {}", goal_path);
+
+                        let g1 = &runner.intention_goals;
+                        let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
+                        let goal = vec![(i.goal().clone(), None)];
+
+                        let pr = planning::plan_async_with_cache(&runner.transition_system_models[1], &goal, runner.state(), &disabled_operations,
+                                                                 LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME, store_async.clone());
+
+                        if pr.plan_found {
+                            log_info!("automatically restarting operation {}", p);
+                            runner.ticker.state
+                                .force_from_path(&p,
+                                                 &"e".to_spvalue()).unwrap();
+                        }
+                    }
+                }
             }
 
             let disabled = runner.disabled_paths();
@@ -814,6 +877,9 @@ struct PlannerTask {
 
 pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_problems: bool) -> SPRunner {
     let ts_model = TransitionSystemModel::from(&model);
+
+    // add runner transitions
+    let runner_transitions = model.all_runner_transitions();
 
     // add global op transitions
     let global_ops: Vec<&Operation> = model.all_operations();
