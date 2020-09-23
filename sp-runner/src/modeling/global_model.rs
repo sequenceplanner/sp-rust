@@ -144,13 +144,8 @@ impl GModel {
     }
 
     pub fn add_runner_transition(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(
-            name,
-            guard.clone(),
-            actions.to_vec(),
-            TransitionType::Auto
-        );
-        self.add_sub_item("runner_transitions", SPItem::Transition(trans));
+        let trans = Transition::new(name, guard.clone(), actions.to_vec(), TransitionType::Runner);
+        self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn find(&mut self, name: &str, path_sections: &[&str]) -> SPPath {

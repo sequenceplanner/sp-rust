@@ -485,12 +485,12 @@ impl Model {
             .collect()
     }
 
-    pub fn all_runner_operations(&self) -> Vec<&Operation> {
+    pub fn all_runner_transitions(&self) -> Vec<Transition> {
         self.items
             .iter()
             .flat_map(|i| match i {
-                SPItem::Model(m) => if m.name() == "runner_ops" { m.all_operations() } else { vec![] },
-                SPItem::Operation(o) => vec![o],
+                SPItem::Model(m) => m.all_runner_transitions(),
+                SPItem::Transition(t) if t.type_ == TransitionType::Runner => vec![t.clone()],
                 _ => vec![],
             })
             .collect()

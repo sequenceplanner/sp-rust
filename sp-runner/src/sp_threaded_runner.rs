@@ -954,12 +954,12 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
         un_ctrl: ts_model
             .transitions
             .iter()
-            .filter(|t| t.type_ == TransitionType::Auto || t.type_ == TransitionType::Runner)
+            .filter(|t| t.type_ == TransitionType::Auto)
             .cloned()
             .collect(),
     };
 
-    let mut trans = vec![];
+    let mut trans = runner_transitions;
     let mut restrict_controllable = vec![];
     let mut restrict_op_controllable = vec![];
     let false_trans = Transition::new("empty", Predicate::FALSE, vec![], TransitionType::Controlled);
