@@ -156,19 +156,18 @@ impl GModel {
     }
 
     pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], _resets: bool, auto: bool,
+                  goal: &Predicate, post_actions: &[Action], auto: bool,
                   mc_constraint: Option<Predicate>) -> SPPath {
-        let effects_goals = vec![(effects, goal)];
-        let op = Operation::new(name, auto, guard, &effects_goals, post_actions, mc_constraint);
+        let effects_goals = vec![(effects, goal, post_actions)];
+        let op = Operation::new(name, auto, guard, &effects_goals, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     /// Add an operation that models a non-deteministic plant, ie multiple possible outcomes.
     pub fn add_op_alt(&mut self, name: &str, guard: &Predicate,
-                      effects_goals: &[(&[Action], &Predicate)],
-                      post_actions: &[Action], _resets: bool, auto: bool,
-                      mc_constraint: Option<Predicate>) -> SPPath {
-        let op = Operation::new(name, auto, guard, effects_goals, post_actions, mc_constraint);
+                      effects_goals_actions: &[(&[Action], &Predicate, &[Action])],
+                      auto: bool, mc_constraint: Option<Predicate>) -> SPPath {
+        let op = Operation::new(name, auto, guard, effects_goals_actions, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 

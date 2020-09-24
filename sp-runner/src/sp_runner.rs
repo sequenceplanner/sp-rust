@@ -540,17 +540,17 @@ impl SPRunner {
                     // operations with multiple effects, we must be ok
                     // with any
 
-                    let goal = if o.effects_goals.len() == 1 {
+                    let goal = if o.effects_goals_actions.len() == 1 {
                         // we need to update the goal and postcond.
                         Predicate::AND(
-                            o.effects_goals[0].0
+                            o.effects_goals_actions[0].0
                                 .iter()
                                 .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
                                 .collect())
                     } else {
                         // we need to update the goal and postcond.
-                        let inner = o.effects_goals.iter()
-                            .map(|(e,_goal)| Predicate::AND(
+                        let inner = o.effects_goals_actions.iter()
+                            .map(|(e,_goal,_a)| Predicate::AND(
                                 e.iter()
                                     .map(|e| e.to_concrete_predicate(&res.0).expect("weird goal"))
                                     .collect())).collect();
