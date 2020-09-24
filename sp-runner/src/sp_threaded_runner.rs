@@ -815,6 +815,9 @@ struct PlannerTask {
 pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_problems: bool) -> SPRunner {
     let ts_model = TransitionSystemModel::from(&model);
 
+    // add runner transitions
+    let runner_transitions = model.all_runner_transitions();
+
     // add global op transitions
     let global_ops: Vec<&Operation> = model.all_operations();
     let global_ops_trans: Vec<Transition> = global_ops.iter().
