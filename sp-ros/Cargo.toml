@@ -5,6 +5,7 @@ authors = ["Martin Dahl <martin.dahl@gmail.com>"]
 edition = "2018"
 
 [features]
+default = ["ros"]
 ros = ["r2r"]
 
 [dependencies]

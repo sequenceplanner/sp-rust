@@ -733,31 +733,31 @@ impl Resource {
 pub struct NewMessage{
     pub topic: SPPath,
     pub relative_topic: bool,
+    pub category: MessageCategory,
     pub message_type: MessageType,
-    pub message_format: MessageFormat,
     pub variables: Vec<MessageVariable>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum MessageType{
+pub enum MessageCategory{
     OutGoing,
     Incoming,
 }
-impl Default for MessageType {
+impl Default for MessageCategory {
     fn default() -> Self {
-        MessageType::OutGoing
+        MessageCategory::OutGoing
     }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum MessageFormat{
+pub enum MessageType{
     Ros(String),
     JsonFlat,
     Json
 }
-impl Default for MessageFormat {
+impl Default for MessageType {
     fn default() -> Self {
-        MessageFormat::Json
+        MessageType::Json
     }
 }
 

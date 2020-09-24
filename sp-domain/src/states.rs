@@ -212,6 +212,10 @@ impl SPStateJson {
         SPStateJson(map)
     }
 
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap()
+    }
+
 
 }
 

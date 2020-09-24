@@ -222,8 +222,8 @@ mod ros {
 
     fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
         fn json_to_state_<'a>(
-            json: &serde_json::Value, md: &'a MessageField, p: &mut Vec<&'a str>,
-            a: &mut Vec<(Vec<&'a str>, SPValue)>,
+            json: &serde_json::Value, md: &'a MessageField, p: &mut Vec<String>,
+            a: &mut Vec<(Vec<String>, SPValue)>,
         ) {
             match md {
                 MessageField::Msg(msg) => {
@@ -231,7 +231,7 @@ mod ros {
                     // p.push(&path_name); // keep message type in path?
                     for field in &msg.fields {
                         if let Some(json_child) = json.get(field.name()) {
-                            p.push(&field.name());
+                            p.push(field.name());
                             json_to_state_(json_child, field, p, a);
                             p.pop();
                         }
@@ -257,7 +257,7 @@ mod ros {
 
     fn state_to_json(state: &SPState, md: &MessageField) -> serde_json::Value {
         fn state_to_json_<'a>(
-            state: &SPState, md: &'a MessageField, p: &mut Vec<&'a str>,
+            state: &SPState, md: &'a MessageField, p: &mut Vec<String>,
         ) -> serde_json::Value {
             match md {
                 MessageField::Msg(msg) => {
@@ -337,6 +337,69 @@ mod ros {
         let rcs = model.all_resources();
 
         for r in rcs {
+                for m in &r.new_messages {
+                    println!("WE HAVE A NEW MESSAGE IN A RESOURCE: {:?}", m);
+                    match m.category {
+                        MessageCategory::OutGoing => {
+                            let topic = if m.relative_topic {
+                                r.path().add_child_path(&m.topic)
+                            } else {
+                                m.topic.clone()
+                            };
+                            let topic_str = topic.to_string();
+                            println!("setting up publishing to topic NEW: {}", topic);
+                            let topic_message_type = match &m.message_type {
+                                MessageType::Ros(x) => x.clone(),
+                                _ => "std_msgs/msg/String".to_string(),
+                            };
+                            let rp = node.0.create_publisher_untyped(&topic_str, &topic_message_type)?;
+
+                            let resource_path = r.path().clone();
+                            let m = m.clone();
+                            let cb = move |state: &SPState| {
+                                let res: Vec<(SPPath, SPValue)> = m.variables.iter().map(|v| {
+                                    let name = v.name.clone();
+                                    let path = resource_path.add_child_path(&v.path.clone());
+                                    let value = state.sp_value_from_path(&path).unwrap_or(&SPValue::String(format!("not in state: {}", &path))).clone();
+                                    (name, value)
+                                }).collect();
+
+                                let msg = match m.message_type {
+                                    MessageType::JsonFlat => {
+                                        let json = SPStateJson::from_state_flat(&SPState::new_from_values(&res));
+                                        let json = serde_json::to_string(&json).unwrap();
+                                        let mut map = serde_json::Map::new();
+                                        map.insert("data".to_string(), serde_json::Value::String(json));
+                                        serde_json::Value::Object(map)
+                                    },
+                                    MessageType::Json => {
+                                        let json = SPStateJson::from_state_recursive(&SPState::new_from_values(&res));
+                                        let json = serde_json::to_string(&json).unwrap();
+                                        let mut map = serde_json::Map::new();
+                                        map.insert("data".to_string(), serde_json::Value::String(json));
+                                        serde_json::Value::Object(map)
+                                    }
+                                    MessageType::Ros(_) => {
+                                        let json = SPStateJson::from_state_recursive(&SPState::new_from_values(&res));
+                                        serde_json::to_value(&json).unwrap()
+                                    }
+                                };
+                                println!("SENDING!!!: {}", &msg);
+                                let res = rp.publish(msg);
+                                if res.is_err() {
+                                    log_info!(
+                                        "RosComm not working for {}, error: {:?}",
+                                        &topic_str,
+                                        res
+                                    );
+                                }
+                            };
+                            ros_pubs.push(cb);
+                        },
+                        MessageCategory::Incoming => {}
+                    }
+                }
+
             for t in r.messages() {
                 if let MessageField::Msg(m) = t.msg() {
                     if t.is_subscriber() {
@@ -390,7 +453,7 @@ mod ros {
                                 println!("");
                             }
                         };
-                        ros_pubs.push(cb);
+                        //ros_pubs.push(cb);
                     } else {
                         panic!("topic is neither publisher nor subscriber. check variable types");
                     }

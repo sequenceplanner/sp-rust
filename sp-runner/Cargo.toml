@@ -5,6 +5,7 @@ authors = ["Kristofer Bengtsson <kristofer@sekvensa.se>"]
 edition = "2018"
 
 [features]
+default = ["ros"]
 ros = ["sp-ros/ros"]
 sat_planner = ["cryptominisat"]
 

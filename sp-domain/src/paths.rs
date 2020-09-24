@@ -179,11 +179,11 @@ mod tests_paths {
     }
 
     #[test]
-    #[should_panic]
     fn drop_parent_fail() {
         let mut ab = SPPath::from_slice(&["a", "b", "c"]);
         let parent = SPPath::from_slice(&["a", "c"]);
-        ab.drop_parent(&parent).unwrap();
+        let res = ab.drop_parent(&parent);
+        assert!(res.is_err())
     }
 
     #[test]
