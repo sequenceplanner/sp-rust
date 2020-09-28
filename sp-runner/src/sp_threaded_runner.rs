@@ -166,6 +166,9 @@ fn runner(
                         }
 
                         state_has_probably_changed = true;
+                        let state_explicitly_changed =
+                            if let RunnerCommand::SetState(_) = &cmd { true } else { false };
+
                         runner.input(SPRunnerInput::Settings(cmd));
                         runner.input(SPRunnerInput::Tick);
 
@@ -206,7 +209,8 @@ fn runner(
                             !pr.plan_found
                         });
 
-                        if something_was_fixed {
+                        if something_was_fixed || state_explicitly_changed
+                        {
                             // check all high level ops with error states. maybe we can move some of them
                             // back to their executing state.
                             // HACKS!
@@ -219,7 +223,7 @@ fn runner(
 
                                     let g1 = &runner.intention_goals;
                                     let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
-                                    let goal = vec![(i.goal().clone(), None)];
+                                    let goal = vec![(i.goal().clone(), i.invariant().clone())];
 
                                     let pr = planning::plan_async_with_cache(&runner.transition_system_models[1], &goal, runner.state(), &disabled_operations,
                                                                              LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME, store_async.clone());
@@ -413,7 +417,7 @@ fn runner(
 
                     let ok = if i == 1 {
                         runner
-                            .check_goals_op_model(runner.state(), &gr, &runner.plans[i],
+                            .check_goals_op_model(runner.state(), goals, &runner.plans[i],
                                                   &runner.transition_system_models[i])
                     } else {
                         runner
@@ -572,7 +576,7 @@ fn runner(
                         let ifthens: Vec<&IfThen> = g1.iter().filter(|g| g.condition.eval(runner.state())).collect();
 
                         for i in ifthens {
-                            let goal = vec![(i.goal().clone(), None)];
+                            let goal = vec![(i.goal().clone(), i.invariant().clone())];
                             let pr = planning::plan_async_with_cache(&ts, &goal,
                                                                      runner.state(),
                                                                      &disabled_operations,

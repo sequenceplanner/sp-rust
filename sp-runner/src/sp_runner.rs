@@ -277,7 +277,18 @@ impl SPRunner {
     /// Same as above but with special hacks for level 1...
     /// We need to branch whenever there are alternatives.
     /// We only care about reaching the end goal.
-    pub fn check_goals_op_model(&self, s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
+    pub fn check_goals_op_model(&self, s: &SPState,
+                                goal_invs: &[(Predicate, Option<Predicate>)],
+                                plan: &SPPlan, ts_model: &TransitionSystemModel) -> bool {
+        println!("CHECKING OP GOALS");
+
+        let invar = goal_invs.iter().all(|(_,i)| i.as_ref().map(|i|i.eval(&s)).unwrap_or(true));
+        if !invar {
+            println!("breaks invariant");
+            return false;
+        }
+
+        // check invariants
         // filter out unrelated state
         let rp = SPPath::from_slice(&["runner", "plans", "1"]);
         let new_state = s.clone();
@@ -376,9 +387,9 @@ impl SPRunner {
 
             // println!("NEW STARTING STATE:\n{}", state);
 
-            let mut goals = goals.to_vec();
-            goals.retain(|g| !g.eval(state));
-            if goals.is_empty() {
+            let mut goal_invs = goal_invs.to_vec();
+            goal_invs.retain(|(g,i)| !g.eval(state) && i.as_ref().map(|i| i.eval(state)).unwrap_or(true));
+            if goal_invs.is_empty() {
                 return true;
             }
 
@@ -391,11 +402,18 @@ impl SPRunner {
             // create
 
             loop {
+                let invar = goal_invs.iter().all(|(_,i)| i.as_ref().map(|i|i.eval(&state)).unwrap_or(true));
+                if !invar {
+                    println!("breaks invariant");
+                    return false;
+                }
+
                 let state_changed = tm.iter().flat_map(|ts| {
                     if ts.iter().all(|t| {
                         let x = t.eval(&state);
-                        // println!("for {}: {}", t.path(), x);
-                        x
+                        let bad = SPRunner::bad_state(&state, ts_model);
+                        println!("for {}: {} / {}", t.path(), x, bad);
+                        x && !bad
                     }) {
                         // transitions enabled. clone the state to start a new search branch.
 
@@ -412,8 +430,8 @@ impl SPRunner {
                     }
                 }).any(|x|x);
 
-                goals.retain(|g| !g.eval(&state));
-                if goals.is_empty() {
+                goal_invs.retain(|(g,_)| !g.eval(&state));
+                if goal_invs.is_empty() {
                     return true;
                 }
                 else if !state_changed {
