@@ -297,6 +297,23 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     r
 }
 
+pub fn support_flatten_predicates(p: &Predicate, m: &TransitionSystemModel) -> Vec<SPPath>{
+    let mut flattened: Vec<SPPath> = p.support().iter().map(|p| {
+        match m.state_predicates.iter().find(|t| t.path() == p) {
+            Some(v) => {
+                if let VariableType::Predicate(pred) = v.variable_type() {
+                    support_flatten_predicates(&pred, m)
+                } else {
+                    panic!("cannot happen")
+                }
+            },
+            _ =>  vec![p.clone()]
+        }
+    }).flatten().collect();
+    flattened.dedup();
+    return flattened;
+}
+
 pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) -> Predicate {
     let mut model = model.clone();
 
@@ -306,7 +323,7 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
     // check if there are no unc transitions that can modify the state defined
     // by the invariants.
     let mut support: HashSet<SPPath> = HashSet::new();
-    support.extend(invariant.support().into_iter());
+    support.extend(support_flatten_predicates(invariant, &model));
     if model.transitions.iter().all(|t| {
         let modifies = modified_by(t);
         let intersection: HashSet<_> = support.intersection(&modifies).collect();
