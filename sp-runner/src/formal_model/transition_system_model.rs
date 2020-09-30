@@ -138,10 +138,13 @@ impl TransitionSystemModel {
             .collect();
         if !auto_guards.is_empty() {
             let auto_guards = Predicate::AND(auto_guards);
+            let auto_pred = Variable::new_predicate("auto_guards", auto_guards);
+            let auto_path = auto_pred.path().clone();
+            state_predicates.push(auto_pred);
             transitions.iter_mut().for_each(|t| {
                 if t.type_ == TransitionType::Controlled {
                     let orig = t.guard().clone();
-                    let new = Predicate::AND(vec![orig, auto_guards.clone()]);
+                    let new = Predicate::AND(vec![orig, p!(p:auto_path)]);
                     *t.mut_guard() = new;
                 }
             });
