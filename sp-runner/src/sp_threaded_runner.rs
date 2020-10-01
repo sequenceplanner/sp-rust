@@ -925,16 +925,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             };
             let op = vec![(o.path().to_string(), guard, o.make_verification_goal())];
             temp_ts_model.name += &format!("_{}", o.name());
-
-            let inits: Vec<_> = ts_model_op.specs.iter().map(|s|s.invariant.clone()).collect();
-            let initial_states = if inits.is_empty() {
-                Predicate::TRUE
-            } else {
-                Predicate::AND(inits)
-            };
-
-
-            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &initial_states, &op);
+            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
         });
     }
 

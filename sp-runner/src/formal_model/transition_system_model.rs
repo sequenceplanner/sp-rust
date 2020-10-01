@@ -76,6 +76,17 @@ impl TransitionSystemModel {
             .iter()
             .flat_map(|i| match i {
                 SPItem::Spec(s) => Some(s.clone()),
+                // unsure if we should include these.
+                // they always become very big expressions and are not needed
+                // as long as we don't run only on the low level with mono = false.
+                // perhaps its better to activate them when we need to in the runner
+                // this allows us to start faster as they take some time to compute. TODO.
+                // SPItem::ProductSpec(s) => {
+                //     // convert "product spec" to "spec"
+                //     let mut ns = Spec::new(s.name(), s.invariant.clone());
+                //     ns.node_mut().update_path(&s.path().parent());
+                //     Some(ns)
+                // },
                 _ => None,
             })
             .collect();
