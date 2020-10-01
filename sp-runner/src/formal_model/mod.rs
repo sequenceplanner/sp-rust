@@ -173,7 +173,7 @@ impl FormalContext {
 
                     Ex::NOT(Box::new(Ex::EQ(*index, value)))
                 } else {
-                    panic!("VAR {:?}, VALUE {:?}", var, value)
+                    panic!("VAR {:?}, VALUE {:?}, pred {:?}, var {:?}", var, value, &self.pred_map, &self.var_map);
                 }
             }
             x => panic!("NO X {:?}", x),

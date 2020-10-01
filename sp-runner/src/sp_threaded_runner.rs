@@ -3,7 +3,6 @@ use crossbeam::{channel, Receiver, Sender};
 use failure::Error;
 use sp_domain::*;
 use sp_ros::*;
-use sp_runner_api::*;
 use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -40,6 +39,10 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         println!("\n\n\nSP PANIC: {}\n\n\nfile: {}:{}", msg, file, line);
     }));
 
+    println!("Model");
+    println!("{}", serde_json::to_string_pretty(&model).unwrap());
+    println!("********");
+
     let (mut node, comm) = set_up_ros_comm(&model)?;
 
     let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
@@ -54,15 +57,6 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
     merger(comm.rx_mess.clone(), tx_runner.clone());
     ticker(Duration::from_millis(100), tx_runner.clone());
 
-    // node_handler(
-    //     Duration::from_millis(1000),
-    //     Duration::from_secs(1000),
-    //     &model,
-    //     comm.rx_node.clone(),
-    //     comm.tx_node_cmd.clone(),
-    //     tx_runner.clone(),
-    //     comm.rx_commands.clone()
-    // );
     runner(
         &model,
         initial_state,
@@ -71,6 +65,8 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         comm.tx_runner_info,
         tx_planner,
     );
+
+    
 
 
 
@@ -82,7 +78,7 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
 
 fn runner(
     model: &Model, initial_state: SPState, rx_input: Receiver<SPRunnerInput>,
-    tx_state_out: Sender<SPState>, tx_runner_info: Sender<RunnerInfo>,
+    tx_state_out: Sender<SPState>, tx_runner_info: Sender<SPState>,
     _tx_planner: Sender<PlannerTask>,
 ) {
     let model = model.clone();
@@ -132,108 +128,109 @@ fn runner(
                     SPRunnerInput::NewPlan(_, _) => {
                         panic!("not used at the moment, planner called synchronously");
                     }
-                    SPRunnerInput::Settings(cmd) => {
-                        // hack to test out the parser -- add new specs to a living system.
-                        if let RunnerCommand::Mode(str) = &cmd {
-                            log_debug!("got mode string: {}", str);
-                            let v: Vec<_> = str.splitn(3, ":").collect();
-                            if v.len() == 3 && v[0] == "add_spec" {
-                                let name = v[1];
-                                let pred_str = v[2];
-                                let pred = Predicate::from_string(pred_str);
-                                match pred {
-                                    Some(pred) => { // for now we assume only lvl0 spec
-                                        // got a new specifiction, add it to the system and
-                                        // reset the planning store
-                                        log_info!("Added new specification: {}", pred);
-                                        let refined_pred =
-                                            crate::formal_model::refine_invariant(
-                                                &runner.transition_system_models[0], &pred);
-                                        let spec = Spec::new(name, refined_pred);
-                                        runner.transition_system_models[0].specs.push(spec);
-                                    },
-                                    None => log_error!("Failed to parse predicate {}: {}", name, pred_str)
-                                }
-                            }
-                            if v.len() == 2 && v[0] == "remove_spec" {
-                                let name = v[1];
-                                let ol = runner.transition_system_models[0].specs.len();
-                                runner.transition_system_models[0].specs.retain(|s| s.name() != name);
-                                if runner.transition_system_models[0].specs.len() != ol {
-                                    log_info!("Removed specification {}.", name);
-                                }
-                            }
-                        }
+                    // SPRunnerInput::Settings(cmd) => {
+                    //     // hack to test out the parser -- add new specs to a living system.
+                    //     if let RunnerCommand::Mode(str) = &cmd {
+                    //         log_debug!("got mode string: {}", str);
+                    //         let v: Vec<_> = str.splitn(3, ":").collect();
+                    //         if v.len() == 3 && v[0] == "add_spec" {
+                    //             let name = v[1];
+                    //             let pred_str = v[2];
+                    //             let pred = Predicate::from_string(pred_str);
+                    //             match pred {
+                    //                 Some(pred) => { // for now we assume only lvl0 spec
+                    //                     // got a new specifiction, add it to the system and
+                    //                     // reset the planning store
+                    //                     log_info!("Added new specification: {}", pred);
+                    //                     let refined_pred =
+                    //                         crate::formal_model::refine_invariant(
+                    //                             &runner.transition_system_models[0], &pred);
+                    //                     let spec = Spec::new(name, refined_pred);
+                    //                     runner.transition_system_models[0].specs.push(spec);
+                    //                 },
+                    //                 None => log_error!("Failed to parse predicate {}: {}", name, pred_str)
+                    //             }
+                    //         }
+                    //         if v.len() == 2 && v[0] == "remove_spec" {
+                    //             let name = v[1];
+                    //             let ol = runner.transition_system_models[0].specs.len();
+                    //             runner.transition_system_models[0].specs.retain(|s| s.name() != name);
+                    //             if runner.transition_system_models[0].specs.len() != ol {
+                    //                 log_info!("Removed specification {}.", name);
+                    //             }
+                    //         }
+                    //     }
 
-                        state_has_probably_changed = true;
-                        runner.input(SPRunnerInput::Settings(cmd));
-                        runner.input(SPRunnerInput::Tick);
+                    //     state_has_probably_changed = true;
+                    //     runner.input(SPRunnerInput::Settings(cmd));
+                    //     runner.input(SPRunnerInput::Tick);
 
-                        // this could be done all the time, or
-                        // periodically, but for now we only trigger
-                        // this check when the state is manually
-                        // updated
-                        let mut something_was_fixed = false;
+                    //     // this could be done all the time, or
+                    //     // periodically, but for now we only trigger
+                    //     // this check when the state is manually
+                    //     // updated
+                    //     let mut something_was_fixed = false;
 
-                        disabled_operations.retain(|p: &SPPath| {
-                            let e = "error".to_spvalue();
-                            let os = runner.state().sp_value_from_path(p).unwrap_or(&e);
-                            println!("CHECKING {} {}", p, os);
-                            if os != &e {
-                                // user manually reset the operation
-                                something_was_fixed = true;
-                                false
-                            } else {
-                                true
-                            }
-                        });
-                        disabled_operations.retain(|p: &SPPath| {
-                            // check if the state if OK so we can remove any error states.
-                            println!("checking if we can remove error on low level operation: {}", p);
-                            let goal = runner.operation_goals.get(p).expect("no goal on disabled op");
-                            let goal = vec![(goal.clone(), None)];
+                    //     disabled_operations.retain(|p: &SPPath| {
+                    //         let e = "error".to_spvalue();
+                    //         let os = runner.state().sp_value_from_path(p).unwrap_or(&e);
+                    //         println!("CHECKING {} {}", p, os);
+                    //         if os != &e {
+                    //             // user manually reset the operation
+                    //             something_was_fixed = true;
+                    //             false
+                    //         } else {
+                    //             true
+                    //         }
+                    //     });
+                    //     disabled_operations.retain(|p: &SPPath| {
+                    //         // check if the state if OK so we can remove any error states.
+                    //         println!("checking if we can remove error on low level operation: {}", p);
+                    //         let goal = runner.operation_goals.get(p).expect("no goal on disabled op");
+                    //         let goal = vec![(goal.clone(), None)];
 
-                            let pr = planning::plan(&runner.transition_system_models[0], goal.as_slice(),
-                                                    runner.state(), LVL0_MAX_STEPS);
+                    //         let pr = planning::plan(&runner.transition_system_models[0], goal.as_slice(),
+                    //                                 runner.state(), LVL0_MAX_STEPS);
 
-                            if !pr.plan_found {
-                                println!("operation still problematic...");
-                            } else {
-                                runner.ticker.state.force_from_path(&p, &"i".to_spvalue()).unwrap();
-                                something_was_fixed = true;
-                            }
+                    //         if !pr.plan_found {
+                    //             println!("operation still problematic...");
+                    //         } else {
+                    //             runner.ticker.state.force_from_path(&p, &"i".to_spvalue()).unwrap();
+                    //             something_was_fixed = true;
+                    //         }
 
-                            !pr.plan_found
-                        });
+                    //         !pr.plan_found
+                    //     });
 
-                        if something_was_fixed {
-                            // check all high level ops with error states. maybe we can move some of them
-                            // back to their executing state.
-                            // HACKS!
+                    //     if something_was_fixed {
+                    //         // check all high level ops with error states. maybe we can move some of them
+                    //         // back to their executing state.
+                    //         // HACKS!
 
-                            for p in &runner.intentions {
-                                if runner.state().sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
-                                    println!("checking if we can remove error on high level operation: {}", p);
-                                    let goal_path = p.clone().add_child("goal");
-                                    println!("goal name {}", goal_path);
+                    //         for p in &runner.intentions {
+                    //             if runner.state().sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
+                    //                 println!("checking if we can remove error on high level operation: {}", p);
+                    //                 let goal_path = p.clone().add_child("goal");
+                    //                 println!("goal name {}", goal_path);
 
-                                    let g1 = &runner.intention_goals;
-                                    let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
-                                    let goal = vec![(i.goal().clone(), None)];
+                    //                 let g1 = &runner.intention_goals;
+                    //                 let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
+                    //                 let goal = vec![(i.goal().clone(), None)];
 
-                                    let pr = planning::plan_async_with_cache(&runner.transition_system_models[1], &goal, runner.state(), &disabled_operations,
-                                                                             LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME, store_async.clone());
+                    //                 let pr = planning::plan_async_with_cache(&runner.transition_system_models[1], &goal, runner.state(), &disabled_operations,
+                    //                                                          LVL1_MAX_STEPS, LVL1_CUTOFF, LVL1_LOOKOUT, LVL1_MAX_TIME, store_async.clone());
 
-                                    if pr.plan_found {
-                                        log_info!("automatically restarting operation {}", p);
-                                        runner.ticker.state
-                                            .force_from_path(&p,
-                                                             &"e".to_spvalue()).unwrap();
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    //                 if pr.plan_found {
+                    //                     log_info!("automatically restarting operation {}", p);
+                    //                     runner.ticker.state
+                    //                         .force_from_path(&p,
+                    //                                          &"e".to_spvalue()).unwrap();
+                    //                 }
+                    //             }
+                    //         }
+                    //     }
+                    // }
+               
                 }
             } else {
                 println!("The runner channel broke? - {:?}", input);
@@ -277,11 +274,7 @@ fn runner(
             if disabled_states { runner_modes.push("waiting");}
             if bad_state { runner_modes.push("bad state");}
             if !disabled_operations.is_empty() { runner_modes.push("disabled operations"); }
-            let runner_info = RunnerInfo {
-                state: runner.state().clone(),
-                mode: runner_modes.join(" | "),
-                ..RunnerInfo::default()
-            };
+            let runner_info = runner.state().clone();
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");
 
@@ -623,10 +616,10 @@ fn runner(
 
 struct RosCommSetup {
     rx_mess: Receiver<RosMessage>,
-    rx_commands: Receiver<RunnerCommand>,
+    rx_commands: Receiver<SPState>,
     rx_resources: Receiver<ROSResource>,
     tx_state_out: Sender<SPState>,
-    tx_runner_info: Sender<RunnerInfo>,
+    tx_runner_info: Sender<SPState>,
 }
 
 fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
@@ -660,7 +653,7 @@ fn set_up_ros_comm(model: &Model) -> Result<(RosNode, RosCommSetup), Error> {
 
 fn resource_handler(
     rx_resources: Receiver<ROSResource>,
-    rx_commands: Receiver<RunnerCommand>,
+    rx_commands: Receiver<SPState>,
     tx_runner: Sender<SPRunnerInput>,
     registered_resources: &SPPath
 
@@ -701,12 +694,12 @@ fn resource_handler(
     }
 
     fn cmd_from_node(
-        cmd: Result<RunnerCommand, channel::RecvError>,
+        cmd: Result<SPState, channel::RecvError>,
         tx_runner: Sender<SPRunnerInput>,
     ) -> bool {
         if let Ok(cmd) = cmd {
             // TODO: Handle bad commands here and reply to commander if needed. Probably use service?
-            tx_runner.send(SPRunnerInput::Settings(cmd)).expect("cmd from node could not talk to the runner");
+            tx_runner.send(SPRunnerInput::StateChange(cmd)).expect("cmd from node could not talk to the runner");
             true
         } else {
             true
@@ -932,38 +925,26 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
     }
 
     // old runner model as code here.
+    let rm_ab_transitions_ctrl: Vec<Transition> = ts_model
+        .transitions
+        .iter()
+        .filter(|t| t.type_ == TransitionType::Controlled)
+        .cloned()
+        .collect();
 
-    let rm_op_transitions = RunnerTransitions {
-        ctrl: global_ops_ctrl,
-        un_ctrl: global_ops_un_ctrl,
-    };
+    let rm_ab_transitions_un_ctrl: Vec<Transition> = ts_model
+        .transitions
+        .iter()
+        .filter(|t| t.type_ == TransitionType::Auto || t.type_ == TransitionType::Runner)
+        .cloned()
+        .collect();
 
-    let rm_hl_op_transitions = RunnerTransitions {
-        ctrl: global_int_ctrl,
-        un_ctrl: global_int_un_ctrl,
-    };
-
-
-    let rm_ab_transitions = RunnerTransitions {
-        ctrl: ts_model
-            .transitions
-            .iter()
-            .filter(|t| t.type_ == TransitionType::Controlled)
-            .cloned()
-            .collect(),
-        un_ctrl: ts_model
-            .transitions
-            .iter()
-            .filter(|t| t.type_ == TransitionType::Auto || t.type_ == TransitionType::Runner)
-            .cloned()
-            .collect(),
-    };
 
     let mut trans = vec![];
     let mut restrict_controllable = vec![];
     let mut restrict_op_controllable = vec![];
     let false_trans = Transition::new("empty", Predicate::FALSE, vec![], TransitionType::Controlled);
-    rm_op_transitions.ctrl.iter().for_each(|t| {
+    global_ops_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_op_controllable.push(TransitionSpec::new(
             &format!("s_{}_false", t.path()),
@@ -971,7 +952,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             vec![t.path().clone()],
         ))
     });
-    rm_op_transitions.un_ctrl.iter().for_each(|t| {
+    global_ops_un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_op_controllable.push(TransitionSpec::new(
             &format!("s_{}_false", t.path()),
@@ -981,14 +962,14 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
     });
 
     // intentions are never restricted
-    rm_hl_op_transitions.ctrl.iter().for_each(|t| {
+    global_int_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
-    rm_hl_op_transitions.un_ctrl.iter().for_each(|t| {
+    global_int_un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
 
-    rm_ab_transitions.ctrl.iter().for_each(|t| {
+    rm_ab_transitions_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
         restrict_controllable.push(TransitionSpec::new(
             &format!("s_{}_false", t.path()),
@@ -996,7 +977,7 @@ pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_proble
             vec![t.path().clone()],
         ))
     });
-    rm_ab_transitions.un_ctrl.iter().for_each(|t| {
+    rm_ab_transitions_un_ctrl.iter().for_each(|t| {
         trans.push(t.clone());
     });
 

@@ -206,14 +206,21 @@ impl SPStateJson {
 
         }
         let mut map = serde_json::Map::new();
-        state.projection().state.into_iter().for_each(|(k, v)| {
+        let mut proj = state.projection();
+        proj.sort();
+        proj.state.into_iter().for_each(|(k, v)| {
             insert(&mut map, k, v.value());
         });
         SPStateJson(map)
     }
 
+
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap()
+    }
+
+    pub fn from_json(json: serde_json::Value) -> Result<SPStateJson, serde_json::Error> {
+        serde_json::from_value(json)
     }
 
 
@@ -640,10 +647,6 @@ impl SPState {
             Some(other_state)
         }
     }
-
-    pub fn to_state_json(&self) -> SPStateJson {
-        SPStateJson::from_state_flat(self)
-    }
 }
 
 impl fmt::Display for SPState {
@@ -711,7 +714,7 @@ mod sp_value_test {
         s.add_variable(SPPath::from_string("path/test"), SPValue::Path(ac.clone()));
 
 
-        let x = serde_json::to_string_pretty(&s.to_state_json()).unwrap();
+        let x = SPStateJson::from_state_recursive(&s).to_json();
         println!("{}", x);
     }
 

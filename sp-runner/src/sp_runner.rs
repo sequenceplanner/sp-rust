@@ -45,7 +45,6 @@ pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
     NodeChange(SPState),
-    Settings(sp_runner_api::RunnerCommand), // Will come later
     NewPlan(i32, SPPlan),
 }
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -127,7 +126,6 @@ impl SPRunner {
     /// The main function to use when running the runner. Connect this to
     /// a channel either using async or standard threads
     pub fn input(&mut self, input: SPRunnerInput) {
-        use sp_runner_api::RunnerCommand;
         match input {
             SPRunnerInput::Tick => {
                 self.take_a_tick(SPState::new(), true);
@@ -137,17 +135,6 @@ impl SPRunner {
             }
             SPRunnerInput::NodeChange(s) => {
                 self.take_a_tick(s, true);
-            }
-            SPRunnerInput::Settings(cmd) => {
-                match cmd {
-                    RunnerCommand::Mode(_x) => {},
-                    RunnerCommand::ForceState(_s) => {},
-                    RunnerCommand::SetState(s) => {
-                        println!("WE GOT A SET STATE: {}", s);
-                        self.take_a_tick(s, false);
-                    },
-                    RunnerCommand::ForceGoal(_) => {},
-                }
             }
             SPRunnerInput::NewPlan(idx, plan) => {
                 self.plans[idx as usize] = plan;
