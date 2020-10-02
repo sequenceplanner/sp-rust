@@ -138,7 +138,11 @@ impl SPStateJson {
     pub fn to_state(&self) -> SPState {
         fn dig(obj: &serde_json::Map<String, serde_json::Value>, path: &SPPath) -> Vec<(SPPath, SPValue)> {
             obj.iter().flat_map(|(k, v)| {
-                let mut p = SPPath::from_string(&k.replace("_children", ""));
+                let mut p = if k != &"0".to_string() {
+                    SPPath::from_string(&k)
+                } else {
+                    SPPath::new()
+                };
                 p.add_parent_path_mut(path);
                 let spv = SPValue::from_json(v);
                 match spv {
@@ -181,26 +185,26 @@ impl SPStateJson {
                         xs.insert(root, serde_json::Value::Object(map));
                     }
                 },
-                Some(obj @ serde_json::Value::Object(_)) => {
-                    if p.path.len() == 1 {
-                        let ch_p = format!("{}_children", root);
-                        let obj = obj.clone();
-                        xs.insert(ch_p, obj);
-                        let x = xs.entry(&root).or_insert(serde_json::Value::Null);
-                        *x = v.to_json();
+                Some(serde_json::Value::Object(_)) => {
+                    let elm_path = if p.path.len() == 1 {
+                        SPPath::from_string("0")
                     } else {
-                        if let serde_json::Value::Object(map) = xs.entry(&root).or_insert(serde_json::Value::Object(serde_json::Map::new())) {
-                            insert(map, &p.drop_root(), v);
-                        }
+                        p.drop_root()
+                    };
+                    if let serde_json::Value::Object(map) = xs.entry(&root).or_insert(serde_json::Value::Object(serde_json::Map::new())) {
+                        insert(map, &elm_path, v);
                     }
                 },
-                _ => {
-                    let ch_p = format!("{}_children", root);
-                    println!("NEED A CHILD: {}", ch_p.clone());
-                    let mut ch = xs.entry(&ch_p).or_insert(serde_json::Value::Object(serde_json::Map::new()));
-                    if let serde_json::Value::Object(ref mut map) = ch {
-                        insert(map, &p.drop_root(), v);
+                Some(x) => {
+                    if p.path.len() == 1 {
+                        panic!("THIS SHOULD NEVER HAPPEN IN SPJSONSTATE {}, {}", p, &x);
                     }
+
+                    let mut map = serde_json::Map::new();
+                    map.insert("0".to_string(), x.clone());
+                    insert(&mut map, &p.drop_root(), v);
+                    let mut ch = xs.entry(&root).or_insert(serde_json::Value::Object(serde_json::Map::new()));
+                    *ch = serde_json::Value::Object(map);
                 }
             }
 

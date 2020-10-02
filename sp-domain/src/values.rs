@@ -168,6 +168,10 @@ impl SPValue {
             _ => SPValue::Unknown
         }
     }
+
+    pub fn now() -> Self {
+        SPValue::Time(std::time::SystemTime::now())
+    }
 }
 
 impl SPValueType {

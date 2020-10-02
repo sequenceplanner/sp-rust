@@ -320,21 +320,28 @@ mod ros {
                                     if m.message_type == MessageType::Json || m.message_type == MessageType::JsonFlat {
                                         msg_state.unprefix_paths(&SPPath::from_string("data"));
                                     }
-                                    log_info!(
-                                        "We got message resource {}, state: {}, json: {:?}",
-                                        &r_path,
-                                        SPStateJson::from_state_flat(&msg_state).to_json(),
-                                        x,     
-                                    );
-                                    let map:Vec<(SPPath, SPValue)>  = m.variables.iter().map(|v| {
+
+                                    let map:Vec<(SPPath, Option<&SPValue>)>  = m.variables.iter().map(|v| {
                                         let p = if v.relative_path {
                                             r_path.add_child_path(&v.path)
                                         } else {
                                             v.path.clone()
                                         };
-                                        let v = msg_state.sp_value_from_path(&v.name).unwrap_or(&SPValue::String(format!("not in msg: {}", &v.name))).clone();
-                                        (p, v)
+                                        let value = msg_state.sp_value_from_path(&v.name);
+                                        if value.is_none() {
+                                            log_info!("Not in msg: Name {}, path: {}, state: {}", &v.name, &p, SPStateJson::from_state_flat(&msg_state).to_json());
+                                        } 
+                                        (p, value)
                                     }).collect();
+                                    for (x, y) in map.iter() {
+                                        if y.is_none() {
+                                            return;
+                                        }
+                                    }
+                                    let mut map:Vec<(SPPath, SPValue)> = map.into_iter().map(|(x, y)| (x, y.unwrap().clone())).collect();
+
+                                    map.push((r_path.add_child("timestamp"), SPValue::now()));
+
                                     let state = SPState::new_from_values(&map);
                                     let time_stamp = std::time::Instant::now();
                                     let m = RosMessage {
@@ -342,6 +349,7 @@ mod ros {
                                         resource: r_path.clone(),
                                         time_stamp,
                                     };
+                                    println!("INCOMING!!!: {:?}", &m);
                                     tx.send(m).unwrap();
                                 }
                             };
@@ -468,6 +476,7 @@ mod ros {
                 p.add_parent_path_mut(&prefix_path);
                 let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
                 let last_goal_from_sp: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
+                println!("GOT A RESOURCE: {:?}, {:?}", &msg, &last_goal_from_sp);
                 let last = last_goal_from_sp.map(|x| {
                     let mut s = x.to_state();
                     let mut goal_path = p.clone();
