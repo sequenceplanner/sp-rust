@@ -781,6 +781,12 @@ impl Variable {
     pub fn domain(&self) -> &[SPValue] {
         self.domain.as_slice()
     }
+    pub fn is_predicate(&self) -> bool {
+        match self.variable_type() {
+            VariableType::Predicate(_) => true,
+            _ => false
+        }
+    }
 }
 
 /// The possible variable types used by operations to define parameters

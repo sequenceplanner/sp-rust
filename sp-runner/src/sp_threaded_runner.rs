@@ -271,9 +271,10 @@ fn runner(
 
             // send out runner info.
             let mut runner_modes = vec![];
-            if disabled_states { runner_modes.push("waiting");}
-            if bad_state { runner_modes.push("bad state");}
-            if !disabled_operations.is_empty() { runner_modes.push("disabled operations"); }
+            if disabled_states { runner_modes.push("waiting".to_spvalue());}
+            if bad_state { runner_modes.push("bad state".to_spvalue());}
+            if !disabled_operations.is_empty() { runner_modes.push("disabled operations".to_spvalue()); }
+            runner.ticker.state.add_variable(SPPath::from_string("mode"), SPValue::Array(SPValueType::String, runner_modes));
             let runner_info = runner.state().clone();
 
             tx_runner_info.send(runner_info).expect("tx_runner_info");

@@ -19,6 +19,7 @@ impl TransitionSystemModel {
             .resources()
             .iter()
             .flat_map(|r| r.get_variables())
+            .filter(|v| !v.is_predicate())
             .collect();
 
         let global_vars: Vec<Variable> = model

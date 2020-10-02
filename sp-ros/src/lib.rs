@@ -406,16 +406,24 @@ mod ros {
         let _subref = node.0.subscribe(&set_state_topic, Box::new(cb))?;
 
         let state_topic = &format!{"{}/state", SP_NODE_NAME};
+        let state_flat_topic = &format!{"{}/state_flat", SP_NODE_NAME};
         println!("setting up publishing to topic: {}", state_topic);
         let rp = node
             .0
             .create_publisher::<r2r::std_msgs::msg::String>(state_topic)?;
+        let rp_flat = node
+            .0
+            .create_publisher::<r2r::std_msgs::msg::String>(state_flat_topic)?;
 
         let info_cb = move |state: &SPState| {
-            let state = SPStateJson::from_state_recursive(state);
-            let json = state.to_json().to_string();
+            let state_json = SPStateJson::from_state_recursive(state);
+            let state_flat = SPStateJson::from_state_flat(state);
+            let json = state_json.to_json().to_string();
+            let json_flat = state_flat.to_json().to_string();
             let msg = r2r::std_msgs::msg::String { data: json };
+            let msg_flat = r2r::std_msgs::msg::String { data: json_flat };
             rp.publish(&msg).unwrap();
+            rp_flat.publish(&msg_flat).unwrap();
         };
 
         let resource_topic = format!{"{}/resources", SP_NODE_NAME};
