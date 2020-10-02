@@ -66,8 +66,6 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         tx_planner,
     );
 
-    
-
 
 
     loop {
@@ -407,7 +405,7 @@ fn runner(
 
                     let ok = if i == 1 {
                         runner
-                            .check_goals_op_model(runner.state(), &gr, &runner.plans[i],
+                            .check_goals_op_model(runner.state(), goals, &runner.plans[i],
                                                   &runner.transition_system_models[i])
                     } else {
                         runner
@@ -566,7 +564,7 @@ fn runner(
                         let ifthens: Vec<&IfThen> = g1.iter().filter(|g| g.condition.eval(runner.state())).collect();
 
                         for i in ifthens {
-                            let goal = vec![(i.goal().clone(), None)];
+                            let goal = vec![(i.goal().clone(), i.invariant().clone())];
                             let pr = planning::plan_async_with_cache(&ts, &goal,
                                                                      runner.state(),
                                                                      &disabled_operations,
@@ -808,6 +806,9 @@ struct PlannerTask {
 
 pub fn make_new_runner(model: &Model, initial_state: SPState, generate_mc_problems: bool) -> SPRunner {
     let ts_model = TransitionSystemModel::from(&model);
+
+    // add runner transitions
+    let runner_transitions = model.all_runner_transitions();
 
     // add global op transitions
     let global_ops: Vec<&Operation> = model.all_operations();

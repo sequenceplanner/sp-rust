@@ -449,12 +449,12 @@ impl Model {
             .collect()
     }
 
-    pub fn all_runner_operations(&self) -> Vec<&Operation> {
+    pub fn all_runner_transitions(&self) -> Vec<Transition> {
         self.items
             .iter()
             .flat_map(|i| match i {
-                SPItem::Model(m) => if m.name() == "runner_ops" { m.all_operations() } else { vec![] },
-                SPItem::Operation(o) => vec![o],
+                SPItem::Model(m) => m.all_runner_transitions(),
+                SPItem::Transition(t) if t.type_ == TransitionType::Runner => vec![t.clone()],
                 _ => vec![],
             })
             .collect()
@@ -1132,8 +1132,7 @@ pub struct Operation {
 
     pub auto: bool,
     pub guard: Predicate,
-    pub effects_goals: Vec<(Vec<Action>, Predicate)>,
-    pub post_actions: Vec<Action>, // TODO: this should be synchronization only
+    pub effects_goals_actions: Vec<(Vec<Action>, Predicate, Vec<Action>)>,
     pub mc_constraint: Option<Predicate>,
 }
 
@@ -1166,11 +1165,11 @@ impl Noder for Operation {
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(mapping);
-        self.effects_goals.iter_mut().for_each(|(e,g)| {
+        self.effects_goals_actions.iter_mut().for_each(|(e,g,a)| {
             e.iter_mut().for_each(|e| e.replace_variable_path(mapping));
             g.replace_variable_path(mapping);
+            a.iter_mut().for_each(|e| e.replace_variable_path(mapping));
         });
-        self.post_actions.iter_mut().for_each(|e| e.replace_variable_path(mapping));
         self.mc_constraint.as_mut().map(|c| c.replace_variable_path(mapping));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
@@ -1184,8 +1183,7 @@ impl Noder for Operation {
 impl Operation {
 
     pub fn new(name: &str, auto: bool, guard: &Predicate,
-               effects_goals: &[(&[Action], &Predicate)],
-               post_actions: &[Action],
+               effects_goals_actions: &[(&[Action], &Predicate, &[Action])],
                mc_constraint: Option<Predicate>) -> Operation {
         let node = SPNode::new(name);
 
@@ -1193,18 +1191,17 @@ impl Operation {
             node,
             auto,
             guard: guard.clone(),
-            effects_goals: effects_goals.iter().map(|(a,p)| (a.to_vec(), (*p).clone())).collect(),
-            post_actions: post_actions.to_vec(),
+            effects_goals_actions: effects_goals_actions.iter().map(|(e,p,a)| (e.to_vec(), (*p).clone(), a.to_vec())).collect(),
             mc_constraint,
         }
     }
 
     pub fn make_replan_specs(&self) -> Vec<Spec> {
         let mut specs = vec![];
-        for (effects, goal) in self.effects_goals.iter() {
+        for (effects, goal, actions) in self.effects_goals_actions.iter() {
             let pre = Predicate::AND(vec![self.guard.clone(), (*goal).clone()]);
             let mut act = effects.to_vec();
-            act.extend(self.post_actions.iter().cloned());
+            act.extend(actions.iter().cloned());
             if !act.is_empty() {
                 if self.auto {
                     // it is important to realize that we cannot freely change
@@ -1223,10 +1220,10 @@ impl Operation {
 
     pub fn make_lowlevel_transitions(&self) -> Vec<Transition> {
         let mut trans = vec![];
-        for (i, (effects, goal)) in self.effects_goals.iter().enumerate() {
+        for (i, (effects, goal, actions)) in self.effects_goals_actions.iter().enumerate() {
             let pre = Predicate::AND(vec![self.guard.clone(), (*goal).clone()]);
             let mut act = effects.to_vec();
-            act.extend(self.post_actions.iter().cloned());
+            act.extend(actions.iter().cloned());
             // add a new low level transition. goal // effects
             if !act.is_empty() {
                 let name = i.to_string();
@@ -1249,8 +1246,8 @@ impl Operation {
 
     pub fn make_runner_transitions(&self) -> Vec<Transition> {
         // auto ops are not actually operations...
-        let is_auto = self.effects_goals.iter()
-            .all(|(_,g)| g == &Predicate::TRUE);
+        let is_auto = self.effects_goals_actions.iter()
+            .all(|(_,g,_)| g == &Predicate::TRUE);
         if is_auto {
             return vec![]
         }
@@ -1277,8 +1274,8 @@ impl Operation {
     }
 
     pub fn make_planning_trans(&self) -> Vec<Transition> {
-        self.effects_goals.iter().enumerate()
-            .map(|(i,(e,g))| {
+        self.effects_goals_actions.iter().enumerate()
+            .map(|(i,(e,g,_))| {
                 let is_auto = g == &Predicate::TRUE;
                 let auto = if is_auto {
                     "_auto".to_string()
@@ -1302,8 +1299,8 @@ impl Operation {
     }
 
     pub fn make_verification_goal(&self) -> Predicate {
-        let goals = Predicate::OR(self.effects_goals.iter()
-                                  .map(|(_,g)| (*g).clone())
+        let goals = Predicate::OR(self.effects_goals_actions.iter()
+                                  .map(|(_,g,_)| (*g).clone())
                                   .collect());
         Predicate::AND(vec![self.guard.clone(), goals.clone()])
     }

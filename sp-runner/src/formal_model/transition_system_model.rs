@@ -44,6 +44,11 @@ impl TransitionSystemModel {
         });
         transitions.extend(global_transitions);
 
+        transitions.retain(|t| match t.type_ {
+            TransitionType::Controlled | TransitionType::Auto | TransitionType::Effect => true,
+            _ => false // for now this is just runner transitions but there may be more in the future.
+        });
+
         let op_trans: Vec<_> =
             model.find_item("operations",&[])
             .and_then(|m| m
@@ -82,8 +87,7 @@ impl TransitionSystemModel {
         // recursively collect sub-models
         model.items.iter().flat_map(|i| match i {
             SPItem::Model(m)
-                if m.name() != "operations" &&
-                m.name() != "runner_transitions" => Some(TransitionSystemModel::from(&m)),
+                if m.name() != "operations" => Some(TransitionSystemModel::from(&m)),
             _ => None
         }).for_each(|tsm| {
             vars.extend(tsm.vars);
@@ -135,10 +139,13 @@ impl TransitionSystemModel {
             .collect();
         if !auto_guards.is_empty() {
             let auto_guards = Predicate::AND(auto_guards);
+            let auto_pred = Variable::new_predicate("auto_guards", auto_guards);
+            let auto_path = auto_pred.path().clone();
+            state_predicates.push(auto_pred);
             transitions.iter_mut().for_each(|t| {
                 if t.type_ == TransitionType::Controlled {
                     let orig = t.guard().clone();
-                    let new = Predicate::AND(vec![orig, auto_guards.clone()]);
+                    let new = Predicate::AND(vec![orig, p!(p:auto_path)]);
                     *t.mut_guard() = new;
                 }
             });

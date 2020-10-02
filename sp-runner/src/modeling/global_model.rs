@@ -144,13 +144,8 @@ impl GModel {
     }
 
     pub fn add_runner_transition(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(
-            name,
-            guard.clone(),
-            actions.to_vec(),
-            TransitionType::Auto
-        );
-        self.add_sub_item("runner_transitions", SPItem::Transition(trans));
+        let trans = Transition::new(name, guard.clone(), actions.to_vec(), TransitionType::Runner);
+        self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn find(&mut self, name: &str, path_sections: &[&str]) -> SPPath {
@@ -161,19 +156,18 @@ impl GModel {
     }
 
     pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], _resets: bool, auto: bool,
+                  goal: &Predicate, post_actions: &[Action], auto: bool,
                   mc_constraint: Option<Predicate>) -> SPPath {
-        let effects_goals = vec![(effects, goal)];
-        let op = Operation::new(name, auto, guard, &effects_goals, post_actions, mc_constraint);
+        let effects_goals = vec![(effects, goal, post_actions)];
+        let op = Operation::new(name, auto, guard, &effects_goals, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     /// Add an operation that models a non-deteministic plant, ie multiple possible outcomes.
     pub fn add_op_alt(&mut self, name: &str, guard: &Predicate,
-                      effects_goals: &[(&[Action], &Predicate)],
-                      post_actions: &[Action], _resets: bool, auto: bool,
-                      mc_constraint: Option<Predicate>) -> SPPath {
-        let op = Operation::new(name, auto, guard, effects_goals, post_actions, mc_constraint);
+                      effects_goals_actions: &[(&[Action], &Predicate, &[Action])],
+                      auto: bool, mc_constraint: Option<Predicate>) -> SPPath {
+        let op = Operation::new(name, auto, guard, effects_goals_actions, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 

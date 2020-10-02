@@ -127,7 +127,7 @@ impl FormalContext {
 
                     Ex::EQ(*index, value)
                 } else {
-                    panic!("VAR MAP\n{:?}\nVAR {:?}, VALUE {:?}", self.var_map, var, value)
+                    panic!("VAR MAP\n{:#?}\n\nPRED MAP\n{:#?}\n\nVAR {:?}, VALUE {:?}", self.var_map, self.pred_map, var, value)
                 }
             }
             Predicate::EQ(PredicateValue::SPPath(var, _), PredicateValue::SPPath(other, _)) => {
@@ -297,6 +297,23 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     r
 }
 
+pub fn support_flatten_predicates(p: &Predicate, preds: &[Variable]) -> Vec<SPPath>{
+    let mut flattened: Vec<SPPath> = p.support().iter().map(|p| {
+        match preds.iter().find(|t| t.path() == p) {
+            Some(v) => {
+                if let VariableType::Predicate(pred) = v.variable_type() {
+                    support_flatten_predicates(&pred, preds)
+                } else {
+                    panic!("cannot happen")
+                }
+            },
+            _ =>  vec![p.clone()]
+        }
+    }).flatten().collect();
+    flattened.dedup();
+    return flattened;
+}
+
 pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) -> Predicate {
     let mut model = model.clone();
 
@@ -306,7 +323,7 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
     // check if there are no unc transitions that can modify the state defined
     // by the invariants.
     let mut support: HashSet<SPPath> = HashSet::new();
-    support.extend(invariant.support().into_iter());
+    support.extend(support_flatten_predicates(invariant, &model.state_predicates));
     if model.transitions.iter().all(|t| {
         let modifies = modified_by(t);
         let intersection: HashSet<_> = support.intersection(&modifies).collect();
@@ -382,10 +399,9 @@ pub fn extend_forward(model: &TransitionSystemModel, pred: &Predicate) -> Predic
 
 pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
     let mut model = model.clone();
-    model.transitions.clear();
-    model.specs.clear();
-    model.state_predicates.clear();
-    let support = p.support();
+    model.transitions.clear(); // dont need these
+    model.specs.clear();       // ...
+    let support = support_flatten_predicates(p, &model.state_predicates);
     model.vars.retain(|v| support.contains(v.path()));
 
     let c = FormalContext::from(&model);
