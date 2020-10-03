@@ -115,31 +115,23 @@ pub fn build_resource(r: &MResource) -> Resource {
     let mut valid_remaps = Vec::new();
 
     for t in out_topics.iter() {
-        for (name,_) in &t.vars {
-            let path = SPPath::from_slice(&[
-                r.name.clone(),
-                "goal".to_string(),
-                name.clone(),
-            ]);
+        for (name, _) in &t.vars {
+            let path = SPPath::from_slice(&[r.name.clone(), "goal".to_string(), name.clone()]);
             let op = SPPath::from_string(name);
             valid_remaps.push((op, path));
         }
     }
 
     for t in in_topics.iter() {
-        for (name,_) in &t.vars {
-            let path = SPPath::from_slice(&[
-                r.name.clone(),
-                "measured".to_string(),
-                name.clone(),
-            ]);
+        for (name, _) in &t.vars {
+            let path = SPPath::from_slice(&[r.name.clone(), "measured".to_string(), name.clone()]);
             let op = SPPath::from_string(name);
             valid_remaps.push((op, path));
         }
     }
 
     for t in &estimated_vars {
-        for (name,_) in &t.vars {
+        for (name, _) in &t.vars {
             let op = SPPath::from_string(name);
             let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
             valid_remaps.push((op, path));
@@ -186,26 +178,42 @@ pub fn build_resource(r: &MResource) -> Resource {
     let mut r = Resource::new(&r.name);
 
     for t in out_topics.iter() {
-        let vars: Vec<Variable> = t.vars.iter().map(|(name, domain)| {
-            let node_name = format!("goal/{}", name);
-            domain.domain.clone().and_then(|d| {
-                if !d.is_empty() {
-                    Some(Variable::new(&node_name, VariableType::Command, d.first().unwrap().has_type(), d))
-                } else {
-                    None
-                }
-            }).unwrap_or(Variable::new_boolean(&node_name, VariableType::Command))
-        }).collect();
+        let vars: Vec<Variable> = t
+            .vars
+            .iter()
+            .map(|(name, domain)| {
+                let node_name = format!("goal/{}", name);
+                domain
+                    .domain
+                    .clone()
+                    .and_then(|d| {
+                        if !d.is_empty() {
+                            Some(Variable::new(
+                                &node_name,
+                                VariableType::Command,
+                                d.first().unwrap().has_type(),
+                                d,
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(Variable::new_boolean(&node_name, VariableType::Command))
+            })
+            .collect();
 
-        let var_map = vars.into_iter().map(|v| {
-            let map = MessageVariable{
-                name: v.node().name_path().drop_root(),
-                path: v.node().name_path().clone(),
-                relative_path: true,
-            };
-            let v_p = r.add_variable(v);
-            map
-        }).collect();
+        let var_map = vars
+            .into_iter()
+            .map(|v| {
+                let map = MessageVariable {
+                    name: v.node().name_path().drop_root(),
+                    path: v.node().name_path().clone(),
+                    relative_path: true,
+                };
+                let v_p = r.add_variable(v);
+                map
+            })
+            .collect();
 
         let mess_type = if t.ros_type == "json" {
             MessageType::Json
@@ -215,38 +223,54 @@ pub fn build_resource(r: &MResource) -> Resource {
             MessageType::Ros(t.ros_type.clone())
         };
 
-        let msg = NewMessage{
+        let msg = NewMessage {
             topic: SPPath::from_string(&t.topic),
             relative_topic: true,
             category: MessageCategory::OutGoing,
             message_type: mess_type,
-            variables: var_map
+            variables: var_map,
         };
 
         r.add_messsage(msg);
     }
 
     for t in in_topics.iter() {
-        let vars: Vec<Variable> = t.vars.iter().map(|(name, domain)| {
-            let node_name = format!("measured/{}", name);
-            domain.domain.clone().and_then(|d| {
-                if !d.is_empty() {
-                    Some(Variable::new(&node_name, VariableType::Measured, d.first().unwrap().has_type(), d))
-                } else {
-                    None
-                }
-            }).unwrap_or(Variable::new_boolean(&node_name, VariableType::Measured))
-        }).collect();
+        let vars: Vec<Variable> = t
+            .vars
+            .iter()
+            .map(|(name, domain)| {
+                let node_name = format!("measured/{}", name);
+                domain
+                    .domain
+                    .clone()
+                    .and_then(|d| {
+                        if !d.is_empty() {
+                            Some(Variable::new(
+                                &node_name,
+                                VariableType::Measured,
+                                d.first().unwrap().has_type(),
+                                d,
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(Variable::new_boolean(&node_name, VariableType::Measured))
+            })
+            .collect();
 
-        let var_map = vars.into_iter().map(|v| {
-            let map = MessageVariable{
-                name: v.node().name_path().drop_root(),
-                path: v.node().name_path().clone(),
-                relative_path: true,
-            };
-            let v_p = r.add_variable(v);
-            map
-        }).collect();
+        let var_map = vars
+            .into_iter()
+            .map(|v| {
+                let map = MessageVariable {
+                    name: v.node().name_path().drop_root(),
+                    path: v.node().name_path().clone(),
+                    relative_path: true,
+                };
+                let v_p = r.add_variable(v);
+                map
+            })
+            .collect();
 
         let mess_type = if t.ros_type == "json" {
             MessageType::Json
@@ -256,28 +280,36 @@ pub fn build_resource(r: &MResource) -> Resource {
             MessageType::Ros(t.ros_type.clone())
         };
 
-        let msg = NewMessage{
+        let msg = NewMessage {
             topic: SPPath::from_string(&t.topic),
             relative_topic: true,
             category: MessageCategory::Incoming,
             message_type: mess_type,
-            variables: var_map
+            variables: var_map,
         };
 
         r.add_messsage(msg);
     }
 
-    
     for t in &estimated_vars {
         t.vars.iter().for_each(|(name, domain)| {
             let node_name = format!("{}", name);
-            let v = domain.domain.clone().and_then(|d| {
-                if !d.is_empty() {
-                    Some(Variable::new(&node_name, VariableType::Estimated, d.first().unwrap().has_type(), d))
-                } else {
-                    None
-                }
-            }).unwrap_or(Variable::new_boolean(&node_name, VariableType::Estimated));
+            let v = domain
+                .domain
+                .clone()
+                .and_then(|d| {
+                    if !d.is_empty() {
+                        Some(Variable::new(
+                            &node_name,
+                            VariableType::Estimated,
+                            d.first().unwrap().has_type(),
+                            d,
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Variable::new_boolean(&node_name, VariableType::Estimated));
             r.add_variable(v);
         });
     }

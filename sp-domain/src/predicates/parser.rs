@@ -67,85 +67,132 @@ peg::parser!(pub grammar pred_parser() for str {
     }
 });
 
-
 #[test]
 fn parse_values() {
-    assert_eq!(pred_parser::value("9"), Ok(PredicateValue::SPValue(9.to_spvalue())));
-    assert_eq!(pred_parser::value("hej"), Ok(PredicateValue::SPValue("hej".to_spvalue())));
-    assert_eq!(pred_parser::value("\"hej/hopp\""), Ok(PredicateValue::SPValue("hej/hopp".to_spvalue())));
-    assert_eq!(pred_parser::value("p:hej/hopp"), Ok(PredicateValue::SPPath(SPPath::from_string("hej/hopp"), None)));
-    assert_eq!(pred_parser::value("p:with_underscore_and/number123"), Ok(PredicateValue::SPPath(SPPath::from_string("with_underscore_and/number123"), None)));
-    assert_eq!(pred_parser::value("true"), Ok(PredicateValue::SPValue(true.to_spvalue())));
-    assert_eq!(pred_parser::value("TRUE"), Ok(PredicateValue::SPValue(true.to_spvalue())));
-    assert_eq!(pred_parser::value("false"), Ok(PredicateValue::SPValue(false.to_spvalue())));
-    assert_eq!(pred_parser::value("left"), Ok(PredicateValue::SPValue("left".to_spvalue())));
+    assert_eq!(
+        pred_parser::value("9"),
+        Ok(PredicateValue::SPValue(9.to_spvalue()))
+    );
+    assert_eq!(
+        pred_parser::value("hej"),
+        Ok(PredicateValue::SPValue("hej".to_spvalue()))
+    );
+    assert_eq!(
+        pred_parser::value("\"hej/hopp\""),
+        Ok(PredicateValue::SPValue("hej/hopp".to_spvalue()))
+    );
+    assert_eq!(
+        pred_parser::value("p:hej/hopp"),
+        Ok(PredicateValue::SPPath(
+            SPPath::from_string("hej/hopp"),
+            None
+        ))
+    );
+    assert_eq!(
+        pred_parser::value("p:with_underscore_and/number123"),
+        Ok(PredicateValue::SPPath(
+            SPPath::from_string("with_underscore_and/number123"),
+            None
+        ))
+    );
+    assert_eq!(
+        pred_parser::value("true"),
+        Ok(PredicateValue::SPValue(true.to_spvalue()))
+    );
+    assert_eq!(
+        pred_parser::value("TRUE"),
+        Ok(PredicateValue::SPValue(true.to_spvalue()))
+    );
+    assert_eq!(
+        pred_parser::value("false"),
+        Ok(PredicateValue::SPValue(false.to_spvalue()))
+    );
+    assert_eq!(
+        pred_parser::value("left"),
+        Ok(PredicateValue::SPValue("left".to_spvalue()))
+    );
 }
 
 #[test]
 fn parse_more_tests() {
     let e = "p:cylinders2/x == left";
     let p = SPPath::from_string("cylinders2/x");
-    assert_eq!(pred_parser::pred(e), Ok(p!(p:p == "left")));
+    assert_eq!(pred_parser::pred(e), Ok(p!(p: p == "left")));
 }
 
 #[test]
 fn parse_predicate() {
     use Predicate::*;
     let and = "TRUE && TRUE";
-    let and2 = AND(vec![TRUE,TRUE]);
+    let and2 = AND(vec![TRUE, TRUE]);
     assert_eq!(pred_parser::pred(and), Ok(and2));
 
     let and = "TRUE  && TRUE && FALSE ";
-    let and2 = AND(vec![TRUE,TRUE, FALSE]);
+    let and2 = AND(vec![TRUE, TRUE, FALSE]);
     assert_eq!(pred_parser::pred(and), Ok(and2));
 
     let or = "TRUE || TRUE || FALSE";
-    let or2 = OR(vec![TRUE,TRUE, FALSE]);
+    let or2 = OR(vec![TRUE, TRUE, FALSE]);
     assert_eq!(pred_parser::pred(or), Ok(or2));
 
     let not_or = "TRUE || ! ( TRUE || FALSE && TRUE)";
-    let not_or2 = OR(vec![TRUE,NOT(Box::new(OR(vec![TRUE, AND(vec![FALSE, TRUE])])))]);
+    let not_or2 = OR(vec![
+        TRUE,
+        NOT(Box::new(OR(vec![TRUE, AND(vec![FALSE, TRUE])]))),
+    ]);
     assert_eq!(pred_parser::pred(not_or), Ok(not_or2));
 
     let eq1 = "TRUE == TRUE";
-    let eq2 = EQ(PredicateValue::SPValue(true.to_spvalue()),
-                 PredicateValue::SPValue(true.to_spvalue()));
+    let eq2 = EQ(
+        PredicateValue::SPValue(true.to_spvalue()),
+        PredicateValue::SPValue(true.to_spvalue()),
+    );
     assert_eq!(pred_parser::eq(eq1), Ok(eq2));
 
     let eq1 = "FALSE == p:/root/node1/node2";
     let path = SPPath::from_slice(&["root", "node1", "node2"]);
-    let eq2 = EQ(PredicateValue::SPValue(false.to_spvalue()),
-                 PredicateValue::SPPath(path, None));
+    let eq2 = EQ(
+        PredicateValue::SPValue(false.to_spvalue()),
+        PredicateValue::SPPath(path, None),
+    );
     assert_eq!(pred_parser::eq(eq1), Ok(eq2));
 
     let eq1 = "p:/root/node1/node2 != false";
     let path = SPPath::from_slice(&["root", "node1", "node2"]);
-    let eq2 = NEQ(PredicateValue::SPPath(path, None),
-                 PredicateValue::SPValue(false.to_spvalue()));
+    let eq2 = NEQ(
+        PredicateValue::SPPath(path, None),
+        PredicateValue::SPValue(false.to_spvalue()),
+    );
     assert_eq!(pred_parser::eq(eq1), Ok(eq2));
 
     let eq1 = "TRUE == TRUE || FALSE != FALSE";
-    let eq2 = EQ(PredicateValue::SPValue(true.to_spvalue()),
-                 PredicateValue::SPValue(true.to_spvalue()));
-    let eq3 = NEQ(PredicateValue::SPValue(false.to_spvalue()),
-                  PredicateValue::SPValue(false.to_spvalue()));
+    let eq2 = EQ(
+        PredicateValue::SPValue(true.to_spvalue()),
+        PredicateValue::SPValue(true.to_spvalue()),
+    );
+    let eq3 = NEQ(
+        PredicateValue::SPValue(false.to_spvalue()),
+        PredicateValue::SPValue(false.to_spvalue()),
+    );
     let or = OR(vec![eq2, eq3]);
     assert_eq!(pred_parser::pred(eq1), Ok(or));
 
     let eq1 = "TRUE == TRUE || !(FALSE != FALSE)";
-    let eq2 = EQ(PredicateValue::SPValue(true.to_spvalue()),
-                 PredicateValue::SPValue(true.to_spvalue()));
-    let eq3 = NEQ(PredicateValue::SPValue(false.to_spvalue()),
-                  PredicateValue::SPValue(false.to_spvalue()));
+    let eq2 = EQ(
+        PredicateValue::SPValue(true.to_spvalue()),
+        PredicateValue::SPValue(true.to_spvalue()),
+    );
+    let eq3 = NEQ(
+        PredicateValue::SPValue(false.to_spvalue()),
+        PredicateValue::SPValue(false.to_spvalue()),
+    );
     let or = OR(vec![eq2, NOT(Box::new(eq3))]);
     assert_eq!(pred_parser::pred(eq1), Ok(or));
-
 
     let eq1 = "p:hej == TRUE || !(FALSE != p: hej)";
     let hej = SPPath::from_string("hej");
     let hej = PredicateValue::SPPath(hej, None);
-    let eq2 = EQ(hej.clone(),
-                 PredicateValue::SPValue(true.to_spvalue()));
+    let eq2 = EQ(hej.clone(), PredicateValue::SPValue(true.to_spvalue()));
     let eq3 = NEQ(PredicateValue::SPValue(false.to_spvalue()), hej);
     let or = OR(vec![eq2, NOT(Box::new(eq3))]);
     assert_eq!(pred_parser::pred(eq1), Ok(or));

@@ -1,7 +1,7 @@
 //! The SPPath is used for identifying items in the model
 
+use super::{SPError, SPResult};
 use serde::{Deserialize, Serialize};
-use super::{SPResult, SPError};
 
 /// The SPPath is used for identifying all objects in a model. The path will be defined
 /// based on where the item is in the model hierarchy
@@ -65,7 +65,6 @@ impl SPPath {
         new_path.append(&mut self.path.clone());
         SPPath::from(new_path)
     }
-    
 
     pub fn drop_parent(&mut self, parent: &SPPath) -> SPResult<()> {
         let zipped = self.path.iter().zip(parent.path.iter());
@@ -125,7 +124,7 @@ impl SPPath {
 
     pub fn drop_leaf(&mut self) -> String {
         if !self.path.is_empty() {
-            self.path.remove(self.path.len()-1)
+            self.path.remove(self.path.len() - 1)
         } else {
             String::new()
         }
@@ -189,6 +188,6 @@ mod tests_paths {
     #[test]
     fn get_next_name() {
         let p = SPPath::from_string("a/b/c/d");
-        println!{"{}", serde_json::to_string(&p).unwrap()};
+        println! {"{}", serde_json::to_string(&p).unwrap()};
     }
 }

@@ -44,9 +44,11 @@ impl FormalContext {
             let actions: Vec<_> = t.actions().iter().map(|a| fc.sp_action_to_ac(a)).collect();
 
             if t.type_ == TransitionType::Controlled {
-                fc.context.add_c_trans(&t.path().to_string(), &guard, &actions);
+                fc.context
+                    .add_c_trans(&t.path().to_string(), &guard, &actions);
             } else {
-                fc.context.add_uc_trans(&t.path().to_string(), &guard, &actions);
+                fc.context
+                    .add_uc_trans(&t.path().to_string(), &guard, &actions);
             }
         }
 
@@ -61,8 +63,11 @@ impl FormalContext {
         let val = match &a.value {
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
                 // assign p to var
-                let (other, _var) = self.var_map.get(p).expect(
-                    &format!("variable not found: {}, looked in {:?}\n", p, self.var_map.keys()));
+                let (other, _var) = self.var_map.get(p).expect(&format!(
+                    "variable not found: {}, looked in {:?}\n",
+                    p,
+                    self.var_map.keys()
+                ));
                 Value::Var(*other)
             }
             Compute::PredicateValue(PredicateValue::SPValue(value)) => {
@@ -127,7 +132,10 @@ impl FormalContext {
 
                     Ex::EQ(*index, value)
                 } else {
-                    panic!("VAR MAP\n{:#?}\n\nPRED MAP\n{:#?}\n\nVAR {:?}, VALUE {:?}", self.var_map, self.pred_map, var, value)
+                    panic!(
+                        "VAR MAP\n{:#?}\n\nPRED MAP\n{:#?}\n\nVAR {:?}, VALUE {:?}",
+                        self.var_map, self.pred_map, var, value
+                    )
                 }
             }
             Predicate::EQ(PredicateValue::SPPath(var, _), PredicateValue::SPPath(other, _)) => {
@@ -173,7 +181,10 @@ impl FormalContext {
 
                     Ex::NOT(Box::new(Ex::EQ(*index, value)))
                 } else {
-                    panic!("VAR {:?}, VALUE {:?}, pred {:?}, var {:?}", var, value, &self.pred_map, &self.var_map);
+                    panic!(
+                        "VAR {:?}, VALUE {:?}, pred {:?}, var {:?}",
+                        var, value, &self.pred_map, &self.var_map
+                    );
                 }
             }
             x => panic!("NO X {:?}", x),
@@ -297,19 +308,22 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     r
 }
 
-pub fn support_flatten_predicates(p: &Predicate, preds: &[Variable]) -> Vec<SPPath>{
-    let mut flattened: Vec<SPPath> = p.support().iter().map(|p| {
-        match preds.iter().find(|t| t.path() == p) {
+pub fn support_flatten_predicates(p: &Predicate, preds: &[Variable]) -> Vec<SPPath> {
+    let mut flattened: Vec<SPPath> = p
+        .support()
+        .iter()
+        .map(|p| match preds.iter().find(|t| t.path() == p) {
             Some(v) => {
                 if let VariableType::Predicate(pred) = v.variable_type() {
                     support_flatten_predicates(&pred, preds)
                 } else {
                     panic!("cannot happen")
                 }
-            },
-            _ =>  vec![p.clone()]
-        }
-    }).flatten().collect();
+            }
+            _ => vec![p.clone()],
+        })
+        .flatten()
+        .collect();
     flattened.dedup();
     return flattened;
 }
@@ -318,12 +332,17 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
     let mut model = model.clone();
 
     // only look at the uncontrollable transitions.
-    model.transitions.retain(|t| t.type_ != TransitionType::Controlled);
+    model
+        .transitions
+        .retain(|t| t.type_ != TransitionType::Controlled);
 
     // check if there are no unc transitions that can modify the state defined
     // by the invariants.
     let mut support: HashSet<SPPath> = HashSet::new();
-    support.extend(support_flatten_predicates(invariant, &model.state_predicates));
+    support.extend(support_flatten_predicates(
+        invariant,
+        &model.state_predicates,
+    ));
     if model.transitions.iter().all(|t| {
         let modifies = modified_by(t);
         let intersection: HashSet<_> = support.intersection(&modifies).collect();
@@ -387,7 +406,9 @@ pub fn extend_forward(model: &TransitionSystemModel, pred: &Predicate) -> Predic
     let mut model = model.clone();
 
     // only look at the uncontrollable transitions.
-    model.transitions.retain(|t| t.type_ != TransitionType::Controlled);
+    model
+        .transitions
+        .retain(|t| t.type_ != TransitionType::Controlled);
 
     let c = FormalContext::from(&model);
 
@@ -400,7 +421,7 @@ pub fn extend_forward(model: &TransitionSystemModel, pred: &Predicate) -> Predic
 pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
     let mut model = model.clone();
     model.transitions.clear(); // dont need these
-    model.specs.clear();       // ...
+    model.specs.clear(); // ...
     let support = support_flatten_predicates(p, &model.state_predicates);
     model.vars.retain(|v| support.contains(v.path()));
 

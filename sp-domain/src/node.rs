@@ -4,7 +4,7 @@
 use super::*;
 use std::collections::HashMap;
 
-/// The SPNode is tracking the name and global path of an item. The name of the 
+/// The SPNode is tracking the name and global path of an item. The name of the
 /// node is also an SPPath if an extra level in the state is needed, but
 /// is in most cases just a String.
 
@@ -132,11 +132,10 @@ pub trait Noder {
             return Some(self.as_mut_ref());
         }
         if let Some(n) = path.next_node_in_path(self.path()) {
-            return self.get_child_mut(&n, path)
+            return self.get_child_mut(&n, path);
         }
-        return None
+        return None;
     }
-
 
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item<'a>(&'a self, name: &str, path_sections: &[&str]) -> Option<SPItemRef<'a>> {
@@ -194,7 +193,9 @@ where
 /// A method used by the items when impl the Noder trait
 /// Tries to find an item with the path in a list that incl
 /// items that impl Noder
-pub fn get_from_list_mut<'a, T>(xs: &'a mut [T], next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>>
+pub fn get_from_list_mut<'a, T>(
+    xs: &'a mut [T], next: &str, path: &SPPath,
+) -> Option<SPMutItemRef<'a>>
 where
     T: Noder,
 {
