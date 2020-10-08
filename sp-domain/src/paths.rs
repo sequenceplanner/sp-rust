@@ -70,15 +70,14 @@ impl SPPath {
         let zipped = self.path.iter().zip(parent.path.iter());
         let match_len = zipped.filter(|(a, b)| a == b).count();
         if match_len == parent.path.len() {
-            // all parent paths matched, remove
             self.path.drain(0..match_len);
+            Ok(())
         } else {
-            SPError::No(format!(
+            Err(SPError::No(format!(
                 "cannot drop parent as it does not exist: {} - {}",
                 self, parent
-            ));
+            )))
         }
-        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
