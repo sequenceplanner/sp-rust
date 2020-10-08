@@ -86,16 +86,11 @@ mod ros {
     }
 
     pub fn roscomm_setup_misc(
-        _node: &mut RosNode, _tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
-    ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
+        node: &mut RosNode, tx_in: channel::Sender<SPState>,
+    ) -> Result<channel::Sender<SPState>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
-    pub fn ros_node_comm_setup(
-        _node: &mut RosNode, _model: &Model, _tx_in: channel::Sender<NodeMode>,
-    ) -> Result<channel::Sender<NodeCmd>, Error> {
-        bail!(format_err!("ROS support not compiled in"));
-    }
 
     pub fn ros_resource_comm_setup(
         _node: &mut RosNode, _tx_to_runner: channel::Sender<ROSResource>, _prefix_path: &SPPath,
