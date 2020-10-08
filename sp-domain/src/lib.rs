@@ -21,6 +21,9 @@ pub use node::*;
 pub mod items;
 pub use items::*;
 
+pub mod sops;
+pub use sops::*;
+
 use serde::{Deserialize, Serialize};
 use std::error;
 use std::fmt;
