@@ -4,49 +4,69 @@
 use super::*;
 use std::collections::HashMap;
 
-/// The SPNode is tracking the name and the local and global path of an item
+/// The SPNode is tracking the name and global path of an item. The name of the
+/// node is also an SPPath if an extra level in the state is needed, but
+/// is in most cases just a String.
+
 /// The SPNode should be wrapped inside the item struct and the item should
 /// also impl the Noder trait.
 #[derive(PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct SPNode {
-    name: String,
+    name: SPPath,
     path: SPPath,
 }
 
 impl SPNode {
+    /// Creates a new SPNode with a name. It is possible to give it a path as a
+    /// name on the notation "/my/node/has/a/path_name"
     pub fn new(name: &str) -> SPNode {
+        let p = SPPath::from_string(name);
         SPNode {
-            name: name.to_string(),
-            path: SPPath::from_slice(&[name]),
+            name: p.clone(),
+            path: p,
         }
     }
 
-    pub fn name(&self) -> &str {
+    /// Create a new node with both a name and a parent path. They are
+    /// concatenated to form the node path
+    pub fn new_with_path(name: &SPPath, parent_path: &SPPath) -> SPNode {
+        let mut path = parent_path.clone();
+        path.add_child_path_mut(name);
+        SPNode {
+            name: name.clone(),
+            path,
+        }
+    }
+
+    /// The name of the node, which is the leaf of its path
+    pub fn name(&self) -> String {
+        self.name.leaf()
+    }
+
+    /// The name path of the node
+    pub fn name_path(&self) -> &SPPath {
         &self.name
     }
 
+    /// The complete path of the node
     pub fn path(&self) -> &SPPath {
         &self.path
     }
-    pub fn path_mut(&mut self) -> &mut SPPath {
-        &mut self.path
-    }
 
-    // returns the node's new path and optionally its old path, if it was not empty before
-    pub fn update_path(&mut self, path: &SPPath) -> (SPPath, Option<SPPath>) {
+    // returns the node's new and old path
+    pub fn update_path(&mut self, path: &SPPath) -> (SPPath, SPPath) {
         let mut p = path.clone();
-        let old = if p.path.is_empty() {
-            None
-        } else {
-            Some(self.path().clone())
-        };
-        self.path = p.add_child(&self.name);
+        let old = self.path.clone();
+        p.add_child_path_mut(&self.name);
+        self.path = p;
         (self.path().clone(), old)
     }
 
     pub fn update_name(&mut self, name: &str) {
-        self.name = name.to_string();
-        self.update_path(&self.path.parent());
+        self.name.drop_leaf();
+        self.name.add_child_mut(name);
+        self.path.drop_leaf();
+        self.path.add_child_mut(name);
     }
 
     pub fn is_eq(&self, path: &SPPath) -> bool {
@@ -91,8 +111,8 @@ pub trait Noder {
     fn is_eq(&self, path: &SPPath) -> bool {
         self.path() == path
     }
-    fn name(&self) -> &str {
-        &self.node().name
+    fn name(&self) -> String {
+        self.node().name()
     }
 
     /// Finds the item with a specific SPPath. Will only find locals if asked from the
@@ -112,11 +132,10 @@ pub trait Noder {
             return Some(self.as_mut_ref());
         }
         if let Some(n) = path.next_node_in_path(self.path()) {
-            return self.get_child_mut(&n, path)
+            return self.get_child_mut(&n, path);
         }
-        return None
+        return None;
     }
-
 
     /// Finds the first item with a specific name and that includes all path sections (in any order).
     fn find_item<'a>(&'a self, name: &str, path_sections: &[&str]) -> Option<SPItemRef<'a>> {
@@ -148,9 +167,7 @@ pub trait Noder {
     /// updates the path of this item and its children
     fn update_path(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) -> SPPath {
         let (p, old) = self.node_mut().update_path(path);
-        if let Some(old) = old {
-            changes.insert(old, p.clone());
-        }
+        changes.insert(old, p.clone());
         self.update_path_children(&p, changes);
         p
     }
@@ -176,7 +193,9 @@ where
 /// A method used by the items when impl the Noder trait
 /// Tries to find an item with the path in a list that incl
 /// items that impl Noder
-pub fn get_from_list_mut<'a, T>(xs: &'a mut [T], next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>>
+pub fn get_from_list_mut<'a, T>(
+    xs: &'a mut [T], next: &str, path: &SPPath,
+) -> Option<SPMutItemRef<'a>>
 where
     T: Noder,
 {

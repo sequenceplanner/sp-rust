@@ -6,7 +6,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
-use std::time::{Instant};
+use std::time::Instant;
 // use std::time::{SystemTime};
 use std::time::Duration;
 
@@ -237,7 +237,7 @@ pub struct NuXmvPlanner {}
 
 pub fn plan_async(
     model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
-    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration
+    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration,
 ) -> PlanningResult {
     let lines = create_nuxmv_problem(&model, &goals, &state);
 
@@ -252,13 +252,15 @@ pub fn plan_async(
     write!(f, "{}", lines).unwrap();
 
     let start = Instant::now();
-    let result = block_on_search_heuristic(filename_last_plan, cutoff, max_steps,
-                                           lookout, max_time);
+    let result =
+        block_on_search_heuristic(filename_last_plan, cutoff, max_steps, lookout, max_time);
     let duration = start.elapsed();
 
     let res = match result {
         Ok((_, raw, raw_error)) => {
-            if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
+            if raw_error.len() > 0
+                && !raw_error.contains("There are no traces currently available.")
+            {
                 // just to more easily find syntax errors
                 panic!("{}", raw_error);
             }
@@ -321,13 +323,17 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-fn filename_from_model(model: &TransitionSystemModel) -> Result<String, Box<dyn std::error::Error>> {
+fn filename_from_model(
+    model: &TransitionSystemModel,
+) -> Result<String, Box<dyn std::error::Error>> {
     let mod_ser = serde_json::to_string(model)?;
     let mod_ser_hash = calculate_hash(&mod_ser);
     Ok(format!("store-{}.sz", mod_ser_hash))
 }
 
-fn load_store(model: &TransitionSystemModel) -> Result<AsyncPlanningStore, Box<dyn std::error::Error>> {
+fn load_store(
+    model: &TransitionSystemModel,
+) -> Result<AsyncPlanningStore, Box<dyn std::error::Error>> {
     let path = filename_from_model(model)?;
     let file = File::open(path)?;
     let mut buffer = String::new();
@@ -338,7 +344,9 @@ fn load_store(model: &TransitionSystemModel) -> Result<AsyncPlanningStore, Box<d
     Ok(s)
 }
 
-fn save_store(model: &TransitionSystemModel, store: &AsyncPlanningStore) -> Result<(), Box<dyn std::error::Error>> {
+fn save_store(
+    model: &TransitionSystemModel, store: &AsyncPlanningStore,
+) -> Result<(), Box<dyn std::error::Error>> {
     let path = filename_from_model(model)?;
     let file = File::create(path)?;
     let mut writer = snap::write::FrameEncoder::new(file);
@@ -354,7 +362,7 @@ impl AsyncPlanningStore {
             Ok(store) => {
                 println!("Loaded cache store with {} plans.", store.cache.len());
                 store
-            },
+            }
             Err(err) => {
                 println!("Could not load planning store: {}", err);
                 AsyncPlanningStore::default()
@@ -368,29 +376,44 @@ impl AsyncPlanningStore {
 }
 
 pub fn plan_async_with_cache(
-    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState, disabled: &[SPPath],
-    max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration, store: Arc<Mutex<AsyncPlanningStore>>)
-    -> PlanningResult {
+    model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
+    disabled: &[SPPath], max_steps: u32, cutoff: u32, lookout: f32, max_time: Duration,
+    store: Arc<Mutex<AsyncPlanningStore>>,
+) -> PlanningResult {
     let now = std::time::Instant::now();
     // filter the state based on the ts model and serialize it to make it hashable
-    let state_str = state.projection().sorted().state.iter()
-        .filter(|(k,_)| model.vars.iter().any(|v|&v.path() == k))
-        .map(|(k,v)| {
-            let s = format!("{}{}", k,serde_json::to_string(v.value()).unwrap());
+    let state_str = state
+        .projection()
+        .sorted()
+        .state
+        .iter()
+        .filter(|(k, _)| model.vars.iter().any(|v| &v.path() == k))
+        .map(|(k, v)| {
+            let s = format!("{}{}", k, serde_json::to_string(v.value()).unwrap());
             s
         })
-        .fold("".to_string(), |acum,s| format!("{}{}", acum,s));
+        .fold("".to_string(), |acum, s| format!("{}{}", acum, s));
 
     // serialize goals
-    let goal_str = goals.iter().map(|(g,i)| {
-        let i = if let Some(i) = i {
-            i.to_string()
-        } else { "".to_string() };
-        format!("{}+{}", g, i)
-    }).collect::<Vec<_>>().join("");
+    let goal_str = goals
+        .iter()
+        .map(|(g, i)| {
+            let i = if let Some(i) = i {
+                i.to_string()
+            } else {
+                "".to_string()
+            };
+            format!("{}+{}", g, i)
+        })
+        .collect::<Vec<_>>()
+        .join("");
     // let key = PlannerRequestKey { goal: goal_str, state: state_str };
-    let disabled_str = disabled.iter().map(|p|p.to_string()).collect::<Vec<_>>().join(",");
-    let key = format!("{}=={}=={}", goal_str, state_str,disabled_str);
+    let disabled_str = disabled
+        .iter()
+        .map(|p| p.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    let key = format!("{}=={}=={}", goal_str, state_str, disabled_str);
 
     {
         let mut store = store.lock().unwrap();
@@ -398,8 +421,12 @@ pub fn plan_async_with_cache(
         if let Some(Some(plan)) = store.cache.get(&key) {
             let plan = plan.clone();
             store.hits += 1;
-            println!("Used cached async plan! Current plan count {}, hit% {}, lookup time {} ms",
-                     store.cache.len(), ((100 * store.hits) / store.lookups), now.elapsed().as_millis());
+            println!(
+                "Used cached async plan! Current plan count {}, hit% {}, lookup time {} ms",
+                store.cache.len(),
+                ((100 * store.hits) / store.lookups),
+                now.elapsed().as_millis()
+            );
             return plan;
         }
     }
@@ -457,7 +484,9 @@ impl Planner for NuXmvPlanner {
 
         let res = match result {
             Ok((raw, raw_error)) => {
-                if raw_error.len() > 0 && !raw_error.contains("There are no traces currently available.") {
+                if raw_error.len() > 0
+                    && !raw_error.contains("There are no traces currently available.")
+                {
                     // just to more easily find syntax errors
                     panic!("{}", raw_error);
                 }
@@ -516,7 +545,9 @@ fn create_nuxmv_problem(
     return lines;
 }
 
-fn create_nuxmv_problem_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)]) -> String {
+fn create_nuxmv_problem_ctl(
+    model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)],
+) -> String {
     let mut lines = make_base_problem(model);
 
     add_initial_states(&mut lines, initial);
@@ -551,7 +582,9 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     return lines;
 }
 
-pub fn generate_offline_nuxvm_ctl(model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)]) {
+pub fn generate_offline_nuxvm_ctl(
+    model: &TransitionSystemModel, initial: &Predicate, ops: &[(String, Predicate, Predicate)],
+) {
     let lines = create_nuxmv_problem_ctl(&model, initial, ops);
 
     //let datetime: DateTime<Local> = SystemTime::now().into();
@@ -709,7 +742,11 @@ fn add_global_specifications(lines: &mut String, specs: &[Spec]) {
     lines.push_str("INVAR\n\n");
     let mut global = Vec::new();
     for s in specs {
-        global.push(format!("-- spec: {}\n{}\n", s.path(), NuXMVPredicate(s.invariant())));
+        global.push(format!(
+            "-- spec: {}\n{}\n",
+            s.path(),
+            NuXMVPredicate(s.invariant())
+        ));
     }
     let invars = if global.is_empty() {
         "TRUE".to_string()
@@ -774,11 +811,18 @@ fn add_goals(lines: &mut String, goal_invs: &[(Predicate, Option<Predicate>)]) {
 fn add_ctl_specs(lines: &mut String, operations: &[(String, Predicate, Predicate)]) {
     let mut checked = Vec::new();
     for (op_name, pre, goal) in operations {
-        match checked.iter().find(|(_,p,g)| p == pre && g == goal) {
-            Some((name, _, _)) => lines.push_str(&format!("-- {} goal already checked by {}\n\n", op_name, name)),
+        match checked.iter().find(|(_, p, g)| p == pre && g == goal) {
+            Some((name, _, _)) => lines.push_str(&format!(
+                "-- {} goal already checked by {}\n\n",
+                op_name, name
+            )),
             None => {
                 lines.push_str(&format!("-- {}\n", op_name));
-                lines.push_str(&format!("CTLSPEC AG ( {} -> EF ( {} ));\n\n", NuXMVPredicate(pre), NuXMVPredicate(goal)));
+                lines.push_str(&format!(
+                    "CTLSPEC AG ( {} -> EF ( {} ));\n\n",
+                    NuXMVPredicate(pre),
+                    NuXMVPredicate(goal)
+                ));
                 checked.push((op_name.clone(), pre.clone(), goal.clone()));
             }
         }

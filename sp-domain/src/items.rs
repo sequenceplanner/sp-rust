@@ -1,14 +1,12 @@
 //!
 //!
 use super::*;
-use std::collections::{HashMap,HashSet};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum SPItem {
     Model(Model),
     Resource(Resource),
-    Message(Message),
-    Topic(Topic),
     Variable(Variable),
     Intention(Intention),
     Operation(Operation),
@@ -25,8 +23,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.node(),
             SPItem::Resource(x) => x.node(),
-            SPItem::Message(x) => x.node(),
-            SPItem::Topic(x) => x.node(),
             SPItem::Variable(x) => x.node(),
             SPItem::Intention(x) => x.node(),
             SPItem::Operation(x) => x.node(),
@@ -41,8 +37,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(ref mut x) => x.node_mut(),
             SPItem::Resource(ref mut x) => x.node_mut(),
-            SPItem::Message(ref mut x) => x.node_mut(),
-            SPItem::Topic(ref mut x) => x.node_mut(),
             SPItem::Variable(ref mut x) => x.node_mut(),
             SPItem::Intention(ref mut x) => x.node_mut(),
             SPItem::Operation(ref mut x) => x.node_mut(),
@@ -57,8 +51,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.get_child(next, path),
             SPItem::Resource(x) => x.get_child(next, path),
-            SPItem::Message(x) => x.get_child(next, path),
-            SPItem::Topic(x) => x.get_child(next, path),
             SPItem::Variable(x) => x.get_child(next, path),
             SPItem::Intention(x) => x.get_child(next, path),
             SPItem::Operation(x) => x.get_child(next, path),
@@ -73,8 +65,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.get_child_mut(next, path),
             SPItem::Resource(x) => x.get_child_mut(next, path),
-            SPItem::Message(x) => x.get_child_mut(next, path),
-            SPItem::Topic(x) => x.get_child_mut(next, path),
             SPItem::Variable(x) => x.get_child_mut(next, path),
             SPItem::Intention(x) => x.get_child_mut(next, path),
             SPItem::Operation(x) => x.get_child_mut(next, path),
@@ -91,8 +81,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.find_item_among_children(name, path_sections),
             SPItem::Resource(x) => x.find_item_among_children(name, path_sections),
-            SPItem::Message(x) => x.find_item_among_children(name, path_sections),
-            SPItem::Topic(x) => x.find_item_among_children(name, path_sections),
             SPItem::Variable(x) => x.find_item_among_children(name, path_sections),
             SPItem::Intention(x) => x.find_item_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_among_children(name, path_sections),
@@ -109,8 +97,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Resource(x) => x.find_item_mut_among_children(name, path_sections),
-            SPItem::Message(x) => x.find_item_mut_among_children(name, path_sections),
-            SPItem::Topic(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Variable(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Intention(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_mut_among_children(name, path_sections),
@@ -125,8 +111,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.update_path_children(path, changes),
             SPItem::Resource(x) => x.update_path_children(path, changes),
-            SPItem::Message(x) => x.update_path_children(path, changes),
-            SPItem::Topic(x) => x.update_path_children(path, changes),
             SPItem::Variable(x) => x.update_path_children(path, changes),
             SPItem::Intention(x) => x.update_path_children(path, changes),
             SPItem::Operation(x) => x.update_path_children(path, changes),
@@ -141,8 +125,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.rewrite_expressions(mapping),
             SPItem::Resource(x) => x.rewrite_expressions(mapping),
-            SPItem::Message(x) => x.rewrite_expressions(mapping),
-            SPItem::Topic(x) => x.rewrite_expressions(mapping),
             SPItem::Variable(x) => x.rewrite_expressions(mapping),
             SPItem::Intention(x) => x.rewrite_expressions(mapping),
             SPItem::Operation(x) => x.rewrite_expressions(mapping),
@@ -157,8 +139,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.as_ref(),
             SPItem::Resource(x) => x.as_ref(),
-            SPItem::Message(x) => x.as_ref(),
-            SPItem::Topic(x) => x.as_ref(),
             SPItem::Variable(x) => x.as_ref(),
             SPItem::Intention(x) => x.as_ref(),
             SPItem::Operation(x) => x.as_ref(),
@@ -173,8 +153,6 @@ impl Noder for SPItem {
         match self {
             SPItem::Model(x) => x.as_mut_ref(),
             SPItem::Resource(x) => x.as_mut_ref(),
-            SPItem::Message(x) => x.as_mut_ref(),
-            SPItem::Topic(x) => x.as_mut_ref(),
             SPItem::Variable(x) => x.as_mut_ref(),
             SPItem::Intention(x) => x.as_mut_ref(),
             SPItem::Operation(x) => x.as_mut_ref(),
@@ -191,8 +169,6 @@ impl Noder for SPItem {
 pub enum SPItemRef<'a> {
     Model(&'a Model),
     Resource(&'a Resource),
-    Message(&'a Message),
-    Topic(&'a Topic),
     Variable(&'a Variable),
     Intention(&'a Intention),
     Operation(&'a Operation),
@@ -208,8 +184,6 @@ pub enum SPItemRef<'a> {
 pub enum SPMutItemRef<'a> {
     Model(&'a mut Model),
     Resource(&'a mut Resource),
-    Message(&'a mut Message),
-    Topic(&'a mut Topic),
     Variable(&'a mut Variable),
     Intention(&'a mut Intention),
     Operation(&'a mut Operation),
@@ -226,8 +200,6 @@ impl<'a> SPItemRef<'a> {
         match mref {
             SPMutItemRef::Model(x) => SPItemRef::Model(x),
             SPMutItemRef::Resource(x) => SPItemRef::Resource(x),
-            SPMutItemRef::Message(x) => SPItemRef::Message(x),
-            SPMutItemRef::Topic(x) => SPItemRef::Topic(x),
             SPMutItemRef::Variable(x) => SPItemRef::Variable(x),
             SPMutItemRef::Intention(x) => SPItemRef::Intention(x),
             SPMutItemRef::Operation(x) => SPItemRef::Operation(x),
@@ -251,8 +223,6 @@ impl<'a> SPItemRef<'a> {
         match self {
             SPItemRef::Model(x) => &x.node,
             SPItemRef::Resource(x) => &x.node,
-            SPItemRef::Message(x) => &x.node,
-            SPItemRef::Topic(x) => &x.node,
             SPItemRef::Variable(x) => &x.node,
             SPItemRef::Intention(x) => &x.node,
             SPItemRef::Operation(x) => &x.node,
@@ -267,8 +237,6 @@ impl<'a> SPItemRef<'a> {
         match self {
             SPItemRef::Model(x) => SPItem::Model({ *x }.clone()),
             SPItemRef::Resource(x) => SPItem::Resource({ *x }.clone()),
-            SPItemRef::Message(x) => SPItem::Message({ *x }.clone()),
-            SPItemRef::Topic(x) => SPItem::Topic({ *x }.clone()),
             SPItemRef::Variable(x) => SPItem::Variable({ *x }.clone()),
             SPItemRef::Intention(x) => SPItem::Intention({ *x }.clone()),
             SPItemRef::Operation(x) => SPItem::Operation({ *x }.clone()),
@@ -279,7 +247,7 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::TransitionSpec(x) => SPItem::TransitionSpec({ *x }.clone()),
         }
     }
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         self.node().name()
     }
 }
@@ -293,8 +261,6 @@ impl<'a> SPMutItemRef<'a> {
         match self {
             SPMutItemRef::Model(x) => &x.node,
             SPMutItemRef::Resource(x) => &x.node,
-            SPMutItemRef::Message(x) => &x.node,
-            SPMutItemRef::Topic(x) => &x.node,
             SPMutItemRef::Variable(x) => &x.node,
             SPMutItemRef::Intention(x) => &x.node,
             SPMutItemRef::Operation(x) => &x.node,
@@ -311,15 +277,13 @@ impl<'a> SPMutItemRef<'a> {
             _ => panic!(format!("trying to unwrap variable but we have {:?}", self)),
         }
     }
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         self.node().name()
     }
     pub fn item_type_as_string(&self) -> String {
         match self {
             SPMutItemRef::Model(_) => "model".to_string(),
             SPMutItemRef::Resource(_) => "resource".to_string(),
-            SPMutItemRef::Message(_) => "message".to_string(),
-            SPMutItemRef::Topic(_) => "topic".to_string(),
             SPMutItemRef::Variable(_) => "variable".to_string(),
             SPMutItemRef::Intention(_) => "intention".to_string(),
             SPMutItemRef::Operation(_) => "operation".to_string(),
@@ -473,12 +437,17 @@ impl Model {
             .collect()
     }
 
-
     pub fn all_operations(&self) -> Vec<&Operation> {
         self.items
             .iter()
             .flat_map(|i| match i {
-                SPItem::Model(m) => if m.name() != "runner_ops" { m.all_operations() } else { vec![] },
+                SPItem::Model(m) => {
+                    if m.name() != "runner_ops" {
+                        m.all_operations()
+                    } else {
+                        vec![]
+                    }
+                }
                 SPItem::Operation(o) => vec![o],
                 _ => vec![],
             })
@@ -507,7 +476,6 @@ impl Model {
             .collect()
     }
 
-
     pub fn add_item(&mut self, mut item: SPItem) -> SPPath {
         let mut changes = HashMap::new();
         let path = item.update_path(self.node.path(), &mut changes);
@@ -521,10 +489,9 @@ impl Model {
 pub struct Resource {
     node: SPNode,
     pub transitions: Vec<Transition>,
-    pub predicates: Vec<Variable>,
-    pub estimated: Vec<Variable>,
-    pub messages: Vec<Topic>,
     pub specs: Vec<Spec>,
+    pub variables: Vec<Variable>,
+    pub new_messages: Vec<NewMessage>,
 }
 
 impl Noder for Resource {
@@ -538,13 +505,7 @@ impl Noder for Resource {
         if let Some(x) = get_from_list(self.transitions.as_slice(), next, path) {
             return Some(x);
         }
-        if let Some(x) = get_from_list(self.predicates.as_slice(), next, path) {
-            return Some(x);
-        }
-        if let Some(x) = get_from_list(self.estimated.as_slice(), next, path) {
-            return Some(x);
-        }
-        if let Some(x) = get_from_list(self.messages.as_slice(), next, path) {
+        if let Some(x) = get_from_list(self.variables.as_slice(), next, path) {
             return Some(x);
         }
         if let Some(x) = get_from_list(self.specs.as_slice(), next, path) {
@@ -556,13 +517,7 @@ impl Noder for Resource {
         if let Some(x) = get_from_list_mut(self.transitions.as_mut_slice(), next, path) {
             return Some(x);
         }
-        if let Some(x) = get_from_list_mut(self.predicates.as_mut_slice(), next, path) {
-            return Some(x);
-        }
-        if let Some(x) = get_from_list_mut(self.estimated.as_mut_slice(), next, path) {
-            return Some(x);
-        }
-        if let Some(x) = get_from_list_mut(self.messages.as_mut_slice(), next, path) {
+        if let Some(x) = get_from_list_mut(self.variables.as_mut_slice(), next, path) {
             return Some(x);
         }
         if let Some(x) = get_from_list_mut(self.specs.as_mut_slice(), next, path) {
@@ -574,26 +529,17 @@ impl Noder for Resource {
         &'a self, name: &str, path_sections: &[&str],
     ) -> Option<SPItemRef<'a>> {
         find_item_in_list(self.transitions.as_slice(), name, path_sections)
-            .or_else(|| find_item_in_list(self.predicates.as_slice(), name, path_sections))
-            .or_else(|| find_item_in_list(self.estimated.as_slice(), name, path_sections))
-            .or_else(|| find_item_in_list(self.messages.as_slice(), name, path_sections))
+            .or_else(|| find_item_in_list(self.variables.as_slice(), name, path_sections))
             .or_else(|| find_item_in_list(self.specs.as_slice(), name, path_sections))
     }
     fn find_item_mut_among_children<'a>(
         &'a mut self, name: &str, path_sections: &[&str],
     ) -> Option<SPMutItemRef<'a>> {
-        if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections) {
-            Some(x)
-        } else if let Some(x) =
-            find_item_mut_in_list(self.predicates.as_mut_slice(), name, path_sections)
+        if let Some(x) = find_item_mut_in_list(self.transitions.as_mut_slice(), name, path_sections)
         {
             Some(x)
         } else if let Some(x) =
-            find_item_mut_in_list(self.estimated.as_mut_slice(), name, path_sections)
-        {
-            Some(x)
-        } else if let Some(x) =
-            find_item_mut_in_list(self.messages.as_mut_slice(), name, path_sections)
+            find_item_mut_in_list(self.variables.as_mut_slice(), name, path_sections)
         {
             Some(x)
         } else {
@@ -602,23 +548,15 @@ impl Noder for Resource {
     }
 
     fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        update_path_in_list(self.estimated.as_mut_slice(), &path, changes);
-        update_path_in_list(self.messages.as_mut_slice(), &path, changes);
+        update_path_in_list(self.variables.as_mut_slice(), &path, changes);
         update_path_in_list(self.transitions.as_mut_slice(), path, changes);
-        update_path_in_list(self.predicates.as_mut_slice(), path, changes);
         update_path_in_list(self.specs.as_mut_slice(), path, changes);
     }
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.messages
-            .iter_mut()
-            .for_each(|i| i.rewrite_expressions(mapping));
         self.transitions
             .iter_mut()
             .for_each(|i| i.rewrite_expressions(mapping));
-        self.predicates
-            .iter_mut()
-            .for_each(|i| i.rewrite_expressions(mapping));
-        self.estimated
+        self.variables
             .iter_mut()
             .for_each(|i| i.rewrite_expressions(mapping));
         self.specs
@@ -643,28 +581,14 @@ impl Resource {
         }
     }
 
-    pub fn messages(&self) -> &[Topic] {
-        self.messages.as_slice()
-    }
-
-    pub fn add_message(&mut self, mut message: Topic) -> SPPath {
-        let mut changes = HashMap::new();
-        let path = message.update_path(self.node.path(), &mut changes);
-        self.messages.push(message);
-        path
+    pub fn messages(&self) -> &[NewMessage] {
+        self.new_messages.as_slice()
     }
 
     pub fn add_spec(&mut self, mut spec: Spec) -> SPPath {
         let mut changes = HashMap::new();
         let path = spec.update_path(self.node.path(), &mut changes);
         self.specs.push(spec);
-        path
-    }
-
-    pub fn add_estimated(&mut self, mut estimated: Variable) -> SPPath {
-        let mut changes = HashMap::new();
-        let path = estimated.update_path(self.node.path(), &mut changes);
-        self.estimated.push(estimated);
         path
     }
 
@@ -675,35 +599,19 @@ impl Resource {
         path
     }
 
-    pub fn add_predicate(&mut self, mut predicate: Variable) -> SPPath {
+    pub fn add_variable(&mut self, mut variable: Variable) -> SPPath {
         let mut changes = HashMap::new();
-        let path = predicate.update_path(self.node.path(), &mut changes);
-        self.predicates.push(predicate);
+        let path = variable.update_path(self.node.path(), &mut changes);
+        self.variables.push(variable);
         path
     }
 
+    pub fn add_messsage(&mut self, mut message: NewMessage) {
+        self.new_messages.push(message);
+    }
+
     pub fn get_variables(&self) -> Vec<Variable> {
-        fn r(
-            m: &MessageField, acum: &mut Vec<Variable>) {
-            match m {
-                MessageField::Msg(msg) => {
-                    for f in &msg.fields {
-                        r(f, acum);
-                    }
-                }
-                MessageField::Var(var) => {
-                    acum.push(var.clone());
-                }
-            }
-        }
-
-        let mut vs = Vec::new();
-        for t in &self.messages {
-            r(&t.msg, &mut vs);
-        }
-
-        vs.extend(self.estimated.iter().cloned());
-        vs
+        self.variables.clone()
     }
 
     pub fn get_transitions(&self) -> Vec<Transition> {
@@ -711,231 +619,86 @@ impl Resource {
     }
 
     pub fn get_state_predicates(&self) -> Vec<Variable> {
-        self.predicates.clone()
+        self.variables
+            .iter()
+            .filter(|x| {
+                if let VariableType::Predicate(_) = x.variable_type() {
+                    true
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect()
     }
 
     /// Get the message in the command topic. For now this is hardcoded
-    pub fn get_message(&self, topic: &str) -> Option<MessageField> {
-        let mut res = None;
-        self.messages.iter().for_each(|t| {
-            let t: &Topic = t;
-            if t.node.name() == topic {
-                res = Some(t.msg().clone());
+    pub fn get_message_for_topic(&self, topic: &SPPath) -> Option<NewMessage> {
+        for m in &self.new_messages {
+            let t = if m.relative_topic {
+                self.path().clone().add_child_path(&m.topic)
+            } else {
+                m.topic.clone()
+            };
+            if &t == topic {
+                return Some(m.clone());
             }
-        });
-        res
+        }
+        None
     }
+}
+
+/// Defines a message for a resource. It can only inlcude variables local to the
+/// resource, but since the resource can include parameters, any value from the state
+/// can be included.
+/// The topic is the topic that will be used for publishing or subscribing
+
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
+pub struct NewMessage {
+    pub topic: SPPath,
+    pub relative_topic: bool,
+    pub category: MessageCategory,
+    pub message_type: MessageType,
+    pub variables: Vec<MessageVariable>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Topic {
-    node: SPNode,
-    msg: MessageField,
+pub enum MessageCategory {
+    OutGoing,
+    Incoming,
 }
-
-impl Noder for Topic {
-    fn node(&self) -> &SPNode {
-        &self.node
-    }
-    fn node_mut(&mut self) -> &mut SPNode {
-        &mut self.node
-    }
-    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        if self.msg.name() != next {
-            return None;
-        }
-        self.msg.get(path)
-    }
-    fn get_child_mut<'a>(&'a mut self, next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>> {
-        if self.msg.name() != next {
-            return None;
-        }
-        self.msg.get_mut(path)
-    }
-    fn find_item_among_children<'a>(
-        &'a self, name: &str, path_sections: &[&str],
-    ) -> Option<SPItemRef<'a>> {
-        self.msg.find_item(name, path_sections)
-    }
-    fn find_item_mut_among_children<'a>(
-        &'a mut self, name: &str, path_sections: &[&str],
-    ) -> Option<SPMutItemRef<'a>> {
-        self.msg.find_item_mut(name, path_sections)
-    }
-    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        self.msg.update_path(path, changes);
-    }
-    fn rewrite_expressions(&mut self, _mapping: &HashMap<SPPath, SPPath>) {
-        // TODO: variables with expressions in the messages.
-    }
-    fn as_ref(&self) -> SPItemRef<'_> {
-        SPItemRef::Topic(self)
-    }
-    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
-        SPMutItemRef::Topic(self)
-    }
-}
-
-impl Topic {
-    pub fn new(name: &str, msg: MessageField) -> Topic {
-        let node = SPNode::new(name);
-        Topic { node, msg }
-    }
-
-    pub fn msg(&self) -> &MessageField {
-        &self.msg
-    }
-
-    pub fn is_subscriber(&self) -> bool {
-        fn is_sub(f: &MessageField) -> bool {
-            match f {
-                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_sub(m)),
-                MessageField::Var(v) => v.type_ == VariableType::Measured,
-            }
-        }
-        is_sub(&self.msg)
-    }
-
-    pub fn is_publisher(&self) -> bool {
-        fn is_pub(f: &MessageField) -> bool {
-            match f {
-                MessageField::Msg(msg) => msg.fields.iter().all(|m| is_pub(m)),
-                MessageField::Var(v) => v.type_ == VariableType::Command,
-            }
-        }
-        is_pub(&self.msg)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Message {
-    node: SPNode,
-    pub type_: String, // ros type
-    pub fields: Vec<MessageField>,
-}
-
-impl Noder for Message {
-    fn node(&self) -> &SPNode {
-        &self.node
-    }
-    fn node_mut(&mut self) -> &mut SPNode {
-        &mut self.node
-    }
-    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        get_from_list(self.fields.as_slice(), next, path)
-    }
-    fn get_child_mut<'a>(&'a mut self, next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>> {
-        get_from_list_mut(self.fields.as_mut_slice(), next, path)
-    }
-    fn find_item_among_children<'a>(
-        &'a self, name: &str, path_sections: &[&str],
-    ) -> Option<SPItemRef<'a>> {
-        find_item_in_list(self.fields.as_slice(), name, path_sections)
-    }
-    fn find_item_mut_among_children<'a>(
-        &'a mut self, name: &str, path_sections: &[&str],
-    ) -> Option<SPMutItemRef<'a>> {
-        find_item_mut_in_list(self.fields.as_mut_slice(), name, path_sections)
-    }
-    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        update_path_in_list(self.fields.as_mut_slice(), path, changes);
-    }
-    fn rewrite_expressions(&mut self, _mapping: &HashMap<SPPath, SPPath>) {
-        // TODO: variables with expressions in the messages.
-    }
-    fn as_ref(&self) -> SPItemRef<'_> {
-        SPItemRef::Message(self)
-    }
-    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
-        SPMutItemRef::Message(self)
-    }
-}
-
-impl Message {
-    pub fn new(name: &str, type_: &str, fields: &[MessageField]) -> Message {
-        let node = SPNode::new(name);
-        Message {
-            node,
-            type_: type_.to_string(),
-            fields: fields.to_vec(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum MessageField {
-    Msg(Message),
-    Var(Variable),
-}
-
-impl Noder for MessageField {
-    fn node(&self) -> &SPNode {
-        match self {
-            MessageField::Msg(ref x) => x.node(),
-            MessageField::Var(ref x) => x.node(),
-        }
-    }
-    fn node_mut(&mut self) -> &mut SPNode {
-        match self {
-            MessageField::Msg(ref mut x) => x.node_mut(),
-            MessageField::Var(ref mut x) => x.node_mut(),
-        }
-    }
-
-    fn get_child<'a>(&'a self, next: &str, path: &SPPath) -> Option<SPItemRef<'a>> {
-        match self {
-            MessageField::Msg(ref x) => x.get_child(next, path),
-            MessageField::Var(ref x) => x.get_child(next, path),
-        }
-    }
-    fn get_child_mut<'a>(&'a mut self, next: &str, path: &SPPath) -> Option<SPMutItemRef<'a>> {
-        match self {
-            MessageField::Msg(ref mut x) => x.get_child_mut(next, path),
-            MessageField::Var(ref mut x) => x.get_child_mut(next, path),
-        }
-    }
-    fn find_item_among_children<'a>(
-        &'a self, name: &str, path_sections: &[&str],
-    ) -> Option<SPItemRef<'a>> {
-        match self {
-            MessageField::Msg(ref x) => x.find_item(name, path_sections),
-            MessageField::Var(ref x) => x.find_item(name, path_sections),
-        }
-    }
-    fn find_item_mut_among_children<'a>(
-        &'a mut self, name: &str, path_sections: &[&str],
-    ) -> Option<SPMutItemRef<'a>> {
-        match self {
-            MessageField::Msg(ref mut x) => x.find_item_mut(name, path_sections),
-            MessageField::Var(ref mut x) => x.find_item_mut(name, path_sections),
-        }
-    }
-    fn update_path_children(&mut self, path: &SPPath, changes: &mut HashMap<SPPath, SPPath>) {
-        match self {
-            MessageField::Msg(ref mut x) => x.update_path_children(path, changes),
-            MessageField::Var(ref mut x) => x.update_path_children(path, changes),
-        }
-    }
-    fn rewrite_expressions(&mut self, _mapping: &HashMap<SPPath, SPPath>) {
-        // TODO: variables with expressions in the messages.
-    }
-    fn as_ref(&self) -> SPItemRef<'_> {
-        match self {
-            MessageField::Msg(ref x) => x.as_ref(),
-            MessageField::Var(ref x) => x.as_ref(),
-        }
-    }
-    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
-        match self {
-            MessageField::Msg(ref mut x) => x.as_mut_ref(),
-            MessageField::Var(ref mut x) => x.as_mut_ref(),
-        }
-    }
-}
-
-impl Default for MessageField {
+impl Default for MessageCategory {
     fn default() -> Self {
-        MessageField::Var(Variable::default())
+        MessageCategory::OutGoing
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum MessageType {
+    Ros(String),
+    JsonFlat,
+    Json,
+}
+impl Default for MessageType {
+    fn default() -> Self {
+        MessageType::Json
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
+pub struct MessageVariable {
+    pub name: SPPath,
+    pub path: SPPath,
+    pub relative_path: bool,
+}
+
+impl MessageVariable {
+    pub fn new(name: &SPPath, path: &SPPath) -> Self {
+        MessageVariable {
+            name: name.clone(),
+            path: path.clone(),
+            relative_path: true,
+        }
     }
 }
 
@@ -1026,6 +789,12 @@ impl Variable {
     pub fn domain(&self) -> &[SPValue] {
         self.domain.as_slice()
     }
+    pub fn is_predicate(&self) -> bool {
+        match self.variable_type() {
+            VariableType::Predicate(_) => true,
+            _ => false,
+        }
+    }
 }
 
 /// The possible variable types used by operations to define parameters
@@ -1035,7 +804,7 @@ pub enum VariableType {
     Measured,
     Estimated,
     Command,
-    Parameter(Option<SPPath>),
+    Parameter,
     Predicate(Predicate),
 }
 
@@ -1090,7 +859,6 @@ impl Noder for Transition {
         self.actions
             .iter_mut()
             .for_each(|i| i.replace_variable_path(mapping));
-
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Transition(self)
@@ -1145,13 +913,7 @@ impl fmt::Display for Transition {
             TransitionType::Runner => "r",
         };
 
-        let s = format!(
-            "{}_{}: {}/{:?}",
-            k,
-            self.path(),
-            self.guard,
-            self.actions
-        );
+        let s = format!("{}_{}: {}/{:?}", k, self.path(), self.guard, self.actions);
 
         write!(fmtr, "{}", &s)
     }
@@ -1208,8 +970,7 @@ impl Noder for Intention {
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
-    }
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.pre.replace_variable_path(mapping);
         self.post.replace_variable_path(mapping);
@@ -1229,8 +990,10 @@ impl Noder for Intention {
 }
 
 impl Intention {
-    pub fn new(name: &str, resets: bool, pre: &Predicate, post: &Predicate,
-               post_actions: &[Action], invariant: Option<Predicate>) -> Intention {
+    pub fn new(
+        name: &str, resets: bool, pre: &Predicate, post: &Predicate, post_actions: &[Action],
+        invariant: Option<Predicate>,
+    ) -> Intention {
         let node = SPNode::new(name);
 
         Intention {
@@ -1245,7 +1008,13 @@ impl Intention {
 
     pub fn make_goal(&self) -> IfThen {
         let state = self.path();
-        let mut it = IfThen::new("goal", p!(p: state == "e"), self.post.clone(), self.invariant.clone(), None);
+        let mut it = IfThen::new(
+            "goal",
+            p!(p: state == "e"),
+            self.post.clone(),
+            self.invariant.clone(),
+            None,
+        );
         it.node_mut().update_path(self.path());
         it
     }
@@ -1270,7 +1039,7 @@ impl Intention {
             "finish",
             Predicate::AND(vec![p!(p: state == "e"), self.post.clone()]),
             f_actions,
-            TransitionType::Auto
+            TransitionType::Auto,
         );
         runner_finish.node_mut().update_path(self.path());
 
@@ -1335,7 +1104,8 @@ impl Noder for IfThen {
 
 impl IfThen {
     pub fn new(
-        name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>, actions: Option<Vec<Action>>
+        name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>,
+        actions: Option<Vec<Action>>,
     ) -> IfThen {
         let node = SPNode::new(name);
         IfThen {
@@ -1343,7 +1113,7 @@ impl IfThen {
             condition,
             goal,
             invariant,
-            actions
+            actions,
         }
     }
     pub fn condition(&self) -> &Predicate {
@@ -1363,7 +1133,6 @@ impl IfThen {
         self.invariant.as_mut().map(|x| x.upd_state_path(state));
     }
 }
-
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Operation {
@@ -1400,16 +1169,17 @@ impl Noder for Operation {
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
-    }
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.guard.replace_variable_path(mapping);
-        self.effects_goals_actions.iter_mut().for_each(|(e,g,a)| {
+        self.effects_goals_actions.iter_mut().for_each(|(e, g, a)| {
             e.iter_mut().for_each(|e| e.replace_variable_path(mapping));
             g.replace_variable_path(mapping);
             a.iter_mut().for_each(|e| e.replace_variable_path(mapping));
         });
-        self.mc_constraint.as_mut().map(|c| c.replace_variable_path(mapping));
+        self.mc_constraint
+            .as_mut()
+            .map(|c| c.replace_variable_path(mapping));
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Operation(self)
@@ -1420,17 +1190,21 @@ impl Noder for Operation {
 }
 
 impl Operation {
-
-    pub fn new(name: &str, auto: bool, guard: &Predicate,
-               effects_goals_actions: &[(&[Action], &Predicate, &[Action])],
-               mc_constraint: Option<Predicate>) -> Operation {
+    pub fn new(
+        name: &str, auto: bool, guard: &Predicate,
+        effects_goals_actions: &[(&[Action], &Predicate, &[Action])],
+        mc_constraint: Option<Predicate>,
+    ) -> Operation {
         let node = SPNode::new(name);
 
         Operation {
             node,
             auto,
             guard: guard.clone(),
-            effects_goals_actions: effects_goals_actions.iter().map(|(e,p,a)| (e.to_vec(), (*p).clone(), a.to_vec())).collect(),
+            effects_goals_actions: effects_goals_actions
+                .iter()
+                .map(|(e, p, a)| (e.to_vec(), (*p).clone(), a.to_vec()))
+                .collect(),
             mc_constraint,
         }
     }
@@ -1447,8 +1221,7 @@ impl Operation {
                     // the goals of the high level when we are in this state
                     // or any other state from which this state can
                     // uncontrollably be reached. so we also create a spec here
-                    let mut spec = Spec::new("replan_spec",
-                                             Predicate::NOT(Box::new(pre.clone())));
+                    let mut spec = Spec::new("replan_spec", Predicate::NOT(Box::new(pre.clone())));
                     spec.node_mut().update_path(self.path());
                     specs.push(spec);
                 }
@@ -1474,7 +1247,7 @@ impl Operation {
                         TransitionType::Auto
                     } else {
                         TransitionType::Controlled
-                    }
+                    },
                 );
                 t.node_mut().update_path(self.path());
                 trans.push(t);
@@ -1485,10 +1258,12 @@ impl Operation {
 
     pub fn make_runner_transitions(&self) -> Vec<Transition> {
         // auto ops are not actually operations...
-        let is_auto = self.effects_goals_actions.iter()
-            .all(|(_,g,_)| g == &Predicate::TRUE);
+        let is_auto = self
+            .effects_goals_actions
+            .iter()
+            .all(|(_, g, _)| g == &Predicate::TRUE);
         if is_auto {
-            return vec![]
+            return vec![];
         }
 
         let state = self.path();
@@ -1496,7 +1271,7 @@ impl Operation {
             "start",
             Predicate::AND(vec![p!(p: state == "i"), self.guard.clone()]),
             vec![a!(p: state = "e")],
-            TransitionType::Controlled
+            TransitionType::Controlled,
         );
         runner_start.node_mut().update_path(self.path());
 
@@ -1505,7 +1280,7 @@ impl Operation {
             p!(p: state == "e"),
             // note that the missing "goal" is added when running...
             vec![a!(p: state = "i")],
-            TransitionType::Auto
+            TransitionType::Auto,
         );
         runner_finish.node_mut().update_path(self.path());
 
@@ -1513,8 +1288,10 @@ impl Operation {
     }
 
     pub fn make_planning_trans(&self) -> Vec<Transition> {
-        self.effects_goals_actions.iter().enumerate()
-            .map(|(i,(e,g,_))| {
+        self.effects_goals_actions
+            .iter()
+            .enumerate()
+            .map(|(i, (e, g, _))| {
                 let is_auto = g == &Predicate::TRUE;
                 let auto = if is_auto {
                     "_auto".to_string()
@@ -1530,20 +1307,23 @@ impl Operation {
                         TransitionType::Auto
                     } else {
                         TransitionType::Controlled
-                    });
+                    },
+                );
                 t.node_mut().update_path(self.path());
                 t
-            }
-        ).collect()
+            })
+            .collect()
     }
 
     pub fn make_verification_goal(&self) -> Predicate {
-        let goals = Predicate::OR(self.effects_goals_actions.iter()
-                                  .map(|(_,g,_)| (*g).clone())
-                                  .collect());
+        let goals = Predicate::OR(
+            self.effects_goals_actions
+                .iter()
+                .map(|(_, g, _)| (*g).clone())
+                .collect(),
+        );
         Predicate::AND(vec![self.guard.clone(), goals.clone()])
     }
-
 }
 
 /// Specs are used to define global constraints
@@ -1578,8 +1358,7 @@ impl Noder for Spec {
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
-    }
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.invariant.replace_variable_path(mapping);
     }
@@ -1630,8 +1409,7 @@ impl Noder for ProductSpec {
     ) -> Option<SPMutItemRef<'a>> {
         None
     }
-    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {
-    }
+    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
     fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
         self.invariant.replace_variable_path(mapping);
     }

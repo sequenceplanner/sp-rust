@@ -1,8 +1,8 @@
+use super::*;
 /// This module contain a simple model type that we can use for the
 /// formal verification stuff.
 use serde::{Deserialize, Serialize};
 use sp_domain::*;
-use super::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct TransitionSystemModel {
@@ -19,6 +19,7 @@ impl TransitionSystemModel {
             .resources()
             .iter()
             .flat_map(|r| r.get_variables())
+            .filter(|v| !v.is_predicate())
             .collect();
 
         let global_vars: Vec<Variable> = model
@@ -45,19 +46,24 @@ impl TransitionSystemModel {
 
         transitions.retain(|t| match t.type_ {
             TransitionType::Controlled | TransitionType::Auto | TransitionType::Effect => true,
-            _ => false // for now this is just runner transitions but there may be more in the future.
+            _ => false, // for now this is just runner transitions but there may be more in the future.
         });
 
-        let op_trans: Vec<_> =
-            model.find_item("operations",&[])
-            .and_then(|m| m
-                      .as_model()
-                      .map(|m| m
-                           .items().iter().flat_map(|i| match i {
-                               SPItem::Operation(o) => Some(o.make_lowlevel_transitions()),
-                               _ => None,
-                           })
-                           .flatten().collect())).unwrap_or(vec![]);
+        let op_trans: Vec<_> = model
+            .find_item("operations", &[])
+            .and_then(|m| {
+                m.as_model().map(|m| {
+                    m.items()
+                        .iter()
+                        .flat_map(|i| match i {
+                            SPItem::Operation(o) => Some(o.make_lowlevel_transitions()),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect()
+                })
+            })
+            .unwrap_or(vec![]);
 
         transitions.extend(op_trans);
 
@@ -67,7 +73,8 @@ impl TransitionSystemModel {
             .flat_map(|r| r.get_state_predicates())
             .collect();
 
-        let mut specs: Vec<Spec> = model.resources()
+        let mut specs: Vec<Spec> = model
+            .resources()
             .iter()
             .flat_map(|r| r.specs.clone())
             .collect();
@@ -93,19 +100,22 @@ impl TransitionSystemModel {
 
         specs.extend(global_specs);
 
-
         // recursively collect sub-models
-        model.items.iter().flat_map(|i| match i {
-            SPItem::Model(m)
-                if m.name() != "operations" => Some(TransitionSystemModel::from(&m)),
-            _ => None
-        }).for_each(|tsm| {
-            vars.extend(tsm.vars);
-            state_predicates.extend(tsm.state_predicates);
-            transitions.extend(tsm.transitions);
-            specs.extend(tsm.specs);
-        });
-
+        model
+            .items
+            .iter()
+            .flat_map(|i| match i {
+                SPItem::Model(m) if m.name() != "operations" => {
+                    Some(TransitionSystemModel::from(&m))
+                }
+                _ => None,
+            })
+            .for_each(|tsm| {
+                vars.extend(tsm.vars);
+                state_predicates.extend(tsm.state_predicates);
+                transitions.extend(tsm.transitions);
+                specs.extend(tsm.specs);
+            });
 
         // EXPERIMENT:
 
@@ -155,7 +165,7 @@ impl TransitionSystemModel {
             transitions.iter_mut().for_each(|t| {
                 if t.type_ == TransitionType::Controlled {
                     let orig = t.guard().clone();
-                    let new = Predicate::AND(vec![orig, p!(p:auto_path)]);
+                    let new = Predicate::AND(vec![orig, p!(p: auto_path)]);
                     *t.mut_guard() = new;
                 }
             });
@@ -190,26 +200,37 @@ impl TransitionSystemModel {
     }
 
     pub fn from_op(model: &Model) -> Self {
-        let vars: Vec<Variable> =
-            model.find_item("product_state",&[])
-            .and_then(|m| m
-                      .as_model()
-                      .map(|m| m.items.iter().flat_map(|i| match i {
-                          SPItem::Variable(s) => Some(s.clone()),
-                          _ => None,
-                      }).collect())).unwrap_or(vec![]);
+        let vars: Vec<Variable> = model
+            .find_item("product_state", &[])
+            .and_then(|m| {
+                m.as_model().map(|m| {
+                    m.items
+                        .iter()
+                        .flat_map(|i| match i {
+                            SPItem::Variable(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect()
+                })
+            })
+            .unwrap_or(vec![]);
 
-        let transitions: Vec<Transition> =
-            model.find_item("operations",&[])
-            .and_then(|m| m
-                      .as_model()
-                      .map(|m| m
-                           .items().iter().flat_map(|i| match i {
-                               // operations represented by a single transition
-                               SPItem::Operation(o) => Some(o.make_planning_trans()),
-                               _ => None,
-                           })
-                           .flatten().collect())).unwrap_or(vec![]);
+        let transitions: Vec<Transition> = model
+            .find_item("operations", &[])
+            .and_then(|m| {
+                m.as_model().map(|m| {
+                    m.items()
+                        .iter()
+                        .flat_map(|i| match i {
+                            // operations represented by a single transition
+                            SPItem::Operation(o) => Some(o.make_planning_trans()),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect()
+                })
+            })
+            .unwrap_or(vec![]);
 
         let global_specs: Vec<Spec> = model
             .items()
@@ -217,10 +238,10 @@ impl TransitionSystemModel {
             .flat_map(|i| match i {
                 SPItem::ProductSpec(s) => {
                     // convert "product spec" to "spec"
-                    let mut ns = Spec::new(s.name(), s.invariant.clone());
+                    let mut ns = Spec::new(&(s.name()), s.invariant.clone());
                     ns.node_mut().update_path(&s.path().parent());
                     Some(ns)
-                },
+                }
                 _ => None,
             })
             .collect();

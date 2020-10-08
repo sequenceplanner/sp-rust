@@ -2,9 +2,9 @@
 //!
 
 use super::*;
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
-use serde::ser::{SerializeMap};
-use serde::de::{Visitor, MapAccess};
+use serde::de::{MapAccess, Visitor};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -38,8 +38,7 @@ fn deserialize_state_map<'de, D>(deserializer: D) -> Result<HashMap<SPPath, usiz
 where
     D: Deserializer<'de>,
 {
-    struct StateMapVisitor {
-    }
+    struct StateMapVisitor {}
 
     impl<'de> Visitor<'de> for StateMapVisitor {
         type Value = HashMap<SPPath, usize>;
@@ -64,7 +63,7 @@ where
             Ok(map)
         }
     }
-    deserializer.deserialize_map(StateMapVisitor {} )
+    deserializer.deserialize_map(StateMapVisitor {})
 }
 
 // TODO: Maybe check the id?
@@ -127,40 +126,50 @@ impl<'a> StateProjection<'a> {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default, Clone)]
 pub struct SPStateJson(serde_json::Map<String, serde_json::Value>);
 
-
 impl SPStateJson {
     pub fn new(state: HashMap<String, serde_json::Value>) -> Self {
-        let map: serde_json::Map<String, serde_json::Value> = state.into_iter().map(|(k, v)| (k, v)).collect();
+        let map: serde_json::Map<String, serde_json::Value> =
+            state.into_iter().map(|(k, v)| (k, v)).collect();
         SPStateJson(map)
     }
 
-
     pub fn to_state(&self) -> SPState {
-        fn dig(obj: &serde_json::Map<String, serde_json::Value>, path: &SPPath) -> Vec<(SPPath, SPValue)> {
-            obj.iter().flat_map(|(k, v)| {
-                let mut p = SPPath::from_string(&k.replace("_children", ""));
-                p.add_parent_path(path);
-                let spv = SPValue::from_json(v);
-                match spv {
-                    SPValue::Unknown => {
-                        if let serde_json::Value::Object(map) = v {
-                            dig(map, &p)
-                        } else {
-                            vec!((p, SPValue::Unknown))
+        fn dig(
+            obj: &serde_json::Map<String, serde_json::Value>, path: &SPPath,
+        ) -> Vec<(SPPath, SPValue)> {
+            obj.iter()
+                .flat_map(|(k, v)| {
+                    let mut p = if k != &"0".to_string() {
+                        SPPath::from_string(&k)
+                    } else {
+                        SPPath::new()
+                    };
+                    p.add_parent_path_mut(path);
+                    let spv = SPValue::from_json(v);
+                    match spv {
+                        SPValue::Unknown => {
+                            if let serde_json::Value::Object(map) = v {
+                                dig(map, &p)
+                            } else {
+                                vec![(p, SPValue::Unknown)]
+                            }
                         }
+                        x => vec![(p, x)],
                     }
-                    x => vec!((p, x))
-                }
-            }).collect()
+                })
+                .collect()
         }
         let res = dig(&self.0, &SPPath::new());
         SPState::new_from_values(&res)
     }
 
     pub fn from_state_flat(state: &SPState) -> SPStateJson {
-        let state = state.projection().state.iter().map(|(k, v)| {
-            (k.to_string(), v.value().to_json())
-        }).collect();
+        let state = state
+            .projection()
+            .state
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.value().to_json()))
+            .collect();
         SPStateJson(state)
     }
 
@@ -170,7 +179,7 @@ impl SPStateJson {
                 return;
             }
             let root = p.root();
-            let x = xs.get(&root);
+            let x = xs.get(&root).cloned();
             match x {
                 None => {
                     if p.path.len() == 1 {
@@ -180,39 +189,51 @@ impl SPStateJson {
                         insert(&mut map, &p.drop_root(), v);
                         xs.insert(root, serde_json::Value::Object(map));
                     }
-                },
-                Some(obj @ serde_json::Value::Object(_)) => {
-                    if p.path.len() == 1 {
-                        let ch_p = format!("{}_children", root);
-                        let obj = obj.clone();
-                        xs.insert(ch_p, obj);
-                        let x = xs.entry(&root).or_insert(serde_json::Value::Null);
-                        *x = v.to_json();
+                }
+                Some(serde_json::Value::Object(_)) => {
+                    let elm_path = if p.path.len() == 1 {
+                        SPPath::from_string("0")
                     } else {
-                        if let serde_json::Value::Object(map) = xs.entry(&root).or_insert(serde_json::Value::Object(serde_json::Map::new())) {
-                            insert(map, &p.drop_root(), v);
-                        }
-                    }
-                },
-                _ => {
-                    let ch_p = format!("{}_children", root);
-                    println!("NEED A CHILD: {}", ch_p.clone());
-                    let mut ch = xs.entry(&ch_p).or_insert(serde_json::Value::Object(serde_json::Map::new()));
-                    if let serde_json::Value::Object(ref mut map) = ch {
-                        insert(map, &p.drop_root(), v);
+                        p.drop_root()
+                    };
+                    if let serde_json::Value::Object(map) = xs
+                        .entry(&root)
+                        .or_insert(serde_json::Value::Object(serde_json::Map::new()))
+                    {
+                        insert(map, &elm_path, v);
                     }
                 }
-            }
+                Some(x) => {
+                    if p.path.len() == 1 {
+                        panic!("THIS SHOULD NEVER HAPPEN IN SPJSONSTATE {}, {}", p, &x);
+                    }
 
+                    let mut map = serde_json::Map::new();
+                    map.insert("0".to_string(), x.clone());
+                    insert(&mut map, &p.drop_root(), v);
+                    let mut ch = xs
+                        .entry(&root)
+                        .or_insert(serde_json::Value::Object(serde_json::Map::new()));
+                    *ch = serde_json::Value::Object(map);
+                }
+            }
         }
         let mut map = serde_json::Map::new();
-        state.projection().state.into_iter().for_each(|(k, v)| {
+        let mut proj = state.projection();
+        proj.sort();
+        proj.state.into_iter().for_each(|(k, v)| {
             insert(&mut map, k, v.value());
         });
         SPStateJson(map)
     }
 
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap()
+    }
 
+    pub fn from_json(json: serde_json::Value) -> Result<SPStateJson, serde_json::Error> {
+        serde_json::from_value(json)
+    }
 }
 
 /// StateValue includes the current and an optional next and prev value.
@@ -479,10 +500,11 @@ impl SPState {
     pub fn are_new_values_the_same(&self, new_values: &SPState) -> bool {
         new_values.index.iter().all(|(key, i)| {
             let new_value = new_values.values[*i].value();
-            new_value.is_type(SPValueType::Time) ||
-            self.sp_value_from_path(key)
-                .map(|x| x == new_value)
-                .unwrap_or(false)
+            new_value.is_type(SPValueType::Time)
+                || self
+                    .sp_value_from_path(key)
+                    .map(|x| x == new_value)
+                    .unwrap_or(false)
         })
     }
 
@@ -510,7 +532,7 @@ impl SPState {
         let mut xs = HashMap::new();
         for (path, i) in self.index.iter() {
             let mut new_p = path.clone();
-            new_p.add_parent_path(parent);
+            new_p.add_parent_path_mut(parent);
             xs.insert(new_p, *i);
         }
         self.index = xs;
@@ -522,7 +544,7 @@ impl SPState {
         let mut new_index = HashMap::new();
         for (path, i) in &self.index {
             let mut new_key = path.clone();
-            new_key.drop_parent(parent);
+            let _e = new_key.drop_parent(parent);
             new_index.insert(new_key, *i);
         }
         self.index = new_index;
@@ -536,8 +558,8 @@ impl SPState {
     pub fn next(&mut self, state_path: &StatePath, value: SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
             panic!("The state path is wrong: {:?}", state_path);
-            // TODO: Probably try with the path. But for now, we panic to find bugs in the runner.
-            //Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
+        // TODO: Probably try with the path. But for now, we panic to find bugs in the runner.
+        //Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
         } else if !self.values[state_path.index].next(value) {
             Err(SPError::No(
                 "The state already have a next value".to_string(),
@@ -555,7 +577,13 @@ impl SPState {
     }
     pub fn force(&mut self, state_path: &StatePath, value: &SPValue) -> SPResult<()> {
         if !self.check_state_path(state_path) {
-            Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
+            Err(SPError::No(format!(
+                "The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}",
+                state_path.state_id,
+                self.id,
+                self.values.len(),
+                state_path.index
+            )))
         } else {
             self.values[state_path.index].force(value.clone());
             Ok(())
@@ -570,7 +598,13 @@ impl SPState {
     }
     pub fn revert_next(&mut self, state_path: &StatePath) -> SPResult<()> {
         if !self.check_state_path(state_path) {
-            Err(SPError::No(format!("The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}", state_path.state_id,self.id, self.values.len(),state_path.index)))
+            Err(SPError::No(format!(
+                "The state path is not ok: sp_id:{}, s_id:{}, s_len:{}, index:{}",
+                state_path.state_id,
+                self.id,
+                self.values.len(),
+                state_path.index
+            )))
         } else {
             self.values[state_path.index].revert_next();
             Ok(())
@@ -636,10 +670,6 @@ impl SPState {
             Some(other_state)
         }
     }
-
-    pub fn to_state_json(&self) -> SPStateJson {
-        SPStateJson::from_state_flat(self)
-    }
 }
 
 impl fmt::Display for SPState {
@@ -703,11 +733,13 @@ mod sp_value_test {
 
         assert_eq!(s, s2);
 
-        s.add_variable(SPPath::from_string("timer/test"), SPValue::Time(std::time::SystemTime::now()));
+        s.add_variable(
+            SPPath::from_string("timer/test"),
+            SPValue::Time(std::time::SystemTime::now()),
+        );
         s.add_variable(SPPath::from_string("path/test"), SPValue::Path(ac.clone()));
 
-
-        let x = serde_json::to_string_pretty(&s.to_state_json()).unwrap();
+        let x = SPStateJson::from_state_recursive(&s).to_json();
         println!("{}", x);
     }
 
@@ -809,8 +841,14 @@ mod sp_value_test {
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
         let mut s = state!(ab => 2, ac => true, kl => true, abc => false);
-        s.add_variable(SPPath::from_string("timer/test"), SPValue::Time(std::time::SystemTime::now()));
-        s.add_variable(SPPath::from_string("a/b/c/d/e"), SPValue::Time(std::time::SystemTime::now()));
+        s.add_variable(
+            SPPath::from_string("timer/test"),
+            SPValue::Time(std::time::SystemTime::now()),
+        );
+        s.add_variable(
+            SPPath::from_string("a/b/c/d/e"),
+            SPValue::Time(std::time::SystemTime::now()),
+        );
 
         let json_flat = SPStateJson::from_state_flat(&s);
         let json_rec = SPStateJson::from_state_recursive(&s);
@@ -818,7 +856,10 @@ mod sp_value_test {
         let from_flat = json_flat.clone().to_state();
         let from_rec_flat = json_rec.clone().to_state();
 
-        println!("flat: {}", serde_json::to_string_pretty(&json_flat).unwrap());
+        println!(
+            "flat: {}",
+            serde_json::to_string_pretty(&json_flat).unwrap()
+        );
         println!("rec: {}", serde_json::to_string_pretty(&json_rec).unwrap());
 
         println!("from_flat: {}", &from_flat);

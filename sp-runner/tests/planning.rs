@@ -1,37 +1,37 @@
-use serial_test::serial;
-use sp_domain::*;
-use sp_runner::*;
+// use serial_test::serial;
+// use sp_domain::*;
+// use sp_runner::*;
 
-mod test_models;
-use test_models::*;
+// mod test_models;
+// use test_models::*;
 
-// ie guard extraction to satisfy global spec.
-fn basic_model() -> Model {
-    let mut m = Model::new_root("dummy_robot_model", Vec::new());
-    m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
-    m
-}
+// // ie guard extraction to satisfy global spec.
+// fn basic_model() -> Model {
+//     let mut m = Model::new_root("dummy_robot_model", Vec::new());
+//     m.add_item(SPItem::Resource(make_dummy_robot("r1", &["at", "away"])));
+//     m
+// }
 
-fn basic_planning_request(model: &Model, n: u32) -> PlanningResult {
-    let active = model
-        .find_item("active", &["State"])
-        .expect("check spelling")
-        .path();
-    let activate = model
-        .find_item("activate", &["Control"])
-        .expect("check spelling")
-        .path();
-    let goal = p!(p: active);
+// fn basic_planning_request(model: &Model, n: u32) -> PlanningResult {
+//     let active = model
+//         .find_item("active", &["State"])
+//         .expect("check spelling")
+//         .path();
+//     let activate = model
+//         .find_item("activate", &["Control"])
+//         .expect("check spelling")
+//         .path();
+//     let goal = p!(p: active);
 
-    let state = SPState::new_from_values(&[
-        (active.clone(), false.to_spvalue()),
-        (activate.clone(), false.to_spvalue()),
-    ]);
+//     let state = SPState::new_from_values(&[
+//         (active.clone(), false.to_spvalue()),
+//         (activate.clone(), false.to_spvalue()),
+//     ]);
 
-    // requires at least step = 2 to find a plan
-    let ts_model = TransitionSystemModel::from(&model);
-    plan(&ts_model, &vec![(goal, None)], &state, n)
-}
+//     // requires at least step = 2 to find a plan
+//     let ts_model = TransitionSystemModel::from(&model);
+//     plan(&ts_model, &vec![(goal, None)], &state, n)
+// }
 
 // #[test]
 // #[serial]

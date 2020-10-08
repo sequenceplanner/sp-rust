@@ -73,7 +73,11 @@ impl GModel {
         let mut mc = m.clone();
         mc.items.clear();
         let _rp = m.add_item(SPItem::Resource(resource.clone()));
-        let r = self.model.find_item(resource.name(), &[name]).unwrap().unwrap_resource();
+        let r = self
+            .model
+            .find_item(&(resource.name()), &[name])
+            .unwrap()
+            .unwrap_resource();
         let vars = r.get_variables();
         let mut model = self.model.clone();
         model.items.clear();
@@ -100,7 +104,9 @@ impl GModel {
         }
     }
 
-    pub fn add_estimated_domain(&mut self, name: &str, domain: &[SPValue], product: bool) -> SPPath {
+    pub fn add_estimated_domain(
+        &mut self, name: &str, domain: &[SPValue], product: bool,
+    ) -> SPPath {
         let v = Variable::new(
             name,
             VariableType::Estimated,
@@ -128,23 +134,38 @@ impl GModel {
             name,
             guard.clone(),
             actions.to_vec(),
-            TransitionType::Auto,  // auto!
+            TransitionType::Auto, // auto!
         );
         self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(name, guard.clone(), actions.to_vec(), TransitionType::Controlled);
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            actions.to_vec(),
+            TransitionType::Controlled,
+        );
         self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn add_effect(&mut self, name: &str, guard: &Predicate, effects: &[Action]) {
-        let trans = Transition::new(name, guard.clone(), effects.to_vec(), TransitionType::Effect);
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            effects.to_vec(),
+            TransitionType::Effect,
+        );
         self.model.add_item(SPItem::Transition(trans));
     }
 
     pub fn add_runner_transition(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
-        let trans = Transition::new(name, guard.clone(), actions.to_vec(), TransitionType::Runner);
+        let trans = Transition::new(
+            name,
+            guard.clone(),
+            actions.to_vec(),
+            TransitionType::Runner,
+        );
         self.model.add_item(SPItem::Transition(trans));
     }
 
@@ -155,18 +176,21 @@ impl GModel {
             .path()
     }
 
-    pub fn add_op(&mut self, name: &str, guard: &Predicate, effects: &[Action],
-                  goal: &Predicate, post_actions: &[Action], auto: bool,
-                  mc_constraint: Option<Predicate>) -> SPPath {
+    pub fn add_op(
+        &mut self, name: &str, guard: &Predicate, effects: &[Action], goal: &Predicate,
+        post_actions: &[Action], auto: bool, mc_constraint: Option<Predicate>,
+    ) -> SPPath {
         let effects_goals = vec![(effects, goal, post_actions)];
         let op = Operation::new(name, auto, guard, &effects_goals, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
 
     /// Add an operation that models a non-deteministic plant, ie multiple possible outcomes.
-    pub fn add_op_alt(&mut self, name: &str, guard: &Predicate,
-                      effects_goals_actions: &[(&[Action], &Predicate, &[Action])],
-                      auto: bool, mc_constraint: Option<Predicate>) -> SPPath {
+    pub fn add_op_alt(
+        &mut self, name: &str, guard: &Predicate,
+        effects_goals_actions: &[(&[Action], &Predicate, &[Action])], auto: bool,
+        mc_constraint: Option<Predicate>,
+    ) -> SPPath {
         let op = Operation::new(name, auto, guard, effects_goals_actions, mc_constraint);
         self.add_sub_item("operations", SPItem::Operation(op))
     }
@@ -185,8 +209,10 @@ impl GModel {
     }
 
     pub fn add_product_invar(&mut self, name: &str, invariant: &Predicate) {
-        self.model
-            .add_item(SPItem::ProductSpec(ProductSpec::new(name, invariant.clone())));
+        self.model.add_item(SPItem::ProductSpec(ProductSpec::new(
+            name,
+            invariant.clone(),
+        )));
     }
 
     pub fn initial_state(&mut self, state: &[(&SPPath, SPValue)]) {
@@ -201,21 +227,27 @@ impl GModel {
     /// transition will be removed from the model and a new one with
     /// the new name will be added. (we don't send in a new transition
     /// as we want to keep the transition type).
-    pub fn synchronize(&mut self, sync_with: &SPPath, new_name: &str,
-                       guard: Predicate, actions: &[Action]) -> SPPath {
-        let sync_t = self.model
+    pub fn synchronize(
+        &mut self, sync_with: &SPPath, new_name: &str, guard: Predicate, actions: &[Action],
+    ) -> SPPath {
+        let sync_t = self
+            .model
             .get(sync_with)
             .expect(&format!("cannot find transition {}", sync_with));
         if let SPItemRef::Transition(t) = sync_t {
             let mut new_t = t.clone();
             new_t.guard = Predicate::AND(vec![guard, t.guard.clone()]);
             new_t.actions.extend(actions.iter().cloned());
-            new_t.node_mut().update_name(&format!("{}_{}", t.name(), new_name));
+            new_t
+                .node_mut()
+                .update_name(&format!("{}_{}", t.name(), new_name));
             self.synchronized_paths.push(sync_with.clone());
             self.model.add_item(SPItem::Transition(new_t))
         } else {
-            panic!("syncronizing with {}, but {} is not a transition",
-                   sync_with, sync_with);
+            panic!(
+                "syncronizing with {}, but {} is not a transition",
+                sync_with, sync_with
+            );
         }
     }
 
@@ -228,12 +260,18 @@ impl GModel {
         }
 
         // operations start in init
-        let op_state = self.model.all_operations().iter()
+        let op_state = self
+            .model
+            .all_operations()
+            .iter()
             .map(|o| (o.path().clone(), "i".to_spvalue()))
             .collect::<Vec<_>>();
 
         // intentions are initially "paused"
-        let intention_state = self.model.all_intentions().iter()
+        let intention_state = self
+            .model
+            .all_intentions()
+            .iter()
             .map(|i| (i.path().clone(), "paused".to_spvalue()))
             .collect::<Vec<_>>();
 
@@ -250,8 +288,11 @@ impl GModel {
         let root_path = SPPath::from_string(root);
         let m = match self.model.get_mut(&root_path) {
             Some(SPMutItemRef::Model(m)) => m,
-            Some(item) => panic!("trying to add submodel {}, but that path is already a '{}'.",
-                                 root, item.item_type_as_string()),
+            Some(item) => panic!(
+                "trying to add submodel {}, but that path is already a '{}'.",
+                root,
+                item.item_type_as_string()
+            ),
             None => {
                 let temp_model = Model::new(root, vec![]);
                 let temp_model_path = self.model.add_item(SPItem::Model(temp_model));

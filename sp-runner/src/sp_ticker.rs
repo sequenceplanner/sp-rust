@@ -60,10 +60,14 @@ impl SPTicker {
                 // println!("f empty, fired is {:?}", fired);
                 break;
             } else {
-                counter+=1;
+                counter += 1;
                 if counter > 1000 {
                     // there is probably a self loop in the model
-                    let t_names = f.iter().map(|p|p.to_string()).collect::<Vec<_>>().join(",");
+                    let t_names = f
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",");
                     println!("self loop with transitions {}", t_names);
                     panic!("self loop with transitions {}", t_names);
                 }
@@ -175,7 +179,6 @@ impl SPTicker {
                         pr.0, e
                     );
                 }
-                
             }
         })
     }
@@ -194,7 +197,10 @@ impl SPTicker {
                 }
             });
             if SPTicker::check_forbidden(state, forbidden_states) {
-                println!("Transitions {:?} tries to enter a FORBIDDEN STATE: {:?}", ts, state);
+                println!(
+                    "Transitions {:?} tries to enter a FORBIDDEN STATE: {:?}",
+                    ts, state
+                );
                 ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
                     let _res = a.revert_action(state); // reverts the actions by removing next if we are in a forbidden state
                     println!("The transitions {:?} could not be reverted! {:?}", ts, _res);
@@ -233,12 +239,12 @@ mod test_new_ticker {
         let b = a!(p:ab <- p:kl);
         let c = a!(p:xy ? p);
 
-        let t1 = Transition::new("t1", p!(p:ac), vec![a], TransitionType::Auto);
-        let t2 = Transition::new("t2", p!(!p:ac), vec![b], TransitionType::Auto);
+        let t1 = Transition::new("t1", p!(p: ac), vec![a], TransitionType::Auto);
+        let t2 = Transition::new("t2", p!(!p: ac), vec![b], TransitionType::Auto);
         let t3 = Transition::new("t3", Predicate::TRUE, vec![c], TransitionType::Auto);
 
         let sp_pred = s.state_path(&pred).unwrap();
-        let pred_ac = p!(p:ac);
+        let pred_ac = p!(p: ac);
 
         let rp = RunnerPredicate(sp_pred, pred_ac);
 
@@ -260,16 +266,26 @@ mod test_new_ticker {
         let ts = vec![t1.clone(), t2.clone(), t3.clone(), t4.clone(), t5.clone()];
 
         let specs = vec![
-            TransitionSpec::new("s1", Transition::new(
-                "s1", Predicate::TRUE, vec![], TransitionType::Controlled), vec![t1.path().clone()]),
-            TransitionSpec::new("s2", Transition::new(
-                "s2", Predicate::TRUE, vec![], TransitionType::Controlled),
+            TransitionSpec::new(
+                "s1",
+                Transition::new("s1", Predicate::TRUE, vec![], TransitionType::Controlled),
+                vec![t1.path().clone()],
+            ),
+            TransitionSpec::new(
+                "s2",
+                Transition::new("s2", Predicate::TRUE, vec![], TransitionType::Controlled),
                 vec![t2.path().clone(), t3.path().clone()],
             ),
-            TransitionSpec::new("s3", Transition::new(
-                "s3", Predicate::TRUE, vec![], TransitionType::Controlled), vec![t1.path().clone()]),
-            TransitionSpec::new("s4", Transition::new(
-                "s4", Predicate::TRUE, vec![], TransitionType::Controlled), vec![]),
+            TransitionSpec::new(
+                "s3",
+                Transition::new("s3", Predicate::TRUE, vec![], TransitionType::Controlled),
+                vec![t1.path().clone()],
+            ),
+            TransitionSpec::new(
+                "s4",
+                Transition::new("s4", Predicate::TRUE, vec![], TransitionType::Controlled),
+                vec![],
+            ),
         ];
 
         let res = SPTicker::create_transition_map(&ts, &specs, &vec![]);
@@ -282,10 +298,25 @@ mod test_new_ticker {
         assert_eq!(
             res,
             vec!(
-                vec!(&Transition::new("s1", Predicate::TRUE, vec![], TransitionType::Controlled), &t1),
-                vec!(&Transition::new("s2", Predicate::TRUE, vec![], TransitionType::Controlled), &t2, &t3),
-                vec!(&Transition::new("s3", Predicate::TRUE, vec![], TransitionType::Controlled), &t1),
-                vec!(&Transition::new("s4", Predicate::TRUE, vec![], TransitionType::Controlled)),
+                vec!(
+                    &Transition::new("s1", Predicate::TRUE, vec![], TransitionType::Controlled),
+                    &t1
+                ),
+                vec!(
+                    &Transition::new("s2", Predicate::TRUE, vec![], TransitionType::Controlled),
+                    &t2,
+                    &t3
+                ),
+                vec!(
+                    &Transition::new("s3", Predicate::TRUE, vec![], TransitionType::Controlled),
+                    &t1
+                ),
+                vec!(&Transition::new(
+                    "s4",
+                    Predicate::TRUE,
+                    vec![],
+                    TransitionType::Controlled
+                )),
                 vec!(&t4),
                 vec!(&t5),
             )

@@ -8,19 +8,6 @@ mod ros {
         pub resource: SPPath,
         pub time_stamp: std::time::Instant,
     }
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct NodeCmd {
-        pub resource: SPPath,
-        pub mode: String,
-        pub time_stamp: std::time::Instant,
-    }
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct NodeMode {
-        pub resource: SPPath,
-        pub mode: String,
-        pub time_stamp: std::time::Instant,
-        pub echo: SPState,
-    }
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct ROSResource {
@@ -99,27 +86,19 @@ mod ros {
     }
 
     pub fn roscomm_setup_misc(
-        _node: &mut RosNode, _tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
-    ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
+        node: &mut RosNode, tx_in: channel::Sender<SPState>,
+    ) -> Result<channel::Sender<SPState>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
-    pub fn ros_node_comm_setup(
-        _node: &mut RosNode, _model: &Model, _tx_in: channel::Sender<NodeMode>,
-    ) -> Result<channel::Sender<NodeCmd>, Error> {
-        bail!(format_err!("ROS support not compiled in"));
-    }
 
     pub fn ros_resource_comm_setup(
-        _node: &mut RosNode,
-        _tx_to_runner: channel::Sender<ROSResource>,
-        _prefix_path: &SPPath,
+        _node: &mut RosNode, _tx_to_runner: channel::Sender<ROSResource>, _prefix_path: &SPPath,
     ) -> Result<(), Error> {
         bail!(format_err!("ROS support not compiled in"));
     }
 
-    pub fn spin(_node: &mut RosNode) {
-    }
+    pub fn spin(_node: &mut RosNode) {}
 }
 
 #[cfg(feature = "ros")]
@@ -127,11 +106,9 @@ mod ros {
     // the actual mod
     use crossbeam::channel;
     use failure::Error;
+    use std::thread;
 
     use sp_domain::*;
-    use sp_runner_api::*;
-
-    use std::thread;
 
     pub struct RosNode(r2r::Node);
     #[derive(Debug, PartialEq, Clone)]
@@ -139,20 +116,6 @@ mod ros {
         pub state: SPState,
         pub resource: SPPath,
         pub time_stamp: std::time::Instant,
-    }
-
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct NodeCmd {
-        pub resource: SPPath,
-        pub mode: String,
-        pub time_stamp: std::time::Instant,
-    }
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct NodeMode {
-        pub resource: SPPath,
-        pub mode: String,
-        pub time_stamp: std::time::Instant,
-        pub echo: SPState,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -220,103 +183,24 @@ mod ros {
         }}
     }
 
-    fn json_to_state(json: &serde_json::Value, md: &MessageField) -> SPState {
-        fn json_to_state_<'a>(
-            json: &serde_json::Value, md: &'a MessageField, p: &mut Vec<&'a str>,
-            a: &mut Vec<(Vec<&'a str>, SPValue)>,
-        ) {
-            match md {
-                MessageField::Msg(msg) => {
-                    // let path_name = msg.node().name();
-                    // p.push(&path_name); // keep message type in path?
-                    for field in &msg.fields {
-                        if let Some(json_child) = json.get(field.name()) {
-                            p.push(&field.name());
-                            json_to_state_(json_child, field, p, a);
-                            p.pop();
-                        }
-                    }
-                    // p.pop();
-                }
-                MessageField::Var(var) => {
-                    let sp_val = SPValue::from_json_type_hint(json, var.value_type());
-                    a.push((p.clone(), sp_val));
-                }
-            }
-        }
-
-        let mut p = Vec::new();
-        let mut a = Vec::new();
-        json_to_state_(json, md, &mut p, &mut a);
-        let res: Vec<(SPPath, SPValue)> = a
-            .iter()
-            .map(|(path, spval)| (SPPath::from_slice(path), spval.clone()))
-            .collect();
-        SPState::new_from_values(&res)
+    fn json_to_state(
+        json: &serde_json::Value, parent_path: &SPPath,
+    ) -> Result<SPState, serde_json::Error> {
+        let s_json = SPStateJson::from_json(json.clone())?;
+        let mut s = s_json.to_state();
+        s.prefix_paths(parent_path);
+        Ok(s)
     }
 
-    fn state_to_json(state: &SPState, md: &MessageField) -> serde_json::Value {
-        fn state_to_json_<'a>(
-            state: &SPState, md: &'a MessageField, p: &mut Vec<&'a str>,
-        ) -> serde_json::Value {
-            match md {
-                MessageField::Msg(msg) => {
-                    let mut map = serde_json::Map::new();
-                    // let path_name = msg.node().name();
-                    // p.push(&path_name); // keep message type in path?
-                    for field in &msg.fields {
-                        p.push(field.name());
-                        map.insert(field.name().to_string(), state_to_json_(state, field, p));
-                        p.pop();
-                    }
-                    // p.pop();
-                    serde_json::Value::Object(map)
-                }
-                MessageField::Var(_var) => {
-                    if let Some(spval) = state.sp_value_from_path(&SPPath::from_slice(p)) {
-                        // TODO use sp type
-                        let json = spval.to_json(); // , var.variable_data().type_);
-                        json
-                    } else {
-                        // TODO maybe panic here
-                        serde_json::Value::Null
-                    }
-                }
-            }
-        }
-
-        let mut p = Vec::new();
-        state_to_json_(state, md, &mut p)
-    }
-
-    // TODO: Probably use i64 and f64 instead in SPValue
-    use std::convert::TryFrom;
-    fn json_to_sp_value(value: &serde_json::Value) -> SPValue {
-        match value {
-            serde_json::Value::Bool(x) => SPValue::Bool(*x),
-            serde_json::Value::Number(x) if x.is_u64()  => SPValue::Int32(i32::try_from(x.as_u64().unwrap()).unwrap()), // will panic if overflow
-            serde_json::Value::Number(x) if x.is_i64()  => SPValue::Int32(i32::try_from(x.as_i64().unwrap()).unwrap()), // will panic if overflow
-            serde_json::Value::Number(x) if x.is_f64()  => SPValue::Float32(x.as_f64().unwrap() as f32), // will NOT panic if overflow, so may generate wrong result
-            serde_json::Value::String(x) => SPValue::String(x.clone()),
-            serde_json::Value::Array(xs) => {
-                let res: Vec<SPValue> = xs.iter().map(|x| json_to_sp_value(x)).collect();
-                let t = if res.is_empty() {SPValueType::Unknown} else {res.first().unwrap().has_type()};
-                SPValue::Array(t, res)
-            },
-            _ => {
-                println!("Hmm, no ros to SPValue for {:?}", value);
-                SPValue::Unknown
-            },
-        }
-    }
-
-    fn ros_state_to_sp_state(ros_state: &[r2r::sp_messages::msg::State]) -> SPState {
-        let xs: Vec<(SPPath, SPValue)> = ros_state.iter().flat_map(|s| {
-            let s: &r2r::sp_messages::msg::State = s;
-            let v: Option<serde_json::Value> = serde_json::from_str(&s.value_as_json).ok();
-            v.map(|x| (SPPath::from_string(&s.path), json_to_sp_value(&x)))
-        }).collect();
-        SPState::new_from_values(&xs)
+    fn state_to_json(state: &SPState, parent_path: &SPPath, recursive: bool) -> serde_json::Value {
+        let mut s = state.clone();
+        s.unprefix_paths(parent_path);
+        let s_json = if recursive {
+            SPStateJson::from_state_recursive(&s)
+        } else {
+            SPStateJson::from_state_flat(&s)
+        };
+        s_json.to_json()
     }
 
     pub fn start_node() -> Result<RosNode, Error> {
@@ -337,105 +221,175 @@ mod ros {
         let rcs = model.all_resources();
 
         for r in rcs {
-            for t in r.messages() {
-                if let MessageField::Msg(m) = t.msg() {
-                    if t.is_subscriber() {
-                        let topic = t.path().drop_root();
-                        let topic_str = topic.to_string();
+            for m in &r.new_messages {
+                println!("WE HAVE A NEW MESSAGE IN A RESOURCE: {:?}", m);
+                let topic = if m.relative_topic {
+                    r.path().add_child_path(&m.topic).drop_root() // TODO. Change the path of resources so that this is not needed. Or send it in as input?
+                } else {
+                    m.topic.clone()
+                };
+                let topic_message_type = match &m.message_type {
+                    MessageType::Ros(x) => x.clone(),
+                    _ => "std_msgs/msg/String".to_string(),
+                };
+                let topic_str = topic.to_string();
+                let resource_path = r.path().clone();
+                match m.category {
+                    MessageCategory::OutGoing => {
+                        println!("setting up publishing to topic NEW: {}", topic);
 
-                        let tx = tx_in.clone();
-                        let msg_cb = t.msg().clone();
-                        let r_path = r.path().clone();
-                        let cb = move |msg: r2r::Result<serde_json::Value>| {
-                            let json = msg.unwrap();
-                            let mut state = json_to_state(&json, &msg_cb);
-                            state.prefix_paths(&msg_cb.path());
-                            state.add_variable(r_path.clone().add_child("timestamp"), SPValue::Time(std::time::SystemTime::now()));
-                            let time_stamp = std::time::Instant::now();
-                            let m = RosMessage {
-                                state,
-                                resource: r_path.clone(),
-                                time_stamp,
-                            };
+                        let rp = node
+                            .0
+                            .create_publisher_untyped(&topic_str, &topic_message_type)?;
 
-                            tx.send(m).unwrap();
-                        };
-                        println!("setting up subscription to topic: {}", topic);
-                        let _subref =
-                            node.0
-                                .subscribe_untyped(&topic_str, &m.type_, Box::new(cb))?;
-                    } else if t.is_publisher() {
-                        let topic = t.path().drop_root();
-                        let topic_str = topic.to_string();
-                        println!("setting up publishing to topic: {}", topic);
-                        let rp = node.0.create_publisher_untyped(&topic_str, &m.type_)?;
-                        let msg_cb = t.msg().clone();
-                        let cb = move |state: &SPState| {
-                            let local_state = state.sub_state_projection(&msg_cb.path());
-                            if local_state.state.is_empty() {
-                                return;
+                        let m = m.clone();
+                        let cb = move |state: SPState| {
+                            let res: Vec<(SPPath, Option<&SPValue>)> = m.variables.iter().map(|v| {
+                                    let name = v.name.clone();
+                                    let path = resource_path.add_child_path(&v.path.clone());
+                                    let value = state.sp_value_from_path(&path);
+                                    if value.is_none() {
+                                        log_info!("Not in state: Name {}, resource: {}, path: {}, state: {}", &name, &resource_path, &path, SPStateJson::from_state_flat(&state).to_json());
+                                    } 
+                                    (name, value)
+                                }).collect();
+
+                            for (_, y) in res.iter() {
+                                if y.is_none() {
+                                    return;
+                                }
                             }
-                            let mut dropped_local_state = local_state.clone_state();
-                            dropped_local_state.unprefix_paths(&msg_cb.path());
-                            let to_send = state_to_json(&dropped_local_state, &msg_cb);
-                            let res = rp.publish(to_send.clone());
+                            let res: Vec<(SPPath, SPValue)> = res
+                                .into_iter()
+                                .map(|(x, y)| (x, y.unwrap().clone()))
+                                .collect();
+
+                            let msg = match m.message_type {
+                                MessageType::JsonFlat => {
+                                    let json = SPStateJson::from_state_flat(
+                                        &SPState::new_from_values(&res),
+                                    );
+                                    let json = serde_json::to_string(&json).unwrap();
+                                    let mut map = serde_json::Map::new();
+                                    map.insert("data".to_string(), serde_json::Value::String(json));
+                                    serde_json::Value::Object(map)
+                                }
+                                MessageType::Json => {
+                                    let json = SPStateJson::from_state_recursive(
+                                        &SPState::new_from_values(&res),
+                                    );
+                                    let json = serde_json::to_string(&json).unwrap();
+                                    let mut map = serde_json::Map::new();
+                                    map.insert("data".to_string(), serde_json::Value::String(json));
+                                    serde_json::Value::Object(map)
+                                }
+                                MessageType::Ros(_) => {
+                                    let json = SPStateJson::from_state_recursive(
+                                        &SPState::new_from_values(&res),
+                                    );
+                                    serde_json::to_value(&json).unwrap()
+                                }
+                            };
+                            println!("SENDING!!!: {}", &msg);
+                            let res = rp.publish(msg.clone());
                             if res.is_err() {
-                                println!(
-                                    "RosComm not working for {}, error: {:?}",
-                                    &msg_cb.path(),
-                                    res
+                                log_info!(
+                                    "RosComm not working for {}, error: {:?}, msg: {}, state: {}",
+                                    &topic_str,
+                                    res,
+                                    msg,
+                                    SPStateJson::from_state_flat(&state).to_json()
                                 );
-                                println!("RosComm, local state: {}", dropped_local_state);
-                                println!("RosComm, to_send: {:?}", to_send);
-                                println!("");
                             }
                         };
                         ros_pubs.push(cb);
-                    } else {
-                        panic!("topic is neither publisher nor subscriber. check variable types");
                     }
-                } else {
-                    panic!("must have a message under a topic");
+                    MessageCategory::Incoming => {
+                        let tx = tx_in.clone();
+                        let r_path = r.path().clone();
+                        let m = m.clone();
+                        let topic_cb = topic_str.clone();
+                        let cb = move |msg: r2r::Result<serde_json::Value>| {
+                            let json = msg.unwrap();
+                            let json_s = SPStateJson::from_json(json);
+                            if let Err(e) = json_s {
+                                log_info!(
+                                    "Could not convert incoming message on {}, error: {:?}",
+                                    &topic_cb,
+                                    e
+                                );
+                            } else {
+                                let x = json_s.unwrap();
+                                let mut msg_state = x.to_state();
+                                if m.message_type == MessageType::Json
+                                    || m.message_type == MessageType::JsonFlat
+                                {
+                                    msg_state.unprefix_paths(&SPPath::from_string("data"));
+                                }
+
+                                let map: Vec<(SPPath, Option<&SPValue>)> = m
+                                    .variables
+                                    .iter()
+                                    .map(|v| {
+                                        let p = if v.relative_path {
+                                            r_path.add_child_path(&v.path)
+                                        } else {
+                                            v.path.clone()
+                                        };
+                                        let value = msg_state.sp_value_from_path(&v.name);
+                                        if value.is_none() {
+                                            log_info!(
+                                                "Not in msg: Name {}, path: {}, state: {}",
+                                                &v.name,
+                                                &p,
+                                                SPStateJson::from_state_flat(&msg_state).to_json()
+                                            );
+                                        }
+                                        (p, value)
+                                    })
+                                    .collect();
+                                for (x, y) in map.iter() {
+                                    if y.is_none() {
+                                        return;
+                                    }
+                                }
+                                let mut map: Vec<(SPPath, SPValue)> = map
+                                    .into_iter()
+                                    .map(|(x, y)| (x, y.unwrap().clone()))
+                                    .collect();
+
+                                map.push((r_path.add_child("timestamp"), SPValue::now()));
+
+                                let state = SPState::new_from_values(&map);
+                                let time_stamp = std::time::Instant::now();
+                                let m = RosMessage {
+                                    state,
+                                    resource: r_path.clone(),
+                                    time_stamp,
+                                };
+                                println!("INCOMING!!!: {:?}", &m);
+                                tx.send(m).unwrap();
+                            }
+                        };
+                        println!("setting up subscription to topic: {}", topic);
+                        let _subref = node.0.subscribe_untyped(
+                            &topic_str,
+                            &topic_message_type,
+                            Box::new(cb),
+                        )?;
+                    }
                 }
             }
         }
 
-        let topic = "/sp/resources";
-        let path = SPPath::from_string("registered_resources");
-        let rp = node.0.create_publisher::<r2r::sp_messages::msg::Resources>(topic)?;
-        let send_resource_list = move |s: &SPState| {
-            if let Some(SPValue::Array(SPValueType::Path, xs)) = s.sp_value_from_path(&path) {
-                let resources: Vec<String> = xs.iter().map(|x| {
-                    if let SPValue::Path(p) = x {
-                        p.drop_root().to_string()
-                    } else {
-                        x.to_json().to_string()
-                    }
-                }).collect();
-                let msg =  r2r::sp_messages::msg::Resources {
-                    resources
-                };
-                let res = rp.publish(&msg);
-                if res.is_err() {
-                    println!(
-                        "RosComm resources not working for {}, error: {:?}",
-                        &topic,
-                        res
-                    );
-                }
-            }
-
-        };
-
-        let (tx_out, rx_out): (channel::Sender<SPState>, channel::Receiver<SPState>) = channel::unbounded();
+        let (tx_out, rx_out): (channel::Sender<SPState>, channel::Receiver<SPState>) =
+            channel::unbounded();
         thread::spawn(move || loop {
             match rx_out.recv() {
                 Ok(state) => {
                     for rp in &ros_pubs {
-                        (rp)(&state.clone());
+                        (rp)(state.clone());
                     }
-
-                    (send_resource_list)(&state)
                 }
                 Err(e) => {
                     println!("RosComm out did not work: {:?}", e);
@@ -448,78 +402,87 @@ mod ros {
     }
 
     pub fn roscomm_setup_misc(
-        node: &mut RosNode, tx_in: channel::Sender<sp_runner_api::RunnerCommand>,
-    ) -> Result<channel::Sender<sp_runner_api::RunnerInfo>, Error> {
-        let runner_cmd_topic = "sp/runner/command";
+        node: &mut RosNode, tx_in: channel::Sender<SPState>,
+    ) -> Result<channel::Sender<SPState>, Error> {
+        let set_state_topic = format! {"{}/set_state", SP_NODE_NAME};
 
-        let _x = r2r::sp_messages::msg::ForcedGoal {
-            level: "0".to_string(),
-            goal: "".to_string(),
-        };
-
-
-        let cb = {
-            let tx_in = tx_in.clone();
-            move |msg: r2r::sp_messages::msg::RunnerCommand| {
-                let possible_cmd = if msg.set_state {
-                    let state = ros_state_to_sp_state(&msg.state);
-                    Some(RunnerCommand::SetState(state))
-                } else if msg.force_state {
-                    let state = ros_state_to_sp_state(&msg.state);
-                    Some(RunnerCommand::ForceState(state))
-                } else if msg.set_mode{
-                    Some(RunnerCommand::Mode(msg.mode))
-                } else {
-                    // TODO: handle goal
-                    None
-                };
-
-                if let Some(cmd) = possible_cmd {
-                    tx_in.send(cmd).expect("Can not send runner commmands. Threads are dead?");
-                }
+        let tx_in = tx_in.clone();
+        let cb = move |msg: r2r::std_msgs::msg::String| {
+            let json: Result<serde_json::Value, serde_json::Error> =
+                serde_json::from_str(&msg.data);
+            let json_s = json.and_then(|x| SPStateJson::from_json(x));
+            if let Err(e) = json_s {
+                log_info!(
+                    "Could not convert incoming runner command, error: {:?}",
+                    msg
+                );
+            } else {
+                let new_state = json_s.unwrap().to_state();
+                tx_in
+                    .send(new_state)
+                    .expect("Can not send runner commmands. Threads are dead?");
             }
         };
-        println!("setting up subscription to topic: {}", runner_cmd_topic);
-        let _subref = node.0.subscribe(runner_cmd_topic, Box::new(cb))?;
 
-        let runner_info_topic = "sp/runner/info";
-        println!("setting up publishing to topic: {}", runner_info_topic);
+        println!("setting up subscription to topic: {}", set_state_topic);
+        let _subref = node.0.subscribe(&set_state_topic, Box::new(cb))?;
+
+        let state_topic = &format! {"{}/state", SP_NODE_NAME};
+        let state_flat_topic = &format! {"{}/state_flat", SP_NODE_NAME};
+        println!("setting up publishing to topic: {}", state_topic);
         let rp = node
             .0
-            .create_publisher::<r2r::sp_messages::msg::RunnerInfo>(runner_info_topic)?;
-        let info_cb = move |info: sp_runner_api::RunnerInfo| {
-            let mut sorted_state = info.state.projection();
-            sorted_state.sort();
-            let ri = r2r::sp_messages::msg::RunnerInfo {
-                state: sorted_state
-                    .clone_vec_value()
-                    .into_iter()
-                    .map(|(k, v)| {
-                        let s = k.to_string();
+            .create_publisher::<r2r::std_msgs::msg::String>(state_topic)?;
+        let rp_flat = node
+            .0
+            .create_publisher::<r2r::std_msgs::msg::String>(state_flat_topic)?;
 
-                        let val = match v {
-                            SPValue::Path(x) => x.to_string(),
-                            SPValue::Time(x) => format!("elapsed: {}ms", x.elapsed().unwrap_or_default().as_millis()),
-                            x => x.to_json().to_string()
-                        };
-                        r2r::sp_messages::msg::State {
-                            path: s,
-                            value_as_json: val,
+        let info_cb = move |state: &SPState| {
+            let state_json = SPStateJson::from_state_recursive(state);
+            let state_flat = SPStateJson::from_state_flat(state);
+            let json = state_json.to_json().to_string();
+            let json_flat = state_flat.to_json().to_string();
+            let msg = r2r::std_msgs::msg::String { data: json };
+            let msg_flat = r2r::std_msgs::msg::String { data: json_flat };
+            rp.publish(&msg).unwrap();
+            rp_flat.publish(&msg_flat).unwrap();
+        };
+
+        let resource_topic = format! {"{}/resources", SP_NODE_NAME};
+        let path = SPPath::from_string("registered_resources");
+        let rp = node
+            .0
+            .create_publisher::<r2r::sp_messages::msg::Resources>(&resource_topic)?;
+        let send_resource_list = move |s: &SPState| {
+            if let Some(SPValue::Array(SPValueType::Path, xs)) = s.sp_value_from_path(&path) {
+                let resources: Vec<String> = xs
+                    .iter()
+                    .map(|x| {
+                        if let SPValue::Path(p) = x {
+                            p.drop_root().to_string()
+                        } else {
+                            x.to_json().to_string()
                         }
                     })
-                    .collect(),
-                plans: vec![],
-                mode: info.mode,
-                forced_state: vec![],
-                forced_goal: vec![],
-            };
-            rp.publish(&ri).unwrap();
+                    .collect();
+                let msg = r2r::sp_messages::msg::Resources { resources };
+                let res = rp.publish(&msg);
+                if res.is_err() {
+                    println!(
+                        "RosComm resources not working for {}, error: {:?}",
+                        &resource_topic, res
+                    );
+                }
+            }
         };
 
         let (tx_out, rx_out) = channel::unbounded();
         thread::spawn(move || loop {
             match rx_out.recv() {
-                Ok(x) => (info_cb)(x),
+                Ok(x) => {
+                    (info_cb)(&x);
+                    (send_resource_list)(&x);
+                }
                 Err(e) => {
                     println!("RosMisc out did not work: {:?}", e);
                     break;
@@ -530,113 +493,36 @@ mod ros {
         Ok(tx_out)
     }
 
-    pub fn ros_node_comm_setup(
-        node: &mut RosNode, model: &Model, tx_in: channel::Sender<NodeMode>,
-    ) -> Result<channel::Sender<NodeCmd>, Error> {
-        let mut ros_pubs = Vec::new();
-
-        let rcs = model.all_resources();
-
-        for r in rcs {
-            for t in r.messages() {
-                if !t.is_publisher() {
-                    continue;
-                }
-                if let MessageField::Msg(_m) = t.msg() {
-                    let tx = tx_in.clone();
-                    let r_path = r.path().clone();
-                    let cmd_msg = t.msg().clone();
-
-                    let cb = move |msg: r2r::sp_messages::msg::NodeMode| {
-                        let json = serde_json::from_str(&msg.echo);
-                        let echo = json.map_or(SPState::new(), |json| {
-                            let mut cmd_state = json_to_state(&json, &cmd_msg);
-                            cmd_state.prefix_paths(&cmd_msg.path());
-                            cmd_state
-                        });
-
-                        let time_stamp = std::time::Instant::now();
-                        let m = NodeMode {
-                            mode: msg.mode.clone(),
-                            resource: r_path.clone(),
-                            time_stamp,
-                            echo,
-                        };
-
-                        tx.send(m).unwrap();
-                    };
-                    let topic = r.path().drop_root().add_child("mode").to_string();
-                    println!("setting up subscription to resource on topic: {}", topic);
-                    let _subref = node.0.subscribe(&topic, Box::new(cb))?;
-                }
-            }
-
-            // Outgoing
-            let topic = r.path().drop_root().add_child("node_cmd").to_string();
-            let msg_type = "sp_messages/msg/NodeCmd";
-            let r_path = r.path().clone();
-            let rp = node.0.create_publisher_untyped(&topic, msg_type)?;
-            let cb = move |cmd: &NodeCmd| {
-                if cmd.resource == r_path.clone() {
-                    let mut map = serde_json::Map::new();
-                    map.insert(
-                        "mode".to_string(),
-                        serde_json::Value::String(cmd.mode.clone()),
-                    );
-                    let to_send = serde_json::Value::Object(map);
-                    rp.publish(to_send).unwrap();
-                }
-            };
-            ros_pubs.push(cb);
-        }
-
-        let (tx_out, rx_out) = channel::unbounded();
-        thread::spawn(move || loop {
-            match rx_out.recv() {
-                Ok(state) => {
-                    for rp in &ros_pubs {
-                        (rp)(&state);
-                    }
-                }
-                Err(e) => {
-                    println!("RosNodeComm out did not work: {:?}", e);
-                    break;
-                }
-            }
-        });
-
-        Ok(tx_out)
-    }
-
     pub fn ros_resource_comm_setup(
-        node: &mut RosNode,
-        tx_to_runner: channel::Sender<ROSResource>,
-        prefix_path: &SPPath,
+        node: &mut RosNode, tx_to_runner: channel::Sender<ROSResource>, prefix_path: &SPPath,
     ) -> Result<(), Error> {
         let resource_topic = "sp/resource";
         let prefix_path = prefix_path.clone();
 
         let tx_in = tx_to_runner.clone();
         let cb = move |msg: r2r::sp_messages::msg::RegisterResource| {
-                let mut p = SPPath::from_string(&msg.path);
-                p.add_parent_path(&prefix_path);
-                let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
-                let last_goal_from_sp: Result<SPStateJson, _> = serde_json::from_str(&msg.last_goal_from_sp);
-                let last = last_goal_from_sp.map(|x| {
-                    let mut s = x.to_state();
-                    let mut goal_path = p.clone();
-                    goal_path.add_child_path(&SPPath::from_string("goal/0"));
-                    s.prefix_paths(&goal_path);
-                    s
-                });
-                let resource = ROSResource{
-                    path:  p,
-                    model: model.ok(),
-                    last_goal_from_sp: last.ok(),
-                };
+            let mut p = SPPath::from_string(&msg.path);
+            p.add_parent_path_mut(&prefix_path);
+            let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
+            let last_goal_from_sp: Result<SPStateJson, _> =
+                serde_json::from_str(&msg.last_goal_from_sp);
+            println!("GOT A RESOURCE: {:?}, {:?}", &msg, &last_goal_from_sp);
+            let last = last_goal_from_sp.map(|x| {
+                let mut s = x.to_state();
+                let mut goal_path = p.clone();
+                goal_path.add_child_path_mut(&SPPath::from_string("goal"));
+                s.prefix_paths(&goal_path);
+                s
+            });
+            let resource = ROSResource {
+                path: p,
+                model: model.ok(),
+                last_goal_from_sp: last.ok(),
+            };
 
-                tx_in.send(resource).expect("Can not send the ROSResource. Threads are dead?");
-
+            tx_in
+                .send(resource)
+                .expect("Can not send the ROSResource. Threads are dead?");
         };
         println!("setting up subscription to topic: {}", resource_topic);
         let _subref = node.0.subscribe(resource_topic, Box::new(cb))?;
@@ -647,75 +533,6 @@ mod ros {
     #[cfg(test)]
     mod ros_tests {
         use super::*;
-
-        #[test]
-        fn test_json_to_state() {
-            let payload = "hej".to_string();
-            let msg = r2r::std_msgs::msg::String {
-                data: payload.clone(),
-            };
-            let json = serde_json::to_value(msg).unwrap();
-
-            let data = json.get("data");
-            assert!(data.is_some());
-
-            let v = Variable::new(
-                "data",
-                VariableType::Measured,
-                SPValueType::String,
-                Vec::new(),
-            );
-
-            let msg = Message::new(
-                "str".into(),
-                "std_msgs/msg/String".into(),
-                &[MessageField::Var(v)],
-            );
-
-            let msg = MessageField::Msg(msg);
-
-            let s = json_to_state(&json, &msg);
-            assert_eq!(
-                s.sp_value_from_path(&SPPath::from_slice(&["data"])),
-                Some(&SPValue::String(payload.clone()))
-            );
-        }
-
-        #[test]
-        fn test_state_to_json() {
-            let payload = "hej".to_string();
-
-            let mut state = SPState::default();
-            state.add_variable(
-                SPPath::from_slice(&["data"]),
-                SPValue::String(payload.clone()),
-            );
-
-            let v = Variable::new(
-                "data",
-                VariableType::Measured,
-                SPValueType::String,
-                Vec::new(),
-            );
-
-            let msg = Message::new(
-                "str".into(),
-                "std_msgs/msg/String".into(),
-                &[MessageField::Var(v)],
-            );
-
-            let msg = MessageField::Msg(msg);
-
-            //let local_state = state.sub_state_projection(&SPPath::from_slice(&["data"]));
-            //let json = state_to_json(&local_state.clone_state(), &msg);
-            let json = state_to_json(&state, &msg);
-            println!("raw state {:?}", state);
-            println!("raw json {:?}", json);
-
-            let data = json.get("data");
-            assert!(data.is_some());
-            assert_eq!(data, Some(&serde_json::Value::String(payload.clone())));
-        }
     }
 }
 

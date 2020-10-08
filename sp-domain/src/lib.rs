@@ -21,6 +21,9 @@ pub use node::*;
 pub mod items;
 pub use items::*;
 
+pub mod sops;
+pub use sops::*;
+
 use serde::{Deserialize, Serialize};
 use std::error;
 use std::fmt;
@@ -40,7 +43,7 @@ type SPResult<T> = std::result::Result<T, SPError>;
 pub enum SPError {
     No(String),
     Undefined,
-} 
+}
 
 impl fmt::Display for SPError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

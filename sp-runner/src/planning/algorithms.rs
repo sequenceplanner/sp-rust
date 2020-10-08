@@ -1,6 +1,6 @@
+use super::*;
 use sp_domain::*;
 use std::collections::HashSet;
-use super::*;
 
 /// Return a plan that blocks all deliberation transitions.
 pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
@@ -19,7 +19,7 @@ pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
                 &format!("Blocked {}", p),
                 Predicate::FALSE,
                 vec![],
-                TransitionType::Controlled
+                TransitionType::Controlled,
             );
             TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
         })
@@ -79,19 +79,28 @@ pub fn convert_planning_result(
 
             // for transitions that change the value of their parameters, we
             // need to also include setting that value as an action.
-            let taken_t = model.transitions.iter().find(|c| c.path() == &pf.transition)
+            let taken_t = model
+                .transitions
+                .iter()
+                .find(|c| c.path() == &pf.transition)
                 .expect("Model does not match plan");
-            let anys: Vec<_> = taken_t.actions.iter().filter_map(|a| {
-                if a.value == Compute::Any {
-                    // look up what the planner set the value to
-                    let val = pf.state.sp_value_from_path(&a.var)
-                        .expect("Missing state in plan");
-                    let pv = PredicateValue::SPValue(val.clone());
-                    Some(Action::new(a.var.clone(), Compute::PredicateValue(pv)))
-                } else {
-                    None
-                }
-            }).collect();
+            let anys: Vec<_> = taken_t
+                .actions
+                .iter()
+                .filter_map(|a| {
+                    if a.value == Compute::Any {
+                        // look up what the planner set the value to
+                        let val = pf
+                            .state
+                            .sp_value_from_path(&a.var)
+                            .expect("Missing state in plan");
+                        let pv = PredicateValue::SPValue(val.clone());
+                        Some(Action::new(a.var.clone(), Compute::PredicateValue(pv)))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
             let mut actions = vec![a!(p: plan_counter = { i + 1 })];
             actions.extend(anys.clone());
 
@@ -118,10 +127,14 @@ pub fn convert_planning_result(
             let val = if anys.is_empty() {
                 pf.transition.clone().to_string().to_spvalue()
             } else {
-                let any_str = anys.iter().map(|a| a.to_string_short()).collect::<Vec<_>>().join(",");
+                let any_str = anys
+                    .iter()
+                    .map(|a| a.to_string_short())
+                    .collect::<Vec<_>>()
+                    .join(",");
                 format!("{} with {}", pf.transition, any_str).to_spvalue()
             };
-            plan_visualization.push((np,val));
+            plan_visualization.push((np, val));
         }
         cur_state = &pf.state;
     }
@@ -134,7 +147,7 @@ pub fn convert_planning_result(
                 &format!("Blocked {}", p),
                 Predicate::FALSE,
                 vec![],
-                TransitionType::Controlled
+                TransitionType::Controlled,
             );
             TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
         })
@@ -152,9 +165,8 @@ pub fn convert_planning_result(
     (tr, SPState::new_from_values(new_state.as_slice()))
 }
 
-
 pub fn convert_planning_result_with_packing_heuristic(
-    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath
+    model: &TransitionSystemModel, res: &PlanningResult, plan_counter: &SPPath,
 ) -> (Vec<TransitionSpec>, SPState) {
     if !res.plan_found {
         return (block_all(model), SPState::new());
@@ -180,7 +192,11 @@ pub fn convert_planning_result_with_packing_heuristic(
     for x in 1..res.trace.len() {
         let current = &res.trace[x];
         let cur_path = &current.transition;
-        let cur_transition = model.transitions.iter().find(|t| t.path() == cur_path).unwrap();
+        let cur_transition = model
+            .transitions
+            .iter()
+            .find(|t| t.path() == cur_path)
+            .unwrap();
         let mut cur_touches: HashSet<SPPath> = HashSet::new();
         cur_touches.extend(cur_transition.modifies());
         cur_touches.extend(cur_transition.guard().support().iter().cloned());
@@ -198,7 +214,9 @@ pub fn convert_planning_result_with_packing_heuristic(
         let mut highest = 0;
         let mut all_intersections = HashSet::new();
         for y in 0..x {
-            let intersection = cur_touches.intersection(&touches[y]).collect::<HashSet<_>>();
+            let intersection = cur_touches
+                .intersection(&touches[y])
+                .collect::<HashSet<_>>();
             if intersection.len() > 0 {
                 highest = y;
                 println!("intersects with {} {}", y, &res.trace[y].transition);
@@ -206,7 +224,7 @@ pub fn convert_planning_result_with_packing_heuristic(
             all_intersections.extend(intersection);
         }
         all_intersections.iter().for_each(|i| println!("  {}", i));
-        starts.push((x,highest,all_intersections));
+        starts.push((x, highest, all_intersections));
     }
 
     starts.sort_by(|&(x0, y0, _), &(x1, y1, _)| y0.cmp(&y1).then(x0.cmp(&x1)));
@@ -216,13 +234,15 @@ pub fn convert_planning_result_with_packing_heuristic(
     let mut counter = 0;
     for (idx, high_dep, intersections) in starts {
         let current = &res.trace[idx];
-        if !ctrl.contains(&current.transition) { continue; }
+        if !ctrl.contains(&current.transition) {
+            continue;
+        }
         let gc = p!(p: plan_counter == counter);
         let action = vec![a!(p: plan_counter = (counter + 1))];
 
         let guard = if high_dep > 0 {
             // make guard
-            let cur_state = &res.trace[idx-1].state;
+            let cur_state = &res.trace[idx - 1].state;
 
             let mut guards: Vec<Predicate> = cur_state
                 .projection()
@@ -245,13 +265,22 @@ pub fn convert_planning_result_with_packing_heuristic(
         };
 
         println!();
-        println!("{} got a new spec: {}/{}", res.trace[idx].transition, guard, action.iter().map(|a|a.to_string()).collect::<Vec<_>>().join(","));
+        println!(
+            "{} got a new spec: {}/{}",
+            res.trace[idx].transition,
+            guard,
+            action
+                .iter()
+                .map(|a| a.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
 
         let st = Transition::new(
             &format!("hlstep{:?}", idx),
             guard,
             action,
-            TransitionType::Controlled
+            TransitionType::Controlled,
         );
 
         tr.push(TransitionSpec::new(
@@ -260,17 +289,18 @@ pub fn convert_planning_result_with_packing_heuristic(
             vec![res.trace[idx].transition.clone()],
         ));
 
-        counter+=1;
+        counter += 1;
 
         // add counter+transition for ui purposes. we do it after incrementing
         // to make it easier to see where in the plan we are as we increment
         // it as soon as an operation is started.
         let np = plan_counter.clone().add_child(&format!("{:0>2}", counter));
         let val = res.trace[idx].transition.clone().to_string().to_spvalue();
-        plan_visualization.push((np,val));
-    };
+        plan_visualization.push((np, val));
+    }
 
-    let blocked: Vec<TransitionSpec> = model.transitions
+    let blocked: Vec<TransitionSpec> = model
+        .transitions
         .iter()
         .filter(|t| t.type_ == TransitionType::Controlled && !in_plan.contains(t.path()))
         .map(|x| {
@@ -278,7 +308,7 @@ pub fn convert_planning_result_with_packing_heuristic(
                 &format!("Blocked {}", x.path()),
                 Predicate::FALSE,
                 vec![],
-                TransitionType::Controlled
+                TransitionType::Controlled,
             );
             TransitionSpec::new(&format!("Blocked {}", x.path()), t, vec![x.path().clone()])
         })
@@ -326,7 +356,9 @@ fn rebuild_planning_trace(plan: &[Transition], initial: &SPState) -> Vec<Plannin
 
 /// Checks wheter we can reach a goal exactly applying
 /// a list of transitions in their given order
-fn check_goals_exact(s: &SPState, goals: &[&Predicate], plan: &[Transition], ts_model: &TransitionSystemModel) -> bool {
+fn check_goals_exact(
+    s: &SPState, goals: &[&Predicate], plan: &[Transition], ts_model: &TransitionSystemModel,
+) -> bool {
     if goals.iter().all(|g| g.eval(s)) {
         return true;
     }
@@ -370,10 +402,7 @@ fn check_goals_exact(s: &SPState, goals: &[&Predicate], plan: &[Transition], ts_
     return false;
 }
 
-
-pub fn bubble_up_delibs(ts: &TransitionSystemModel,
-                        goals: &[&Predicate],
-                        pr: &mut PlanningResult) {
+pub fn bubble_up_delibs(ts: &TransitionSystemModel, goals: &[&Predicate], pr: &mut PlanningResult) {
     if pr.plan_length <= 2 {
         // check length > 2 because for the heuristic
         // to improve the situation sense we need at
@@ -383,31 +412,46 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
 
     let state = &pr.trace[0].state;
 
-    let plan = pr.trace.iter()
+    let plan = pr
+        .trace
+        .iter()
         .filter(|f| f.transition != SPPath::new())
         .map(|f| {
-            let mut t = ts.transitions.iter().find(|t| t.path() == &f.transition)
-                .expect("Model does not match plan").clone();
+            let mut t = ts
+                .transitions
+                .iter()
+                .find(|t| t.path() == &f.transition)
+                .expect("Model does not match plan")
+                .clone();
             // now we also need to set any free variables, add them as actions to the transition
-            let anys = t.actions.iter().filter_map(|a| {
-                if a.value == Compute::Any {
-                    // look up what the planner set the value to
-                    let val = f.state.sp_value_from_path(&a.var)
-                        .expect("Missing state in plan");
-                    let pv = PredicateValue::SPValue(val.clone());
-                    let a = Action::new(a.var.clone(), Compute::PredicateValue(pv));
-                    println!("UPDATED TRANS {} WITH PARAMETER SELECTION {}", t.path(), a);
-                    Some(a)
-                } else {
-                    None
-                }
-            }).collect::<Vec<_>>();
+            let anys = t
+                .actions
+                .iter()
+                .filter_map(|a| {
+                    if a.value == Compute::Any {
+                        // look up what the planner set the value to
+                        let val = f
+                            .state
+                            .sp_value_from_path(&a.var)
+                            .expect("Missing state in plan");
+                        let pv = PredicateValue::SPValue(val.clone());
+                        let a = Action::new(a.var.clone(), Compute::PredicateValue(pv));
+                        println!("UPDATED TRANS {} WITH PARAMETER SELECTION {}", t.path(), a);
+                        Some(a)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
             t.actions.extend(anys);
             t
         })
         .collect::<Vec<_>>();
 
-    let delib = plan.iter().filter(|t| t.type_ != TransitionType::Effect).collect::<Vec<_>>();
+    let delib = plan
+        .iter()
+        .filter(|t| t.type_ != TransitionType::Effect)
+        .collect::<Vec<_>>();
 
     println!("original plan");
     for t in &plan {
@@ -428,14 +472,21 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
         }
 
         if !delib.contains(&&new_plan[idx]) {
-            println!("not moving {} to {}, this is not delib", new_plan[idx].path(), idx - 1);
+            println!(
+                "not moving {} to {}, this is not delib",
+                new_plan[idx].path(),
+                idx - 1
+            );
             idx += 1;
             continue;
         }
 
         if done_paths.contains(new_plan[idx].path()) {
-            println!("not moving {} to {}, it is already been moved enough",
-                     new_plan[idx].path(), idx - 1);
+            println!(
+                "not moving {} to {}, it is already been moved enough",
+                new_plan[idx].path(),
+                idx - 1
+            );
             idx += 1;
             continue;
         }
@@ -453,7 +504,10 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
         // if the previous transition is auto, the check will fail,
         // but it makes sense to keep searching. see below.
         let prev_auto = p[idx].type_ == TransitionType::Auto;
-        println!("plan takes us to goal? {} (prev auto {})", result, prev_auto);
+        println!(
+            "plan takes us to goal? {} (prev auto {})",
+            result, prev_auto
+        );
 
         // transition is done if we could not move it, or we moved it
         // to the top
@@ -465,10 +519,10 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
             new_plan = p;
             // can only move up to zero
             if idx > 1 {
-                idx-=1;
+                idx -= 1;
             }
         } else {
-            idx+=1;
+            idx += 1;
         }
     }
 
@@ -477,7 +531,6 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel,
         println!("{}", t.path());
     }
     println!("--------");
-
 
     // change original planner result
     let trace = rebuild_planning_trace(&new_plan, &pr.trace[0].state);

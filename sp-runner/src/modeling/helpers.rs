@@ -114,34 +114,24 @@ pub fn build_resource(r: &MResource) -> Resource {
 
     let mut valid_remaps = Vec::new();
 
-    for (mt, t) in out_topics.iter().enumerate() {
-        for (name,_) in &t.vars {
-            let path = SPPath::from_slice(&[
-                r.name.clone(),
-                t.topic.clone(),
-                mt.to_string(),
-                name.clone(),
-            ]);
+    for t in out_topics.iter() {
+        for (name, _) in &t.vars {
+            let path = SPPath::from_slice(&[r.name.clone(), "goal".to_string(), name.clone()]);
             let op = SPPath::from_string(name);
             valid_remaps.push((op, path));
         }
     }
 
-    for (mt, t) in in_topics.iter().enumerate() {
-        for (name,_) in &t.vars {
-            let path = SPPath::from_slice(&[
-                r.name.clone(),
-                t.topic.clone(),
-                mt.to_string(),
-                name.clone(),
-            ]);
+    for t in in_topics.iter() {
+        for (name, _) in &t.vars {
+            let path = SPPath::from_slice(&[r.name.clone(), "measured".to_string(), name.clone()]);
             let op = SPPath::from_string(name);
             valid_remaps.push((op, path));
         }
     }
 
     for t in &estimated_vars {
-        for (name,_) in &t.vars {
+        for (name, _) in &t.vars {
             let op = SPPath::from_string(name);
             let path = SPPath::from_slice(&[r.name.clone(), name.clone()]);
             valid_remaps.push((op, path));
@@ -187,162 +177,140 @@ pub fn build_resource(r: &MResource) -> Resource {
     // using all our fixed stuff, build a new resource
     let mut r = Resource::new(&r.name);
 
-    for (mt, t) in out_topics.iter().enumerate() {
-        let msg = Message::new(
-            &mt.to_string(),
-            &t.ros_type,
-            t.vars
-                .iter()
-                .map(|(name, d)| {
-                    let is_bool = d.domain.is_none();
-                    let var = if is_bool {
-                        MessageField::Var(Variable::new(
-                            name,
-                            VariableType::Command,
-                            SPValueType::Bool,
-                            vec![],
-                        ))
-                    } else {
-                        let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
-                        let sp_val_type = dom[0].has_type();
-                        MessageField::Var(Variable::new(
-                            name,
-                            VariableType::Command,
-                            sp_val_type,
-                            dom,
-                        ))
-                    };
-                    var
-                })
-                .collect::<Vec<_>>()
-                .as_slice(),
-        );
-
-        let topic = Topic::new(&t.topic, MessageField::Msg(msg));
-        r.add_message(topic);
-    }
-
-    for (mt, t) in in_topics.iter().enumerate() {
-        // collect all different set of subtopics
-        let mut subs: Vec<_> = t
+    for t in out_topics.iter() {
+        let vars: Vec<Variable> = t
             .vars
             .iter()
-            .map(|(name, _d)| {
-                let op = SPPath::from_string(name);
-                op.parent()
-            })
-            .collect();
-
-        subs.sort_by(|l, r| {
-            if l.path.len() < r.path.len() {
-                std::cmp::Ordering::Less
-            } else if l.path.len() > r.path.len() {
-                std::cmp::Ordering::Greater
-            } else {
-                std::cmp::Ordering::Equal
-            }
-        });
-        subs.dedup();
-
-        let sub_leafs: HashMap<SPPath, HashMap<String, MessageField>> = subs
-            .iter()
-            .map(|s| {
-                let msg = t
-                    .vars
-                    .iter()
-                    .flat_map(|(name, d)| {
-                        // not on this "level"
-                        let op = SPPath::from_string(name);
-                        let name = op.leaf();
-                        if &op.parent() != s {
-                            None
+            .map(|(name, domain)| {
+                let node_name = format!("goal/{}", name);
+                domain
+                    .domain
+                    .clone()
+                    .and_then(|d| {
+                        if !d.is_empty() {
+                            Some(Variable::new(
+                                &node_name,
+                                VariableType::Command,
+                                d.first().unwrap().has_type(),
+                                d,
+                            ))
                         } else {
-                            let is_bool = d.domain.is_none();
-                            let var = if is_bool {
-                                MessageField::Var(Variable::new(
-                                    &name,
-                                    VariableType::Measured,
-                                    SPValueType::Bool,
-                                    vec![],
-                                ))
-                            } else {
-                                let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
-                                let sp_val_type = dom[0].has_type();
-                                MessageField::Var(Variable::new(
-                                    &name,
-                                    VariableType::Measured,
-                                    sp_val_type,
-                                    dom,
-                                ))
-                            };
-                            Some((name.clone(), var))
+                            None
                         }
                     })
-                    .collect();
-                (s.clone(), msg)
+                    .unwrap_or(Variable::new_boolean(&node_name, VariableType::Command))
             })
             .collect();
 
-        // start from the top, recurse down.
-        let mut children: HashMap<SPPath, HashMap<String, MessageField>> = HashMap::new();
-        while !subs.is_empty() {
-            let current = subs.pop().unwrap();
-            let mut leafs = sub_leafs.get(&current).unwrap_or(&HashMap::new()).clone();
+        let var_map = vars
+            .into_iter()
+            .map(|v| {
+                let map = MessageVariable {
+                    name: v.node().name_path().drop_root(),
+                    path: v.node().name_path().clone(),
+                    relative_path: true,
+                };
+                let v_p = r.add_variable(v);
+                map
+            })
+            .collect();
 
-            // add children of already added
-            let children_to_add = children.get(&current).unwrap_or(&HashMap::new()).clone();
+        let mess_type = if t.ros_type == "json" {
+            MessageType::Json
+        } else if t.ros_type == "flat" {
+            MessageType::JsonFlat
+        } else {
+            MessageType::Ros(t.ros_type.clone())
+        };
 
-            for (k, v) in children_to_add {
-                leafs.insert(k.clone(), v.clone());
-            }
+        let msg = NewMessage {
+            topic: SPPath::from_string(&t.topic),
+            relative_topic: true,
+            category: MessageCategory::OutGoing,
+            message_type: mess_type,
+            variables: var_map,
+        };
 
-            let node = current.leaf();
-            let tt = if node == "" {
-                t.ros_type.clone()
-            } else {
-                "anonymous".to_string()
-            };
-            let leafs: Vec<_> = leafs.into_iter().map(|(_k, v)| v).collect();
-            let nn = if node == "" {
-                mt.to_string()
-            } else {
-                node.clone()
-            };
-            let msg = Message::new(&nn, &tt, leafs.as_slice());
+        r.add_messsage(msg);
+    }
 
-            let parent = current.parent();
+    for t in in_topics.iter() {
+        let vars: Vec<Variable> = t
+            .vars
+            .iter()
+            .map(|(name, domain)| {
+                let node_name = format!("measured/{}", name);
+                domain
+                    .domain
+                    .clone()
+                    .and_then(|d| {
+                        if !d.is_empty() {
+                            Some(Variable::new(
+                                &node_name,
+                                VariableType::Measured,
+                                d.first().unwrap().has_type(),
+                                d,
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(Variable::new_boolean(&node_name, VariableType::Measured))
+            })
+            .collect();
 
-            if node != "" {
-                let mut old = children.get(&parent).unwrap_or(&HashMap::new()).clone();
-                old.insert(node, MessageField::Msg(msg));
-                children.insert(parent, old);
-            } else {
-                let mut hm = HashMap::new();
-                hm.insert(node, MessageField::Msg(msg));
-                // at the root, overwrite instead of add.
-                children.insert(SPPath::new(), hm);
-            }
-        }
+        let var_map = vars
+            .into_iter()
+            .map(|v| {
+                let map = MessageVariable {
+                    name: v.node().name_path().drop_root(),
+                    path: v.node().name_path().clone(),
+                    relative_path: true,
+                };
+                let v_p = r.add_variable(v);
+                map
+            })
+            .collect();
 
-        let msg = children.get(&SPPath::new()).unwrap().clone();
-        let msg = msg.get("").unwrap();
+        let mess_type = if t.ros_type == "json" {
+            MessageType::Json
+        } else if t.ros_type == "flat" {
+            MessageType::JsonFlat
+        } else {
+            MessageType::Ros(t.ros_type.clone())
+        };
 
-        let topic = Topic::new(&t.topic, msg.clone());
+        let msg = NewMessage {
+            topic: SPPath::from_string(&t.topic),
+            relative_topic: true,
+            category: MessageCategory::Incoming,
+            message_type: mess_type,
+            variables: var_map,
+        };
 
-        r.add_message(topic);
+        r.add_messsage(msg);
     }
 
     for t in &estimated_vars {
-        t.vars.iter().for_each(|(name, d)| {
-            let is_bool = d.domain.is_none();
-            let var = if is_bool {
-                Variable::new(name, VariableType::Estimated, SPValueType::Bool, vec![])
-            } else {
-                let dom: Vec<_> = d.domain.clone().unwrap().clone(); // fix
-                let sp_val_type = dom[0].has_type();
-                Variable::new(name, VariableType::Estimated, sp_val_type, dom)
-            };
-            r.add_estimated(var);
+        t.vars.iter().for_each(|(name, domain)| {
+            let node_name = format!("{}", name);
+            let v = domain
+                .domain
+                .clone()
+                .and_then(|d| {
+                    if !d.is_empty() {
+                        Some(Variable::new(
+                            &node_name,
+                            VariableType::Estimated,
+                            d.first().unwrap().has_type(),
+                            d,
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Variable::new_boolean(&node_name, VariableType::Estimated));
+            r.add_variable(v);
         });
     }
 
@@ -350,13 +318,13 @@ pub fn build_resource(r: &MResource) -> Resource {
         r.add_transition(t);
     }
     for p in predicates {
-        r.add_predicate(p);
+        r.add_variable(p);
     }
     for i in invariants {
         r.add_spec(Spec::new(&i.name, i.prop.clone()));
     }
 
-    let temp_model = Model::new_no_root(r.name(), vec![SPItem::Resource(r.clone())]);
+    let temp_model = Model::new_no_root(&r.name(), vec![SPItem::Resource(r.clone())]);
     let temp_ts_model = TransitionSystemModel::from(&temp_model);
     crate::planning::generate_offline_nuxvm(&temp_ts_model, &Predicate::TRUE);
     return r;

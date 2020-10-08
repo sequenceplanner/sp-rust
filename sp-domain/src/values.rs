@@ -12,7 +12,7 @@ pub enum SPValue {
     Float32(f32),
     Int32(i32),
     String(String),
-    Time(std::time::SystemTime), 
+    Time(std::time::SystemTime),
     Path(super::SPPath),
     Array(SPValueType, Vec<SPValue>),
     Unknown,
@@ -102,14 +102,13 @@ impl SPValue {
             SPValueType::Float32 => {
                 (json.as_f64().unwrap_or_else(|| panic!(tm("float"))) as f32).to_spvalue()
             }
-            SPValueType::String => {
-                json
+            SPValueType::String => json
                 .as_str()
                 .unwrap_or_else(|| panic!(tm("string")))
-                .to_spvalue()
-            }
+                .to_spvalue(),
             SPValueType::Time => {
-                let t: std::time::SystemTime = serde_json::from_value(json.clone()).expect(&tm("time"));
+                let t: std::time::SystemTime =
+                    serde_json::from_value(json.clone()).expect(&tm("time"));
                 SPValue::Time(t)
             }
             SPValueType::Path => {
@@ -133,40 +132,41 @@ impl SPValue {
                 let v: Vec<serde_json::Value> = x.iter().map(|spval| spval.to_json()).collect();
                 serde_json::json!(v)
             }
-            SPValue::Unknown => serde_json::json!("[Unknown]"), 
+            SPValue::Unknown => serde_json::json!("[Unknown]"),
         }
     }
 
     pub fn from_json(value: &serde_json::Value) -> SPValue {
         match value {
             serde_json::Value::Array(x) => {
-                let value_type = SPValue::from_json(x.first().unwrap_or(&serde_json::Value::Null)).has_type();
+                let value_type =
+                    SPValue::from_json(x.first().unwrap_or(&serde_json::Value::Null)).has_type();
                 let array = x.iter().map(|v| SPValue::from_json(v)).collect();
                 SPValue::Array(value_type, array)
-            },
-            serde_json::Value::Bool(x) => {
-                SPValue::Bool(x.clone())
             }
+            serde_json::Value::Bool(x) => SPValue::Bool(x.clone()),
             serde_json::Value::Number(x) if x.is_f64() => {
                 SPValue::Float32(x.as_f64().unwrap() as f32)
             }
             serde_json::Value::Number(x) if x.is_i64() => {
                 SPValue::Int32(x.as_i64().unwrap() as i32)
             }
-            serde_json::Value::String(x) => {
-                SPValue::String(x.clone())
-            }
+            serde_json::Value::String(x) => SPValue::String(x.clone()),
             serde_json::Value::Object(_) => {
                 if let Some(p) = serde_json::from_value(value.clone()).ok() {
                     return SPValue::Path(p);
-                } 
+                }
                 if let Some(p) = serde_json::from_value(value.clone()).ok() {
                     return SPValue::Time(p);
-                } 
+                }
                 SPValue::Unknown
             }
-            _ => SPValue::Unknown
+            _ => SPValue::Unknown,
         }
+    }
+
+    pub fn now() -> Self {
+        SPValue::Time(std::time::SystemTime::now())
     }
 }
 

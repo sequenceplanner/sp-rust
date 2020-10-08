@@ -17,10 +17,9 @@ pub enum Predicate {
     NEQ(PredicateValue, PredicateValue),
     TON(PredicateValue, PredicateValue),
     TOFF(PredicateValue, PredicateValue),
-    MEMBER(PredicateValue, PredicateValue)
-    // GT(PredicateValue, PredicateValue),
-    // LT(PredicateValue, PredicateValue),
-    // INDOMAIN(PredicateValue, Vec<PredicateValue>),
+    MEMBER(PredicateValue, PredicateValue), // GT(PredicateValue, PredicateValue),
+                                            // LT(PredicateValue, PredicateValue),
+                                            // INDOMAIN(PredicateValue, Vec<PredicateValue>)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -36,7 +35,6 @@ pub enum PredicateValue {
     SPPath(SPPath, Option<StatePath>),
 }
 
-
 /// Used in actions to compute a new SPValue.
 /// When using delay and fetching a value from another variable, the current value of that
 /// variable will be taken and assigned to the action variable after the delay, and not the
@@ -47,13 +45,13 @@ pub enum Compute {
     Predicate(Predicate), // used for boolean actions
     Function(Vec<(Predicate, PredicateValue)>),
     TimeStamp,
-    Any,                  // Free variable, can take on any value after this action.
-                          // If we need more advanced functions we can add them here
-                          //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
-                          //TakeBefore(SPValue, Vec<SPValue>),
-                          // Add(Box<Compute>, Box<Compute>),
-                          // Sub(Box<Compute>, Box<Compute>),
-                          // Join(Box<Compute>, Box<Compute>),
+    Any, // Free variable, can take on any value after this action.
+         // If we need more advanced functions we can add them here
+         //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
+         //TakeBefore(SPValue, Vec<SPValue>),
+         // Add(Box<Compute>, Box<Compute>),
+         // Sub(Box<Compute>, Box<Compute>),
+         // Join(Box<Compute>, Box<Compute>),
 }
 
 impl<'a> PredicateValue {
@@ -128,7 +126,7 @@ impl fmt::Display for PredicateValue {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PredicateValue::SPValue(v) => write!(fmtr, "{}", v),
-            PredicateValue::SPPath(p, _) => write!(fmtr, "{}", p)
+            PredicateValue::SPPath(p, _) => write!(fmtr, "{}", p),
         }
     }
 }
@@ -148,20 +146,16 @@ impl fmt::Display for Predicate {
             Predicate::NOT(p) => format!("!({})", p),
             Predicate::TRUE => "TRUE".into(),
             Predicate::FALSE => "FALSE".into(),
-            Predicate::EQ(x, y) => {
-                format!("{} = {}", x, y)
-            }
-            Predicate::NEQ(x, y) => {
-                format!("{} != {}", x, y)
-            }
+            Predicate::EQ(x, y) => format!("{} = {}", x, y),
+            Predicate::NEQ(x, y) => format!("{} != {}", x, y),
             Predicate::TON(t, d) => {
-                format!{"TON(t:{} d:{})", t, d}
+                format! {"TON(t:{} d:{})", t, d}
             }
             Predicate::TOFF(t, d) => {
-                format!{"TOFF(t:{} d:{})", t, d}
+                format! {"TOFF(t:{} d:{})", t, d}
             }
             Predicate::MEMBER(t, d) => {
-                format!{"is {} a member of {}?", t, d}
+                format! {"is {} a member of {}?", t, d}
             }
         };
 
@@ -182,13 +176,16 @@ impl Predicate {
 
     pub fn upd_state_path(&mut self, state: &SPState) {
         match self {
-            Predicate::AND(x) | Predicate::OR(x) | 
-            Predicate::XOR(x) => x.iter_mut().for_each(|p| p.upd_state_path(state)),
+            Predicate::AND(x) | Predicate::OR(x) | Predicate::XOR(x) => {
+                x.iter_mut().for_each(|p| p.upd_state_path(state))
+            }
             Predicate::NOT(x) => x.upd_state_path(state),
             Predicate::TRUE | Predicate::FALSE => {}
-            Predicate::EQ(x, y) | Predicate::NEQ(x, y) | 
-            Predicate::TON(x, y) | Predicate::TOFF(x, y) |
-            Predicate::MEMBER(x, y) => {
+            Predicate::EQ(x, y)
+            | Predicate::NEQ(x, y)
+            | Predicate::TON(x, y)
+            | Predicate::TOFF(x, y)
+            | Predicate::MEMBER(x, y) => {
                 x.upd_state_path(state);
                 y.upd_state_path(state);
             }
@@ -204,9 +201,11 @@ impl Predicate {
                 b.replace_variable_path(mapping);
             }
             Predicate::TRUE | Predicate::FALSE => {}
-            Predicate::EQ(pv1, pv2) | Predicate::NEQ(pv1, pv2) | 
-            Predicate::TON(pv1, pv2) | Predicate::TOFF(pv1, pv2) | 
-            Predicate::MEMBER(pv1, pv2) => {
+            Predicate::EQ(pv1, pv2)
+            | Predicate::NEQ(pv1, pv2)
+            | Predicate::TON(pv1, pv2)
+            | Predicate::TOFF(pv1, pv2)
+            | Predicate::MEMBER(pv1, pv2) => {
                 pv1.replace_variable_path(mapping);
                 pv2.replace_variable_path(mapping);
             }
@@ -219,12 +218,14 @@ impl Predicate {
         match &self {
             Predicate::AND(x) | Predicate::OR(x) | Predicate::XOR(x) => {
                 s.extend(x.iter().flat_map(|p| p.support()))
-            },
+            }
             Predicate::NOT(x) => s.extend(x.support()),
             Predicate::TRUE | Predicate::FALSE => {}
-            Predicate::EQ(x, y) | Predicate::NEQ(x, y) |
-            Predicate::TON(x, y) | Predicate::TOFF(x, y) |
-            Predicate::MEMBER(x, y) => {
+            Predicate::EQ(x, y)
+            | Predicate::NEQ(x, y)
+            | Predicate::TON(x, y)
+            | Predicate::TOFF(x, y)
+            | Predicate::MEMBER(x, y) => {
                 if let PredicateValue::SPPath(p, _) = x {
                     s.push(p.clone())
                 }
@@ -232,7 +233,6 @@ impl Predicate {
                     s.push(p.clone())
                 }
             }
-            
         };
         s.sort();
         s.dedup();
@@ -275,17 +275,17 @@ impl Predicate {
                     Some(Predicate::XOR(new))
                 }
             }
-            Predicate::NOT(x) => {
-                match x.keep_only(only) {
-                    Some(x) => Some(Predicate::NOT(Box::new(x))),
-                    None => None,
-                }
+            Predicate::NOT(x) => match x.keep_only(only) {
+                Some(x) => Some(Predicate::NOT(Box::new(x))),
+                None => None,
             },
             Predicate::TRUE => Some(Predicate::TRUE),
             Predicate::FALSE => Some(Predicate::FALSE),
-            Predicate::EQ(x, y) | Predicate::NEQ(x, y) | 
-            Predicate::TON(x, y) | Predicate::TOFF(x, y) |
-            Predicate::MEMBER(x, y) => {
+            Predicate::EQ(x, y)
+            | Predicate::NEQ(x, y)
+            | Predicate::TON(x, y)
+            | Predicate::TOFF(x, y)
+            | Predicate::MEMBER(x, y) => {
                 let remove_x = match x {
                     PredicateValue::SPValue(_) => false,
                     PredicateValue::SPPath(p, _) => !only.contains(p),
@@ -352,22 +352,31 @@ impl Action {
 
     pub fn to_predicate(&self) -> Option<Predicate> {
         match &self.value {
-            Compute::PredicateValue(p) =>
-                Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None), p.clone())),
-            _ => None
+            Compute::PredicateValue(p) => Some(Predicate::EQ(
+                PredicateValue::SPPath(self.var.clone(), None),
+                p.clone(),
+            )),
+            _ => None,
         }
     }
 
     pub fn to_concrete_predicate(&self, state: &SPState) -> Option<Predicate> {
         match &self.value {
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
-                let pv = state.state_value_from_path(p).expect("no such value in the state").current_value();
-                Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None),
-                                   PredicateValue::SPValue(pv.clone())))
-            },
-            Compute::PredicateValue(p) =>
-                Some(Predicate::EQ(PredicateValue::SPPath(self.var.clone(), None), p.clone())),
-            _ => None
+                let pv = state
+                    .state_value_from_path(p)
+                    .expect("no such value in the state")
+                    .current_value();
+                Some(Predicate::EQ(
+                    PredicateValue::SPPath(self.var.clone(), None),
+                    PredicateValue::SPValue(pv.clone()),
+                ))
+            }
+            Compute::PredicateValue(p) => Some(Predicate::EQ(
+                PredicateValue::SPPath(self.var.clone(), None),
+                p.clone(),
+            )),
+            _ => None,
         }
     }
 
@@ -376,11 +385,9 @@ impl Action {
             Compute::PredicateValue(PredicateValue::SPValue(v)) => v.to_string(),
             Compute::PredicateValue(PredicateValue::SPPath(p, _)) => p.to_string(),
             Compute::Predicate(p) => p.to_string(),
-            Compute::Function(xs) => {
-                xs.iter().fold(String::default(), |mut acc, (p, v)| {
-                    format!("{}[if {} then {}]", acc, p, v)
-                })
-            },
+            Compute::Function(xs) => xs.iter().fold(String::default(), |mut acc, (p, v)| {
+                format!("{}[if {} then {}]", acc, p, v)
+            }),
             Compute::Any => "?".to_string(),
             Compute::TimeStamp => "T".to_string(),
         }
@@ -446,19 +453,25 @@ impl EvaluatePredicate for Predicate {
                 if let (Some(a), Some(b)) = (a, b) {
                     a == b
                 } else {
-                    eprintln!("ERROR: eval in predicate EQ: path {} or {} not found in\n{}", lp, rp, state);
+                    eprintln!(
+                        "ERROR: eval in predicate EQ: path {} or {} not found in\n{}",
+                        lp, rp, state
+                    );
                     false
-                }                
-            },
+                }
+            }
             Predicate::NEQ(lp, rp) => {
                 let a = lp.sp_value(state);
                 let b = rp.sp_value(state);
                 if let (Some(a), Some(b)) = (a, b) {
                     a != b
                 } else {
-                    eprintln!("ERROR: eval in predicate NEQ: path {} or {} not found in\n{}", lp, rp, state);
+                    eprintln!(
+                        "ERROR: eval in predicate NEQ: path {} or {} not found in\n{}",
+                        lp, rp, state
+                    );
                     false
-                }  
+                }
             }
             Predicate::TON(lp, rp) => {
                 if let (Some(t), Some(d)) = (lp.sp_value(state), rp.sp_value(state)) {
@@ -470,15 +483,17 @@ impl EvaluatePredicate for Predicate {
                             _ => 0,
                         };
                         current_duration.as_millis() > delay.abs() as u128
-    
                     } else {
                         eprintln!("TON must point to a timestamp, and not: {:?} i", t);
                         false
                     }
                 } else {
-                    eprintln!("ERROR: eval in predicate TON: path {} or {} not found in\n{}", lp, rp, state);
+                    eprintln!(
+                        "ERROR: eval in predicate TON: path {} or {} not found in\n{}",
+                        lp, rp, state
+                    );
                     false
-                } 
+                }
             }
             Predicate::TOFF(lp, rp) => {
                 if let (Some(t), Some(d)) = (lp.sp_value(state), rp.sp_value(state)) {
@@ -495,9 +510,12 @@ impl EvaluatePredicate for Predicate {
                         false
                     }
                 } else {
-                    eprintln!("ERROR: eval in predicate TON: path {} or {} not found in\n{}", lp, rp, state);
+                    eprintln!(
+                        "ERROR: eval in predicate TON: path {} or {} not found in\n{}",
+                        lp, rp, state
+                    );
                     false
-                } 
+                }
             }
             Predicate::MEMBER(lp, rp) => {
                 if let (Some(v), Some(xs)) = (lp.sp_value(state), rp.sp_value(state)) {
@@ -508,14 +526,15 @@ impl EvaluatePredicate for Predicate {
                         false
                     }
                 } else {
-                    eprintln!("ERROR: eval in predicate MEMBER: path {} or {} not found in\n{}", lp, rp, state);
+                    eprintln!(
+                        "ERROR: eval in predicate MEMBER: path {} or {} not found in\n{}",
+                        lp, rp, state
+                    );
                     false
-                } 
-            }
-
-            // Predicate::GT(lp, rp) => {}
-            // Predicate::LT(lp, rp) => {}
-            // Predicate::INDOMAIN(value, domain) => {}
+                }
+            } // Predicate::GT(lp, rp) => {}
+              // Predicate::LT(lp, rp) => {}
+              // Predicate::INDOMAIN(value, domain) => {}
         }
     }
 }
@@ -539,18 +558,17 @@ impl NextAction for Action {
             Compute::Predicate(p) => {
                 let res = p.eval(state);
                 Some(res.to_spvalue())
-            },
+            }
             Compute::Function(xs) => {
-                let res = xs.iter().find(|(p, _)| p.eval(state)).map(|(_, v)| v.sp_value(state)).flatten();
+                let res = xs
+                    .iter()
+                    .find(|(p, _)| p.eval(state))
+                    .map(|(_, v)| v.sp_value(state))
+                    .flatten();
                 match res {
-                    Some(x) => {
-                        Some(x.clone())
-                    },
+                    Some(x) => Some(x.clone()),
                     None => {
-                        eprintln!(
-                            "No predicates in the action Function was true: {:?}",
-                            self
-                        );
+                        eprintln!("No predicates in the action Function was true: {:?}", self);
                         return Err(SPError::No(format!(
                             "No predicates in the action Function was true: {:?}",
                             self
@@ -864,25 +882,35 @@ mod sp_value_test {
         let kl = SPPath::from_slice(&["k", "l"]);
 
         let p1 = format!("p:{} && p:{} && p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string(&p1).unwrap(),
-                   p!( [ p:ab] && [p:ac] && [p:kl ]));
+        assert_eq!(
+            Predicate::from_string(&p1).unwrap(),
+            p!([p: ab] && [p: ac] && [p: kl])
+        );
 
         let p1 = format!("(!p:{}) && p:{} && p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string(&p1).unwrap(),
-                   p!( [ !p:ab] && [p:ac] && [p:kl ]));
+        assert_eq!(
+            Predicate::from_string(&p1).unwrap(),
+            p!([!p: ab] && [p: ac] && [p: kl])
+        );
 
         let p1 = format!("(!p:{}) && p:{} || p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string(&p1).unwrap(),
-                   p!( [[ !p:ab] && [p:ac]] || [p:kl ]));
+        assert_eq!(
+            Predicate::from_string(&p1).unwrap(),
+            p!([[!p: ab] && [p: ac]] || [p: kl])
+        );
 
         let p1 = format!("(!p:{}) && p:{} -> p:{}", ab, ac, kl);
-        assert_eq!(Predicate::from_string(&p1).unwrap(),
-                   p!( [[ !p:ab] && [p:ac]] => [p:kl ]));
+        assert_eq!(
+            Predicate::from_string(&p1).unwrap(),
+            p!( [[ !p:ab] && [p:ac]] => [p:kl ])
+        );
 
         // samve expr as above but with whitespaces interspersed
         let p1 = format!(" ( ( ! p: {} ) && p: {} ) -> ( p:{} ) ", ab, ac, kl);
-        assert_eq!(Predicate::from_string(&p1).unwrap(),
-                   p!( [[ !p:ab] && [p:ac]] => [p:kl ]));
+        assert_eq!(
+            Predicate::from_string(&p1).unwrap(),
+            p!( [[ !p:ab] && [p:ac]] => [p:kl ])
+        );
     }
 
     #[test]
@@ -891,15 +919,14 @@ mod sp_value_test {
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
 
-        p!( [ p:ab] && [p:ac] && [p:kl ]);
-        p!( [ !p:ab] && [p:ac] && [p:kl ]);
-        p!( [[ !p:ab] && [p:ac]] || [p:kl ]);
+        p!([p: ab] && [p: ac] && [p: kl]);
+        p!([!p: ab] && [p: ac] && [p: kl]);
+        p!([[!p: ab] && [p: ac]] || [p: kl]);
         p!( [[ !p:ab] && [p:ac]] => [p:kl ]);
         p!( [[ !p:ab] && [p:ac]] => [p:kl ]);
 
         let p = p!(TON(t:ab d:ac));
         println!("{}", p);
-
     }
 
     #[test]
@@ -1021,7 +1048,6 @@ mod sp_value_test {
         assert!(!a.eval(&s));
     }
 
-
     #[test]
     fn ton_toff_predicate_testing() {
         let ab = SPPath::from_slice(&["a", "b"]);
@@ -1031,21 +1057,26 @@ mod sp_value_test {
 
         let mut s = state!(ab => 2, ac => true, kl => now);
 
-        let p1 = Predicate::TON(PredicateValue::path(kl.clone()), PredicateValue::SPValue(10.to_spvalue()));
-        let p2 = Predicate::TOFF(PredicateValue::path(kl), PredicateValue::SPValue(10.to_spvalue()));
-        
+        let p1 = Predicate::TON(
+            PredicateValue::path(kl.clone()),
+            PredicateValue::SPValue(10.to_spvalue()),
+        );
+        let p2 = Predicate::TOFF(
+            PredicateValue::path(kl),
+            PredicateValue::SPValue(10.to_spvalue()),
+        );
+
         println!("TON before: {}", p1.eval(&s));
         assert!(!p1.eval(&s));
         println!("TOFF before: {}", p2.eval(&s));
         assert!(p2.eval(&s));
-        
+
         std::thread::sleep(std::time::Duration::from_millis(20));
-        
+
         println!("TON after: {}", p1.eval(&s));
         assert!(p1.eval(&s));
         println!("TOFF after: {}", p2.eval(&s));
         assert!(!p2.eval(&s));
-
     }
 
     #[test]
@@ -1054,44 +1085,59 @@ mod sp_value_test {
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
         let m = SPPath::from_slice(&["m"]);
-        let xs = SPValue::Array(SPValueType::Int32, vec!(1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue(), 4.to_spvalue()));
-        let xs2 = SPValue::Array(SPValueType::Int32, vec!(1.to_spvalue(), 2.to_spvalue(), 3.to_spvalue(), 4.to_spvalue()));
-        let xs3 = SPValue::Array(SPValueType::Int32, vec!(ab.to_spvalue(), ac.to_spvalue()));
-
+        let xs = SPValue::Array(
+            SPValueType::Int32,
+            vec![
+                1.to_spvalue(),
+                2.to_spvalue(),
+                3.to_spvalue(),
+                4.to_spvalue(),
+            ],
+        );
+        let xs2 = SPValue::Array(
+            SPValueType::Int32,
+            vec![
+                1.to_spvalue(),
+                2.to_spvalue(),
+                3.to_spvalue(),
+                4.to_spvalue(),
+            ],
+        );
+        let xs3 = SPValue::Array(SPValueType::Int32, vec![ab.to_spvalue(), ac.to_spvalue()]);
 
         let mut s = state!(ab => 2, ac => 20);
         s.add_variable(kl.clone(), xs);
         s.add_variable(m.clone(), xs3.clone());
 
         let p1 = Predicate::MEMBER(
-            PredicateValue::path(ab.clone()), 
-            PredicateValue::path(kl.clone()), 
+            PredicateValue::path(ab.clone()),
+            PredicateValue::path(kl.clone()),
         );
         let p2 = Predicate::MEMBER(
-            PredicateValue::path(ac.clone()), 
-            PredicateValue::path(kl.clone()), 
+            PredicateValue::path(ac.clone()),
+            PredicateValue::path(kl.clone()),
         );
         let p3 = Predicate::MEMBER(
-            PredicateValue::value(3.to_spvalue()), 
-            PredicateValue::path(kl.clone()), 
+            PredicateValue::value(3.to_spvalue()),
+            PredicateValue::path(kl.clone()),
         );
         let p4 = Predicate::MEMBER(
-            PredicateValue::value(3.to_spvalue()), 
-            PredicateValue::value(xs2.clone()), 
+            PredicateValue::value(3.to_spvalue()),
+            PredicateValue::value(xs2.clone()),
         );
         let p5 = Predicate::MEMBER(
-            PredicateValue::value(30.to_spvalue()), 
-            PredicateValue::value(xs2), 
+            PredicateValue::value(30.to_spvalue()),
+            PredicateValue::value(xs2),
         );
         let p6 = Predicate::MEMBER(
-            PredicateValue::value(ab.to_spvalue()), 
+            PredicateValue::value(ab.to_spvalue()),
             PredicateValue::path(m.clone()),
         );
         let p7 = Predicate::MEMBER(
-            PredicateValue::value(kl.to_spvalue()), 
-            PredicateValue::value(xs3), 
+            PredicateValue::value(kl.to_spvalue()),
+            PredicateValue::value(xs3),
         );
-        
+
         println!("MEMBER predicate: {}", p1);
         assert!(p1.eval(&s));
         println!("MEMBER predicate: {}", p2);
@@ -1106,7 +1152,6 @@ mod sp_value_test {
         assert!(p6.eval(&s));
         println!("MEMBER predicate: {}", p7);
         assert!(!p7.eval(&s));
-        
     }
 
     #[test]
@@ -1120,16 +1165,19 @@ mod sp_value_test {
 
         let a = Action::new(kl.clone(), Compute::TimeStamp);
 
-        let p1 = Predicate::TON(PredicateValue::path(kl.clone()), PredicateValue::SPValue(10.to_spvalue()));
-        
+        let p1 = Predicate::TON(
+            PredicateValue::path(kl.clone()),
+            PredicateValue::SPValue(10.to_spvalue()),
+        );
+
         println!("TON before: {}", p1.eval(&s));
         assert!(!p1.eval(&s));
-        
+
         std::thread::sleep(std::time::Duration::from_millis(20));
-        
+
         println!("TON after: {}", p1.eval(&s));
         assert!(p1.eval(&s));
-        
+
         a.next(&mut s).unwrap();
         println!("TON after action: {}", p1.eval(&s));
         assert!(!p1.eval(&s));
@@ -1144,27 +1192,34 @@ mod sp_value_test {
         let mut s = state!(ab => true, ac => false, kl => false);
         let p1 = p!(p: ab);
         let p2 = p!(p: ac);
-        
-        let a = Action::new(kl.clone(), Compute::Function(
-            vec!(
+
+        let a = Action::new(
+            kl.clone(),
+            Compute::Function(vec![
                 (p1.clone(), PredicateValue::value("hej".to_spvalue())),
                 (p2.clone(), PredicateValue::value("då".to_spvalue())),
-            )
-        ));
-        let a2 = Action::new(ab.clone(), Compute::PredicateValue(PredicateValue::value(false.to_spvalue())));
-        let a3 = Action::new(ac.clone(), Compute::PredicateValue(PredicateValue::value(true.to_spvalue())));
+            ]),
+        );
+        let a2 = Action::new(
+            ab.clone(),
+            Compute::PredicateValue(PredicateValue::value(false.to_spvalue())),
+        );
+        let a3 = Action::new(
+            ac.clone(),
+            Compute::PredicateValue(PredicateValue::value(true.to_spvalue())),
+        );
 
-        println!{"{}", &s};
+        println! {"{}", &s};
         println!();
         a.next(&mut s).unwrap();
         s.take_transition();
-        println!{"{}", s};
+        println! {"{}", s};
         println!();
         assert!(s.sp_value_from_path(&kl.clone()).unwrap() == &"hej".to_spvalue());
-        
+
         a2.next(&mut s).unwrap();
         s.take_transition();
-        println!{"{}", s};
+        println! {"{}", s};
         println!();
 
         let e = a.next(&mut s);
@@ -1173,11 +1228,8 @@ mod sp_value_test {
         a3.next(&mut s).unwrap();
         a.next(&mut s).unwrap();
         s.take_transition();
-        println!{"{}", s};
+        println! {"{}", s};
         println!();
         assert!(s.sp_value_from_path(&kl.clone()).unwrap() == &"då".to_spvalue());
-        
-
- 
     }
 }
