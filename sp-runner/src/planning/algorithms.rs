@@ -192,15 +192,19 @@ pub fn convert_planning_result_with_packing_heuristic(
     for x in 1..res.trace.len() {
         let current = &res.trace[x];
         let cur_path = &current.transition;
-        let cur_transition = model
+        if let Some(cur_transition) = model
             .transitions
             .iter()
             .find(|t| t.path() == cur_path)
-            .unwrap();
-        let mut cur_touches: HashSet<SPPath> = HashSet::new();
-        cur_touches.extend(cur_transition.modifies());
-        cur_touches.extend(cur_transition.guard().support().iter().cloned());
-        touches.push(cur_touches);
+            .as_ref()
+        {
+            let mut cur_touches: HashSet<SPPath> = HashSet::new();
+            cur_touches.extend(cur_transition.modifies());
+            cur_touches.extend(cur_transition.guard().support().iter().cloned());
+            touches.push(cur_touches);
+        } else {
+            touches.push(HashSet::new());
+        }
     }
 
     let mut starts = Vec::new();
