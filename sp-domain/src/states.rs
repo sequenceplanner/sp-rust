@@ -661,7 +661,9 @@ impl SPState {
     pub fn try_extend(&mut self, other_state: SPState) -> Option<SPState> {
         let can_extend = other_state.projection().state.iter().all(|(p, v)| {
             let self_v = self.sp_value_from_path(p);
-            self_v.map(|x| x == v.value()).unwrap_or(true)
+            // MD 2021-01-06: hack to update the timestamps when merging.
+            // TODO: This fix should be local to the merger.
+            p.leaf() == "timestamp" || self_v.map(|x| x == v.value()).unwrap_or(true)
         });
         if can_extend {
             self.extend(other_state);
