@@ -248,9 +248,9 @@ mod ros {
                                     let name = v.name.clone();
                                     let path = resource_path.add_child_path(&v.path.clone());
                                     let value = state.sp_value_from_path(&path);
-                                    if value.is_none() {
-                                        log_info!("Not in state: Name {}, resource: {}, path: {}, state: {}", &name, &resource_path, &path, SPStateJson::from_state_flat(&state).to_json());
-                                    } 
+                                    // if value.is_none() {
+                                    //     log_info!("Not in state: Name {}, resource: {}, path: {}, state: {}", &name, &resource_path, &path, SPStateJson::from_state_flat(&state).to_json());
+                                    // }
                                     (name, value)
                                 }).collect();
 
@@ -290,7 +290,6 @@ mod ros {
                                     serde_json::to_value(&json).unwrap()
                                 }
                             };
-                            println!("SENDING!!!: {}", &msg);
                             let res = rp.publish(msg.clone());
                             if res.is_err() {
                                 log_info!(
@@ -367,7 +366,6 @@ mod ros {
                                     resource: r_path.clone(),
                                     time_stamp,
                                 };
-                                println!("INCOMING!!!: {:?}", &m);
                                 tx.send(m).unwrap();
                             }
                         };
