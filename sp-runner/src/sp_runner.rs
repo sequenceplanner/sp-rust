@@ -269,9 +269,12 @@ impl SPRunner {
                 // fast, but it saves us from the issue descibed
                 // above. worst case we waste some time here but but
                 // it should be faster than replanning anyway.
+                //
+                // actually this becomes quite expensive... for now just replan
 
-                return self.check_goals_complete(s, &goals, plan, ts_model);
-                // return false; // think about how we want to do it...
+                println!("NOT CHECKING GOALS COMPLETE, replan instead.");
+                // return self.check_goals_complete(s, &goals, plan, ts_model);
+                return false; // think about how we want to do it...
             }
         }
     }
