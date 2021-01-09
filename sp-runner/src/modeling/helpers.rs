@@ -314,7 +314,10 @@ pub fn build_resource(r: &MResource) -> Resource {
         });
     }
 
-    for t in transitions {
+    let resource_path = r.path().clone();
+    let guard: Predicate = p!(p: resource_path);
+    for mut t in transitions {
+        t.guard = Predicate::AND(vec![guard.clone(), t.guard]);
         r.add_transition(t);
     }
     for p in predicates {

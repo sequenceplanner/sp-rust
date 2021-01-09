@@ -210,7 +210,7 @@ fn runner(
             // send out runner info.
             let mut runner_modes = vec![];
             if disabled_states {
-                runner_modes.push("waiting".to_spvalue());
+                runner_modes.push("resource(s) offline".to_spvalue());
             }
             if bad_state {
                 runner_modes.push("bad state".to_spvalue());
@@ -228,7 +228,7 @@ fn runner(
 
             if disabled_states {
                 println!("still waiting... do nothing");
-                continue;
+                // continue;
             }
 
             if !bad_state {

@@ -22,6 +22,12 @@ impl TransitionSystemModel {
             .filter(|v| !v.is_predicate())
             .collect();
 
+        model.resources().iter().for_each(|r| {
+            let resource_active = Variable::new_boolean(&r.path().to_string(),
+                                                        VariableType::Estimated);
+            vars.push(resource_active);
+        });
+
         let global_vars: Vec<Variable> = model
             .items()
             .iter()
