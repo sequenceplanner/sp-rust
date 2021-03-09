@@ -99,9 +99,23 @@ pub fn plan_with_cache(
             now.elapsed().as_millis()
         );
         return plan.clone();
+    } else {
+        println!(
+            "Did not use cached plan! Current plan count {}, hit% {}, lookup time {} ms",
+            store.cache.len(),
+            ((100 * store.hits) / store.lookups),
+            now.elapsed().as_millis()
+        );
     }
 
-    let result = plan(model, goals, state, max_steps);
+    let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
+    if result.plan_found {
+        // assert_eq!(result.plan_length, result2.plan_length);
+        println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
+        println!("we have a plan of length {}", result.plan_length);
+        println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+        // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
+    }
     store.cache.insert(key, result.clone());
     println!(
         "Added new state/goal pair to plan store. Current plan count {}",
@@ -155,6 +169,7 @@ pub fn plan(
 
     if result.plan_found {
         // assert_eq!(result.plan_length, result2.plan_length);
+        println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
         println!("we have a plan of length {}", result.plan_length);
         println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
         // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());

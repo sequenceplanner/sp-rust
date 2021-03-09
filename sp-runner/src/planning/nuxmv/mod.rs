@@ -273,6 +273,8 @@ pub fn plan_async(
                 }]
             });
 
+            println!("async_result: {} {}", trace.len()-1, duration.as_millis());
+
             PlanningResult {
                 plan_found,
                 plan_length: trace.len() as u32 - 1, // hack :)
@@ -428,6 +430,13 @@ pub fn plan_async_with_cache(
                 now.elapsed().as_millis()
             );
             return plan;
+        }  else {
+            println!(
+                "Did not use cached async plan! Current plan count {}, hit% {}, lookup time {} ms",
+                store.cache.len(),
+                ((100 * store.hits) / store.lookups),
+                now.elapsed().as_millis()
+            );
         }
     }
 
@@ -533,7 +542,7 @@ fn create_offline_nuxmv_problem(model: &TransitionSystemModel, initial: &Predica
     lines
 }
 
-fn create_nuxmv_problem(
+pub fn create_nuxmv_problem(
     model: &TransitionSystemModel, goal_invs: &[(Predicate, Option<Predicate>)], state: &SPState,
 ) -> String {
     let mut lines = make_base_problem(model);

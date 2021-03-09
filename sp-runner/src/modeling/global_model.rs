@@ -139,14 +139,14 @@ impl GModel {
         self.model.add_item(SPItem::Transition(trans));
     }
 
-    pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
+    pub fn add_delib(&mut self, name: &str, guard: &Predicate, actions: &[Action]) -> SPPath {
         let trans = Transition::new(
             name,
             guard.clone(),
             actions.to_vec(),
             TransitionType::Controlled,
         );
-        self.model.add_item(SPItem::Transition(trans));
+        self.model.add_item(SPItem::Transition(trans))
     }
 
     pub fn add_effect(&mut self, name: &str, guard: &Predicate, effects: &[Action]) {

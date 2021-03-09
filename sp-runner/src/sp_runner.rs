@@ -467,6 +467,15 @@ impl SPRunner {
 
                 goal_invs.retain(|(g, _)| !g.eval(&state));
                 if goal_invs.is_empty() {
+
+                    let invar = goal_invs
+                        .iter()
+                        .all(|(_, i)| i.as_ref().map(|i| i.eval(&state)).unwrap_or(true));
+                    if !invar {
+                        println!("breaks invariant final step");
+                        return false;
+                    }
+
                     return true;
                 } else if !state_changed {
                     break;
@@ -780,7 +789,7 @@ impl SPRunner {
             );
             let toff = Predicate::TOFF(
                 PredicateValue::path(r.clone().add_child("timestamp")),
-                PredicateValue::SPValue(SPValue::Int32(5000)),
+                PredicateValue::SPValue(SPValue::Int32(10000)),
             ); // Hardcoded 5 seconds
             let enabled_pred = Predicate::AND(vec![is_member.clone(), toff.clone()]);
             let enabled = enabled_pred.eval(&self.ticker.state);

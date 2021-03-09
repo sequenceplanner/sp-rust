@@ -189,14 +189,22 @@ impl TransitionSystemModel {
 
         // MD 2020-09-04: Removed guard extraction completely.
         let mut new_specs = Vec::new();
+        let mut longest_refining = std::time::Duration::default();
         for s in &ts_model.specs {
             println!("refining invariant {}", s.path());
+            let now = std::time::Instant::now();
             let ri = refine_invariant(&ts_model, s.invariant());
+            let dur = now.elapsed();
+            if dur > longest_refining {
+                longest_refining = dur;
+            }
             let mut ns = s.clone();
             ns.invariant = ri;
             new_specs.push(ns);
         }
         ts_model.specs = new_specs;
+
+        println!("LONGEST_REFINEMENT_TIME: {}ms", longest_refining.as_millis());
 
         ts_model
     }
