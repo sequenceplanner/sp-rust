@@ -507,19 +507,15 @@ pub fn bubble_up_delibs(ts: &TransitionSystemModel, goals: &[&Predicate], pr: &m
         let result = check_goals_exact(state, goals, &p, &ts);
         // if the previous transition is auto, the check will fail,
         // but it makes sense to keep searching. see below.
-        let prev_auto = p[idx].type_ == TransitionType::Auto;
-        println!(
-            "plan takes us to goal? {} (prev auto {})",
-            result, prev_auto
-        );
+        println!("plan takes us to goal? {}", result);
 
         // transition is done if we could not move it, or we moved it
         // to the top
-        if (!result && !prev_auto) || (result && idx == 1) {
+        if (!result) || (result && idx == 1) {
             done_paths.insert(path);
         }
 
-        if result || prev_auto {
+        if result {
             new_plan = p;
             // can only move up to zero
             if idx > 1 {
