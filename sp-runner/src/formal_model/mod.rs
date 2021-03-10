@@ -247,56 +247,6 @@ impl FormalContext {
             }
         }
     }
-
-    pub fn sat_clause_to_spstate(&self, values: &[guard_extraction::Value]) -> SPState {
-        let mut state = SPState::new();
-        values.iter().enumerate().for_each(|(i, v)| {
-            let var = self
-                .var_map
-                .values()
-                .find(|(idx, _)| idx == &i)
-                .unwrap()
-                .1
-                .clone();
-            let val = match v {
-                Value::Bool(b) => SPValue::Bool(*b),
-                Value::InDomain(vid) => var.domain()[*vid].clone(),
-                _ => panic!("cannot happen"),
-            };
-
-            state.add_variable(var.path().clone(), val);
-        });
-        state
-    }
-}
-
-pub fn extract_guards(
-    model: &TransitionSystemModel, initial: &Predicate,
-) -> (HashMap<String, Predicate>, Predicate) {
-    let c = FormalContext::from(model);
-
-    // pull out all specs.
-    let forbidden = Ex::OR(
-        model
-            .specs
-            .iter()
-            .map(|s| {
-                // forbidden = not always
-                Ex::NOT(Box::new(c.sp_pred_to_ex(s.invariant())))
-            })
-            .collect(),
-    );
-
-    let initial = c.sp_pred_to_ex(&initial);
-
-    let (ng, supervisor) = c.context.compute_guards(&initial, &forbidden);
-
-    let ng = ng
-        .into_iter()
-        .map(|(n, e)| (n, c.ex_to_sp_pred(&e)))
-        .collect();
-    let supervisor = c.ex_to_sp_pred(&supervisor);
-    (ng, supervisor)
 }
 
 use std::collections::HashSet;
@@ -308,7 +258,7 @@ fn modified_by(t: &Transition) -> HashSet<SPPath> {
     r
 }
 
-pub fn support_flatten_predicates(p: &Predicate, preds: &[Variable]) -> Vec<SPPath> {
+fn support_flatten_predicates(p: &Predicate, preds: &[Variable]) -> Vec<SPPath> {
     let mut flattened: Vec<SPPath> = p
         .support()
         .iter()
@@ -402,22 +352,6 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
     c.ex_to_sp_pred(&new_invariant)
 }
 
-pub fn extend_forward(model: &TransitionSystemModel, pred: &Predicate) -> Predicate {
-    let mut model = model.clone();
-
-    // only look at the uncontrollable transitions.
-    model
-        .transitions
-        .retain(|t| t.type_ != TransitionType::Controlled);
-
-    let c = FormalContext::from(&model);
-
-    // forbidden = all states NOT conforming to the invariant
-    let pred = c.sp_pred_to_ex(pred);
-    let pred = c.context.extend_forward(&pred);
-    c.ex_to_sp_pred(&pred)
-}
-
 pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
     let mut model = model.clone();
     model.transitions.clear(); // dont need these
@@ -429,20 +363,6 @@ pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
     let ex = c.sp_pred_to_ex(p);
     let ex = c.context.cycle_expression(&ex);
     c.ex_to_sp_pred(&ex)
-}
-
-pub fn update_guards(ts_model: &mut TransitionSystemModel, ng: &HashMap<String, Predicate>) {
-    ts_model
-        .transitions
-        .iter_mut()
-        .for_each(|ot| match ng.get(&ot.path().to_string()) {
-            Some(nt) => {
-                println!("UPDATING GUARD FOR TRANS {}:", ot.path());
-                println!("{}", nt);
-                *ot.mut_guard() = Predicate::AND(vec![ot.guard().clone(), nt.clone()]);
-            }
-            None => {}
-        });
 }
 
 #[cfg(test)]

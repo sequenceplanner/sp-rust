@@ -30,11 +30,6 @@ pub trait Planner {
 mod nuxmv;
 pub use nuxmv::*;
 
-#[cfg(feature = "sat_planner")]
-mod sat_planner;
-#[cfg(feature = "sat_planner")]
-pub use sat_planner::*;
-
 mod algorithms;
 pub use algorithms::*;
 
@@ -114,7 +109,6 @@ pub fn plan_with_cache(
         println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
         println!("we have a plan of length {}", result.plan_length);
         println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
-        // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
     }
     store.cache.insert(key, result.clone());
     println!(
@@ -147,7 +141,6 @@ pub fn plan(
         .collect();
 
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
-    // let result2 = SatPlanner::plan(model, &goals, state, max_steps);
 
     // for f in &result.trace {
     //     println!("==========================");
@@ -157,22 +150,11 @@ pub fn plan(
 
     // }
 
-    // for f in &result2.trace {
-    //     println!("==========================");
-    //     println!("{}", f.transition);
-    //     println!("==========================");
-    //     println!("{}", f.state);
-
-    // }
-
-    // assert_eq!(result.plan_found, result2.plan_found);
-
     if result.plan_found {
         // assert_eq!(result.plan_length, result2.plan_length);
         println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
         println!("we have a plan of length {}", result.plan_length);
         println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
-        // println!("satplanner time: {}ms", result2.time_to_solve.as_millis());
     }
 
     result
