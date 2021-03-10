@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 const LVL0_MAX_STEPS: u32 = 25;
 const LVL1_MAX_STEPS: u32 = 40;
 const LVL1_CUTOFF: u32 = 20;
-const LVL1_LOOKOUT: f32 = 0.75;
+const LVL1_LOOKOUT: f32 = 1.25;
 const LVL1_MAX_TIME: Duration = Duration::from_secs(5);
 
 pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Error> {
@@ -92,6 +92,7 @@ fn runner(
         let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
             &runner.transition_system_models[1],
         )));
+        let mut store = planning::PlanningStore::default();
         // let timer = Instant::now();
 
         let mut bad_state = false;
@@ -232,7 +233,9 @@ fn runner(
             }
 
             if !bad_state {
-                let bad: Vec<_> = runner.transition_system_models[0]
+                let mut temp_ts = runner.transition_system_models[0].clone();
+                temp_ts.specs.extend(runner.transition_system_models[1].specs.iter().cloned());
+                let bad: Vec<_> = temp_ts
                     .specs
                     .iter()
                     .filter_map(|s| {
@@ -256,7 +259,7 @@ fn runner(
                         .map(|b| (b.invariant().clone(), None))
                         .collect::<Vec<_>>();
                     let pr =
-                        planning::plan(&temp_ts, goals.as_slice(), runner.state(), LVL0_MAX_STEPS);
+                        planning::plan_with_cache(&temp_ts, goals.as_slice(), runner.state(), LVL0_MAX_STEPS, &mut store);
 
                     let plan = pr
                         .trace
@@ -307,7 +310,7 @@ fn runner(
                 disabled_operations.retain(|p: &SPPath| {
                     let e = "error".to_spvalue();
                     let os = runner.state().sp_value_from_path(p).unwrap_or(&e);
-                    println!("CHECKING {} {}", p, os);
+                    println!("CHECKING OPERATION {} {}", p, os);
                     if os != &e {
                         // user manually reset the operation
                         something_was_fixed = true;
@@ -328,11 +331,18 @@ fn runner(
                         .expect("no goal on disabled op");
                     let goal = vec![(goal.clone(), None)];
 
-                    let pr = planning::plan(
-                        &runner.transition_system_models[0],
+                    let mut ts = runner.transition_system_models[0].clone();
+                    let removed: Vec<SPPath> = runner.state().sub_state_projection(&SPPath::from_string("effects"))
+                        .state.into_iter().filter(|(_k,v)|
+                                                  v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
+                    ts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
+
+                    let pr = planning::plan_with_cache(
+                        &ts,
                         goal.as_slice(),
                         runner.state(),
                         LVL0_MAX_STEPS,
+                        &mut store
                     );
 
                     if !pr.plan_found {
@@ -477,7 +487,7 @@ fn runner(
                 } || {
                     let now = std::time::Instant::now();
 
-                    //println!("TS {} CHECKING GOALS", i);
+                    println!("TS {} CHECKING GOALS", i);
 
                     let ok = if i == 1 {
                         runner.check_goals_op_model(
@@ -487,11 +497,15 @@ fn runner(
                             &runner.transition_system_models[i],
                         )
                     } else {
+                        let mut tsm = runner.transition_system_models[i].clone();
+                        let removed: Vec<SPPath> = runner.state().sub_state_projection(&SPPath::from_string("effects")).state.into_iter().filter(|(_k,v)|
+                            v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
+                        tsm.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
                         runner.check_goals_fast(
                             runner.state(),
                             &gr,
                             &runner.plans[i],
-                            &runner.transition_system_models[i],
+                            &tsm,
                         )
                     };
 
@@ -592,10 +606,15 @@ fn runner(
                             }
 
                             // skip heuristic for the low level (cannot use cache if we dont serialize the extra invariants)
-                            planning::plan(&tts, &goals, runner.state(), LVL0_MAX_STEPS)
+
+                            let removed: Vec<SPPath> = runner.state().sub_state_projection(&SPPath::from_string("effects")).state.into_iter().filter(|(_k,v)|
+                            v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
+                            tts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
+
+                            planning::plan_with_cache(&tts, &goals, runner.state(), LVL0_MAX_STEPS, &mut store)
                         } else {
                             // skip heuristic for the low level
-                            planning::plan(ts, &goals, runner.state(), 2 * LVL0_MAX_STEPS)
+                            planning::plan_with_cache(ts, &goals, runner.state(), 2 * LVL0_MAX_STEPS, &mut store)
                         };
 
                         planning::bubble_up_delibs(ts, &gr, &mut pr);
@@ -644,7 +663,7 @@ fn runner(
                         planning::convert_planning_result(&ts, &planner_result, &plan_p)
                     };
 
-                    let trans = planner_result
+                    let trans: Vec<_> = planner_result
                         .trace
                         .iter()
                         .filter_map(|f| {
@@ -675,11 +694,21 @@ fn runner(
                                 continue;
                             }
                             let goal = vec![(goal.clone(), None)];
-                            let pr = planning::plan(
+
+
+                            let mut ts = ts.clone();
+                            let removed: Vec<SPPath> = runner.state().sub_state_projection(&SPPath::from_string("effects"))
+                                .state.into_iter().filter(|(_k,v)|
+                                                          v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
+                            ts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
+
+
+                            let pr = planning::plan_with_cache(
                                 &ts,
                                 goal.as_slice(),
                                 runner.state(),
                                 LVL0_MAX_STEPS,
+                                &mut store
                             );
                             if !pr.plan_found {
                                 println!("offending low level operation: {}", op_path);
@@ -734,6 +763,7 @@ fn runner(
                             }
                         }
                     }
+
 
                     let plan = SPPlan {
                         plan: tr,
@@ -1095,6 +1125,7 @@ pub fn make_new_runner(
         .collect();
 
     let mut trans = vec![];
+    trans.extend(runner_transitions);
     let mut restrict_controllable = vec![];
     let mut restrict_op_controllable = vec![];
     let false_trans = Transition::new(
@@ -1165,7 +1196,7 @@ pub fn make_new_runner(
         global_hl_goals,
         vec![],
         vec![],
-        vec![ts_model, ts_model_op],
+        vec![ts_model.clone(), ts_model_op],
         model
             .all_resources()
             .iter()
@@ -1206,6 +1237,16 @@ pub fn make_new_runner(
     let mono = SPPath::from_slice(&["runner", "planner", "monotonic"]);
     let monotonic_initially_on = SPState::new_from_values(&[(mono, true.to_spvalue())]);
     runner.update_state_variables(monotonic_initially_on);
+
+    // experiment with timeout on effects...
+    ts_model.transitions.iter().for_each(|t| {
+        if t.type_ == TransitionType::Effect {
+            let path = t.path().add_parent("effects");
+            let effect_enabled = SPState::new_from_values(&[(path, true.to_spvalue())]);
+            runner.update_state_variables(effect_enabled);
+        }
+    });
+
 
     runner
 }
