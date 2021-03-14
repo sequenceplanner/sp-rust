@@ -129,6 +129,12 @@ impl GModel {
         }
     }
 
+    pub fn add_timestamp_variable(&mut self, name: &str) -> SPPath {
+        let v = Variable::new(name, VariableType::Runner, SPValueType::Time, vec![]);
+        self.model.add_item(SPItem::Variable(v))
+    }
+
+
     pub fn add_auto(&mut self, name: &str, guard: &Predicate, actions: &[Action]) {
         let trans = Transition::new(
             name,

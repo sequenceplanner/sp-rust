@@ -38,6 +38,11 @@ impl TransitionSystemModel {
             .collect();
         vars.extend(global_vars.iter().cloned());
 
+        vars.retain(|v| match v.type_ {
+            VariableType::Runner => false,
+            _ => true,
+        });
+
         let mut transitions: Vec<Transition> = model
             .resources()
             .iter()

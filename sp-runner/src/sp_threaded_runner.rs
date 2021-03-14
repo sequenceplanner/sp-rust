@@ -1176,6 +1176,18 @@ pub fn make_new_runner(
     let mut all_vars = ts_model.vars.clone();
     all_vars.extend(ts_model.state_predicates.iter().cloned());
 
+    // add runner variables.
+    // TODO: also look in resources/sub-models
+    let runner_vars: Vec<Variable> = model
+        .items()
+        .iter()
+        .flat_map(|i| match i {
+            SPItem::Variable(s) if s.type_ == VariableType::Runner => Some(s.clone()),
+            _ => None,
+        })
+        .collect();
+    all_vars.extend(runner_vars.iter().cloned());
+
     let replan_specs: Vec<Spec> = operations
         .iter()
         .map(|o| {

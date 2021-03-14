@@ -1,4 +1,5 @@
 use sp_domain::*;
+use sp_ros::log_error;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RunnerPredicate(StatePath, Predicate);
@@ -61,15 +62,16 @@ impl SPTicker {
                 break;
             } else {
                 counter += 1;
-                if counter > 1000 {
+                if counter > 10 {
                     // there is probably a self loop in the model
                     let t_names = f
                         .iter()
                         .map(|p| p.to_string())
                         .collect::<Vec<_>>()
                         .join(",");
-                    println!("self loop with transitions {}", t_names);
-                    panic!("self loop with transitions {}", t_names);
+                    log_error!("self loop with transitions {}", t_names);
+                    // panic!("self loop with transitions {}", t_names);
+                    break;
                 }
                 println!("runner one more time! adding new fired {:?}", f);
                 fired.extend(f);

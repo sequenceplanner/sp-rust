@@ -705,9 +705,9 @@ impl MessageVariable {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Variable {
     node: SPNode,
-    type_: VariableType,
-    value_type: SPValueType,
-    domain: Vec<SPValue>,
+    pub type_: VariableType,
+    pub value_type: SPValueType,
+    pub domain: Vec<SPValue>,
     pub planned: bool, // does it exist in the planner
 }
 
@@ -806,6 +806,7 @@ pub enum VariableType {
     Command,
     Parameter,
     Predicate(Predicate),
+    Runner, // not available to the formal models
 }
 
 impl Default for VariableType {
