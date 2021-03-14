@@ -73,7 +73,7 @@ async fn search_heuristic(
         cutoff
     );
     let fut = Box::pin(call_nuxmv_async(filename.clone(), command, cutoff));
-    tasks.push(timeout(max_time, WrappedWorkTask::from(cutoff, fut)));
+    tasks.push(Box::pin(timeout(max_time, WrappedWorkTask::from(cutoff, fut))));
 
     // solve one instance at a time concurrently for bounds above the cutoff
     // for i in ((cutoff+1)..max_steps).step_by(3) { // only look at every third lengths
@@ -84,7 +84,7 @@ async fn search_heuristic(
             i
         );
         let fut = Box::pin(call_nuxmv_async(filename.clone(), command, i));
-        tasks.push(timeout(max_time, WrappedWorkTask::from(i, fut)));
+        tasks.push(Box::pin(timeout(max_time, WrappedWorkTask::from(i, fut))));
     }
 
     let now = std::time::Instant::now();
@@ -126,7 +126,7 @@ async fn search_heuristic(
             let remaining: Vec<_> = remaining
                 .into_iter()
                 .filter(|f| f.get_ref().max_steps < c) // stop looking for longer plans
-                .map(|r| timeout(dur, r)).collect();
+                .map(|r| Box::pin(timeout(dur, r))).collect();
 
             if remaining.is_empty() {
                 // no more tasks to run!
