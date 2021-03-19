@@ -1,6 +1,6 @@
 use super::sp_runner::*;
-use crate::formal_model::*;
 use crate::planning;
+use crate::*;
 use crossbeam::{channel, Receiver, Sender};
 use failure::Error;
 use sp_domain::*;
@@ -10,6 +10,7 @@ use std::panic;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use rayon::prelude::*;
 
 // some planning constants
 const LVL0_MAX_STEPS: u32 = 25;
@@ -990,7 +991,17 @@ struct PlannerTask {
 pub fn make_new_runner(
     model: &Model, initial_state: SPState, generate_mc_problems: bool,
 ) -> SPRunner {
-    let ts_model = TransitionSystemModel::from(&model);
+    let mut ts_model = TransitionSystemModel::from(&model);
+
+    // refine invariants
+    println!("refining model invariants");
+    let tsm = ts_model.clone();
+    ts_model.specs.par_iter_mut().for_each(|s| {
+        s.invariant = refine_invariant(tsm.clone(), s.invariant.clone())
+            .expect("crash in refine sp-fm");
+        println!("spec done...");
+    });
+    println!("refining invariants done");
 
     // add runner transitions
     let runner_transitions = model.all_runner_transitions();
@@ -1048,6 +1059,7 @@ pub fn make_new_runner(
             .iter()
             .map(|o| (o.clone(), o.make_lowlevel_transitions()))
             .collect::<Vec<_>>();
+        println!("refining operation forbidden specs");
         global_ops.iter().for_each(|o| {
             // check if a "real" operation or really just an autotransition
             if o.make_runner_transitions().is_empty() {
@@ -1069,11 +1081,11 @@ pub fn make_new_runner(
                         // "auto transition operation", keep this
                         return true;
                     }
-                    println!("FOR OP: {}, filtering transition: {}", op.path(), t.path());
+                    // println!("FOR OP: {}, filtering transition: {}", op.path(), t.path());
                     if t.type_ == TransitionType::Auto {
                         // this also means we need to forbid this state!
                         let opg = op.make_verification_goal();
-                        println!("FOR OP: {}, forbidding: {}", op.path(), opg);
+                        // println!("FOR OP: {}, forbidding: {}", op.path(), opg);
                         new_invariants.push((op.path(), opg));
                     }
                     false
@@ -1083,11 +1095,13 @@ pub fn make_new_runner(
             });
 
             let new_specs = new_invariants
-                .iter()
+                .par_iter()
                 .map(|(op, p)| {
                     let i = Predicate::NOT(Box::new(p.clone()));
-                    println!("REFINING: {}", i);
-                    let ri = refine_invariant(&temp_ts_model, &i);
+                    // println!("REFINING: {}", i);
+                    let ri = refine_invariant(temp_ts_model.clone(), i)
+                        .expect("crash in refine sp-fm");
+                    println!("spec done...");
                     let mut s = Spec::new("extended", ri);
                     s.node_mut().update_path(op);
                     s
@@ -1107,6 +1121,7 @@ pub fn make_new_runner(
             temp_ts_model.name += &format!("_{}", o.name());
             crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
         });
+        println!("refining operation forbidden specs done");
     }
 
     // old runner model as code here.
@@ -1188,18 +1203,22 @@ pub fn make_new_runner(
         .collect();
     all_vars.extend(runner_vars.iter().cloned());
 
+    println!("refining replan specs");
     let replan_specs: Vec<Spec> = operations
-        .iter()
+        .par_iter()
         .map(|o| {
             let mut s = o.make_replan_specs();
             for mut s in &mut s {
                 // Hmm this probably does not belong here...
-                s.invariant = ts_model.refine_invariant(&s.invariant);
+                s.invariant = refine_invariant(ts_model.clone(), s.invariant.clone())
+                    .expect("crash in refine sp-fm");
+                println!("spec done...");
             }
             s
         })
         .flatten()
         .collect();
+    println!("refining replan specs done");
 
     let mut runner = SPRunner::new(
         "test",

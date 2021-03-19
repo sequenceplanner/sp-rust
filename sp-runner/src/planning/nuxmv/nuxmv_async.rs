@@ -165,7 +165,7 @@ async fn search_heuristic(
 pub fn block_on_search_heuristic(
     filename: &str, cutoff: u32, max_steps: u32, lookout: f32, max_time: Duration,
 ) -> Result<NuxmvOutput, Box<dyn std::error::Error>> {
-    let mut runtime = tokio::runtime::Runtime::new()?;
+    let runtime = tokio::runtime::Runtime::new()?;
 
     let fut = search_heuristic(filename.to_owned(), cutoff, max_steps, lookout, max_time);
     let result = runtime.block_on(fut);

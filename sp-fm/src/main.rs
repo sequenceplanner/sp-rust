@@ -1,9 +1,7 @@
+use serde::{Deserialize, Serialize};
 use guard_extraction::*;
 use sp_domain::*;
 use std::collections::HashMap;
-
-mod transition_system_model;
-pub use transition_system_model::*;
 
 pub struct FormalContext {
     pub context: Context,
@@ -299,7 +297,6 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
         intersection.is_empty()
     }) {
         // nothing to process! invariant is safe to use as is.
-        println!("nothing to do for {}", invariant);
         return invariant.clone();
     }
 
@@ -329,11 +326,6 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
         .collect();
 
     support_all.extend(preds.iter().flat_map(|p| p.support()));
-
-    // println!("needed variables:");
-    // support_all.iter().for_each(|t| {
-    //     println!("{}", t);
-    // });
 
     // finally filter out any variables left
     // model.vars.retain(|v| support_all.contains(v.path()));
@@ -365,5 +357,31 @@ pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
     c.ex_to_sp_pred(&ex)
 }
 
-#[cfg(test)]
-mod tests;
+use std::io::{self, Read, Write};
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum Request {
+    Refine { ts_model: TransitionSystemModel, pred: Predicate },
+    Clean { ts_model: TransitionSystemModel, pred: Predicate },
+}
+
+fn main() -> io::Result<()> {
+    let mut buffer = String::new();
+    io::stdin().read_to_string(&mut buffer)?;
+    let req: Request = serde_json::from_str(&buffer)?;
+    match req {
+        Request::Refine { ref ts_model, ref pred } => {
+            let new_pred = refine_invariant(ts_model, pred);
+            let response = serde_json::to_string(&new_pred)?;
+            io::stdout().write_all(response.as_bytes())?;
+            Ok(())
+        },
+        Request::Clean { ref ts_model, ref pred } => {
+            let new_pred = clean_pred(ts_model, pred);
+            let response = serde_json::to_string(&new_pred)?;
+            io::stdout().write_all(response.as_bytes())?;
+            Ok(())
+        }
+    }
+}

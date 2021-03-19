@@ -86,7 +86,7 @@ mod ros {
     }
 
     pub fn roscomm_setup_misc(
-        node: &mut RosNode, tx_in: channel::Sender<SPState>,
+        _node: &mut RosNode, _tx_in: channel::Sender<SPState>,
     ) -> Result<channel::Sender<SPState>, Error> {
         bail!(format_err!("ROS support not compiled in"));
     }

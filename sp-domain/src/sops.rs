@@ -1,5 +1,5 @@
-/// A SOP is a structure that defines a specific plan of transitions / operations that can be used 
-/// by both operations and intentions. The operations/intentions that is used in the SOP will be copied into new 
+/// A SOP is a structure that defines a specific plan of transitions / operations that can be used
+/// by both operations and intentions. The operations/intentions that is used in the SOP will be copied into new
 /// operations/intentions that will be part of the runner but only activated when the parent is activated.
 /// When a planner picks an operation or ability that contains a SOP, the SOP will run based on its preconditions
 
@@ -26,11 +26,11 @@ impl Default for SOP {
 
 impl SOP {
     pub fn extract_guards(
-        &self, 
-        activation_predicate: Predicate, 
-        initial_value: SPValue, 
-        executing_value: SPValue, 
-        finished_value: SPValue, 
+        &self,
+        activation_predicate: Predicate,
+        initial_value: SPValue,
+        _executing_value: SPValue,
+        finished_value: SPValue,
     ) -> HashMap<SPPath, Predicate> {
         let all_paths = SOP::get_paths(self, false, false);
         let mut pred_map: HashMap<SPPath, Vec<Predicate>> = all_paths.into_iter().map(|p| {
@@ -43,8 +43,8 @@ impl SOP {
     }
 
     fn insert_preds(sop: &SOP, pred_map: &mut HashMap<SPPath, Vec<Predicate>>, initial_value: SPValue, finished_value: SPValue) {
-        match sop { 
-            SOP::Operation(p) => {},
+        match sop {
+            SOP::Operation(_) => {},
             SOP::Sequence(xs) => {
                 xs.iter().for_each(|x| SOP::insert_preds(x, pred_map, initial_value.clone(), finished_value.clone()));
                 xs.as_slice().windows(2).for_each(|ps| {
@@ -164,7 +164,7 @@ mod test_sops {
             ))
         ));
 
-        let sop = 
+        let sop =
             SOP::Parallel(vec!(
                 SOP::Sequence(vec!(
                     SOP::Operation(p1.clone()),
@@ -277,7 +277,7 @@ mod test_sops {
                 )),
             )),
         )));
-     
+
         let sop = SOP::Sequence(vec!(
             alt,
             SOP::Operation(p5.clone())
@@ -306,7 +306,7 @@ mod test_sops {
             ))
         ));
 
-        let sop = 
+        let sop =
             SOP::Sequence(vec!(
                 alt.clone(),
                 SOP::Sequence(vec!(
@@ -316,9 +316,9 @@ mod test_sops {
             ));
 
         let res = sop.extract_guards(
-            SOP::make_op_pred(&[&o], &"e".to_spvalue()).first().unwrap().clone(), 
-            "i".to_spvalue(), 
-            "e".to_spvalue(), 
+            SOP::make_op_pred(&[&o], &"e".to_spvalue()).first().unwrap().clone(),
+            "i".to_spvalue(),
+            "e".to_spvalue(),
             "f".to_spvalue());
         res.iter().for_each(|kv| println!("res {:?}", kv));
     }

@@ -1,5 +1,4 @@
 use super::*;
-use sp_domain::*;
 use std::collections::HashSet;
 
 /// Return a plan that blocks all deliberation transitions.

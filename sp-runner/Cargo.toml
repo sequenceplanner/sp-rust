@@ -6,7 +6,6 @@ edition = "2018"
 
 [features]
 ros = ["sp-ros/ros"]
-sat_planner = ["cryptominisat"]
 
 [dependencies]
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
@@ -18,14 +17,9 @@ sp-ros = { path = "../sp-ros/"}
 failure = "0.1.6"
 failure_derive = "0.1.6"
 chrono = { version = "0.4.9", features = ["serde"] }
-guard_extraction = { git = "https://github.com/m-dahl/guard_extraction.git", rev = "499a819" }
 indoc = "0.3"
-cryptominisat = { git = "https://github.com/Storyyeller/cryptominisat-rs.git", optional = true }
-
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"
+rayon = "1.5"
 
 snap = "1"
-
-[dev-dependencies]
-serial_test = "0.4.0"

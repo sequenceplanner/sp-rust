@@ -11,5 +11,5 @@ pub use modeling::*;
 mod planning;
 pub use planning::*;
 
-mod formal_model;
-pub use formal_model::*;
+mod sp_fm_api;
+pub use sp_fm_api::*;

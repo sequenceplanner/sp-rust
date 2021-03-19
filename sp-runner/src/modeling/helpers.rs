@@ -1,4 +1,3 @@
-use crate::formal_model::*;
 use sp_domain::*;
 use std::iter::FromIterator;
 
@@ -210,7 +209,7 @@ pub fn build_resource(r: &MResource) -> Resource {
                     path: v.node().name_path().clone(),
                     relative_path: true,
                 };
-                let v_p = r.add_variable(v);
+                r.add_variable(v);
                 map
             })
             .collect();
@@ -267,7 +266,7 @@ pub fn build_resource(r: &MResource) -> Resource {
                     path: v.node().name_path().clone(),
                     relative_path: true,
                 };
-                let v_p = r.add_variable(v);
+                r.add_variable(v);
                 map
             })
             .collect();

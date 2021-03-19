@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use super::sp_ticker::{RunnerPredicate, SPTicker};
-use crate::formal_model::*;
 use sp_domain::*;
 use std::collections::HashMap;
 

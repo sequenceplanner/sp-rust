@@ -1,4 +1,3 @@
-use serial_test::serial;
 use sp_domain::*;
 use sp_runner::*;
 
@@ -53,7 +52,6 @@ pub fn make_dummy_robot(name: &str, poses: &[&str]) -> Resource {
 }
 
 #[test]
-#[serial]
 fn test_dummy() {
     let r1 = make_dummy_robot("r1", &["at", "away"]);
     //    println!("{:#?}", r1);
