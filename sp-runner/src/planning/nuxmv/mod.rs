@@ -137,7 +137,7 @@ fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
 }
 
 fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String, String)> {
-    let mut process = Command::new("nuXmv")
+    let mut process = Command::new("nusmv")
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())
@@ -188,7 +188,7 @@ fn postprocess_nuxmv_problem(
             println!("NOTE: INFINITE PATH");
         } else if l.contains("  -> State: ") {
             // ignore the difference between state and input.
-        } else if l.contains("  -> Input: ") || l.contains("nuXmv >") {
+        } else if l.contains("  -> Input: ") || l.contains("nuXmv >") || l.contains("NuSMV >") {
             trace.push(last);
             last = PlanningFrame::default();
         } else {
@@ -517,14 +517,9 @@ impl Planner for NuXmvPlanner {
                     raw_error_output: raw_error.to_owned(),
                 }
             }
-            Err(e) => PlanningResult {
-                plan_found: false,
-                plan_length: 0,
-                trace: Vec::new(),
-                time_to_solve: duration,
-                raw_output: "".into(),
-                raw_error_output: e.to_string(),
-            },
+            Err(e) => {
+                panic!("Something went wrong when invoking planner. Check your PATH.");
+            }
         };
         // if res.plan_found {
         //     // usually dont care to debug these

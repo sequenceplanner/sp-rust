@@ -33,7 +33,7 @@ impl WrappedWorkTask {
 async fn call_nuxmv_async(
     filename: String, command: String, max_len: u32,
 ) -> std::io::Result<NuxmvOutput> {
-    let mut process = Command::new("nuXmv")
+    let mut process = Command::new("nusmv")
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())
@@ -94,13 +94,16 @@ async fn search_heuristic(
 
         let (c, r, e) = match x {
             Result::Ok(Result::Ok((c, r, e))) => (c, r, e),
+            Result::Ok(_) => {
+                panic!("Something went wrong when invoking planner. Check your PATH.");
+            }
             _ => {
                 if remaining.is_empty() {
                     return None;
                 }
                 one = select_all(remaining);
                 continue;
-            }
+            },
         };
 
         if !r.contains("Trace Type: Counterexample") {
