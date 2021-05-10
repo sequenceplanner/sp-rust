@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio::time::timeout;
+use super::find_binary;
 
 pub type NuxmvOutput = (u32, String, String);
 
@@ -33,7 +34,7 @@ impl WrappedWorkTask {
 async fn call_nuxmv_async(
     filename: String, command: String, max_len: u32,
 ) -> std::io::Result<NuxmvOutput> {
-    let mut process = Command::new("nusmv")
+    let mut process = Command::new(find_binary::find_nuxmv())
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())

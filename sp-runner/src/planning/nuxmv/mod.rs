@@ -10,6 +10,8 @@ use std::time::Instant;
 // use std::time::{SystemTime};
 use std::time::Duration;
 
+mod find_binary;
+
 mod nuxmv_async;
 use nuxmv_async::*;
 
@@ -91,7 +93,7 @@ impl fmt::Display for NuXMVPredicate<'_> {
                 format!("( {} != {} )", xx, yy)
             }
             x => {
-                panic!(format!("We can not convert this predicate to nuXMV: {}", x));
+                panic!("We can not convert this predicate to nuXMV: {}", x);
             }
         };
 
@@ -137,7 +139,7 @@ fn spval_from_nuxvm(nuxmv_val: &str, spv_t: SPValueType) -> SPValue {
 }
 
 fn call_nuxmv(max_steps: u32, filename: &str) -> std::io::Result<(String, String)> {
-    let mut process = Command::new("nusmv")
+    let mut process = Command::new(find_binary::find_nuxmv())
         .arg("-int")
         .arg(filename)
         .stdin(Stdio::piped())
@@ -518,7 +520,7 @@ impl Planner for NuXmvPlanner {
                 }
             }
             Err(e) => {
-                panic!("Something went wrong when invoking planner. Check your PATH.");
+                panic!("Something went wrong when invoking planner.");
             }
         };
         // if res.plan_found {
