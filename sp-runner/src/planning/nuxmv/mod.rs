@@ -520,7 +520,7 @@ impl Planner for NuXmvPlanner {
                 }
             }
             Err(e) => {
-                panic!("Something went wrong when invoking planner.");
+                panic!("Something went wrong when invoking planner: {}", e);
             }
         };
         // if res.plan_found {

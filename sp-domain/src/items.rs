@@ -274,7 +274,7 @@ impl<'a> SPMutItemRef<'a> {
     pub fn as_variable(&'a mut self) -> &'a mut Variable {
         match self {
             SPMutItemRef::Variable(x) => x,
-            _ => panic!(format!("trying to unwrap variable but we have {:?}", self)),
+            _ => panic!("trying to unwrap variable but we have {:?}", self),
         }
     }
     pub fn name(&self) -> String {
