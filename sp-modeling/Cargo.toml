@@ -5,16 +5,18 @@ authors = ["Kristofer Bengtsson <kristofer@sekvensa.se>"]
 edition = "2018"
 
 [dependencies]
+sp-domain = { path = "../sp-domain/" }
+r2r = { git = "https://github.com/sequenceplanner/r2r", version = "0.2.0", optional = true }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sp-domain = { path = "../sp-domain/" }
 chrono = { version = "0.4", features = ["serde"] }
 indoc = "1.0.3"
 tokio = { version = "1", features = ["full"] }
 which = "4.1.0"
 snap = "1"
 futures = "0.3.15"
+rayon = "1.5"
 
 [dev-dependencies]
 serial_test = "0.5.0"

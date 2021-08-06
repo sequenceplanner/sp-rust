@@ -335,7 +335,7 @@ pub fn build_resource(r: &MResource) -> Resource {
 #[macro_export]
 macro_rules! command {
     (topic: $t:tt , $($rest:tt)*) => {{
-        let mut cmd = CommandTopic {
+        let mut cmd = crate::modeling::CommandTopic {
             topic: String::from($t),
             ros_type: String::new(),
             vars: Vec::new(),
@@ -352,7 +352,7 @@ macro_rules! command {
     // no domain defaults to boolean variable
     (private $cmd:ident $var_name:tt : bool, $($rest:tt)*) => {{
         $cmd.vars.push((stringify!($var_name).to_string(),
-                         Domain { domain: None } ));
+                         crate::modeling::Domain { domain: None } ));
         command!(private $cmd $($rest)*)
     }};
 
@@ -366,7 +366,7 @@ macro_rules! command {
         {
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $cmd.vars.push((stringify!($var_name).to_string(),
-                             Domain { domain: Some(domain) } ));
+                crate::modeling::Domain { domain: Some(domain) } ));
         }
         command!(private $cmd $($rest)*)
     }};
@@ -377,14 +377,14 @@ macro_rules! command {
     }};
 
     (private $cmd:expr) => {{
-        ModelItem::CommandTopic($cmd)
+        crate::modeling::ModelItem::CommandTopic($cmd)
     }};
 }
 
 #[macro_export]
 macro_rules! measured {
     (topic: $t:tt , $($rest:tt)*) => {{
-        let mut measured = MeasuredTopic {
+        let mut measured = crate::modeling::MeasuredTopic {
             topic: String::from($t),
             ros_type: String::new(),
             vars: Vec::new(),
@@ -401,7 +401,7 @@ macro_rules! measured {
         let name = vec![ $( stringify!($var_name) , )+ ];
         let name = name.join("/");
         $measured.vars.push((name,
-                              Domain { domain: None } ));
+            crate::modeling::Domain { domain: None } ));
         measured!(private $measured $($rest)*)
     }};
 
@@ -417,7 +417,7 @@ macro_rules! measured {
             let name = name.join("/");
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $measured.vars.push((name,
-                                  Domain { domain: Some(domain) } ));
+                crate::modeling::Domain { domain: Some(domain) } ));
         }
         measured!(private $measured $($rest)*)
     }};
@@ -428,7 +428,7 @@ macro_rules! measured {
     }};
 
     (private $measured:expr) => {{
-        ModelItem::MeasuredTopic($measured)
+        crate::modeling::ModelItem::MeasuredTopic($measured)
     }};
 }
 
@@ -437,7 +437,7 @@ macro_rules! estimated {
     // no domain defaults to boolean variable
     (private $estimated:ident $var_name:tt : bool, $($rest:tt)*) => {{
         $estimated.vars.push((stringify!($var_name).to_string(),
-                              Domain { domain: None } ));
+            crate::modeling::Domain { domain: None } ));
         estimated!(private $estimated $($rest)*)
     }};
 
@@ -451,7 +451,7 @@ macro_rules! estimated {
         {
             let domain: Vec<SPValue> = $dom.iter().map(|d| d.to_spvalue()).collect();
             $estimated.vars.push((stringify!($var_name).to_string(),
-                                  Domain { domain: Some(domain) } ));
+            crate::modeling::Domain { domain: Some(domain) } ));
         }
         estimated!(private $estimated $($rest)*)
     }};
@@ -462,12 +462,12 @@ macro_rules! estimated {
     }};
 
     (private $estimated:expr) => {{
-        ModelItem::EstimatedVars($estimated)
+        crate::modeling::ModelItem::EstimatedVars($estimated)
     }};
 
     // didnt match any private. start fresh
     ($($rest:tt)*) => {{
-        let mut estimated = EstimatedVars {
+        let mut estimated = crate::modeling::EstimatedVars {
             vars: Vec::new(),
         };
         estimated!(private estimated $($rest)*)
@@ -488,18 +488,18 @@ macro_rules! always {
 #[macro_export]
 macro_rules! never {
     (name: $n:tt , prop: $pred:expr) => {{
-        let spec = MInvariant {
+        let spec = crate::modeling::MInvariant {
             name: String::from(stringify!($n)),
             prop: Predicate::NOT(Box::new($pred.clone())),
         };
-        ModelItem::MInvariant(spec)
+        crate::modeling::ModelItem::MInvariant(spec)
     }};
 }
 
 #[macro_export]
 macro_rules! resource {
     (name: $n:expr , $($rest:tt)*) => {{
-        let mut resource = MResource {
+        let mut resource = crate::modeling::MResource {
             name: String::from($n), // String::from(stringify!($n)),
             items: Vec::new(),
         };
@@ -519,7 +519,7 @@ macro_rules! resource {
 
     // all done
     (private $resource:expr) => {{
-        build_resource(&$resource)
+        crate::modeling::build_resource(&$resource)
     }};
 }
 
@@ -528,7 +528,7 @@ macro_rules! predicates {
     ($($name: tt: $p: expr),* $(,)?) => {{
         let mut preds = Vec::new();
         $(preds.push(Variable::new_predicate(&stringify!($name).to_string(), $p));)*
-        ModelItem::Predicates(preds)
+        crate::modeling::ModelItem::Predicates(preds)
     }};
 }
 
@@ -548,7 +548,7 @@ macro_rules! transitions {
                 trans.push(Transition::new(name.trim_start_matches("e_"), $guard, $actions, TransitionType::Runner));
             }
         )*
-        ModelItem::Transitions(trans)
+        crate::modeling::ModelItem::Transitions(trans)
     }};
 }
 

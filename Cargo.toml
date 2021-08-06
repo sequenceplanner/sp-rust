@@ -4,5 +4,5 @@ members = [
     "sp-runner",
     "sp-ros",
     "sp-fm",
-    "sp-model"
+    "sp-modeling"
 ]
