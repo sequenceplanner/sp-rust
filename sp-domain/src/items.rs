@@ -1263,6 +1263,12 @@ impl Operation {
             .map(|v| v == &"e".to_spvalue()).unwrap_or(false)
     }
 
+    // todo: define "e" somewhere...
+    pub fn is_error(&self, state: &SPState) -> bool {
+        state.sp_value_from_path(self.path())
+            .map(|v| v == &"error".to_spvalue()).unwrap_or(false)
+    }
+
     pub fn make_runner_transitions(&self) -> Vec<Transition> {
         // auto ops are not actually operations...
         let is_auto = self

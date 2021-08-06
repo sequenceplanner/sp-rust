@@ -15,7 +15,6 @@ pub struct SPRunner {
 
     // TODO: plan is Map<String, SPPlan>
     pub plans: Vec<SPPlan>, // one plan per namespace
-    pub last_fired_transitions: Vec<SPPath>,
 
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub resources: Vec<SPPath>,
@@ -33,8 +32,8 @@ pub struct NewSPRunner {
 
     // TODO: plan is Map<String, SPPlan>
     pub plans: Vec<SPPlan>, // one plan per namespace
-    pub last_fired_transitions: Vec<SPPath>,
 
+    // TODO: create a resource handler task?
     pub resources: Vec<SPPath>,
 }
 
@@ -114,7 +113,6 @@ impl SPRunner {
             ticker,
             intention_goals,
             plans: vec![SPPlan::default(); 2],
-            last_fired_transitions: vec![],
             transition_system_models,
             resources,
             intentions,
@@ -131,7 +129,6 @@ impl NewSPRunner {
             name: r.name.clone(),
             ticker: r.ticker.clone(),
             plans: r.plans.clone(),
-            last_fired_transitions: r.last_fired_transitions.clone(),
             resources: r.resources.clone(),
         }
     }
@@ -149,12 +146,14 @@ impl NewSPRunner {
             SPRunnerInput::NodeChange(s) => {
                 self.take_a_tick(s, true);
             }
-            SPRunnerInput::NewPlan(idx, plan) => {
-                self.plans[idx as usize] = plan;
-                self.update_state_variables(self.plans[idx as usize].state_change.clone());
-                self.load_plans();
-            }
+            _ => {}
         }
+    }
+
+    pub fn set_plan(&mut self, idx: usize, plan: SPPlan) {
+        self.plans[idx as usize] = plan;
+        self.update_state_variables(self.plans[idx as usize].state_change.clone());
+        self.load_plans();
     }
 
     /// Get the current state from the runner
@@ -185,14 +184,13 @@ impl NewSPRunner {
         self.ticker.disabled_paths.clone()
     }
 
-    fn take_a_tick(&mut self, state: SPState, check_resources: bool) {
+    pub fn take_a_tick(&mut self, state: SPState, check_resources: bool) -> Vec<SPPath> {
         if check_resources {
             self.check_resources();
         }
         self.update_state_variables(state);
 
-        let res = self.ticker.tick_transitions();
-        self.last_fired_transitions = res.1;
+        self.ticker.tick_transitions()
     }
 
     fn load_plans(&mut self) {

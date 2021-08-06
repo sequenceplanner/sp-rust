@@ -40,7 +40,7 @@ impl SPTicker {
     /// This function will execute the enabled transition and update the state.
     /// The functions returns the updated state and the fired transitions
     ///
-    pub fn tick_transitions(&mut self) -> (&SPState, Vec<SPPath>) {
+    pub fn tick_transitions(&mut self) -> Vec<SPPath> {
         let temp_transition_map =
             SPTicker::create_transition_map(&self.transitions, &self.specs, &self.disabled_paths);
 
@@ -76,7 +76,7 @@ impl SPTicker {
             }
         }
 
-        (&self.state, fired)
+        fired
     }
 
     /// After changing anything in the Ticker, run this method to update the state variables.
