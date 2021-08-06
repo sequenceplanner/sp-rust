@@ -23,7 +23,6 @@ pub struct SPTicker {
     pub forbidden: Vec<IfThen>,
     pub predicates: Vec<RunnerPredicate>,
     pub disabled_paths: Vec<SPPath>,
-    c: usize,
 }
 
 impl SPTicker {
@@ -35,7 +34,6 @@ impl SPTicker {
             forbidden: vec![],
             predicates: vec![],
             disabled_paths: vec![],
-            c: 0,
         }
     }
 

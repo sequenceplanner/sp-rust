@@ -1,5 +1,6 @@
 mod sp_runner;
 mod sp_ticker;
+mod sp_planning_runner;
 
 mod sp_threaded_runner;
 pub use sp_threaded_runner::*;

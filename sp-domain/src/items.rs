@@ -1257,6 +1257,12 @@ impl Operation {
         trans
     }
 
+    // todo: define "e" somewhere...
+    pub fn is_executing(&self, state: &SPState) -> bool {
+        state.sp_value_from_path(self.path())
+            .map(|v| v == &"e".to_spvalue()).unwrap_or(false)
+    }
+
     pub fn make_runner_transitions(&self) -> Vec<Transition> {
         // auto ops are not actually operations...
         let is_auto = self
@@ -1267,23 +1273,31 @@ impl Operation {
             return vec![];
         }
 
+        let goal_state_paths = self.get_goal_state_paths();
+        let mut actions: Vec<_> = goal_state_paths.iter().map(|p| {
+            let new_path = self.path().add_child_path(p);
+            Action::new(new_path, Compute::PredicateValue(PredicateValue::SPPath(p.clone(), None)))
+        }).collect();
         let state = self.path();
+        actions.push(a!(p: state = "e"));
         let mut runner_start = Transition::new(
             "start",
             Predicate::AND(vec![p!(p: state == "i"), self.guard.clone()]),
-            vec![a!(p: state = "e")],
+            actions,
             TransitionType::Controlled,
         );
         runner_start.node_mut().update_path(self.path());
 
+        let post_cond = p!(p: state == "e");
+        let post_cond = Predicate::AND(vec![post_cond, self.get_goal(None)]);
         let mut runner_finish = Transition::new(
             "finish",
-            p!(p: state == "e"),
-            // note that the missing "goal" is added when running...
+            post_cond,
             vec![a!(p: state = "i")],
             TransitionType::Auto,
         );
         runner_finish.node_mut().update_path(self.path());
+        println!("FINISH TRANSITION FOR {}: {:#?}", runner_finish.path(), runner_finish);
 
         vec![runner_start, runner_finish]
     }
@@ -1314,6 +1328,57 @@ impl Operation {
                 t
             })
             .collect()
+    }
+
+    /// Returns a list of paths with the goal states
+    /// this operation goal needs access to.
+    pub fn get_goal_state_paths(&self) -> Vec<SPPath> {
+        self.effects_goals_actions.
+            iter().flat_map(|(e, _, _)| {
+                e.iter().flat_map(|e| {
+                    match &e.value {
+                        Compute::PredicateValue(PredicateValue::SPPath(p, _)) => Some(p.clone()),
+                        _ => None
+                    }
+                })
+            }).collect()
+    }
+
+    /// Returns this operations goal state as a predicate
+    /// Optionally we can get the concrete goal if we also provide a state
+    pub fn get_goal(&self, state: Option<&SPState>) -> Predicate {
+        let v: Vec<Predicate> = self.effects_goals_actions.
+            iter().map(|(e, _, _)| {
+                Predicate::AND(
+                    e.iter().flat_map(|e| {
+                        match &e.value {
+                            Compute::PredicateValue(PredicateValue::SPPath(p, _)) => {
+                                let new_path = self.path().add_child_path(p);
+                                if let Some(state) = state {
+                                    let concrete_value = state.sp_value_from_path(&new_path)
+                                        .expect("error getting concrete value from state");
+                                    Some(Predicate::EQ(
+                                        PredicateValue::SPPath(e.var.clone(), None),
+                                        PredicateValue::SPValue(concrete_value.clone()),
+                                    ))
+                                } else {
+                                    Some(Predicate::EQ(
+                                        PredicateValue::SPPath(e.var.clone(), None),
+                                        PredicateValue::SPPath(new_path, None),
+                                    ))
+                                }
+                            },
+                            Compute::PredicateValue(p) => {
+                                Some(Predicate::EQ(
+                                    PredicateValue::SPPath(e.var.clone(), None),
+                                    p.clone(),
+                                ))
+                            },
+                            _ => None
+                        }
+                    }).collect())
+            }).collect();
+        Predicate::OR(v)
     }
 
     pub fn make_verification_goal(&self) -> Predicate {
