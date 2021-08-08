@@ -6,7 +6,7 @@ use crossbeam::{channel, Receiver, Sender};
 use failure::Error;
 use sp_domain::*;
 use sp_ros::*;
-use std::collections::{HashMap};
+use std::collections::{HashSet, HashMap};
 use std::panic;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -122,7 +122,8 @@ fn runner(
             prev_goals: HashMap::new(),
             store_async: store_async.clone(),
             store: planning::PlanningStore::default(),
-            disabled_operation_check:  std::time::Instant::now(),
+            disabled_operation_check: std::time::Instant::now(),
+            prev_disabled_operations: HashSet::new(),
         };
 
         // block all transitions intially

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use sp_domain::*;
 use sp_ros::*;
 use std::time::{Duration, Instant};
@@ -29,7 +31,8 @@ pub struct PlanningState {
     pub prev_goals: HashMap<usize, Vec<(Predicate, Option<Predicate>)>>,
     pub store_async: Arc<Mutex<planning::AsyncPlanningStore>>,
     pub store: planning::PlanningStore,
-    pub disabled_operation_check: std::time::Instant,
+    pub disabled_operation_check: Instant,
+    pub prev_disabled_operations: HashSet<SPPath>,
 }
 
 pub fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
@@ -550,110 +553,101 @@ impl PlanningState {
             }
         }
 
+        let disabled_operations: HashSet<SPPath> = self.operations.iter()
+            .filter(|o|o.is_error(state))
+            .map(|o|o.path().clone()).collect();
+
+        let mut now = Instant::now();
 
         // TODO: Move to other function. This code handles error operations and
         // resets them if posssible. Will be checked now and then.
-        // if now.duration_since(self.disabled_operation_check).as_secs() > 5 {
-        //     self.disabled_operation_check = std::time::Instant::now();
+        if now.duration_since(self.disabled_operation_check).as_secs() > 5 {
+            self.disabled_operation_check = std::time::Instant::now();
 
-        //     let mut something_was_fixed = false;
+            let mut something_was_fixed = self.prev_disabled_operations != disabled_operations;
 
-        //     self.disabled_operations.retain(|p: &SPPath| {
-        //         let e = "error".to_spvalue();
-        //         let os = runner.state().sp_value_from_path(p).unwrap_or(&e);
-        //         println!("CHECKING OPERATION {} {}", p, os);
-        //         if os != &e {
-        //             // user manually reset the operation
-        //             something_was_fixed = true;
-        //             false
-        //         } else {
-        //             true
-        //         }
-        //     });
-        //     self.disabled_operations.retain(|p: &SPPath| {
-        //         // check if the state if OK so we can remove any error states.
-        //         println!(
-        //             "checking if we can remove error on low level operation: {}",
-        //             p
-        //         );
-        //         let op = self.operations.iter().find(|o|o.path() == p)
-        //             .expect("no operation for disabled path");
-        //         let goal = vec![(op.get_goal(None).clone(), None)];
+            let fixed_ops: Vec<SPPath> = disabled_operations.iter().filter(|p| {
+                // check if the state if OK so we can remove any error states.
+                println!(
+                    "checking if we can remove error on low level operation: {}",
+                    p
+                );
+                let op = self.operations.iter().find(|o|&o.path() == p)
+                    .expect("no operation for disabled path");
+                let goal = vec![(op.get_goal(None).clone(), None)];
 
-        //         let mut ts = self.transition_system_models[0].clone();
-        //         let removed: Vec<SPPath> = runner.state().sub_state_projection(&SPPath::from_string("effects"))
-        //             .state.into_iter().filter(|(_k,v)|
-        //                                       v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
-        //         ts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
+                let mut ts = self.transition_system_models[0].clone();
+                let removed: Vec<SPPath> = state.sub_state_projection(&SPPath::from_string("effects"))
+                    .state.into_iter().filter(|(_k,v)|
+                                              v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
+                ts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
 
-        //         let pr = planning::plan_with_cache(
-        //             &ts,
-        //             goal.as_slice(),
-        //             runner.state(),
-        //             LVL0_MAX_STEPS,
-        //             &mut self.store
-        //         );
+                let pr = planning::plan_with_cache(
+                    &ts,
+                    goal.as_slice(),
+                    state,
+                    LVL0_MAX_STEPS,
+                    &mut self.store
+                );
 
-        //         if !pr.plan_found {
-        //             println!("operation still problematic...");
-        //         } else {
-        //             runner
-        //                 .ticker
-        //                 .state
-        //                 .force_from_path(&p, &"i".to_spvalue())
-        //                 .unwrap();
-        //             something_was_fixed = true;
-        //         }
+                if !pr.plan_found {
+                    println!("operation still problematic...");
+                } else {
+                    // runner
+                    //     .ticker
+                    //     .state
+                    //     .force_from_path(&p, &"i".to_spvalue())
+                    //     .unwrap();
+                    something_was_fixed = true;
+                }
 
-        //         !pr.plan_found
-        //     });
+                !pr.plan_found
+            }).cloned().collect();
 
-        //     if something_was_fixed {
-        //         // check all high level ops with error states. maybe we can move some of them
-        //         // back to their executing state.
-        //         // HACKS!
+            if something_was_fixed {
+                // check all high level ops with error states. maybe we can move some of them
+                // back to their executing state.
+                // HACKS!
 
-        //         for p in &self.intentions {
-        //             if runner.state().sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
-        //                 println!(
-        //                     "checking if we can remove error on high level operation: {}",
-        //                     p
-        //                 );
-        //                 let goal_path = p.clone().add_child("goal");
-        //                 println!("goal name {}", goal_path);
+                for p in &self.intentions {
+                    // TODO: add support in the domain instead of checking paths...
+                    if state.sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
+                        println!(
+                            "checking if we can remove error on high level operation: {}",
+                            p
+                        );
+                        let goal_path = p.clone().add_child("goal");
+                        println!("goal name {}", goal_path);
 
-        //                 let g1 = &self.intention_goals;
-        //                 let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
-        //                 let goal = vec![(i.goal().clone(), None)];
+                        let g1 = &self.intention_goals;
+                        let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
+                        let goal = vec![(i.goal().clone(), None)];
 
-        //                 let pr = planning::plan_async_with_cache(
-        //                     &self.transition_system_models[1],
-        //                     &goal,
-        //                     runner.state(),
-        //                     &self.disabled_operations,
-        //                     LVL1_MAX_STEPS,
-        //                     LVL1_CUTOFF,
-        //                     LVL1_LOOKOUT,
-        //                     LVL1_MAX_TIME,
-        //                     store_async.clone(),
-        //                 );
+                        let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
+                        let pr = planning::plan_async_with_cache(
+                            &self.transition_system_models[1],
+                            &goal,
+                            state,
+                            &disabled_vec,
+                            LVL1_MAX_STEPS,
+                            LVL1_CUTOFF,
+                            LVL1_LOOKOUT,
+                            LVL1_MAX_TIME,
+                            self.store_async.clone(),
+                        );
 
-        //                 if pr.plan_found {
-        //                     log_info!("automatically restarting operation {}", p);
-        //                     runner
-        //                         .ticker
-        //                         .state
-        //                         .force_from_path(&p, &"e".to_spvalue())
-        //                         .unwrap();
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
-        let disabled_operations: Vec<SPPath> = self.operations.iter()
-            .filter(|o|o.is_error(state))
-            .map(|o|o.path().clone()).collect();
+                        if pr.plan_found {
+                            log_info!("automatically restarting operation {}", p);
+                            // runner
+                            //     .ticker
+                            //     .state
+                            //     .force_from_path(&p, &"e".to_spvalue())
+                            //     .unwrap();
+                        }
+                    }
+                }
+            }
+        }
 
         for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
             //println!("TS {}", i);
@@ -742,7 +736,7 @@ impl PlanningState {
                 }
                 !ok
             } || {
-                let now = std::time::Instant::now();
+                let now = Instant::now();
 
                 println!("TS {} CHECKING GOALS", i);
 
@@ -855,11 +849,12 @@ impl PlanningState {
                     planning::bubble_up_delibs(ts, &gr, &mut pr);
                     pr
                 } else {
+                    let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
                     planning::plan_async_with_cache(
                         &ts,
                         &goals,
                         state,
-                        &disabled_operations,
+                        &disabled_vec,
                         LVL1_MAX_STEPS,
                         LVL1_CUTOFF,
                         LVL1_LOOKOUT,
@@ -901,18 +896,21 @@ impl PlanningState {
 
                 // hack to reset the user visible planning steps when we replan
                 // because sp_ui cannot remove states anyway (TODO!), we set dummy values
-                // let statevals = state.clone().extract();
-                // let filtered_state: Vec<_> = statevals
-                //     .into_iter()
-                //     .map(|(p, v)| {
-                //         if p.is_child_of(&plan_p) {
-                //             (p, "-".to_spvalue())
-                //         } else {
-                //             (p, v.extract())
-                //         }
-                //     })
-                //     .collect();
-                // plan.state_change.add_variables(filtered_state);
+                let filtered_state: Vec<_> = state.projection().state
+                    .into_iter()
+                    .filter_map(|(p, _)| {
+                        let in_new_plan = plan.state_change.projection()
+                            .state
+                            .iter()
+                            .find(|(path,_)| &p == path).is_some();
+
+                        if !in_new_plan && p.is_child_of(&plan_p) {
+                            Some((p.clone(), "-".to_spvalue()))
+                        } else {
+                            None
+                        }
+                    }).collect();
+                plan.state_change.add_variables(filtered_state);
 
                 let no_plan = !planner_result.plan_found;
 
@@ -983,11 +981,12 @@ impl PlanningState {
 
                     for i in ifthens {
                         let goal = vec![(i.goal().clone(), i.invariant().clone())];
+                        let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
                         let pr = planning::plan_async_with_cache(
                             &ts,
                             &goal,
                             state,
-                            &disabled_operations,
+                            &disabled_vec,
                             LVL1_MAX_STEPS,
                             LVL1_CUTOFF,
                             LVL1_LOOKOUT,

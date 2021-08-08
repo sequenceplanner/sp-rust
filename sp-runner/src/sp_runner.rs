@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
 use std::collections::HashMap;
