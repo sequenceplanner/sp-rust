@@ -557,22 +557,22 @@ impl PlanningState {
             .filter(|o|o.is_error(state))
             .map(|o|o.path().clone()).collect();
 
-        let mut now = Instant::now();
+        // either something was fixed by the user or by this code the previous cycle.
+        let something_was_fixed = disabled_operations.len() < self.prev_disabled_operations.len();
+        self.prev_disabled_operations = disabled_operations.clone();
 
         // TODO: Move to other function. This code handles error operations and
         // resets them if posssible. Will be checked now and then.
-        if now.duration_since(self.disabled_operation_check).as_secs() > 5 {
-            self.disabled_operation_check = std::time::Instant::now();
+        if Instant::now().duration_since(self.disabled_operation_check).as_secs() > 5 {
+            self.disabled_operation_check = Instant::now();
 
-            let mut something_was_fixed = self.prev_disabled_operations != disabled_operations;
-
-            let fixed_ops: Vec<SPPath> = disabled_operations.iter().filter(|p| {
+            let fixed_ops: Vec<SPPath> = disabled_operations.iter().filter_map(|p| {
                 // check if the state if OK so we can remove any error states.
                 println!(
                     "checking if we can remove error on low level operation: {}",
                     p
                 );
-                let op = self.operations.iter().find(|o|&o.path() == p)
+                let op = self.operations.iter().find(|o|o.path() == p)
                     .expect("no operation for disabled path");
                 let goal = vec![(op.get_goal(None).clone(), None)];
 
@@ -582,71 +582,98 @@ impl PlanningState {
                                               v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
                 ts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
 
-                let pr = planning::plan_with_cache(
+                let pr = planning::plan(
                     &ts,
                     goal.as_slice(),
                     state,
                     LVL0_MAX_STEPS,
-                    &mut self.store
                 );
 
                 if !pr.plan_found {
                     println!("operation still problematic...");
+                    None
                 } else {
-                    // runner
-                    //     .ticker
-                    //     .state
-                    //     .force_from_path(&p, &"i".to_spvalue())
-                    //     .unwrap();
-                    something_was_fixed = true;
+                    println!("operation fixed! {}", p);
+                    Some(p)
                 }
-
-                !pr.plan_found
             }).cloned().collect();
 
-            if something_was_fixed {
-                // check all high level ops with error states. maybe we can move some of them
-                // back to their executing state.
-                // HACKS!
+            if !fixed_ops.is_empty() {
+                // block the current operation plan.
+                let block_plan = SPPlan {
+                    plan: crate::planning::block_all(&self.transition_system_models[1]),
+                    included_trans: Vec::new(),
+                    state_change: SPState::new(),
+                };
+                let mut block_plan = self.preprocess_operation_plan(&block_plan);
+                fixed_ops.iter().for_each(|p| {
+                    println!("fixed operation {} so we are returning plan that blocks everything.", p);
+                    block_plan.state_change.add_variable(p.clone(), "i".to_spvalue());
+                });
+                self.plans[1] = block_plan.clone();
 
-                for p in &self.intentions {
-                    // TODO: add support in the domain instead of checking paths...
-                    if state.sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
-                        println!(
-                            "checking if we can remove error on high level operation: {}",
-                            p
-                        );
-                        let goal_path = p.clone().add_child("goal");
-                        println!("goal name {}", goal_path);
+                return Some((1, block_plan));
+            }
+        }
 
-                        let g1 = &self.intention_goals;
-                        let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
-                        let goal = vec![(i.goal().clone(), None)];
+        if something_was_fixed {
+            println!("atleast one operation has left its error state, checking all intentions");
+            // check all high level ops with error states. maybe we can move some of them
+            // back to their executing state.
+            // HACKS!
 
-                        let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
-                        let pr = planning::plan_async_with_cache(
-                            &self.transition_system_models[1],
-                            &goal,
-                            state,
-                            &disabled_vec,
-                            LVL1_MAX_STEPS,
-                            LVL1_CUTOFF,
-                            LVL1_LOOKOUT,
-                            LVL1_MAX_TIME,
-                            self.store_async.clone(),
-                        );
+            let mut fixed_its = vec![];
+            for p in &self.intentions {
+                // TODO: add support in the domain instead of checking paths...
+                if state.sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
+                    println!(
+                        "checking if we can remove error on high level operation: {}",
+                        p
+                    );
+                    let goal_path = p.clone().add_child("goal");
+                    println!("goal name {}", goal_path);
 
-                        if pr.plan_found {
-                            log_info!("automatically restarting operation {}", p);
-                            // runner
-                            //     .ticker
-                            //     .state
-                            //     .force_from_path(&p, &"e".to_spvalue())
-                            //     .unwrap();
-                        }
+                    let g1 = &self.intention_goals;
+                    let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
+                    let goal = vec![(i.goal().clone(), None)];
+
+                    let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
+                    let pr = planning::plan_async_with_cache(
+                        &self.transition_system_models[1],
+                        &goal,
+                        state,
+                        &disabled_vec,
+                        LVL1_MAX_STEPS,
+                        LVL1_CUTOFF,
+                        LVL1_LOOKOUT,
+                        LVL1_MAX_TIME,
+                        self.store_async.clone(),
+                    );
+
+                    if pr.plan_found {
+                        fixed_its.push(p.clone());
+                        // runner
+                        //     .ticker
+                        //     .state
+                        //     .force_from_path(&p, &"e".to_spvalue())
+                        //     .unwrap();
                     }
                 }
             }
+
+            let block_plan = SPPlan {
+                plan: crate::planning::block_all(&self.transition_system_models[1]),
+                included_trans: Vec::new(),
+                state_change: SPState::new(),
+            };
+            let mut block_plan = self.preprocess_operation_plan(&block_plan);
+            fixed_its.iter().for_each(|p| {
+                println!("fixed intention {} so we put it back in executing state", p);
+                block_plan.state_change.add_variable(p.clone(), "e".to_spvalue());
+            });
+            self.plans[1] = block_plan.clone();
+
+            return Some((1, block_plan));
         }
 
         for (i, (ts, goals)) in ts_models.iter().zip(goals.iter()).enumerate().rev() {
@@ -959,7 +986,7 @@ impl PlanningState {
                             log_warn!("offending low level operation: {}", op_path);
                             // TODO, verify that this works
                             plan.state_change.add_variable(op_path.clone(), "error".to_spvalue());
-                            return Some((1, plan));
+                            return Some((0, plan));
                         }
                     }
                     if disabled_operations.is_empty() {
@@ -971,6 +998,7 @@ impl PlanningState {
 
                 if no_plan && i == 1 {
                     // no high level plan found, we are in trouble.
+                    println!("no high level plan found...");
 
                     // look for the problematic goals
                     let g1 = &self.intention_goals;
