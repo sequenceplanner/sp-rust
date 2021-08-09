@@ -115,7 +115,6 @@ fn runner(
             plans: vec![SPPlan::default(); 2], // one plan per namespace
             transition_system_models: old_runner.transition_system_models.clone(),
             intentions: old_runner.intentions.clone(),
-            intention_goals: old_runner.intention_goals.clone(),
             replan_specs: old_runner.replan_specs.clone(),
             operations: old_runner.operations.clone(),
             bad_state: false,
@@ -525,7 +524,6 @@ pub fn make_new_runner(
         .filter(|t| t.type_ == TransitionType::Auto)
         .cloned()
         .collect();
-    let global_hl_goals: Vec<IfThen> = global_intentions.iter().map(|o| o.make_goal()).collect();
 
     // debug high level model
 
@@ -667,7 +665,7 @@ pub fn make_new_runner(
         trans.push(t.clone());
     });
 
-    let intentions = global_intentions.iter().map(|v| v.path().clone()).collect();
+    let intentions = global_intentions.into_iter().cloned().collect();
 
     let mut all_vars = ts_model.vars.clone();
     all_vars.extend(ts_model.state_predicates.iter().cloned());
@@ -705,17 +703,15 @@ pub fn make_new_runner(
         "test",
         trans,
         all_vars,
-        global_hl_goals,
-        vec![],
         vec![ts_model.clone(), ts_model_op],
         model
             .all_resources()
             .iter()
             .map(|r| r.path().clone())
             .collect(),
-        intentions,
         replan_specs,
         operations,
+        intentions,
     );
 
     runner

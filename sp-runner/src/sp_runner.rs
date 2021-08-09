@@ -9,17 +9,16 @@ use std::collections::HashMap;
 pub struct SPRunner {
     pub name: String,
     pub ticker: SPTicker,
-    pub intention_goals: Vec<IfThen>,
 
     // TODO: plan is Map<String, SPPlan>
     pub plans: Vec<SPPlan>, // one plan per namespace
 
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub resources: Vec<SPPath>,
-    pub intentions: Vec<SPPath>,
     pub replan_specs: Vec<Spec>,
     pub operations: Vec<Operation>,
     pub operation_goals: HashMap<SPPath, Predicate>, // todo: move to the state
+    pub intentions: Vec<Intention>,
 }
 
 // Moving to this struct eventually...
@@ -68,10 +67,9 @@ impl SPRunner {
     /// Creates a new runner
     pub fn new(
         name: &str, transitions: Vec<Transition>, variables: Vec<Variable>,
-        intention_goals: Vec<IfThen>, forbidden: Vec<IfThen>,
         transition_system_models: Vec<TransitionSystemModel>,
-        resources: Vec<SPPath>, intentions: Vec<SPPath>, replan_specs: Vec<Spec>,
-        operations: Vec<Operation>,
+        resources: Vec<SPPath>, replan_specs: Vec<Spec>,
+        operations: Vec<Operation>, intentions: Vec<Intention>,
     ) -> Self {
         let mut vars = vec![];
         let mut preds = vec![];
@@ -101,7 +99,6 @@ impl SPRunner {
         let mut ticker = SPTicker::new();
         ticker.state = state;
         ticker.transitions = transitions;
-        ticker.forbidden = forbidden;
         ticker.predicates = runner_predicates;
         ticker.reload_state_paths();
         ticker.disabled_paths = resources.clone();
@@ -109,14 +106,13 @@ impl SPRunner {
         SPRunner {
             name: name.to_string(),
             ticker,
-            intention_goals,
             plans: vec![SPPlan::default(); 2],
             transition_system_models,
             resources,
-            intentions,
             replan_specs,
             operations,
             operation_goals: HashMap::new(),
+            intentions,
         }
     }
 }
@@ -128,23 +124,6 @@ impl NewSPRunner {
             ticker: r.ticker.clone(),
             plans: r.plans.clone(),
             resources: r.resources.clone(),
-        }
-    }
-
-    /// The main function to use when running the runner. Connect this to
-    /// a channel either using async or standard threads
-    pub fn input(&mut self, input: SPRunnerInput) {
-        match input {
-            SPRunnerInput::Tick => {
-                self.take_a_tick(SPState::new(), true);
-            }
-            SPRunnerInput::StateChange(s) => {
-                self.take_a_tick(s, false);
-            }
-            SPRunnerInput::NodeChange(s) => {
-                self.take_a_tick(s, true);
-            }
-            _ => {}
         }
     }
 

@@ -11,7 +11,6 @@ pub enum SPItem {
     Intention(Intention),
     Operation(Operation),
     Transition(Transition),
-    IfThen(IfThen),
     TransitionSpec(TransitionSpec),
     Spec(Spec),
     ProductSpec(ProductSpec),
@@ -27,7 +26,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.node(),
             SPItem::Operation(x) => x.node(),
             SPItem::Transition(x) => x.node(),
-            SPItem::IfThen(x) => x.node(),
             SPItem::Spec(x) => x.node(),
             SPItem::ProductSpec(x) => x.node(),
             SPItem::TransitionSpec(x) => x.node(),
@@ -41,7 +39,6 @@ impl Noder for SPItem {
             SPItem::Intention(ref mut x) => x.node_mut(),
             SPItem::Operation(ref mut x) => x.node_mut(),
             SPItem::Transition(ref mut x) => x.node_mut(),
-            SPItem::IfThen(ref mut x) => x.node_mut(),
             SPItem::Spec(ref mut x) => x.node_mut(),
             SPItem::ProductSpec(ref mut x) => x.node_mut(),
             SPItem::TransitionSpec(ref mut x) => x.node_mut(),
@@ -55,7 +52,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.get_child(next, path),
             SPItem::Operation(x) => x.get_child(next, path),
             SPItem::Transition(x) => x.get_child(next, path),
-            SPItem::IfThen(x) => x.get_child(next, path),
             SPItem::Spec(x) => x.get_child(next, path),
             SPItem::ProductSpec(x) => x.get_child(next, path),
             SPItem::TransitionSpec(x) => x.get_child(next, path),
@@ -69,7 +65,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.get_child_mut(next, path),
             SPItem::Operation(x) => x.get_child_mut(next, path),
             SPItem::Transition(x) => x.get_child_mut(next, path),
-            SPItem::IfThen(x) => x.get_child_mut(next, path),
             SPItem::Spec(x) => x.get_child_mut(next, path),
             SPItem::ProductSpec(x) => x.get_child_mut(next, path),
             SPItem::TransitionSpec(x) => x.get_child_mut(next, path),
@@ -85,7 +80,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.find_item_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_among_children(name, path_sections),
             SPItem::Transition(x) => x.find_item_among_children(name, path_sections),
-            SPItem::IfThen(x) => x.find_item_among_children(name, path_sections),
             SPItem::Spec(x) => x.find_item_among_children(name, path_sections),
             SPItem::ProductSpec(x) => x.find_item_among_children(name, path_sections),
             SPItem::TransitionSpec(x) => x.find_item_among_children(name, path_sections),
@@ -101,7 +95,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Operation(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Transition(x) => x.find_item_mut_among_children(name, path_sections),
-            SPItem::IfThen(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::Spec(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::ProductSpec(x) => x.find_item_mut_among_children(name, path_sections),
             SPItem::TransitionSpec(x) => x.find_item_mut_among_children(name, path_sections),
@@ -115,7 +108,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.update_path_children(path, changes),
             SPItem::Operation(x) => x.update_path_children(path, changes),
             SPItem::Transition(x) => x.update_path_children(path, changes),
-            SPItem::IfThen(x) => x.update_path_children(path, changes),
             SPItem::Spec(x) => x.update_path_children(path, changes),
             SPItem::ProductSpec(x) => x.update_path_children(path, changes),
             SPItem::TransitionSpec(x) => x.update_path_children(path, changes),
@@ -129,7 +121,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.rewrite_expressions(mapping),
             SPItem::Operation(x) => x.rewrite_expressions(mapping),
             SPItem::Transition(x) => x.rewrite_expressions(mapping),
-            SPItem::IfThen(x) => x.rewrite_expressions(mapping),
             SPItem::Spec(x) => x.rewrite_expressions(mapping),
             SPItem::ProductSpec(x) => x.rewrite_expressions(mapping),
             SPItem::TransitionSpec(x) => x.rewrite_expressions(mapping),
@@ -143,7 +134,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.as_ref(),
             SPItem::Operation(x) => x.as_ref(),
             SPItem::Transition(x) => x.as_ref(),
-            SPItem::IfThen(x) => x.as_ref(),
             SPItem::Spec(x) => x.as_ref(),
             SPItem::ProductSpec(x) => x.as_ref(),
             SPItem::TransitionSpec(x) => x.as_ref(),
@@ -157,7 +147,6 @@ impl Noder for SPItem {
             SPItem::Intention(x) => x.as_mut_ref(),
             SPItem::Operation(x) => x.as_mut_ref(),
             SPItem::Transition(x) => x.as_mut_ref(),
-            SPItem::IfThen(x) => x.as_mut_ref(),
             SPItem::Spec(x) => x.as_mut_ref(),
             SPItem::ProductSpec(x) => x.as_mut_ref(),
             SPItem::TransitionSpec(x) => x.as_mut_ref(),
@@ -173,7 +162,6 @@ pub enum SPItemRef<'a> {
     Intention(&'a Intention),
     Operation(&'a Operation),
     Transition(&'a Transition),
-    IfThen(&'a IfThen),
     TransitionSpec(&'a TransitionSpec),
     Spec(&'a Spec),
     ProductSpec(&'a ProductSpec),
@@ -188,7 +176,6 @@ pub enum SPMutItemRef<'a> {
     Intention(&'a mut Intention),
     Operation(&'a mut Operation),
     Transition(&'a mut Transition),
-    IfThen(&'a mut IfThen),
     TransitionSpec(&'a mut TransitionSpec),
     Spec(&'a mut Spec),
     ProductSpec(&'a mut ProductSpec),
@@ -204,7 +191,6 @@ impl<'a> SPItemRef<'a> {
             SPMutItemRef::Intention(x) => SPItemRef::Intention(x),
             SPMutItemRef::Operation(x) => SPItemRef::Operation(x),
             SPMutItemRef::Transition(x) => SPItemRef::Transition(x),
-            SPMutItemRef::IfThen(x) => SPItemRef::IfThen(x),
             SPMutItemRef::Spec(x) => SPItemRef::Spec(x),
             SPMutItemRef::ProductSpec(x) => SPItemRef::ProductSpec(x),
             SPMutItemRef::TransitionSpec(x) => SPItemRef::TransitionSpec(x),
@@ -227,7 +213,6 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Intention(x) => &x.node,
             SPItemRef::Operation(x) => &x.node,
             SPItemRef::Transition(x) => &x.node,
-            SPItemRef::IfThen(x) => &x.node,
             SPItemRef::Spec(x) => &x.node,
             SPItemRef::ProductSpec(x) => &x.node,
             SPItemRef::TransitionSpec(x) => &x.node,
@@ -241,7 +226,6 @@ impl<'a> SPItemRef<'a> {
             SPItemRef::Intention(x) => SPItem::Intention({ *x }.clone()),
             SPItemRef::Operation(x) => SPItem::Operation({ *x }.clone()),
             SPItemRef::Transition(x) => SPItem::Transition({ *x }.clone()),
-            SPItemRef::IfThen(x) => SPItem::IfThen({ *x }.clone()),
             SPItemRef::Spec(x) => SPItem::Spec({ *x }.clone()),
             SPItemRef::ProductSpec(x) => SPItem::ProductSpec({ *x }.clone()),
             SPItemRef::TransitionSpec(x) => SPItem::TransitionSpec({ *x }.clone()),
@@ -265,7 +249,6 @@ impl<'a> SPMutItemRef<'a> {
             SPMutItemRef::Intention(x) => &x.node,
             SPMutItemRef::Operation(x) => &x.node,
             SPMutItemRef::Transition(x) => &x.node,
-            SPMutItemRef::IfThen(x) => &x.node,
             SPMutItemRef::Spec(x) => &x.node,
             SPMutItemRef::ProductSpec(x) => &x.node,
             SPMutItemRef::TransitionSpec(x) => &x.node,
@@ -288,7 +271,6 @@ impl<'a> SPMutItemRef<'a> {
             SPMutItemRef::Intention(_) => "intention".to_string(),
             SPMutItemRef::Operation(_) => "operation".to_string(),
             SPMutItemRef::Transition(_) => "transition".to_string(),
-            SPMutItemRef::IfThen(_) => "ifthen".to_string(),
             SPMutItemRef::Spec(_) => "spec".to_string(),
             SPMutItemRef::ProductSpec(_) => "prodspec".to_string(),
             SPMutItemRef::TransitionSpec(_) => "transitionspec".to_string(),
@@ -945,7 +927,6 @@ pub struct Intention {
     pre: Predicate,
     post: Predicate,
     post_actions: Vec<Action>,
-    invariant: Option<Predicate>,
 }
 
 impl Noder for Intention {
@@ -978,9 +959,6 @@ impl Noder for Intention {
         self.post_actions
             .iter_mut()
             .for_each(|a| a.replace_variable_path(mapping));
-        if let Some(invar) = &mut self.invariant {
-            invar.replace_variable_path(mapping);
-        };
     }
     fn as_ref(&self) -> SPItemRef<'_> {
         SPItemRef::Intention(self)
@@ -992,9 +970,7 @@ impl Noder for Intention {
 
 impl Intention {
     pub fn new(
-        name: &str, resets: bool, pre: &Predicate, post: &Predicate, post_actions: &[Action],
-        invariant: Option<Predicate>,
-    ) -> Intention {
+        name: &str, resets: bool, pre: &Predicate, post: &Predicate, post_actions: &[Action]) -> Intention {
         let node = SPNode::new(name);
 
         Intention {
@@ -1003,21 +979,21 @@ impl Intention {
             pre: pre.clone(),
             post: post.clone(),
             post_actions: post_actions.to_vec(),
-            invariant,
         }
     }
 
-    pub fn make_goal(&self) -> IfThen {
-        let state = self.path();
-        let mut it = IfThen::new(
-            "goal",
-            p!(p: state == "e"),
-            self.post.clone(),
-            self.invariant.clone(),
-            None,
-        );
-        it.node_mut().update_path(self.path());
-        it
+    pub fn is_executing(&self, state: &SPState) -> bool {
+        state.sp_value_from_path(self.path())
+            .map(|v| v == &"e".to_spvalue()).unwrap_or(false)
+    }
+
+    pub fn is_error(&self, state: &SPState) -> bool {
+        state.sp_value_from_path(self.path())
+            .map(|v| v == &"error".to_spvalue()).unwrap_or(false)
+    }
+
+    pub fn get_goal(&self) -> Predicate {
+        self.post.clone()
     }
 
     pub fn make_runner_transitions(&self) -> Vec<Transition> {
@@ -1045,93 +1021,6 @@ impl Intention {
         runner_finish.node_mut().update_path(self.path());
 
         vec![runner_start, runner_finish]
-    }
-}
-
-/// An IfThen is used by operaitons to define goals or invariants. When the if_
-/// predicate is true, then the then_ predicate is either a goal or an invariant
-/// that the planner will use for planning. TODO: Maybe we should have a better name?
-/// MD 2020-01-30: I have changed this to include both a goal and an optional invariant.
-/// The reasoning is that I think active invariants will always be connected to some
-/// running operation and from a planning perspective they must be connected in order to be
-/// "deactivated" once the goal of that operation is reached.
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
-pub struct IfThen {
-    node: SPNode,
-    pub condition: Predicate,
-    pub goal: Predicate,
-    pub invariant: Option<Predicate>,
-    pub actions: Option<Vec<Action>>,
-}
-
-impl Noder for IfThen {
-    fn node(&self) -> &SPNode {
-        &self.node
-    }
-    fn node_mut(&mut self) -> &mut SPNode {
-        &mut self.node
-    }
-    fn get_child<'a>(&'a self, _: &str, _: &SPPath) -> Option<SPItemRef<'a>> {
-        None
-    }
-    fn get_child_mut<'a>(&'a mut self, _: &str, _: &SPPath) -> Option<SPMutItemRef<'a>> {
-        None
-    }
-    fn find_item_among_children<'a>(
-        &'a self, _name: &str, _path_sections: &[&str],
-    ) -> Option<SPItemRef<'a>> {
-        None
-    }
-    fn find_item_mut_among_children<'a>(
-        &'a mut self, _name: &str, _path_sections: &[&str],
-    ) -> Option<SPMutItemRef<'a>> {
-        None
-    }
-    fn update_path_children(&mut self, _path: &SPPath, _changes: &mut HashMap<SPPath, SPPath>) {}
-    fn rewrite_expressions(&mut self, mapping: &HashMap<SPPath, SPPath>) {
-        self.condition.replace_variable_path(mapping);
-        self.goal.replace_variable_path(mapping);
-        if let Some(invariant) = &mut self.invariant {
-            invariant.replace_variable_path(mapping);
-        }
-    }
-    fn as_ref(&self) -> SPItemRef<'_> {
-        SPItemRef::IfThen(self)
-    }
-    fn as_mut_ref(&mut self) -> SPMutItemRef<'_> {
-        SPMutItemRef::IfThen(self)
-    }
-}
-
-impl IfThen {
-    pub fn new(
-        name: &str, condition: Predicate, goal: Predicate, invariant: Option<Predicate>,
-        actions: Option<Vec<Action>>,
-    ) -> IfThen {
-        let node = SPNode::new(name);
-        IfThen {
-            node,
-            condition,
-            goal,
-            invariant,
-            actions,
-        }
-    }
-    pub fn condition(&self) -> &Predicate {
-        &self.condition
-    }
-    pub fn goal(&self) -> &Predicate {
-        &self.goal
-    }
-
-    pub fn invariant(&self) -> &Option<Predicate> {
-        &self.invariant
-    }
-
-    pub fn upd_state_path(&mut self, state: &SPState) {
-        self.condition.upd_state_path(state);
-        self.goal.upd_state_path(state);
-        self.invariant.as_mut().map(|x| x.upd_state_path(state));
     }
 }
 
@@ -1263,7 +1152,6 @@ impl Operation {
             .map(|v| v == &"e".to_spvalue()).unwrap_or(false)
     }
 
-    // todo: define "e" somewhere...
     pub fn is_error(&self, state: &SPState) -> bool {
         state.sp_value_from_path(self.path())
             .map(|v| v == &"error".to_spvalue()).unwrap_or(false)

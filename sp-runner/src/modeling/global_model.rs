@@ -203,9 +203,9 @@ impl GModel {
 
     pub fn add_intention(
         &mut self, name: &str, resets: bool, pre: &Predicate, post: &Predicate,
-        post_actions: &[Action], invariant: Option<Predicate>,
+        post_actions: &[Action]
     ) -> SPPath {
-        let i = Intention::new(name, resets, pre, post, post_actions, invariant);
+        let i = Intention::new(name, resets, pre, post, post_actions);
         self.add_sub_item("intentions", SPItem::Intention(i))
     }
 

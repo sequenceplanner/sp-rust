@@ -22,8 +22,7 @@ const LVL1_MAX_TIME: Duration = Duration::from_secs(5);
 pub struct PlanningState {
     pub plans: Vec<SPPlan>,
     pub transition_system_models: Vec<TransitionSystemModel>,
-    pub intentions: Vec<SPPath>,
-    pub intention_goals: Vec<IfThen>,
+    pub intentions: Vec<Intention>,
     pub replan_specs: Vec<Spec>,
     pub operations: Vec<Operation>,
     pub bad_state: bool,
@@ -449,11 +448,13 @@ impl PlanningState {
 
     /// Currently we don't perform any concretization on the high level
     pub fn int_goal(&self, state: &SPState) -> Vec<(Predicate, Option<Predicate>)> {
-        self.intention_goals
-            .iter()
-            .filter(|g| g.condition.eval(state))
-            .map(|x| (x.goal.clone(), x.invariant.clone()))
-            .collect()
+        self.intentions.iter().filter_map(|i| {
+            if i.is_executing(state) {
+                Some((i.get_goal().clone(), None))
+            } else {
+                None
+            }
+        }).collect()
     }
 
 
@@ -623,19 +624,10 @@ impl PlanningState {
             // HACKS!
 
             let mut fixed_its = vec![];
-            for p in &self.intentions {
-                // TODO: add support in the domain instead of checking paths...
-                if state.sp_value_from_path(p).unwrap() == &"error".to_spvalue() {
-                    println!(
-                        "checking if we can remove error on high level operation: {}",
-                        p
-                    );
-                    let goal_path = p.clone().add_child("goal");
-                    println!("goal name {}", goal_path);
-
-                    let g1 = &self.intention_goals;
-                    let i: &IfThen = g1.iter().find(|g| g.path() == &goal_path).unwrap();
-                    let goal = vec![(i.goal().clone(), None)];
+            for i in &self.intentions {
+                if i.is_error(state) {
+                    println!("checking if we can remove error on intention: {}", i.path());
+                    let goal = vec![(i.get_goal().clone(), None)];
 
                     let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
                     let pr = planning::plan_async_with_cache(
@@ -651,12 +643,7 @@ impl PlanningState {
                     );
 
                     if pr.plan_found {
-                        fixed_its.push(p.clone());
-                        // runner
-                        //     .ticker
-                        //     .state
-                        //     .force_from_path(&p, &"e".to_spvalue())
-                        //     .unwrap();
+                        fixed_its.push(i.path().clone());
                     }
                 }
             }
@@ -1001,14 +988,8 @@ impl PlanningState {
                     println!("no high level plan found...");
 
                     // look for the problematic goals
-                    let g1 = &self.intention_goals;
-                    let ifthens: Vec<&IfThen> = g1
-                        .iter()
-                        .filter(|g| g.condition.eval(state))
-                        .collect();
-
-                    for i in ifthens {
-                        let goal = vec![(i.goal().clone(), i.invariant().clone())];
+                    for i in &self.intentions {
+                        let goal = vec![(i.get_goal().clone(), None)];
                         let disabled_vec: Vec<_> = disabled_operations.iter().cloned().collect();
                         let pr = planning::plan_async_with_cache(
                             &ts,
