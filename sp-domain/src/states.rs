@@ -361,6 +361,21 @@ impl SPState {
         }
     }
 
+    /// Useful to avoid cloning (e.g. on extracted states).
+    pub fn new_from_owned_values(hm: Vec<(SPPath, StateValue)>) -> SPState {
+        let mut xs = HashMap::new();
+        let mut v = Vec::with_capacity(hm.len());
+        for (key, value) in hm.into_iter() {
+            v.push(value);
+            xs.insert(key, v.len() - 1);
+        }
+        SPState {
+            index: xs,
+            values: v,
+            id: Uuid::new_v4(),
+        }
+    }
+
     pub fn add_state_variable(&mut self, path: SPPath, value: StateValue) {
         if self.index.contains_key(&path) {
             self.values[*self.index.get(&path).unwrap()] = value;
@@ -671,6 +686,17 @@ impl SPState {
         } else {
             Some(other_state)
         }
+    }
+
+    /// Given a list of paths, consume this state and return a new
+    /// state that only contain the exact paths given.
+    pub fn filter_by_paths(self, paths: &[SPPath]) -> SPState {
+        let mut kv = self.extract();
+        let filtered = kv
+            .into_iter()
+            .filter(|(k, _)| paths.iter().any(|p| k == p))
+            .collect();
+        SPState::new_from_owned_values(filtered)
     }
 }
 

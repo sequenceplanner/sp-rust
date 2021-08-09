@@ -2,7 +2,7 @@
 
 use sp_domain::*;
 use sp_ros::*;
-use std::time::Instant;
+use std::time::{Duration,Instant};
 use super::sp_ticker::SPTicker;
 use super::sp_runner::*;
 use super::planning;
@@ -17,11 +17,10 @@ pub struct TransitionPlanner {
     pub model: TransitionSystemModel, // planning model
     pub operations: Vec<Operation>, // our operations
     pub bad_state: bool, // todo.
-
+    pub prev_state: SPState, // to check if something relevant for this planner has changed
     pub prev_goals: Vec<(Predicate, Option<Predicate>)>, // previous goals
     pub store: planning::PlanningStore, // cache
     pub disabled_operation_check: Instant,
-    pub prev_disabled_operations: HashSet<SPPath>,
 }
 
 fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
@@ -235,7 +234,29 @@ impl TransitionPlanner {
         block_plan
     }
 
-    pub fn compute_new_plan(&mut self, state: &SPState, disabled_paths: &[SPPath]) -> Option<(usize,SPPlan)> {
+    /// Only keep parts of the state that are relevant to this planner.
+    pub fn filter_state(&self, state: SPState) -> SPState {
+        // Planning index
+        let mut to_keep = vec![SPPath::from_slice(&["runner", "plans", "1"])];
+        // We want to keep any paths contained in our formal model.
+        to_keep.extend(self.model.get_state_paths());
+        // As well as the state of any operations in the model.
+        to_keep.extend(self.operations.iter().map(|o|o.path().clone()).collect::<Vec<_>>());
+        state.filter_by_paths(&to_keep)
+    }
+
+    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<(usize,SPPlan)> {
+        let new_state = self.filter_state(state.clone());
+
+        // nothing has changed, no need to do anything.
+        if new_state == self.prev_state {
+            // back off a bit
+            std::thread::sleep(Duration::from_millis(1));
+            return None;
+        }
+
+        self.prev_state = new_state;
+
         if !self.bad_state {
             // previously we had the above
             // temp_ts.specs.extend(self.transition_system_models[1].specs.iter().cloned());
@@ -243,7 +264,7 @@ impl TransitionPlanner {
                 .specs
                 .iter()
                 .filter_map(|s| {
-                    if !s.invariant().eval(state) {
+                    if !s.invariant().eval(&state) {
                         Some(s)
                     } else {
                         None
@@ -262,7 +283,7 @@ impl TransitionPlanner {
                     .iter()
                     .map(|b| (b.invariant().clone(), None))
                     .collect::<Vec<_>>();
-                let pr = planning::plan(&temp_ts, goals.as_slice(), state, LVL0_MAX_STEPS);
+                let pr = planning::plan(&temp_ts, goals.as_slice(), &state, LVL0_MAX_STEPS);
 
                 let plan = pr
                     .trace
@@ -281,14 +302,14 @@ impl TransitionPlanner {
                 self.bad_state = true; // TODO: should not be needed
             }
         } else {
-            self.bad_state = bad_state(state, &self.model);
+            self.bad_state = bad_state(&state, &self.model);
         }
 
         if self.bad_state {
             return None;
         }
 
-        let goals = self.goals(state);
+        let goals = self.goals(&state);
         println!("Transition planner goals:");
         for g in &goals {
             println!("{}", g.0);
@@ -296,12 +317,8 @@ impl TransitionPlanner {
         println!("--");
 
         let disabled_operations: HashSet<SPPath> = self.operations.iter()
-            .filter(|o|o.is_error(state))
+            .filter(|o|o.is_error(&state))
             .map(|o|o.path().clone()).collect();
-
-        // either something was fixed by the user or by this code the previous cycle.
-        let something_was_fixed = disabled_operations.len() < self.prev_disabled_operations.len();
-        self.prev_disabled_operations = disabled_operations.clone();
 
         // TODO: Move to other function. This code handles error operations and
         // resets them if posssible. Will be checked now and then.
@@ -327,7 +344,7 @@ impl TransitionPlanner {
                 let pr = planning::plan(
                     &ts,
                     goal.as_slice(),
-                    state,
+                    &state,
                     LVL0_MAX_STEPS,
                 );
 
@@ -374,7 +391,7 @@ impl TransitionPlanner {
                     .into_iter().filter(|(_k,v)| v.value() == &false.to_spvalue()).map(|(k,_v)| k.drop_root()).collect();
                 tsm.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
                 check_goals_fast(
-                    state,
+                    &state,
                     &gr,
                     &self.plan,
                     &tsm,
@@ -462,11 +479,11 @@ impl TransitionPlanner {
                 tts.transitions.retain(|t| !(t.type_ == TransitionType::Effect && removed.contains(t.path())));
 
                 // planning::plan_with_cache(&tts, &goals, state, LVL0_MAX_STEPS, &mut self.store)
-                planning::plan(&tts, &goals, state, LVL0_MAX_STEPS)
+                planning::plan(&tts, &goals, &state, LVL0_MAX_STEPS)
             } else {
                 // skip heuristic for the low level
                 // planning::plan_with_cache(ts, &goals, state, 2 * LVL0_MAX_STEPS, &mut self.store)
-                planning::plan(&self.model, &goals, state, 2 * LVL0_MAX_STEPS)
+                planning::plan(&self.model, &goals, &state, 2 * LVL0_MAX_STEPS)
             };
 
             planning::bubble_up_delibs(&self.model, &gr, &mut pr);
@@ -530,10 +547,10 @@ impl TransitionPlanner {
             // look for the problematic goals
             let executing_ops: Vec<&Operation> =
                 self.operations.iter()
-                .filter(|o| o.is_executing(state)).collect();
+                .filter(|o| o.is_executing(&state)).collect();
             for o in executing_ops {
                 let op_path = o.path();
-                let goal = o.get_goal(Some(state));
+                let goal = o.get_goal(Some(&state));
                 println!("checking low level operation: {} -- {:?}", op_path, goal);
                 println!("disabled ops {:?}", disabled_operations);
                 if disabled_operations.contains(op_path) {
@@ -552,7 +569,7 @@ impl TransitionPlanner {
                 let pr = planning::plan(
                     &ts,
                     goal.as_slice(),
-                    state,
+                    &state,
                     LVL0_MAX_STEPS,
                 );
                 if !pr.plan_found {

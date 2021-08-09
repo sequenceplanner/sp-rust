@@ -272,4 +272,12 @@ impl TransitionSystemModel {
     pub fn bad_state(&self, state: &SPState) -> bool {
         self.specs.iter().any(|s| !s.invariant().eval(state))
     }
+
+    /// Return a list of all paths used in states, e.g. the ones for
+    /// variables and state predicates.
+    pub fn get_state_paths(&self) -> Vec<SPPath> {
+        let mut paths: Vec<_> = self.vars.iter().map(|p| p.path().clone()).collect();
+        paths.extend(self.state_predicates.iter().map(|p| p.path().clone()).collect::<Vec<_>>());
+        paths
+    }
 }

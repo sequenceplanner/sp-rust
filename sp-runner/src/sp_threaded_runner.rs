@@ -13,7 +13,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use rayon::prelude::*;
-use tokio::sync::watch;
 
 pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Error> {
     // we use this as the main entry point for SP.
@@ -103,10 +102,10 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
         model: old_runner.transition_system_models[0].clone(),
         operations: old_runner.operations.clone(),
         bad_state: false,
+        prev_state: SPState::new(),
         prev_goals: vec![],
         store: planning::PlanningStore::default(),
         disabled_operation_check: std::time::Instant::now(),
-        prev_disabled_operations: HashSet::new(),
     };
 
     let mut operation_planner = OperationPlanner {
@@ -115,6 +114,7 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
         operations: old_runner.operations.clone(),
         intentions: old_runner.intentions.clone(),
         replan_specs: old_runner.replan_specs.clone(),
+        prev_state: SPState::new(),
         prev_goals: vec![],
         store_async: store_async.clone(),
         disabled_operation_check: std::time::Instant::now(),
@@ -133,7 +133,7 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
                 let ro = t_runner_out.lock().unwrap();
                 ro.clone()
             };
-            if let Some((i, plan)) = transition_planner.compute_new_plan(&ro.state, &ro.disabled_paths) {
+            if let Some((i, plan)) = transition_planner.compute_new_plan(ro.state, &ro.disabled_paths) {
                 println!("new plan computed");
                 let cmd = SPRunnerInput::NewPlan(i, plan);
                 t_tx_input.try_send(cmd).expect("could not send to runner...");
@@ -151,7 +151,7 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
                 let ro = o_runner_out.lock().unwrap();
                 ro.clone()
             };
-            if let Some((i, plan)) = operation_planner.compute_new_plan(&ro.state, &ro.disabled_paths) {
+            if let Some((i, plan)) = operation_planner.compute_new_plan(ro.state, &ro.disabled_paths) {
                 println!("new plan computed");
                 let cmd = SPRunnerInput::NewPlan(i, plan);
                 o_tx_input.try_send(cmd).expect("could not send to runner...");
@@ -198,10 +198,10 @@ fn runner(
             model: old_runner.transition_system_models[0].clone(),
             operations: old_runner.operations.clone(),
             bad_state: false,
+            prev_state: SPState::new(),
             prev_goals: vec![],
             store: planning::PlanningStore::default(),
             disabled_operation_check: std::time::Instant::now(),
-            prev_disabled_operations: HashSet::new(),
         };
 
         let mut operation_planner = OperationPlanner {
@@ -210,6 +210,7 @@ fn runner(
             operations: old_runner.operations.clone(),
             intentions: old_runner.intentions.clone(),
             replan_specs: old_runner.replan_specs.clone(),
+            prev_state: SPState::new(),
             prev_goals: vec![],
             store_async: store_async.clone(),
             disabled_operation_check: std::time::Instant::now(),

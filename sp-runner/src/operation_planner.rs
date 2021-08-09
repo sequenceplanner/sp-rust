@@ -22,7 +22,7 @@ pub struct OperationPlanner {
     pub operations: Vec<Operation>, // our operations
     pub intentions: Vec<Intention>,
     pub replan_specs: Vec<Spec>,
-
+    pub prev_state: SPState,
     pub prev_goals: Vec<(Predicate, Option<Predicate>)>, // previous goals
     pub store_async: Arc<Mutex<planning::AsyncPlanningStore>>,
     pub disabled_operation_check: Instant,
@@ -320,12 +320,40 @@ impl OperationPlanner {
         self.preprocess_operation_plan(&block_plan)
     }
 
-    pub fn compute_new_plan(&mut self, state: &SPState, disabled_paths: &[SPPath]) -> Option<(usize,SPPlan)> {
-        if bad_state(state, &self.model) {
+
+    /// Only keep parts of the state that are relevant to this planner.
+    /// This will later be moved to a callback to the threaded runner so we
+    /// can be notified upon change from there instead of busy waiting.
+    pub fn filter_state(&self, state: SPState) -> SPState {
+        // Planning index
+        let mut to_keep = vec![SPPath::from_slice(&["runner", "plans", "1"])];
+        // We want to keep any paths contained in our formal model.
+        to_keep.extend(self.model.get_state_paths());
+        // As well as the state of any operations in the model.
+        to_keep.extend(self.operations.iter().map(|o|o.path().clone()).collect::<Vec<_>>());
+        // As well as the state of any intentions in the model.
+        to_keep.extend(self.intentions.iter().map(|o|o.path().clone()).collect::<Vec<_>>());
+        state.filter_by_paths(&to_keep)
+    }
+
+    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<(usize,SPPlan)> {
+        let new_state = self.filter_state(state.clone());
+
+        // nothing has changed, no need to do anything.
+        if new_state == self.prev_state {
+            // back off a bit
+            std::thread::sleep(Duration::from_millis(1));
+            return None;
+        }
+        self.prev_state = new_state;
+
+        // the reason we don't work on new_state below is that the statepaths won't be correct....
+
+        if bad_state(&state, &self.model) {
             return None;
         }
 
-        let goals = self.goals(state);
+        let goals = self.goals(&state);
         println!("Operation planner goals:");
         for g in &goals {
             println!("{}", g.0);
@@ -333,7 +361,7 @@ impl OperationPlanner {
         println!("--");
 
         let disabled_operations: HashSet<SPPath> = self.operations.iter()
-            .filter(|o|o.is_error(state))
+            .filter(|o|o.is_error(&state))
             .map(|o|o.path().clone()).collect();
 
         // either something was fixed by the user or by this code the previous cycle.
@@ -348,14 +376,14 @@ impl OperationPlanner {
 
             let mut fixed_its = vec![];
             for i in &self.intentions {
-                if i.is_error(state) {
+                if i.is_error(&state) {
                     println!("checking if we can remove error on intention: {}", i.path());
                     let goal = vec![(i.get_goal().clone(), None)];
 
                     let pr = planning::plan_async(
                         &self.model,
                         &goal,
-                        state,
+                        &state,
                         LVL1_MAX_STEPS,
                         LVL1_CUTOFF,
                         LVL1_LOOKOUT,
@@ -404,7 +432,7 @@ impl OperationPlanner {
             // let all low-level effects complete before computing a new high level goal.
             if !ok {
                 let active_effects = self.replan_specs.iter().any(|t| {
-                    let x = !t.invariant().eval(state);
+                    let x = !t.invariant().eval(&state);
                     if x {
                         println!("Effect in progress: {}", t.path());
                     }
@@ -428,7 +456,7 @@ impl OperationPlanner {
 
             let ok = {
                 check_goals_op_model(
-                    state,
+                    &state,
                     &goals,
                     &self.plan,
                     &self.model,
@@ -466,7 +494,7 @@ impl OperationPlanner {
                 planning::plan_async(
                     &ts,
                     &goals,
-                    state,
+                    &state,
                     LVL1_MAX_STEPS,
                     LVL1_CUTOFF,
                     LVL1_LOOKOUT,
@@ -531,7 +559,7 @@ impl OperationPlanner {
                     let pr = planning::plan_async(
                         &ts,
                         &goal,
-                        state,
+                        &state,
                         LVL1_MAX_STEPS,
                         LVL1_CUTOFF,
                         LVL1_LOOKOUT,
