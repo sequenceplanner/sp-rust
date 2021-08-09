@@ -245,7 +245,7 @@ impl TransitionPlanner {
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<(usize,SPPlan)> {
+    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -367,7 +367,7 @@ impl TransitionPlanner {
         {
             let block_plan = self.block_all();
 
-            return Some((0, block_plan));
+            return Some(block_plan);
         }
 
         //println!("TS {} GOT GOALS", i);
@@ -577,7 +577,7 @@ impl TransitionPlanner {
                     log_warn!("offending low level operation: {}", op_path);
                     // TODO, verify that this works
                     plan.state_change.add_variable(op_path.clone(), "error".to_spvalue());
-                    return Some((0, plan));
+                    return Some(plan);
                 }
             }
             if disabled_operations.is_empty() {
@@ -608,6 +608,6 @@ impl TransitionPlanner {
 
         // rename paths before sending plan to the runner.
         // return early as soon as we have a new plan
-        return Some((0, plan));
+        return Some(plan);
     }
 }

@@ -133,12 +133,10 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
                 let ro = t_runner_out.lock().unwrap();
                 ro.clone()
             };
-            if let Some((i, plan)) = transition_planner.compute_new_plan(ro.state, &ro.disabled_paths) {
+            if let Some(plan) = transition_planner.compute_new_plan(ro.state, &ro.disabled_paths) {
                 println!("new plan computed");
-                let cmd = SPRunnerInput::NewPlan(i, plan);
+                let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), plan);
                 t_tx_input.try_send(cmd).expect("could not send to runner...");
-            } else {
-                println!("no plan computed");
             }
         }
     });
@@ -151,12 +149,10 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
                 let ro = o_runner_out.lock().unwrap();
                 ro.clone()
             };
-            if let Some((i, plan)) = operation_planner.compute_new_plan(ro.state, &ro.disabled_paths) {
+            if let Some(plan) = operation_planner.compute_new_plan(ro.state, &ro.disabled_paths) {
                 println!("new plan computed");
-                let cmd = SPRunnerInput::NewPlan(i, plan);
+                let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
                 o_tx_input.try_send(cmd).expect("could not send to runner...");
-            } else {
-                println!("no plan computed");
             }
         }
     });
@@ -220,8 +216,8 @@ fn runner(
         // block all transitions intially
         let block_transition_plan = transition_planner.block_all();
         let block_operation_plan = operation_planner.block_all();
-        runner.set_plan(0, block_transition_plan);
-        runner.set_plan(1, block_operation_plan);
+        runner.set_plan("transition_planner".to_string(), block_transition_plan);
+        runner.set_plan("operation_planner".to_string(), block_operation_plan);
 
         // experiment with timeout on effects...
         old_runner.transition_system_models[0].transitions.iter().for_each(|t| {
@@ -276,8 +272,8 @@ fn runner(
                         last_fired_transitions = runner.take_a_tick(SPState::new(), true);
                         ticked = true;
                     }
-                    SPRunnerInput::NewPlan(i, plan) => {
-                        runner.set_plan(i, plan);
+                    SPRunnerInput::NewPlan(plan_name, plan) => {
+                        runner.set_plan(plan_name, plan);
                     }
                 }
             } else {

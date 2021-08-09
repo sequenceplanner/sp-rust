@@ -10,8 +10,7 @@ pub struct SPRunner {
     pub name: String,
     pub ticker: SPTicker,
 
-    // TODO: plan is Map<String, SPPlan>
-    pub plans: Vec<SPPlan>, // one plan per namespace
+    pub plans: HashMap<String, SPPlan>,
 
     pub transition_system_models: Vec<TransitionSystemModel>,
     pub resources: Vec<SPPath>,
@@ -27,40 +26,25 @@ pub struct NewSPRunner {
     pub name: String,
     pub ticker: SPTicker,
 
-    // TODO: plan is Map<String, SPPlan>
-    pub plans: Vec<SPPlan>, // one plan per namespace
+    pub plans: HashMap<String, SPPlan>,
 
     // TODO: create a resource handler task?
     pub resources: Vec<SPPath>,
 }
 
 /// The input to the runner.
-///
-/// Tick is used to trigger one evaluation and execution of the transitions. Use
-/// it to run the runner at a frequency.
-///
-/// TickAsync is used when the runner is in sync mode but youdo not want to
-/// do the planning before executing the transition.
-///
-/// StateChange(upd_variables) is used when the input variables have changed. If
-/// they are the same as the internal state, the runner will not execute the transitions.
-///
-/// Settings will change the internal settings of the runner. Maybe send in goals and specs using this?
-///
 #[derive(Debug, PartialEq, Clone)]
 pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
     NodeChange(SPState),
-    NewPlan(usize, SPPlan),
+    NewPlan(String, SPPlan),
 }
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
-    //id: usize, // probably use later. Or maybe we should include some kind of timestamp,
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification
     pub included_trans: Vec<SPPath>, // list of all included transitions in the plan (in order).
-    pub state_change: SPState,     // for setting variables use in the plans
-                                   //sequence: Vec<(usize, SPPath),  // probably need this when handling unsync planning
+    pub state_change: SPState,     // for setting variables used in the plans (and others)
 }
 
 impl SPRunner {
@@ -84,14 +68,6 @@ impl SPRunner {
         });
 
         let mut state = SPState::new_from_values(&initial_state_map);
-        state.add_variable(
-            SPPath::from_slice(&["runner", "plans", "0"]),
-            0.to_spvalue(),
-        );
-        state.add_variable(
-            SPPath::from_slice(&["runner", "plans", "1"]),
-            0.to_spvalue(),
-        );
         let runner_predicates: Vec<RunnerPredicate> = preds
             .iter()
             .flat_map(|p| RunnerPredicate::new(p, &state))
@@ -106,7 +82,7 @@ impl SPRunner {
         SPRunner {
             name: name.to_string(),
             ticker,
-            plans: vec![SPPlan::default(); 2],
+            plans: HashMap::new(),
             transition_system_models,
             resources,
             replan_specs,
@@ -127,9 +103,9 @@ impl NewSPRunner {
         }
     }
 
-    pub fn set_plan(&mut self, idx: usize, plan: SPPlan) {
-        self.plans[idx as usize] = plan;
-        self.update_state_variables(self.plans[idx as usize].state_change.clone());
+    pub fn set_plan(&mut self, plan_identifier: String, plan: SPPlan) {
+        self.update_state_variables(plan.state_change.clone());
+        (*self.plans.entry(plan_identifier).or_default()) = plan;
         self.load_plans();
     }
 
@@ -172,8 +148,7 @@ impl NewSPRunner {
 
     fn load_plans(&mut self) {
         self.reload_state_paths_plans();
-        self.ticker.specs = self.plans[0].plan.clone();
-        self.ticker.specs.extend(self.plans[1].plan.clone());
+        self.ticker.specs = self.plans.values().map(|p|p.plan.clone()).flatten().collect();
     }
 
     fn reload_state_paths(&mut self) {
@@ -182,7 +157,7 @@ impl NewSPRunner {
     }
     fn reload_state_paths_plans(&mut self) {
         let s = &self.ticker.state;
-        self.plans.iter_mut().for_each(|p| {
+        self.plans.iter_mut().for_each(|(_,p)| {
             p.plan.iter_mut().for_each(|x| {
                 x.spec_transition.upd_state_path(&s);
             });

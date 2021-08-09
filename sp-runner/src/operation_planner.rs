@@ -336,7 +336,7 @@ impl OperationPlanner {
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<(usize,SPPlan)> {
+    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -408,7 +408,7 @@ impl OperationPlanner {
             });
             self.plan = block_plan.clone();
 
-            return Some((1, block_plan));
+            return Some(block_plan);
         }
 
         // TODO: fixme
@@ -424,7 +424,7 @@ impl OperationPlanner {
             != &true.to_spvalue()
         {
             let plan = self.block_all();
-            return Some((1, plan));
+            return Some(plan);
         }
 
         let changed = {
@@ -614,7 +614,7 @@ impl OperationPlanner {
             let plan_to_runner = self.preprocess_operation_plan(&plan);
 
             // return early as soon as we have a new plan
-            return Some((1, plan_to_runner));
+            return Some(plan_to_runner);
         }
 
         return None;
