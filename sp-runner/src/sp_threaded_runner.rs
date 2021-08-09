@@ -1,5 +1,7 @@
 use super::sp_runner::*;
 use super::sp_planning_runner::*;
+use super::transition_planner::*;
+use super::operation_planner::*;
 use crate::planning;
 use crate::*;
 use crossbeam::{channel, Receiver, Sender};
@@ -111,39 +113,43 @@ fn runner(
         let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
                 &old_runner.transition_system_models[1],
             )));
-        let mut planning_state = PlanningState {
-            plans: vec![SPPlan::default(); 2], // one plan per namespace
-            transition_system_models: old_runner.transition_system_models.clone(),
-            intentions: old_runner.intentions.clone(),
-            replan_specs: old_runner.replan_specs.clone(),
+
+        let mut transition_planner = TransitionPlanner {
+            plan: SPPlan::default(),
+            model: old_runner.transition_system_models[0].clone(),
             operations: old_runner.operations.clone(),
             bad_state: false,
-            prev_goals: HashMap::new(),
-            store_async: store_async.clone(),
+            prev_goals: vec![],
             store: planning::PlanningStore::default(),
             disabled_operation_check: std::time::Instant::now(),
             prev_disabled_operations: HashSet::new(),
         };
 
+        let mut operation_planner = OperationPlanner {
+            plan: SPPlan::default(),
+            model: old_runner.transition_system_models[1].clone(),
+            operations: old_runner.operations.clone(),
+            intentions: old_runner.intentions.clone(),
+            replan_specs: old_runner.replan_specs.clone(),
+            prev_goals: vec![],
+            store_async: store_async.clone(),
+            disabled_operation_check: std::time::Instant::now(),
+            prev_disabled_operations: HashSet::new(),
+        };
+
         // block all transitions intially
-        let block_ts0 = SPPlan {
-            plan: planning::block_all(&planning_state.transition_system_models[0]),
-            included_trans: Vec::new(),
-            state_change: SPState::new(),
+        let block_transition_plan = transition_planner.block_all();
+        let block_operation_plan = operation_planner.block_all();
+        runner.set_plan(0, block_transition_plan);
+        runner.set_plan(1, block_operation_plan);
+
+        let mut planning_state = PlanningState {
+            operation_planner,
+            transition_planner,
         };
-        let block_ts1 = SPPlan {
-            plan: planning::block_all(&planning_state.transition_system_models[1]),
-            included_trans: Vec::new(),
-            state_change: SPState::new(),
-        };
-        planning_state.plans[0] = block_ts0.clone();
-        planning_state.plans[1] = block_ts1.clone();
-        let block_ts1 = planning_state.preprocess_operation_plan(&block_ts1);
-        runner.set_plan(0, block_ts0);
-        runner.set_plan(1, block_ts1);
 
         // experiment with timeout on effects...
-        planning_state.transition_system_models[0].transitions.iter().for_each(|t| {
+        old_runner.transition_system_models[0].transitions.iter().for_each(|t| {
             if t.type_ == TransitionType::Effect {
                 let path = t.path().add_parent("effects");
                 let effect_enabled = SPState::new_from_values(&[(path, true.to_spvalue())]);
@@ -153,7 +159,7 @@ fn runner(
 
         // add extra operation goal variables to the initial state.
         // TODO: maybe not necessary...
-        for o in &planning_state.operations {
+        for o in &old_runner.operations {
             let op = o.path().clone();
             let mut new_state = SPState::new();
             o.get_goal_state_paths().iter().for_each(|p| {
@@ -240,9 +246,9 @@ fn runner(
             if disabled_states {
                 runner_modes.push("resource(s) offline".to_spvalue());
             }
-            if planning_state.bad_state {
-                runner_modes.push("bad state".to_spvalue());
-            }
+            // if planning_state.bad_state {
+            //     runner_modes.push("bad state".to_spvalue());
+            // }
             runner.ticker.state.add_variable(
                 SPPath::from_string("mode"),
                 SPValue::Array(SPValueType::String, runner_modes),

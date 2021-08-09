@@ -183,6 +183,7 @@ impl SPTicker {
                     println!("The transitions {:?} could not fire! {:?}", ts, _res);
                 }
             });
+            return ts.iter().map(|t| t.node().path().clone()).collect();
         }
         vec![]
     }
@@ -218,8 +219,7 @@ mod test_new_ticker {
 
         let ts = vec![vec![&t1], vec![&t2], vec![&t3]];
         let ps = vec![rp];
-        let fs = vec![];
-        let res = SPTicker::tick(&mut s, &ts, &ps, &fs);
+        let res = SPTicker::tick(&mut s, &ts, &ps);
         println!("FIRED: {:?}", res);
     }
 
@@ -308,9 +308,8 @@ mod test_new_ticker {
         let _x = &upd_ts;
 
         let ps = vec![];
-        let fs = vec![];
         for _i in 1..100 {
-            let res = SPTicker::tick(&mut s, &upd_ts, &ps, &fs);
+            let res = SPTicker::tick(&mut s, &upd_ts, &ps);
             s.take_transition();
             println!("fired: {:?}, state: {:?}", res, s.sp_value_from_path(&plan));
         }
