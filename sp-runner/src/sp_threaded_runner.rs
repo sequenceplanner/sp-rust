@@ -1,5 +1,4 @@
 use super::sp_runner::*;
-use super::sp_planning_runner::*;
 use super::transition_planner::*;
 use super::operation_planner::*;
 use crate::planning;
@@ -44,8 +43,10 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
     let (mut node, comm) = set_up_ros_comm(&model)?;
 
     let (tx_runner, rx_runner): (Sender<SPRunnerInput>, Receiver<SPRunnerInput>) =
-        channel::bounded(3);
-    let (runner_out_tx, runner_out_rx) = watch::channel(RunnerOutput::default());
+        channel::unbounded();
+
+    // let (runner_out_tx, runner_out_rx) = watch::channel(RunnerOutput::default());
+    let runner_out = Arc::new(Mutex::new(RunnerOutput::default()));
 
     let resource_list_path = SPPath::from_string("registered_resources");
     resource_handler(
@@ -68,8 +69,10 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         rx_runner,
         comm.tx_state_out,
         comm.tx_runner_info,
-        runner_out_tx,
+        runner_out.clone(),
     );
+
+    planner(&model, tx_runner.clone(), runner_out.clone());
 
     loop {
         // blocking ros spinning
@@ -85,10 +88,86 @@ pub struct RunnerOutput {
     pub disabled_paths: Vec<SPPath>
 }
 
+fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
+           // mut runner_out_rx: watch::Receiver<RunnerOutput>
+           runner_out: Arc<Mutex<RunnerOutput>>
+) {
+    let old_runner = make_new_runner(&model, false);
+
+    let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
+        &old_runner.transition_system_models[1],
+    )));
+
+    let mut transition_planner = TransitionPlanner {
+        plan: SPPlan::default(),
+        model: old_runner.transition_system_models[0].clone(),
+        operations: old_runner.operations.clone(),
+        bad_state: false,
+        prev_goals: vec![],
+        store: planning::PlanningStore::default(),
+        disabled_operation_check: std::time::Instant::now(),
+        prev_disabled_operations: HashSet::new(),
+    };
+
+    let mut operation_planner = OperationPlanner {
+        plan: SPPlan::default(),
+        model: old_runner.transition_system_models[1].clone(),
+        operations: old_runner.operations.clone(),
+        intentions: old_runner.intentions.clone(),
+        replan_specs: old_runner.replan_specs.clone(),
+        prev_goals: vec![],
+        store_async: store_async.clone(),
+        disabled_operation_check: std::time::Instant::now(),
+        prev_disabled_operations: HashSet::new(),
+    };
+
+    // block all transitions intially. (hmmm)
+    let _block_transition_plan = transition_planner.block_all();
+    let _block_operation_plan = operation_planner.block_all();
+
+    let t_runner_out = runner_out.clone();
+    let t_tx_input = tx_input.clone();
+    thread::spawn(move || {
+        loop {
+            let ro = {
+                let ro = t_runner_out.lock().unwrap();
+                ro.clone()
+            };
+            if let Some((i, plan)) = transition_planner.compute_new_plan(&ro.state, &ro.disabled_paths) {
+                println!("new plan computed");
+                let cmd = SPRunnerInput::NewPlan(i, plan);
+                t_tx_input.try_send(cmd).expect("could not send to runner...");
+            } else {
+                println!("no plan computed");
+            }
+        }
+    });
+
+    let o_runner_out = runner_out.clone();
+    let o_tx_input = tx_input.clone();
+    thread::spawn(move || {
+        loop {
+            let ro = {
+                let ro = o_runner_out.lock().unwrap();
+                ro.clone()
+            };
+            if let Some((i, plan)) = operation_planner.compute_new_plan(&ro.state, &ro.disabled_paths) {
+                println!("new plan computed");
+                let cmd = SPRunnerInput::NewPlan(i, plan);
+                o_tx_input.try_send(cmd).expect("could not send to runner...");
+            } else {
+                println!("no plan computed");
+            }
+        }
+    });
+
+}
+
 fn runner(
     model: &Model, initial_state: SPState, rx_input: Receiver<SPRunnerInput>,
     tx_state_out: Sender<SPState>, tx_runner_info: Sender<SPState>,
-    runner_out_tx: watch::Sender<RunnerOutput>,
+    // runner_out_tx: watch::Sender<RunnerOutput>,
+    runner_out: Arc<Mutex<RunnerOutput>>,
 ) {
     let model = model.clone();
     thread::spawn(move || {
@@ -143,11 +222,6 @@ fn runner(
         runner.set_plan(0, block_transition_plan);
         runner.set_plan(1, block_operation_plan);
 
-        let mut planning_state = PlanningState {
-            operation_planner,
-            transition_planner,
-        };
-
         // experiment with timeout on effects...
         old_runner.transition_system_models[0].transitions.iter().for_each(|t| {
             if t.type_ == TransitionType::Effect {
@@ -201,8 +275,8 @@ fn runner(
                         last_fired_transitions = runner.take_a_tick(SPState::new(), true);
                         ticked = true;
                     }
-                    SPRunnerInput::NewPlan(_, _) => {
-                        panic!("not used at the moment, planner called synchronously");
+                    SPRunnerInput::NewPlan(i, plan) => {
+                        runner.set_plan(i, plan);
                     }
                 }
             } else {
@@ -264,24 +338,12 @@ fn runner(
                 disabled_paths: runner.disabled_paths().clone()
             };
 
-            match runner_out_tx.send(output) {
-                Err(e) => { println!("Error sending runner state {}", e); }
-                _ => {}
-            }
+            println!("sending out runner state...");
+            (*runner_out.lock().unwrap()) = output;
 
             if disabled_states {
                 println!("still waiting... do nothing");
                 continue;
-            }
-
-            // HERE STARTS THE PLANNER STUFF...
-            // MOVING IT ALL.
-
-            if let Some((i, plan)) = planning_state.compute_new_plan(runner.state(), &runner.disabled_paths()) {
-                println!("new plan computed");
-                runner.set_plan(i, plan);
-            } else {
-                println!("no plan computed");
             }
         }
     });

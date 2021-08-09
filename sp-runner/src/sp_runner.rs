@@ -52,7 +52,7 @@ pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
     NodeChange(SPState),
-    NewPlan(i32, SPPlan),
+    NewPlan(usize, SPPlan),
 }
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
