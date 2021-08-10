@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::*;
 use sp_domain::*;
 use sp_ros::*;
 use std::time::{Duration,Instant};
@@ -7,6 +8,7 @@ use super::sp_ticker::SPTicker;
 use super::sp_runner::*;
 use super::planning;
 use std::collections::HashSet;
+use rayon::prelude::*;
 
 // some planning constants
 const LVL0_MAX_STEPS: u32 = 25;
@@ -609,5 +611,35 @@ impl TransitionPlanner {
         // rename paths before sending plan to the runner.
         // return early as soon as we have a new plan
         return Some(plan);
+    }
+
+    pub fn from(model: &Model) -> Self {
+        let mut ts_model = TransitionSystemModel::from(model);
+
+        // TODO. move to model compilation step.
+        // refine invariants
+        println!("refining model invariants");
+        let tsm = ts_model.clone();
+        ts_model.specs.par_iter_mut().for_each(|s| {
+            s.invariant = refine_invariant(tsm.clone(), s.invariant.clone())
+                .expect("crash in refine sp-fm");
+            println!("spec done...");
+        });
+        println!("refining invariants done");
+
+        let operations = model.all_operations().into_iter().cloned().collect();
+
+        let tp = TransitionPlanner {
+            plan: SPPlan::default(),
+            model: ts_model,
+            operations,
+            bad_state: false,
+            prev_state: SPState::new(),
+            prev_goals: vec![],
+            store: planning::PlanningStore::default(),
+            disabled_operation_check: std::time::Instant::now(),
+        };
+
+        tp
     }
 }

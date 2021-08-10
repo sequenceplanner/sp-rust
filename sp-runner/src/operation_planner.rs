@@ -567,7 +567,7 @@ impl OperationPlanner {
                     );
 
                     if !pr.plan_found {
-                        let offending = i.path().parent();
+                        let offending = i.path().clone();
                         log_warn!("offending intention: {}", offending);
                         // TODO, verify that this works
                         plan.state_change.add_variable(offending, "error".to_spvalue());
@@ -618,5 +618,31 @@ impl OperationPlanner {
         }
 
         return None;
+    }
+
+    pub fn from(model: &Model) -> Self {
+        let ts_model = TransitionSystemModel::from_op(model);
+
+        let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
+            &ts_model,
+        )));
+
+        let operations = model.all_operations().into_iter().cloned().collect();
+        let intentions = model.all_intentions().into_iter().cloned().collect();
+
+        let operation_planner = OperationPlanner {
+            plan: SPPlan::default(),
+            model: ts_model,
+            operations,
+            intentions,
+            replan_specs: vec![], // TODO: add to compiled model.
+            prev_state: SPState::new(),
+            prev_goals: vec![],
+            store_async: store_async.clone(),
+            disabled_operation_check: std::time::Instant::now(),
+            prev_disabled_operations: HashSet::new(),
+        };
+
+        operation_planner
     }
 }

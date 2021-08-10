@@ -95,35 +95,8 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
            // mut runner_out_rx: watch::Receiver<RunnerOutput>
            runner_out: Arc<Mutex<RunnerOutput>>
 ) {
-    let old_runner = make_new_runner(&model, false);
-
-    let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
-        &old_runner.transition_system_models[1],
-    )));
-
-    let mut transition_planner = TransitionPlanner {
-        plan: SPPlan::default(),
-        model: old_runner.transition_system_models[0].clone(),
-        operations: old_runner.operations.clone(),
-        bad_state: false,
-        prev_state: SPState::new(),
-        prev_goals: vec![],
-        store: planning::PlanningStore::default(),
-        disabled_operation_check: std::time::Instant::now(),
-    };
-
-    let mut operation_planner = OperationPlanner {
-        plan: SPPlan::default(),
-        model: old_runner.transition_system_models[1].clone(),
-        operations: old_runner.operations.clone(),
-        intentions: old_runner.intentions.clone(),
-        replan_specs: old_runner.replan_specs.clone(),
-        prev_state: SPState::new(),
-        prev_goals: vec![],
-        store_async: store_async.clone(),
-        disabled_operation_check: std::time::Instant::now(),
-        prev_disabled_operations: HashSet::new(),
-    };
+    let mut transition_planner = TransitionPlanner::from(&model);
+    let mut operation_planner = OperationPlanner::from(model);
 
     let t_runner_out = runner_out.clone();
     let t_tx_input = tx_input.clone();
