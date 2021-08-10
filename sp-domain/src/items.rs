@@ -473,7 +473,7 @@ pub struct Resource {
     pub transitions: Vec<Transition>,
     pub specs: Vec<Spec>,
     pub variables: Vec<Variable>,
-    pub new_messages: Vec<NewMessage>,
+    pub messages: Vec<Message>,
 }
 
 impl Noder for Resource {
@@ -563,8 +563,8 @@ impl Resource {
         }
     }
 
-    pub fn messages(&self) -> &[NewMessage] {
-        self.new_messages.as_slice()
+    pub fn messages(&self) -> &[Message] {
+        self.messages.as_slice()
     }
 
     pub fn add_spec(&mut self, mut spec: Spec) -> SPPath {
@@ -588,8 +588,8 @@ impl Resource {
         path
     }
 
-    pub fn add_messsage(&mut self, mut message: NewMessage) {
-        self.new_messages.push(message);
+    pub fn add_messsage(&mut self, mut message: Message) {
+        self.messages.push(message);
     }
 
     pub fn get_variables(&self) -> Vec<Variable> {
@@ -615,8 +615,8 @@ impl Resource {
     }
 
     /// Get the message in the command topic. For now this is hardcoded
-    pub fn get_message_for_topic(&self, topic: &SPPath) -> Option<NewMessage> {
-        for m in &self.new_messages {
+    pub fn get_message_for_topic(&self, topic: &SPPath) -> Option<Message> {
+        for m in &self.messages {
             let t = if m.relative_topic {
                 self.path().clone().add_child_path(&m.topic)
             } else {
@@ -636,7 +636,7 @@ impl Resource {
 /// The topic is the topic that will be used for publishing or subscribing
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
-pub struct NewMessage {
+pub struct Message {
     pub topic: SPPath,
     pub relative_topic: bool,
     pub category: MessageCategory,
@@ -648,6 +648,8 @@ pub struct NewMessage {
 pub enum MessageCategory {
     OutGoing,
     Incoming,
+    Service,
+    Action
 }
 impl Default for MessageCategory {
     fn default() -> Self {
@@ -922,7 +924,6 @@ impl NextAction for Transition {
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Intention {
     node: SPNode,
-
     resets: bool,
     pre: Predicate,
     post: Predicate,

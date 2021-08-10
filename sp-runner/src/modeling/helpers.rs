@@ -222,7 +222,7 @@ pub fn build_resource(r: &MResource) -> Resource {
             MessageType::Ros(t.ros_type.clone())
         };
 
-        let msg = NewMessage {
+        let msg = Message {
             topic: SPPath::from_string(&t.topic),
             relative_topic: true,
             category: MessageCategory::OutGoing,
@@ -279,7 +279,7 @@ pub fn build_resource(r: &MResource) -> Resource {
             MessageType::Ros(t.ros_type.clone())
         };
 
-        let msg = NewMessage {
+        let msg = Message {
             topic: SPPath::from_string(&t.topic),
             relative_topic: true,
             category: MessageCategory::Incoming,

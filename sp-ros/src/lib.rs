@@ -196,7 +196,7 @@ mod ros {
     }
 
     fn handle_incoming(msg: r2r::Result<serde_json::Value>, tx: channel::Sender<RosMessage>,
-                       r_path: SPPath, m: NewMessage, topic_cb: String) {
+                       r_path: SPPath, m: Message, topic_cb: String) {
         let json = msg.unwrap();
         let json_s = SPStateJson::from_json(json);
         if let Err(e) = json_s {
@@ -266,7 +266,7 @@ mod ros {
         let rcs = model.all_resources();
 
         for r in rcs {
-            for m in &r.new_messages {
+            for m in &r.messages {
                 println!("WE HAVE A NEW MESSAGE IN A RESOURCE: {:?}", m);
                 let topic = if m.relative_topic {
                     r.path().add_child_path(&m.topic).drop_root() // TODO. Change the path of resources so that this is not needed. Or send it in as input?
@@ -367,7 +367,8 @@ mod ros {
                                 future::ready(())
                             }).await
                         });
-                    }
+                    },
+                    _ => panic!("NOT IMPLEMENTED SERVICES AND ACTIONS YET")
                 }
             }
         }
