@@ -68,6 +68,16 @@ impl SPRunner {
         });
 
         let mut state = SPState::new_from_values(&initial_state_map);
+
+        state.add_variable(
+            SPPath::from_slice(&["runner", "plans", "0"]),
+            0.to_spvalue(),
+        );
+        state.add_variable(
+            SPPath::from_slice(&["runner", "plans", "1"]),
+            0.to_spvalue(),
+        );
+
         let runner_predicates: Vec<RunnerPredicate> = preds
             .iter()
             .flat_map(|p| RunnerPredicate::new(p, &state))
@@ -95,15 +105,58 @@ impl SPRunner {
 
 impl NewSPRunner {
     pub fn from_oldrunner(r: &SPRunner) -> Self {
-        NewSPRunner {
+
+        // initially block all controlled transitions until
+        // we have seen them in an external plan.
+
+        let mut restrict_controllable = vec![];
+        let false_trans = Transition::new("empty",Predicate::FALSE,vec![],TransitionType::Controlled);
+        r.ticker.transitions.iter().for_each(|t| {
+            if t.type_ == TransitionType::Controlled {
+                restrict_controllable.push(TransitionSpec::new(
+                    &format!("s_{}_false", t.path()),
+                    false_trans.clone(),
+                    vec![t.path().clone()],
+                ))
+            }
+        });
+
+        let initial_plan_blocked = SPPlan {
+            plan: restrict_controllable,
+            .. SPPlan::default()
+        };
+
+        let mut plans = r.plans.clone();
+        plans.insert("internal".to_string(), initial_plan_blocked);
+
+        let mut runner = NewSPRunner {
             name: r.name.clone(),
             ticker: r.ticker.clone(),
-            plans: r.plans.clone(),
+            plans,
             resources: r.resources.clone(),
-        }
+        };
+        runner.load_plans();
+        runner.reload_state_paths();
+        runner
     }
 
     pub fn set_plan(&mut self, plan_identifier: String, plan: SPPlan) {
+        // update our internal plan to remove blocks added by the new plan
+        let paths_controlled_by_plan = plan.plan
+            .iter()
+            .map(|ts| ts.syncronized_with.clone())
+            .flatten()
+            .collect::<Vec<SPPath>>();
+
+        if let Some(internal_plan) = self.plans.get_mut(&"internal".to_string()) {
+            internal_plan.plan.retain(|ts| {
+                let remove = ts.syncronized_with.iter().any(|p| paths_controlled_by_plan.contains(p));
+                !remove
+            });
+        } else {
+            panic!("no internal plan set");
+        }
+
         self.update_state_variables(plan.state_change.clone());
         (*self.plans.entry(plan_identifier).or_default()) = plan;
         self.load_plans();
@@ -143,6 +196,9 @@ impl NewSPRunner {
         }
         self.update_state_variables(state);
 
+        // TODO! At some point we don't udate the state paths
+        // properly. For now we just recompute before ticking.
+        self.reload_state_paths();
         self.ticker.tick_transitions()
     }
 

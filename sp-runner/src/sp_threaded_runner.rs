@@ -125,13 +125,13 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
         prev_disabled_operations: HashSet::new(),
     };
 
-    // block all transitions intially. (hmmm)
-    let _block_transition_plan = transition_planner.block_all();
-    let _block_operation_plan = operation_planner.block_all();
-
     let t_runner_out = runner_out.clone();
     let t_tx_input = tx_input.clone();
     thread::spawn(move || {
+        // Initiall block all our transitions.
+        let block_transition_plan = transition_planner.block_all();
+        let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), block_transition_plan);
+        t_tx_input.try_send(cmd).expect("could not send to runner...");
         loop {
             let ro = {
                 let ro = t_runner_out.lock().unwrap();
@@ -148,6 +148,10 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
     let o_runner_out = runner_out.clone();
     let o_tx_input = tx_input.clone();
     thread::spawn(move || {
+        // Initiall block all our transitions.
+        let block_operation_plan = operation_planner.block_all();
+        let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), block_operation_plan);
+        tx_input.try_send(cmd).expect("could not send to runner...");
         loop {
             let ro = {
                 let ro = o_runner_out.lock().unwrap();
@@ -188,40 +192,6 @@ fn runner(
         let mono = SPPath::from_slice(&["runner", "planner", "monotonic"]);
         let monotonic_initially_on = SPState::new_from_values(&[(mono, true.to_spvalue())]);
         runner.update_state_variables(monotonic_initially_on);
-
-        let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
-                &old_runner.transition_system_models[1],
-            )));
-
-        let mut transition_planner = TransitionPlanner {
-            plan: SPPlan::default(),
-            model: old_runner.transition_system_models[0].clone(),
-            operations: old_runner.operations.clone(),
-            bad_state: false,
-            prev_state: SPState::new(),
-            prev_goals: vec![],
-            store: planning::PlanningStore::default(),
-            disabled_operation_check: std::time::Instant::now(),
-        };
-
-        let mut operation_planner = OperationPlanner {
-            plan: SPPlan::default(),
-            model: old_runner.transition_system_models[1].clone(),
-            operations: old_runner.operations.clone(),
-            intentions: old_runner.intentions.clone(),
-            replan_specs: old_runner.replan_specs.clone(),
-            prev_state: SPState::new(),
-            prev_goals: vec![],
-            store_async: store_async.clone(),
-            disabled_operation_check: std::time::Instant::now(),
-            prev_disabled_operations: HashSet::new(),
-        };
-
-        // block all transitions intially
-        let block_transition_plan = transition_planner.block_all();
-        let block_operation_plan = operation_planner.block_all();
-        runner.set_plan("transition_planner".to_string(), block_transition_plan);
-        runner.set_plan("operation_planner".to_string(), block_operation_plan);
 
         // experiment with timeout on effects...
         old_runner.transition_system_models[0].transitions.iter().for_each(|t| {
