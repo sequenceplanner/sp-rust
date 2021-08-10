@@ -244,6 +244,14 @@ impl TransitionPlanner {
         to_keep.extend(self.model.get_state_paths());
         // As well as the state of any operations in the model.
         to_keep.extend(self.operations.iter().map(|o|o.path().clone()).collect::<Vec<_>>());
+
+        // TODO. temporary effect flags
+        self.model.transitions.iter().for_each(|t| {
+            if t.type_ == TransitionType::Effect {
+                to_keep.push(t.path().add_parent("effects"));
+            }
+        });
+
         state.filter_by_paths(&to_keep)
     }
 
@@ -358,6 +366,14 @@ impl TransitionPlanner {
                     Some(p)
                 }
             }).cloned().collect();
+
+            if !fixed_ops.is_empty() {
+                fixed_ops.iter().for_each(|p| {
+                    println!("fixed operation {} so we are returning plan that blocks everything.", p);
+                    self.plan.state_change.add_variable(p.clone(), "i".to_spvalue());
+                });
+                return Some(self.plan.clone());
+            }
         }
 
         // check if planner is enabled

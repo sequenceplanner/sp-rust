@@ -555,6 +555,9 @@ impl OperationPlanner {
 
                 // look for the problematic goals
                 for i in &self.intentions {
+                    if !i.is_error(&state) {
+                        continue;
+                    }
                     let goal = vec![(i.get_goal().clone(), None)];
                     let pr = planning::plan_async(
                         &ts,
