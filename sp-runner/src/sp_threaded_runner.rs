@@ -18,7 +18,8 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
     // we use this as the main entry point for SP.
     // so here we register our panic handler to send out
     // fatal messages to ROS
-    panic::set_hook(Box::new(|panic_info| {
+    let default_panic = std::panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
         let msg = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             s
         } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
@@ -33,6 +34,9 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Erro
         };
         log_fatal(msg, file, line);
         println!("\n\n\nSP PANIC: {}\n\n\nfile: {}:{}", msg, file, line);
+
+        default_panic(panic_info);
+        std::process::exit(1);
     }));
 
     println!("Model");
