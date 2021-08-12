@@ -8,7 +8,7 @@ use std::panic;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), SPError> {
+pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), SPError> {
     // we use this as the main entry point for SP.
     // so here we register our panic handler to send out
     // fatal messages to ROS
@@ -34,8 +34,10 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), SPEr
     }));
 
     println!("Model");
-    println!("{}", serde_json::to_string_pretty(&model).unwrap());
+    //println!("{}", serde_json::to_string_pretty(&model).unwrap());
     println!("********");
+
+    log_info!("startar SP!");
 
     let resource_list_path = SPPath::from_string("registered_resources");
     initial_state.add_variable(
@@ -50,12 +52,12 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), SPEr
     let (tx_model, mut rx_model) = tokio::sync::watch::channel(model.clone());
     let (tx_to_planners, rx_for_planners) = tokio::sync::watch::channel(RunnerOutput::default());
     
-    sp_ros::launch_ros_comm(rx_runner_state, tx_new_state, tx_model)?;
+    sp_ros::launch_ros_comm(rx_runner_state, tx_new_state, tx_model, rx_model.clone())?;
     
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
     tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
 
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
         // let (runner_out_tx, runner_out_rx) = watch::channel(RunnerOutput::default());
         //let runner_out = Arc::new(Mutex::new(RunnerOutput::default()));
         rx_model.changed().await.expect("The model channel should always work!");
@@ -83,8 +85,8 @@ pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), SPEr
 
     });
 
-    
-
+    let x = handle.await;
+    println!("Handle: {:?}", x);
     Ok(())
 
 }

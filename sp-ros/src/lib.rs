@@ -96,38 +96,6 @@ mod ros {
         pub time_stamp: std::time::Instant,
     }
 
-    pub fn launch_ros_comm(
-        receiver: tokio::sync::watch::Receiver<SPState>,
-        sender: tokio::sync::mpsc::Sender<SPState>,
-        sender_model: tokio::sync::watch::Sender<Model>,
-    ) -> Result<(), SPError> {
-            let ctx = r2r::Context::create().map_err(SPError::from_any)?;
-            let node = r2r::Node::create(ctx, SP_NODE_NAME, "").map_err(SPError::from_any)?;
-            
-            let arc_node = Arc::new(Mutex::new(node));
-
-            let rx_model_internal = sp_comm(arc_node.clone(), receiver.clone(), sender.clone(), sender_model)?;
-            
-            resource_comm(arc_node.clone(), receiver.clone(), rx_model_internal, sender.clone());
-
-            tokio::task::spawn_blocking( move || {
-                loop {
-                    let mut node = arc_node.lock().unwrap();
-                    node.spin_once(std::time::Duration::from_millis(100));
-                }
-            });
-
-            Ok(())
-    }
-
-
-
-
-
-
-
-    
-
     pub fn log_debug(msg: &str, file: &str, line: u32) {
         r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Debug);
     }
@@ -183,6 +151,42 @@ mod ros {
             $crate::log_fatal(&std::fmt::format(format_args!($($args)*)), file!(), line!());
         }}
     }
+
+
+    pub fn launch_ros_comm(
+        receiver: tokio::sync::watch::Receiver<SPState>,
+        sender: tokio::sync::mpsc::Sender<SPState>,
+        sender_model: tokio::sync::watch::Sender<Model>,
+        receiver_model: tokio::sync::watch::Receiver<Model>
+    ) -> Result<(), SPError> {
+            let ctx = r2r::Context::create().map_err(SPError::from_any)?;
+            let node = r2r::Node::create(ctx, SP_NODE_NAME, "").map_err(SPError::from_any)?;
+            
+            let arc_node = Arc::new(Mutex::new(node));
+
+            sp_comm(arc_node.clone(), receiver.clone(), sender.clone(), sender_model)?;
+            
+            resource_comm(arc_node.clone(), receiver.clone(), receiver_model, sender.clone());
+
+            tokio::task::spawn_blocking( move || {
+                loop {
+                    let mut node = arc_node.lock().unwrap();
+                    node.spin_once(std::time::Duration::from_millis(100));
+                }
+            });
+
+            Ok(())
+    }
+
+
+
+
+
+
+
+    
+
+   
 
 
 
