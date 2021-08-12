@@ -638,7 +638,23 @@ impl TransitionPlanner {
 
     pub fn from(compiled: &CompiledModel) -> Self {
         let mut ts_model = TransitionSystemModel::from(&compiled.model);
+
+        // TODO: do this in the model compilation step?
         ts_model.invariants.extend(compiled.computed_transition_planner_invariants.clone());
+
+        let global_invariants: Vec<_> = compiled.model
+            .global_specs
+            .iter()
+            .flat_map(|s|
+                if let SpecificationType::OperationInvariant(_) = &s.type_ {
+                    Some(s.clone())
+                } else {
+                    None
+                })
+            .collect();
+
+        ts_model.invariants.extend(compiled.computed_transition_planner_invariants.clone());
+        ts_model.invariants.extend(global_invariants);
 
         let operations = compiled.model.operations.clone();
 

@@ -74,6 +74,21 @@ pub fn generate_mc_problems(model: &Model) {
     });
     println!("refining invariants done");
 
+    // add operation specs after this. TODO: where should this logic live.
+    let global_invariants: Vec<_> = model
+        .global_specs
+        .iter()
+        .flat_map(|s|
+                  if let SpecificationType::OperationInvariant(_) = &s.type_ {
+                      Some(s.clone())
+                  } else {
+                      None
+                  })
+        .collect();
+
+    ts_model.invariants.extend(global_invariants);
+
+
     let ts_model_op = TransitionSystemModel::from_op(&model);
 
     crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
