@@ -1,0 +1,17 @@
+[package]
+name = "sp-formal"
+version = "0.1.0"
+authors = ["Martin Dahl <martin.dahl@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sp-domain = { path = "../sp-domain/" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3.15"
+rayon = "1.5"
+which = "4.1.0"
+snap = "1"

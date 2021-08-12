@@ -1,11 +1,11 @@
 #![allow(dead_code)]
-
 use sp_domain::*;
+use sp_formal::*;
 use sp_ros::*;
 use std::time::{Duration, Instant};
 use super::sp_ticker::SPTicker;
 use super::sp_runner::*;
-use super::planning;
+use sp_formal::planning;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -21,7 +21,7 @@ pub struct OperationPlanner {
     pub model: TransitionSystemModel, // planning model
     pub operations: Vec<Operation>, // our operations
     pub intentions: Vec<Intention>,
-    pub replan_specs: Vec<Spec>,
+    pub replan_specs: Vec<Specification>,
     pub prev_state: SPState,
     pub prev_goals: Vec<(Predicate, Option<Predicate>)>, // previous goals
     pub store_async: Arc<Mutex<planning::AsyncPlanningStore>>,
@@ -30,7 +30,7 @@ pub struct OperationPlanner {
 }
 
 fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
-    ts_model.specs.iter().any(|s| !s.invariant().eval(state))
+    ts_model.invariants.iter().any(|s| !s.invariant().eval(state))
 }
 
 /// Update the state predicate variables
@@ -102,11 +102,11 @@ pub fn check_goals_op_model(
 
             println!("is executing: {}", k);
 
-            operations.iter().find(|op| &op.node().path() == k)
+            operations.iter().find(|op| &op.path() == k)
         })
         .collect::<Vec<&Operation>>();
     let ok = running.iter().all(|op| {
-        let tp = op.node().path().clone().add_child("start"); // hack
+        let tp = op.path().clone().add_child("start"); // hack
         let t: Vec<_> = ts_model
             .transitions
             .iter()
@@ -308,7 +308,7 @@ impl OperationPlanner {
     pub fn block_all(&mut self) -> SPPlan {
         self.prev_goals.clear();
         let block_plan = SPPlan {
-            plan: crate::planning::block_all(&self.model),
+            plan: planning::block_all(&self.model),
             included_trans: Vec::new(),
             state_change: SPState::new(),
         };
@@ -397,7 +397,7 @@ impl OperationPlanner {
             }
 
             let block_plan = SPPlan {
-                plan: crate::planning::block_all(&self.model),
+                plan: planning::block_all(&self.model),
                 included_trans: Vec::new(),
                 state_change: SPState::new(),
             };
@@ -555,6 +555,9 @@ impl OperationPlanner {
 
                 // look for the problematic goals
                 for i in &self.intentions {
+                    if !i.is_error(&state) {
+                        continue;
+                    }
                     let goal = vec![(i.get_goal().clone(), None)];
                     let pr = planning::plan_async(
                         &ts,
@@ -567,7 +570,7 @@ impl OperationPlanner {
                     );
 
                     if !pr.plan_found {
-                        let offending = i.path().parent();
+                        let offending = i.path().clone();
                         log_warn!("offending intention: {}", offending);
                         // TODO, verify that this works
                         plan.state_change.add_variable(offending, "error".to_spvalue());
@@ -581,7 +584,7 @@ impl OperationPlanner {
                 if disabled_operations.contains(op.path()) {
                     continue;
                 }
-                let path = op.node().path();
+                let path = op.path();
                 if state
                     .sp_value_from_path(path)
                     .map(|v| v == &"e".to_spvalue())
@@ -618,5 +621,31 @@ impl OperationPlanner {
         }
 
         return None;
+    }
+
+    pub fn from(compiled: &CompiledModel) -> Self {
+        let ts_model = TransitionSystemModel::from_op(&compiled.model);
+
+        let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
+            &ts_model,
+        )));
+
+        let operations = compiled.model.operations.clone();
+        let intentions = compiled.model.intentions.clone();
+
+        let operation_planner = OperationPlanner {
+            plan: SPPlan::default(),
+            model: ts_model,
+            operations,
+            intentions,
+            replan_specs: compiled.computed_operation_planner_invariants.clone(),
+            prev_state: SPState::new(),
+            prev_goals: vec![],
+            store_async: store_async.clone(),
+            disabled_operation_check: std::time::Instant::now(),
+            prev_disabled_operations: HashSet::new(),
+        };
+
+        operation_planner
     }
 }

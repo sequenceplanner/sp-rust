@@ -347,7 +347,7 @@ pub fn refine_invariant(model: &TransitionSystemModel, invariant: &Predicate) ->
 pub fn clean_pred(model: &TransitionSystemModel, p: &Predicate) -> Predicate {
     let mut model = model.clone();
     model.transitions.clear(); // dont need these
-    model.specs.clear(); // ...
+    model.invariants.clear(); // ...
     let support = support_flatten_predicates(p, &model.state_predicates);
     model.vars.retain(|v| support.contains(v.path()));
 

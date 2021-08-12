@@ -1,11 +1,10 @@
 #![allow(dead_code)]
-
 use sp_domain::*;
+use sp_formal::*;
 use sp_ros::*;
 use std::time::{Duration,Instant};
 use super::sp_ticker::SPTicker;
 use super::sp_runner::*;
-use super::planning;
 use std::collections::HashSet;
 
 // some planning constants
@@ -24,7 +23,7 @@ pub struct TransitionPlanner {
 }
 
 fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
-    ts_model.specs.iter().any(|s| !s.invariant().eval(state))
+    ts_model.invariants.iter().any(|s| !s.invariant().eval(state))
 }
 
 /// Update the state predicate variables
@@ -223,7 +222,7 @@ impl TransitionPlanner {
     pub fn block_all(&mut self) -> SPPlan {
         self.prev_goals.clear();
         let block_plan = SPPlan {
-            plan: crate::planning::block_all(&self.model),
+            plan: planning::block_all(&self.model),
             included_trans: Vec::new(),
             state_change: SPState::new(),
         };
@@ -242,10 +241,18 @@ impl TransitionPlanner {
         to_keep.extend(self.model.get_state_paths());
         // As well as the state of any operations in the model.
         to_keep.extend(self.operations.iter().map(|o|o.path().clone()).collect::<Vec<_>>());
+
+        // TODO. temporary effect flags
+        self.model.transitions.iter().for_each(|t| {
+            if t.type_ == TransitionType::Effect {
+                to_keep.push(t.path().add_parent("effects"));
+            }
+        });
+
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
+    pub fn compute_new_plan(&mut self, mut state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -255,13 +262,23 @@ impl TransitionPlanner {
             return None;
         }
 
-        self.prev_state = new_state;
+        // hack to add /auto_guards ...
+        // this is used only in the planner
+        let agp = SPPath::from_string("auto_guards");
+        if let Some(ag) = self.model.state_predicates.iter().find(|v| v.path() == &agp) {
+            if let VariableType::Predicate(p) = ag.variable_type() {
+                let on = p.eval(&new_state);
+                state.add_variable(agp, on.to_spvalue());
+            }
+        }
+
+        self.prev_state = new_state.clone();
 
         if !self.bad_state {
             // previously we had the above
             // temp_ts.specs.extend(self.transition_system_models[1].specs.iter().cloned());
             let bad: Vec<_> = self.model
-                .specs
+                .invariants
                 .iter()
                 .filter_map(|s| {
                     if !s.invariant().eval(&state) {
@@ -277,7 +294,7 @@ impl TransitionPlanner {
                 // try to find a way out of this situation by temporarily relaxing the specs
                 // and instead planning to a new state where the specs holds.
                 temp_ts
-                    .specs
+                    .invariants
                     .retain(|spec| !bad.iter().any(|b| b.path() == spec.path()));
                 let goals = bad
                     .iter()
@@ -356,6 +373,14 @@ impl TransitionPlanner {
                     Some(p)
                 }
             }).cloned().collect();
+
+            if !fixed_ops.is_empty() {
+                fixed_ops.iter().for_each(|p| {
+                    println!("fixed operation {} so we are returning plan that blocks everything.", p);
+                    self.plan.state_change.add_variable(p.clone(), "i".to_spvalue());
+                });
+                return Some(self.plan.clone());
+            }
         }
 
         // check if planner is enabled
@@ -468,8 +493,8 @@ impl TransitionPlanner {
                 let mut tts = self.model.clone();
                 if !no_change_specs.is_empty() {
                     let no_change_pred = Predicate::AND(no_change_specs);
-                    tts.specs
-                        .push(Spec::new("monotonicity_constraints", no_change_pred));
+                    tts.invariants
+                        .push(Specification::new_transition_invariant("monotonicity_constraints", no_change_pred));
                 }
 
                 // skip heuristic for the low level (cannot use cache if we dont serialize the extra invariants)
@@ -609,5 +634,25 @@ impl TransitionPlanner {
         // rename paths before sending plan to the runner.
         // return early as soon as we have a new plan
         return Some(plan);
+    }
+
+    pub fn from(compiled: &CompiledModel) -> Self {
+        let mut ts_model = TransitionSystemModel::from(&compiled.model);
+        ts_model.invariants.extend(compiled.computed_transition_planner_invariants.clone());
+
+        let operations = compiled.model.operations.clone();
+
+        let tp = TransitionPlanner {
+            plan: SPPlan::default(),
+            model: ts_model,
+            operations,
+            bad_state: false,
+            prev_state: SPState::new(),
+            prev_goals: vec![],
+            store: planning::PlanningStore::default(),
+            disabled_operation_check: std::time::Instant::now(),
+        };
+
+        tp
     }
 }

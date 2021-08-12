@@ -40,7 +40,7 @@ pub fn refine_invariant(
         .transitions
         .retain(|t| t.type_ == TransitionType::Auto ||
                 t.type_ == TransitionType::Effect);
-    ts_model.specs.clear();
+    ts_model.invariants.clear();
 
     let command = Request::Refine { ts_model, pred: invariant };
     let command = serde_json::to_string(&command)?;
