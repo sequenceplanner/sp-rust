@@ -630,7 +630,7 @@ impl Operation {
         }
     }
 
-    pub fn make_replan_specs(&self) -> Vec<Specification> {
+    pub fn make_replan_invariants(&self) -> Vec<Specification> {
         let mut specs = vec![];
         for (effects, goal, actions) in self.effects_goals_actions.iter() {
             let pre = Predicate::AND(vec![self.guard.clone(), (*goal).clone()]);

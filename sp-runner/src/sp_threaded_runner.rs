@@ -4,6 +4,7 @@ use super::operation_planner::*;
 use crossbeam::{channel, Receiver, Sender};
 use failure::Error;
 use sp_domain::*;
+use sp_formal::CompiledModel;
 use sp_ros::*;
 use std::collections::HashMap;
 use std::panic;
@@ -92,8 +93,9 @@ fn planner(model: &Model, tx_input: Sender<SPRunnerInput>,
            // mut runner_out_rx: watch::Receiver<RunnerOutput>
            runner_out: Arc<Mutex<RunnerOutput>>
 ) {
-    let mut transition_planner = TransitionPlanner::from(&model);
-    let mut operation_planner = OperationPlanner::from(model);
+    let compiled_model = CompiledModel::from(model.clone()); // TODO: temporarily created here
+    let mut transition_planner = TransitionPlanner::from(&compiled_model);
+    let mut operation_planner = OperationPlanner::from(&compiled_model);
 
     let t_runner_out = runner_out.clone();
     let t_tx_input = tx_input.clone();

@@ -1,14 +1,11 @@
 #![allow(dead_code)]
-
-use crate::*;
 use sp_domain::*;
+use sp_formal::*;
 use sp_ros::*;
 use std::time::{Duration,Instant};
 use super::sp_ticker::SPTicker;
 use super::sp_runner::*;
-use sp_formal::planning;
 use std::collections::HashSet;
-use rayon::prelude::*;
 
 // some planning constants
 const LVL0_MAX_STEPS: u32 = 25;
@@ -629,29 +626,11 @@ impl TransitionPlanner {
         return Some(plan);
     }
 
-    pub fn from(model: &Model) -> Self {
-        let mut ts_model = TransitionSystemModel::from(model);
+    pub fn from(compiled: &CompiledModel) -> Self {
+        let mut ts_model = TransitionSystemModel::from(&compiled.model);
+        ts_model.invariants.extend(compiled.computed_transition_planner_invariants.clone());
 
-        // TODO. move to model compilation step.
-        // refine invariants
-        println!("refining model invariants");
-        let tsm = ts_model.clone();
-        let mut new_invariants = ts_model.invariants.clone();
-        new_invariants.par_iter_mut().for_each(|i| {
-            let orig_name = i.path().leaf();
-            let new_name = format!("{}_refined", orig_name);
-            let new_path = i.path().parent().add_child(&new_name);
-            let new_invariant = Specification {
-                path: new_path,
-                type_: SpecificationType::TransitionInvariant(refine_invariant(tsm.clone(), i.invariant().clone()).expect("crash in refine sp-fm"))
-            };
-            *i = new_invariant;
-            println!("spec done...");
-        });
-        println!("refining invariants done");
-        ts_model.invariants.extend(new_invariants);
-
-        let operations = model.operations.clone();
+        let operations = compiled.model.operations.clone();
 
         let tp = TransitionPlanner {
             plan: SPPlan::default(),

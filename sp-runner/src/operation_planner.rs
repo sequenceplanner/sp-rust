@@ -1,6 +1,6 @@
 #![allow(dead_code)]
-
 use sp_domain::*;
+use sp_formal::*;
 use sp_ros::*;
 use std::time::{Duration, Instant};
 use super::sp_ticker::SPTicker;
@@ -8,8 +8,6 @@ use super::sp_runner::*;
 use sp_formal::planning;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-use rayon::prelude::*;
-use crate::refine_invariant;
 
 // some planning constants
 const LVL1_MAX_STEPS: u32 = 40;
@@ -625,41 +623,22 @@ impl OperationPlanner {
         return None;
     }
 
-    pub fn from(model: &Model) -> Self {
-        let ts_model = TransitionSystemModel::from_op(model);
+    pub fn from(compiled: &CompiledModel) -> Self {
+        let ts_model = TransitionSystemModel::from_op(&compiled.model);
 
         let store_async = Arc::new(Mutex::new(planning::AsyncPlanningStore::load(
             &ts_model,
         )));
 
-        let operations = model.operations.clone();
-        let intentions = model.intentions.clone();
-
-        // tODO: move to compiled model.
-        // println!("refining replan specs");
-        // let replan_specs: Vec<Spec> = operations
-        //     .par_iter()
-        //     .map(|o| {
-        //         let mut s = o.make_replan_specs();
-        //         for mut s in &mut s {
-        //             // Hmm this probably does not belong here...
-        //             s.invariant = refine_invariant(ts_model.clone(), s.invariant.clone())
-        //                 .expect("crash in refine sp-fm");
-        //             println!("spec done...");
-        //         }
-        //         s
-        //     })
-        //     .flatten()
-        //     .collect();
-        // println!("refining replan specs done");
-
+        let operations = compiled.model.operations.clone();
+        let intentions = compiled.model.intentions.clone();
 
         let operation_planner = OperationPlanner {
             plan: SPPlan::default(),
             model: ts_model,
             operations,
             intentions,
-            replan_specs: vec![],
+            replan_specs: compiled.computed_operation_planner_invariants.clone(),
             prev_state: SPState::new(),
             prev_goals: vec![],
             store_async: store_async.clone(),
