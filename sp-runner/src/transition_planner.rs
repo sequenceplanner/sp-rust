@@ -487,7 +487,7 @@ impl TransitionPlanner {
                 if !no_change_specs.is_empty() {
                     let no_change_pred = Predicate::AND(no_change_specs);
                     tts.specs
-                        .push(Spec::new("monotonicity_constraints", no_change_pred));
+                        .push(Spec::new("monotonicity_constraints", no_change_pred, false));
                 }
 
                 // skip heuristic for the low level (cannot use cache if we dont serialize the extra invariants)
@@ -643,7 +643,7 @@ impl TransitionPlanner {
         });
         println!("refining invariants done");
 
-        let operations = model.all_operations().into_iter().cloned().collect();
+        let operations = model.operations.clone();
 
         let tp = TransitionPlanner {
             plan: SPPlan::default(),

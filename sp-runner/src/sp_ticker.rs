@@ -183,7 +183,7 @@ impl SPTicker {
                     println!("The transitions {:?} could not fire! {:?}", ts, _res);
                 }
             });
-            return ts.iter().map(|t| t.node().path().clone()).collect();
+            return ts.iter().map(|t| t.path().clone()).collect();
         }
         vec![]
     }

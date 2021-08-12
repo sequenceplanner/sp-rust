@@ -12,7 +12,7 @@ mod ros {
     #[derive(Debug, PartialEq, Clone)]
     pub struct ROSResource {
         pub path: SPPath,
-        pub model: Option<SPItem>,
+        pub model: Option<Model>,
         pub last_goal_from_sp: Option<SPState>,
     }
 
@@ -123,7 +123,7 @@ mod ros {
     #[derive(Debug, PartialEq, Clone)]
     pub struct ROSResource {
         pub path: SPPath,
-        pub model: Option<SPItem>,
+        pub model: Option<Model>,
         pub last_goal_from_sp: Option<SPState>,
     }
 
@@ -263,7 +263,7 @@ mod ros {
     ) -> Result<channel::Sender<SPState>, Error> {
         let mut ros_pubs = Vec::new();
 
-        let rcs = model.all_resources();
+        let rcs = model.resources.clone();
 
         for r in rcs {
             for m in &r.messages {
@@ -291,7 +291,11 @@ mod ros {
                         let cb = move |state: SPState| {
                             let res: Vec<(SPPath, Option<&SPValue>)> = m.variables.iter().map(|v| {
                                     let name = v.name.clone();
-                                    let path = resource_path.add_child_path(&v.path.clone());
+                                    let path = if v.relative_path {
+                                        resource_path.add_child_path(&v.path.clone())
+                                    } else {
+                                       v.path.clone()
+                                    };
                                     let value = state.sp_value_from_path(&path);
                                     // if value.is_none() {
                                     //     log_info!("Not in state: Name {}, resource: {}, path: {}, state: {}", &name, &resource_path, &path, SPStateJson::from_state_flat(&state).to_json());
@@ -501,7 +505,7 @@ mod ros {
             sub.for_each(|msg: r2r::sp_messages::msg::RegisterResource| {
                 let mut p = SPPath::from_string(&msg.path);
                 p.add_parent_path_mut(&prefix_path);
-                let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
+                let model: Result<Model, _> = serde_json::from_str(&msg.model);
                 let last_goal_from_sp: Result<SPStateJson, _> =
                     serde_json::from_str(&msg.last_goal_from_sp);
                 println!("GOT A RESOURCE: {:?}, {:?}", &msg, &last_goal_from_sp);

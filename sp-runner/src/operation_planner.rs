@@ -102,11 +102,11 @@ pub fn check_goals_op_model(
 
             println!("is executing: {}", k);
 
-            operations.iter().find(|op| &op.node().path() == k)
+            operations.iter().find(|op| &op.path() == k)
         })
         .collect::<Vec<&Operation>>();
     let ok = running.iter().all(|op| {
-        let tp = op.node().path().clone().add_child("start"); // hack
+        let tp = op.path().clone().add_child("start"); // hack
         let t: Vec<_> = ts_model
             .transitions
             .iter()
@@ -584,7 +584,7 @@ impl OperationPlanner {
                 if disabled_operations.contains(op.path()) {
                     continue;
                 }
-                let path = op.node().path();
+                let path = op.path();
                 if state
                     .sp_value_from_path(path)
                     .map(|v| v == &"e".to_spvalue())
@@ -630,8 +630,8 @@ impl OperationPlanner {
             &ts_model,
         )));
 
-        let operations = model.all_operations().into_iter().cloned().collect();
-        let intentions = model.all_intentions().into_iter().cloned().collect();
+        let operations = model.operations.clone();
+        let intentions = model.intentions.clone();
 
         let operation_planner = OperationPlanner {
             plan: SPPlan::default(),

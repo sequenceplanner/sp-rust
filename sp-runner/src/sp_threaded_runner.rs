@@ -147,7 +147,7 @@ fn runner(
 ) {
     let model = model.clone();
     thread::spawn(move || {
-        let old_runner = make_new_runner(&model, false);
+        let old_runner = make_new_runner(&model);
         let mut runner = NewSPRunner::from_oldrunner(&old_runner);
 
         // perform additional setup...
@@ -479,10 +479,9 @@ struct PlannerTask {
     disabled_paths: Vec<SPPath>,
 }
 
-pub fn make_new_runner(
-    model: &Model, generate_mc_problems: bool,
-) -> SPRunner {
+pub fn make_new_runner(model: &Model) -> SPRunner {
     let mut ts_model = TransitionSystemModel::from(&model);
+    let ts_model_op = TransitionSystemModel::from_op(&model);
 
     // refine invariants
     println!("refining model invariants");
@@ -494,181 +493,49 @@ pub fn make_new_runner(
     });
     println!("refining invariants done");
 
-    // add runner transitions
-    let runner_transitions = model.all_runner_transitions();
+    let mut transitions: Vec<_> = model.resources.iter()
+        .map(|r| r.get_transitions())
+        .flatten()
+        .filter(|t| t.type_ != TransitionType::Effect)
+        .collect();
 
-    // add global op transitions
-    let global_ops: Vec<&Operation> = model.all_operations();
-    let global_ops_trans: Vec<Transition> = global_ops
+    let global_transitions: Vec<_> = model.global_transitions.iter()
+        .filter(|t| t.type_ != TransitionType::Effect)
+        .cloned()
+        .collect();
+
+    let operations: Vec<Operation> = model.operations.clone();
+    let operation_transitions: Vec<_> = operations
         .iter()
         .map(|o| o.make_runner_transitions())
         .flatten()
         .collect();
 
-    let global_ops_ctrl: Vec<_> = global_ops_trans
+    let operation_lowlevel_transitions: Vec<_> = model.operations
         .iter()
-        .filter(|t| t.type_ == TransitionType::Controlled)
-        .cloned()
+        .map(|o|o.make_lowlevel_transitions())
+        .flatten()
         .collect();
-    let global_ops_un_ctrl: Vec<_> = global_ops_trans
-        .iter()
-        .filter(|t| t.type_ == TransitionType::Auto)
-        .cloned()
-        .collect();
-
-    let operations: Vec<Operation> = model.all_operations().into_iter().cloned().collect();
 
     // unchanged. todo
-    let global_intentions: Vec<&Intention> = model.all_intentions();
-    let global_int_trans: Vec<_> = global_intentions
+    let intentions = model.intentions.clone();
+    let intention_transitions: Vec<_> = intentions
         .iter()
         .map(|i| i.make_runner_transitions())
         .flatten()
         .collect();
-    let global_int_ctrl: Vec<_> = global_int_trans
-        .iter()
-        .filter(|t| t.type_ == TransitionType::Controlled)
-        .cloned()
-        .collect();
-    let global_int_un_ctrl: Vec<_> = global_int_trans
-        .iter()
-        .filter(|t| t.type_ == TransitionType::Auto)
-        .cloned()
-        .collect();
 
-    // debug high level model
+    transitions.extend(global_transitions);
+    transitions.extend(operation_transitions);
+    transitions.extend(operation_lowlevel_transitions);
+    transitions.extend(intention_transitions);
 
-    let ts_model_op = TransitionSystemModel::from_op(&model);
-
-    if generate_mc_problems {
-        crate::planning::generate_offline_nuxvm(&ts_model_op, &Predicate::TRUE);
-        crate::planning::generate_offline_nuxvm(&ts_model, &Predicate::TRUE);
-
-        // debug low level model
-        let all_op_trans = global_ops
-            .iter()
-            .map(|o| (o.clone(), o.make_lowlevel_transitions()))
-            .collect::<Vec<_>>();
-        println!("refining operation forbidden specs");
-        global_ops.iter().for_each(|o| {
-            // check if a "real" operation or really just an autotransition
-            if o.make_runner_transitions().is_empty() {
-                return;
-            }
-            // here we should find all unctronllable actions that can
-            // modify the variables of GUARD and disallow them.
-            println!("CHECKING OP: {}", o.name());
-            let mut temp_ts_model = ts_model.clone();
-
-            let mut new_invariants = vec![];
-            temp_ts_model.transitions.retain(|t| {
-                let belongs_to_other_op = all_op_trans.iter().find(|(op, ts)| {
-                    o.path() != op.path() && ts.iter().any(|x| x.path() == t.path())
-                });
-
-                if let Some((op, _)) = belongs_to_other_op {
-                    if op.make_runner_transitions().is_empty() {
-                        // "auto transition operation", keep this
-                        return true;
-                    }
-                    // println!("FOR OP: {}, filtering transition: {}", op.path(), t.path());
-                    if t.type_ == TransitionType::Auto {
-                        // this also means we need to forbid this state!
-                        let opg = op.make_verification_goal();
-                        // println!("FOR OP: {}, forbidding: {}", op.path(), opg);
-                        new_invariants.push((op.path(), opg));
-                    }
-                    false
-                } else {
-                    true
-                }
-            });
-
-            let new_specs = new_invariants
-                .par_iter()
-                .map(|(op, p)| {
-                    let i = Predicate::NOT(Box::new(p.clone()));
-                    // println!("REFINING: {}", i);
-                    let ri = refine_invariant(temp_ts_model.clone(), i)
-                        .expect("crash in refine sp-fm");
-                    println!("spec done...");
-                    let mut s = Spec::new("extended", ri);
-                    s.node_mut().update_path(op);
-                    s
-                })
-                .collect::<Vec<_>>();
-            temp_ts_model.specs.extend(new_specs);
-
-            // here we check if the operation has an assertion
-            // which is assumed to be fulfilled for nominal behavior
-            // (eg "resource not in failure mode")
-            let guard = if let Some(c) = o.mc_constraint.as_ref() {
-                Predicate::AND(vec![o.guard.clone(), c.clone()])
-            } else {
-                o.guard.clone()
-            };
-            let op = vec![(o.path().to_string(), guard, o.make_verification_goal())];
-            temp_ts_model.name += &format!("_{}", o.name());
-            crate::planning::generate_offline_nuxvm_ctl(&temp_ts_model, &Predicate::TRUE, &op);
-        });
-        println!("refining operation forbidden specs done");
-    }
-
-    // old runner model as code here.
-    let rm_ab_transitions_ctrl: Vec<Transition> = ts_model
-        .transitions
-        .iter()
-        .filter(|t| t.type_ == TransitionType::Controlled)
-        .cloned()
+    let mut variables: Vec<_> = model.resources.iter()
+        .map(|r| r.get_variables())
+        .flatten()
         .collect();
 
-    let rm_ab_transitions_un_ctrl: Vec<Transition> = ts_model
-        .transitions
-        .iter()
-        .filter(|t| t.type_ == TransitionType::Auto || t.type_ == TransitionType::Runner)
-        .cloned()
-        .collect();
-
-    let mut trans = vec![];
-    trans.extend(runner_transitions);
-    global_ops_ctrl.iter().for_each(|t| {
-        trans.push(t.clone());
-    });
-    global_ops_un_ctrl.iter().for_each(|t| {
-        trans.push(t.clone());
-    });
-
-    // intentions are never restricted
-    global_int_ctrl.iter().for_each(|t| {
-        trans.push(t.clone());
-    });
-    global_int_un_ctrl.iter().for_each(|t| {
-        trans.push(t.clone());
-    });
-
-    rm_ab_transitions_ctrl.iter().for_each(|t| {
-        trans.push(t.clone());
-    });
-    rm_ab_transitions_un_ctrl.iter().for_each(|t| {
-        trans.push(t.clone());
-    });
-
-    let intentions = global_intentions.into_iter().cloned().collect();
-
-    let mut all_vars = ts_model.vars.clone();
-    all_vars.extend(ts_model.state_predicates.iter().cloned());
-
-    // add runner variables.
-    // TODO: also look in resources/sub-models
-    let runner_vars: Vec<Variable> = model
-        .items()
-        .iter()
-        .flat_map(|i| match i {
-            SPItem::Variable(s) if s.type_ == VariableType::Runner => Some(s.clone()),
-            _ => None,
-        })
-        .collect();
-    all_vars.extend(runner_vars.iter().cloned());
+    variables.extend(model.global_variables.clone());
 
     println!("refining replan specs");
     let replan_specs: Vec<Spec> = operations
@@ -687,16 +554,18 @@ pub fn make_new_runner(
         .collect();
     println!("refining replan specs done");
 
-    let runner = SPRunner::new(
-        "test",
-        trans,
-        all_vars,
-        vec![ts_model.clone(), ts_model_op],
-        model
-            .all_resources()
+    let resource_paths = model
+            .resources
             .iter()
             .map(|r| r.path().clone())
-            .collect(),
+            .collect();
+
+    let runner = SPRunner::new(
+        "test",
+        transitions,
+        variables,
+        vec![ts_model.clone(), ts_model_op],
+        resource_paths,
         replan_specs,
         operations,
         intentions,
@@ -705,6 +574,8 @@ pub fn make_new_runner(
     runner
 }
 
+
+/*
 /// Use this to debug the operation model
 /// TODO: move to sp-planning
 pub fn generate_mc_problems(model: &Model) {
@@ -797,3 +668,5 @@ pub fn generate_mc_problems(model: &Model) {
     });
     println!("refining operation forbidden specs done");
 }
+
+*/
