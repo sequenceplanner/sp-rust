@@ -8,6 +8,8 @@ use super::sp_runner::*;
 use super::planning;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use rayon::prelude::*;
+use crate::refine_invariant;
 
 // some planning constants
 const LVL1_MAX_STEPS: u32 = 40;
@@ -633,12 +635,31 @@ impl OperationPlanner {
         let operations = model.operations.clone();
         let intentions = model.intentions.clone();
 
+        // tODO: move to compiled model.
+        // println!("refining replan specs");
+        // let replan_specs: Vec<Spec> = operations
+        //     .par_iter()
+        //     .map(|o| {
+        //         let mut s = o.make_replan_specs();
+        //         for mut s in &mut s {
+        //             // Hmm this probably does not belong here...
+        //             s.invariant = refine_invariant(ts_model.clone(), s.invariant.clone())
+        //                 .expect("crash in refine sp-fm");
+        //             println!("spec done...");
+        //         }
+        //         s
+        //     })
+        //     .flatten()
+        //     .collect();
+        // println!("refining replan specs done");
+
+
         let operation_planner = OperationPlanner {
             plan: SPPlan::default(),
             model: ts_model,
             operations,
             intentions,
-            replan_specs: vec![], // TODO: add to compiled model.
+            replan_specs: vec![],
             prev_state: SPState::new(),
             prev_goals: vec![],
             store_async: store_async.clone(),

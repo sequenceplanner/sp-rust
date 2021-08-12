@@ -1,7 +1,6 @@
 use super::sp_runner::*;
 use super::transition_planner::*;
 use super::operation_planner::*;
-use crate::*;
 use crossbeam::{channel, Receiver, Sender};
 use failure::Error;
 use sp_domain::*;
@@ -11,7 +10,6 @@ use std::panic;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use rayon::prelude::*;
 
 pub fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), Error> {
     // we use this as the main entry point for SP.
@@ -147,12 +145,11 @@ fn runner(
 ) {
     let model = model.clone();
     thread::spawn(move || {
-        let old_runner = make_new_runner(&model);
-        let mut runner = NewSPRunner::from_oldrunner(&old_runner);
+        let mut runner = SPRunner::from(&model, initial_state);
 
         // perform additional setup...
-        runner.update_state_variables(initial_state);
 
+        // TODO: move to respective planner...
         // planning active or not
         let planner0 = SPPath::from_slice(&["runner", "planner", "0"]);
         let planner1 = SPPath::from_slice(&["runner", "planner", "1"]);
@@ -165,27 +162,14 @@ fn runner(
         let monotonic_initially_on = SPState::new_from_values(&[(mono, true.to_spvalue())]);
         runner.update_state_variables(monotonic_initially_on);
 
-        // experiment with timeout on effects...
-        old_runner.transition_system_models[0].transitions.iter().for_each(|t| {
-            if t.type_ == TransitionType::Effect {
-                let path = t.path().add_parent("effects");
-                let effect_enabled = SPState::new_from_values(&[(path, true.to_spvalue())]);
-                runner.update_state_variables(effect_enabled);
-            }
-        });
+        // planning counters
+        let planner0_counter = SPPath::from_slice(&["runner", "plans", "0"]);
+        let planner0_counter = SPState::new_from_values(&[(planner0_counter, 0.to_spvalue())]);
+        runner.update_state_variables(planner0_counter);
 
-        // add extra operation goal variables to the initial state.
-        // TODO: maybe not necessary...
-        for o in &old_runner.operations {
-            let op = o.path().clone();
-            let mut new_state = SPState::new();
-            o.get_goal_state_paths().iter().for_each(|p| {
-                let np = op.add_child_path(p);
-                let v = runner.state().sp_value_from_path(p).expect(&format!("no such path {}", p));
-                new_state.add_variable(np, v.clone());
-            });
-            runner.update_state_variables(new_state);
-        }
+        let planner1_counter = SPPath::from_slice(&["runner", "plans", "1"]);
+        let planner1_counter = SPState::new_from_values(&[(planner1_counter, 0.to_spvalue())]);
+        runner.update_state_variables(planner1_counter);
 
         let mut now = Instant::now();
 
@@ -469,111 +453,6 @@ fn ticker(freq: Duration, tx_runner: Sender<SPRunnerInput>) {
         }
     });
 }
-
-#[derive(Debug)]
-struct PlannerTask {
-    namespace: i32,
-    ts: TransitionSystemModel,
-    state: SPState,
-    goals: Vec<(Predicate, Option<Predicate>)>,
-    disabled_paths: Vec<SPPath>,
-}
-
-pub fn make_new_runner(model: &Model) -> SPRunner {
-    let mut ts_model = TransitionSystemModel::from(&model);
-    let ts_model_op = TransitionSystemModel::from_op(&model);
-
-    // refine invariants
-    println!("refining model invariants");
-    let tsm = ts_model.clone();
-    ts_model.specs.par_iter_mut().for_each(|s| {
-        s.invariant = refine_invariant(tsm.clone(), s.invariant.clone())
-            .expect("crash in refine sp-fm");
-        println!("spec done...");
-    });
-    println!("refining invariants done");
-
-    let mut transitions: Vec<_> = model.resources.iter()
-        .map(|r| r.get_transitions())
-        .flatten()
-        .filter(|t| t.type_ != TransitionType::Effect)
-        .collect();
-
-    let global_transitions: Vec<_> = model.global_transitions.iter()
-        .filter(|t| t.type_ != TransitionType::Effect)
-        .cloned()
-        .collect();
-
-    let operations: Vec<Operation> = model.operations.clone();
-    let operation_transitions: Vec<_> = operations
-        .iter()
-        .map(|o| o.make_runner_transitions())
-        .flatten()
-        .collect();
-
-    let operation_lowlevel_transitions: Vec<_> = model.operations
-        .iter()
-        .map(|o|o.make_lowlevel_transitions())
-        .flatten()
-        .collect();
-
-    // unchanged. todo
-    let intentions = model.intentions.clone();
-    let intention_transitions: Vec<_> = intentions
-        .iter()
-        .map(|i| i.make_runner_transitions())
-        .flatten()
-        .collect();
-
-    transitions.extend(global_transitions);
-    transitions.extend(operation_transitions);
-    transitions.extend(operation_lowlevel_transitions);
-    transitions.extend(intention_transitions);
-
-    let mut variables: Vec<_> = model.resources.iter()
-        .map(|r| r.get_variables())
-        .flatten()
-        .collect();
-
-    variables.extend(model.global_variables.clone());
-
-    println!("refining replan specs");
-    let replan_specs: Vec<Spec> = operations
-        .par_iter()
-        .map(|o| {
-            let mut s = o.make_replan_specs();
-            for mut s in &mut s {
-                // Hmm this probably does not belong here...
-                s.invariant = refine_invariant(ts_model.clone(), s.invariant.clone())
-                    .expect("crash in refine sp-fm");
-                println!("spec done...");
-            }
-            s
-        })
-        .flatten()
-        .collect();
-    println!("refining replan specs done");
-
-    let resource_paths = model
-            .resources
-            .iter()
-            .map(|r| r.path().clone())
-            .collect();
-
-    let runner = SPRunner::new(
-        "test",
-        transitions,
-        variables,
-        vec![ts_model.clone(), ts_model_op],
-        resource_paths,
-        replan_specs,
-        operations,
-        intentions,
-    );
-
-    runner
-}
-
 
 /*
 /// Use this to debug the operation model
