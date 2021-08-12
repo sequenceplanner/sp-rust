@@ -140,7 +140,7 @@ impl TransitionSystemModel {
         }
 
         let mut ts_model = TransitionSystemModel {
-            name: model.path.to_string(),
+            name: model.path.leaf(),
             vars,
             state_predicates,
             transitions,
@@ -175,7 +175,7 @@ impl TransitionSystemModel {
             .collect();
 
         TransitionSystemModel {
-            name: format!("op_model_{}", model.path),
+            name: format!("op_model_{}", model.path.leaf()),
             vars,
             state_predicates: vec![],
             transitions,
