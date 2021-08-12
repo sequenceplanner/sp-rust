@@ -5,7 +5,7 @@ use sp_ros::*;
 use std::time::{Duration, Instant};
 use super::sp_ticker::SPTicker;
 use super::sp_runner::*;
-use super::planning;
+use sp_formal::planning;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
@@ -310,7 +310,7 @@ impl OperationPlanner {
     pub fn block_all(&mut self) -> SPPlan {
         self.prev_goals.clear();
         let block_plan = SPPlan {
-            plan: crate::planning::block_all(&self.model),
+            plan: planning::block_all(&self.model),
             included_trans: Vec::new(),
             state_change: SPState::new(),
         };
@@ -399,7 +399,7 @@ impl OperationPlanner {
             }
 
             let block_plan = SPPlan {
-                plan: crate::planning::block_all(&self.model),
+                plan: planning::block_all(&self.model),
                 included_trans: Vec::new(),
                 state_change: SPState::new(),
             };
