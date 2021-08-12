@@ -1,7 +1,9 @@
 #[cfg(not(feature = "ros"))]
 mod ros {
+    use sp_domain::SPError;
+
     // empty when no ros support compiled in.
-    pub struct RosNode {}
+
     #[derive(Debug, PartialEq, Clone)]
     pub struct RosMessage {
         pub state: SPState,
@@ -9,12 +11,14 @@ mod ros {
         pub time_stamp: std::time::Instant,
     }
 
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct ROSResource {
-        pub path: SPPath,
-        pub model: Option<SPItem>,
-        pub last_goal_from_sp: Option<SPState>,
+    pub fn launch_ros_comm(
+        receiver: tokio::sync::watch::Receiver<SPState>,
+        sender: tokio::sync::mpsc::Sender<SPState>,
+        sender_model: tokio::sync::mpsc::Sender<Model>,
+    ) -> Result<(), SPError> {
+        SPError::No("You can not start the ROS communication without the ros feature flag!")
     }
+
 
     pub fn log(msg: &str, file: &str, line: u32, severity: u32) {
         println!("{}:{}:[{}] - {}", file, line, severity, msg);
@@ -71,51 +75,19 @@ mod ros {
         }}
     }
 
-    use crossbeam::channel;
-    use failure::*;
-    use sp_domain::*;
-
-    pub fn start_node() -> Result<RosNode, Error> {
-        bail!(format_err!("ROS support not compiled in"));
-    }
-
-    pub fn roscomm_setup(
-        _node: &mut RosNode, _model: &Model, _tx_in: channel::Sender<SPState>,
-    ) -> Result<channel::Sender<SPState>, Error> {
-        bail!(format_err!("ROS support not compiled in"));
-    }
-
-    pub fn roscomm_setup_misc(
-        _node: &mut RosNode, _tx_in: channel::Sender<SPState>,
-    ) -> Result<channel::Sender<SPState>, Error> {
-        bail!(format_err!("ROS support not compiled in"));
-    }
-
-
-    pub fn ros_resource_comm_setup(
-        _node: &mut RosNode, _tx_to_runner: channel::Sender<ROSResource>, _prefix_path: &SPPath,
-    ) -> Result<(), Error> {
-        bail!(format_err!("ROS support not compiled in"));
-    }
-
-    pub fn spin(_node: &mut RosNode) {}
+    
 }
 
 
 
 #[cfg(feature = "ros")]
 mod ros {
-    use std::collections::{HashMap, HashSet};
-    // the actual mod
+    use std::collections::{HashSet};
     use std::sync::{Arc, Mutex};
-    use std::time::Instant;
-    use futures::{TryFutureExt, future};
-    use futures::StreamExt;
-
     use sp_domain::*;
+    use futures::*;
 
     const SP_NODE_NAME: &str = "sp";
-    
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct RosMessage {
@@ -124,17 +96,17 @@ mod ros {
         pub time_stamp: std::time::Instant,
     }
 
-    pub async fn launch_ros_comm(
+    pub fn launch_ros_comm(
         receiver: tokio::sync::watch::Receiver<SPState>,
         sender: tokio::sync::mpsc::Sender<SPState>,
-        sender_model: tokio::sync::mpsc::Sender<Model>,
+        sender_model: tokio::sync::watch::Sender<Model>,
     ) -> Result<(), SPError> {
-            let ctx = r2r::Context::create().map_err(SPError::map)?;
-            let node = r2r::Node::create(ctx, SP_NODE_NAME, "").map_err(SPError::map)?;
+            let ctx = r2r::Context::create().map_err(SPError::from_any)?;
+            let node = r2r::Node::create(ctx, SP_NODE_NAME, "").map_err(SPError::from_any)?;
             
             let arc_node = Arc::new(Mutex::new(node));
 
-            let rx_model_internal = sp_comm(arc_node.clone(), receiver.clone(), sender.clone(), sender_model.clone())?;
+            let rx_model_internal = sp_comm(arc_node.clone(), receiver.clone(), sender.clone(), sender_model)?;
             
             resource_comm(arc_node.clone(), receiver.clone(), rx_model_internal, sender.clone());
 
@@ -220,7 +192,7 @@ mod ros {
         arc_node: Arc<Mutex<r2r::Node>>,
         receiver: tokio::sync::watch::Receiver<SPState>,
         sender: tokio::sync::mpsc::Sender<SPState>,
-        sender_model: tokio::sync::mpsc::Sender<Model>
+        sender_model: tokio::sync::watch::Sender<Model>
     ) -> Result<tokio::sync::watch::Receiver<Model>, SPError> {
 
         let mut node = arc_node.lock().unwrap();
@@ -230,7 +202,7 @@ mod ros {
         let mut set_state_srv = 
             node
             .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/set_state", SP_NODE_NAME})
-            .map_err(SPError::map)?;
+            .map_err(SPError::from_any)?;
         tokio::task::spawn(async move {
             loop {
                 if let Some(request) = set_state_srv.next().await {
@@ -266,19 +238,19 @@ mod ros {
         
         
         // Set model service
-        let model_tx = sender_model.clone();
+        let model_tx = sender_model;
         let mut set_model_srv = 
             node
             .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/set_model", SP_NODE_NAME})
-            .map_err(SPError::map)?;
-        let (internal_model_tx, internal_model_rx) = tokio::sync::watch::channel(Model::new("empty_model", vec!()));
+            .map_err(SPError::from_any)?;
+        let (internal_model_tx, internal_model_rx) = tokio::sync::watch::channel(Model::new("empty_model"));
         tokio::task::spawn(async move {
             loop {
                 if let Some(request) = set_model_srv.next().await {
                     let model: Result<Model, _> = serde_json::from_str(&request.message.json);
                     let r = match model {
                         Ok(m) => {
-                            model_tx.send(m.clone()).await.expect("The model channel should always work!");
+                            model_tx.send(m.clone()).expect("The model channel should always work!");
                             internal_model_tx.send(m).expect("The internal model channel should always work!");
                             "ok".to_string()
                         },
@@ -308,10 +280,10 @@ mod ros {
         let mut state_rx = receiver.clone();
         let pub_state = node
             .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state", SP_NODE_NAME})
-            .map_err(SPError::map)?;
+            .map_err(SPError::from_any)?;
         let pub_flat_state = node
             .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state_flat", SP_NODE_NAME})
-            .map_err(SPError::map)?;
+            .map_err(SPError::from_any)?;
         tokio::task::spawn(async move {
             loop {
                 state_rx.changed().await.expect("The state out channel from the runner should never fail");
@@ -345,7 +317,7 @@ mod ros {
                 // Check if a resource comm is not started, then start.
                 // If the resource comm is already started, this does nothing
                 // to restart a resource comm for now, restart sp
-                for resource in model.all_resources() {
+                for resource in model.resources.iter() {
                     if !channels.contains(resource.path()) {
                         channels.insert(resource.path().clone());
                         for mess in &resource.messages {
@@ -417,10 +389,10 @@ mod ros {
                     .next()
                     .await
                     .ok_or(SPError::No(format!("The subscriber stream for {}, on incoming is getting None! SHOULD NOT HAPPEN!!",&resource_path)))?
-                    .map_err(SPError::map)?;
+                    .map_err(SPError::from_any)?;
     
-                let rm = ros_to_state(msg, &resource_path, &mess).map_err(SPError::map)?;
-                sender.send(rm).await.map_err(SPError::map)?;
+                let rm = ros_to_state(msg, &resource_path, &mess).map_err(SPError::from_any)?;
+                sender.send(rm).await.map_err(SPError::from_any)?;
             }
     }
 
@@ -431,14 +403,14 @@ mod ros {
         mut receiver: tokio::sync::watch::Receiver<SPState>,
     ) -> Result<(), SPError>  {
             loop {
-                receiver.changed().await;
+                receiver.changed().await.expect("The receiver in outgoing should always work!");
                 let state = receiver.borrow();
                 let msg = state_to_ros(
                     &m, 
                     state, 
                     &resource_path)?;
 
-                publisher.publish(msg).map_err(SPError::map)?;
+                publisher.publish(msg).map_err(SPError::from_any)?;
             }
     }
 

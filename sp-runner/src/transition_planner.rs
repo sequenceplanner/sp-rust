@@ -252,7 +252,10 @@ impl TransitionPlanner {
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, mut state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
+    pub fn compute_new_plan(
+        &mut self, 
+        mut state: SPState, 
+        disabled_paths: Vec<SPPath>) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -420,7 +423,7 @@ impl TransitionPlanner {
                     &gr,
                     &self.plan,
                     &tsm,
-                    disabled_paths,
+                    &disabled_paths,
                 )
             };
 

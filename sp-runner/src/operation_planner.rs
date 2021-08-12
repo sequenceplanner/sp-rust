@@ -336,7 +336,10 @@ impl OperationPlanner {
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
+    pub fn compute_new_plan(
+        &mut self, 
+        state: SPState, 
+        disabled_paths: Vec<SPPath>) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -460,7 +463,7 @@ impl OperationPlanner {
                     &goals,
                     &self.plan,
                     &self.model,
-                    disabled_paths,
+                    &disabled_paths,
                     &self.operations,
                 )
             };

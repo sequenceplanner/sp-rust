@@ -24,6 +24,7 @@ pub enum SPRunnerInput {
     NodeChange(SPState),
     NewPlan(String, SPPlan),
 }
+
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct SPPlan {
     pub plan: Vec<TransitionSpec>, // the plan in the form of transition specification

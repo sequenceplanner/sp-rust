@@ -48,12 +48,12 @@ pub enum SPError {
 
 impl std::convert::From<serde_json::Error>  for SPError {
     fn from(e: serde_json::Error) -> Self {
-        SPError::map(e)
+        SPError::from_any(e)
     }
 }
 
 impl SPError {
-    pub fn map<T: std::error::Error>(x: T) -> SPError {
+    pub fn from_any<T: Display>(x: T) -> SPError {
         SPError::No(format!("{}", x))
     }
 }
