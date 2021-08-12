@@ -8,6 +8,7 @@ use failure::Error;
 use sp_domain::*;
 use sp_ros::*;
 use std::collections::{HashSet, HashMap};
+use std::convert::TryInto;
 use std::panic;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -424,79 +425,87 @@ fn resource_handler(
     });
 }
 
-fn merger(rx_mess: Receiver<RosMessage>, tx_runner: Sender<SPRunnerInput>) {
-    thread::spawn(move || {
-        let mut s: SPState = SPState::new();
-        let mut temp_q: Option<SPState> = None;
-        let mut resource_map: HashMap<SPPath, Instant> = HashMap::new();
+struct MergedState {
+    pub states: Vec<SPState>,
+}
+impl MergedState {
+    pub fn new() -> MergedState {
+        MergedState{states: vec!()}
+    }
+}
 
+/// Merging states if many states arrives at the same time
+fn merger(
+    rx_mess: tokio::sync::mpsc::Receiver<SPState>,
+    tx_runner: tokio::sync::mpsc::Sender<SPRunnerInput>,
+) {
+    let (tx, rx) = tokio::sync::watch::channel(false);
+    let ms_arc = Arc::new(Mutex::new(MergedState::new()));
+    
+    let ms_in = ms_arc.clone();
+    tokio::spawn(async move {
         loop {
-            if rx_mess.is_empty() && temp_q.is_some() {
-                s = temp_q.take().unwrap();
-            } else if rx_mess.is_empty() {
-                match rx_mess.recv() {
-                    Ok(mess) => {
-                        let x = resource_map
-                            .entry(mess.resource.clone())
-                            .or_insert(mess.time_stamp.clone());
-                        //println!{"resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
-                        *x = mess.time_stamp.clone();
-                        s = mess.state;
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Something whent wrong in the ROS comm in recv in merger: {:?}",
-                            e
-                        );
-                        break;
-                    }
-                }
-            } else {
-                if temp_q.is_some() {
-                    s = temp_q.take().unwrap();
-                }
-                for mess in rx_mess.try_iter() {
-                    let x = resource_map
-                        .entry(mess.resource.clone())
-                        .or_insert(mess.time_stamp.clone());
-                    //println!{"M: resource: {}, tick: {}, timer: {}", mess.resource, x.elapsed().as_millis(), ticker.elapsed().as_millis()};
-                    *x = mess.time_stamp.clone();
-                    let res = s.try_extend(mess.state);
-                    if res.is_some() {
-                        // The message could not be merged
-                        temp_q = res;
-                        break;
-                    }
-                }
+            let s = rx_mess.recv().await.expect("The state channel should always work!");
+            {
+                ms_in.lock().unwrap().states.push(s);
             }
-            let res = tx_runner.send(SPRunnerInput::StateChange(s.clone()));
-            if res.is_err() {
-                println!("The runner channel is dead (in the merger)!: {:?}", res);
-                break;
-            }
-            s = SPState::new();
+            tx.send(true).expect("internal channel in merge should always work!");
         }
     });
+
+    let ms_out = ms_arc.clone();
+    tokio::spawn(async move {
+        loop {
+            rx.changed().await;
+            let mut states = {
+                let x = ms_out.lock().unwrap();
+                let res = x.states.clone();
+                x.states = vec!();
+                res
+            };
+            states.reverse();
+            if !states.is_empty() {
+                let mut x = states.pop().unwrap();
+                for y in states {
+                    if let Some(other) =  try_extend(&mut x, y) {
+                        // Can not be merged so sending what we have
+                        tx_runner.send(SPRunnerInput::StateChange(x.clone())).await;
+                        x = other;
+                    }
+                }
+                tx_runner.send(SPRunnerInput::StateChange(x)).await;
+            }
+        }
+    });
+
+
 }
 
-fn ticker(freq: Duration, tx_runner: Sender<SPRunnerInput>) {
-    let t = channel::tick(freq);
-    thread::spawn(move || loop {
-        match t.recv() {
-            Ok(_) => {
-                let res = tx_runner.send(SPRunnerInput::Tick);
-                if res.is_err() {
-                    println!("The runner channel is dead (in the merger)!: {:?}", res);
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("The ticker is dead (in ticker)!: {:?}", e);
-                break;
-            }
-        }
+/// Tries to extend the state only if the state does not contain the same
+/// path or if that path has the same value, else will leave the state unchanged
+/// and returns false.
+fn try_extend(state: &mut SPState, other_state: SPState) -> Option<SPState> {
+    let can_extend = other_state.projection().state.iter().all(|(p, v)| {
+        let self_v = state.sp_value_from_path(p);
+        p.leaf() == "timestamp" || self_v.map(|x| x == v.value()).unwrap_or(true)
     });
+    if can_extend {
+        state.extend(other_state);
+        None
+    } else {
+        Some(other_state)
+    }
 }
+
+async fn ticker_async(freq: Duration, tx_runner: tokio::sync::mpsc::Sender<SPRunnerInput>) {
+    let mut ticker = tokio::time::interval(freq);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        ticker.tick().await;
+        tx_runner.send(SPRunnerInput::Tick).await;
+    }
+}
+
 
 #[derive(Debug)]
 struct PlannerTask {

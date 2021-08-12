@@ -30,6 +30,7 @@ pub use transition_system_model::*;
 use serde::{Deserialize, Serialize};
 use std::error;
 use std::fmt;
+use std::fmt::Display;
 
 #[macro_export]
 macro_rules! hashmap {
@@ -46,6 +47,18 @@ type SPResult<T> = std::result::Result<T, SPError>;
 pub enum SPError {
     No(String),
     Undefined,
+}
+
+impl std::convert::From<serde_json::Error>  for SPError {
+    fn from(e: serde_json::Error) -> Self {
+        SPError::map(e)
+    }
+}
+
+impl SPError {
+    pub fn map<T: std::error::Error>(x: T) -> SPError {
+        SPError::No(format!("{}", x))
+    }
 }
 
 impl fmt::Display for SPError {
