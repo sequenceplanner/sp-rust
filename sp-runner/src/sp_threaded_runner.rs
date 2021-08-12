@@ -149,9 +149,8 @@ fn runner(
     thread::spawn(move || {
         let mut runner = SPRunner::from(&model, initial_state);
 
-        // perform additional setup...
+        // TODO: move planner specific setup to the respective planner...
 
-        // TODO: move to respective planner...
         // planning active or not
         let planner0 = SPPath::from_slice(&["runner", "planner", "0"]);
         let planner1 = SPPath::from_slice(&["runner", "planner", "1"]);

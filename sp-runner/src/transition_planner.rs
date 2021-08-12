@@ -252,7 +252,7 @@ impl TransitionPlanner {
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
+    pub fn compute_new_plan(&mut self, mut state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -262,7 +262,17 @@ impl TransitionPlanner {
             return None;
         }
 
-        self.prev_state = new_state;
+        // hack to add /auto_guards ...
+        // this is used only in the planner
+        let agp = SPPath::from_string("auto_guards");
+        if let Some(ag) = self.model.state_predicates.iter().find(|v| v.path() == &agp) {
+            if let VariableType::Predicate(p) = ag.variable_type() {
+                let on = p.eval(&new_state);
+                state.add_variable(agp, on.to_spvalue());
+            }
+        }
+
+        self.prev_state = new_state.clone();
 
         if !self.bad_state {
             // previously we had the above
