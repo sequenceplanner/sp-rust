@@ -23,7 +23,7 @@ pub struct OperationPlanner {
     pub model: TransitionSystemModel, // planning model
     pub operations: Vec<Operation>, // our operations
     pub intentions: Vec<Intention>,
-    pub replan_specs: Vec<Spec>,
+    pub replan_specs: Vec<Specification>,
     pub prev_state: SPState,
     pub prev_goals: Vec<(Predicate, Option<Predicate>)>, // previous goals
     pub store_async: Arc<Mutex<planning::AsyncPlanningStore>>,
@@ -32,7 +32,7 @@ pub struct OperationPlanner {
 }
 
 fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
-    ts_model.specs.iter().any(|s| !s.invariant().eval(state))
+    ts_model.invariants.iter().any(|s| !s.invariant().eval(state))
 }
 
 /// Update the state predicate variables

@@ -26,7 +26,7 @@ pub struct TransitionPlanner {
 }
 
 fn bad_state(state: &SPState, ts_model: &TransitionSystemModel) -> bool {
-    ts_model.specs.iter().any(|s| !s.invariant().eval(state))
+    ts_model.invariants.iter().any(|s| !s.invariant().eval(state))
 }
 
 /// Update the state predicate variables
@@ -271,7 +271,7 @@ impl TransitionPlanner {
             // previously we had the above
             // temp_ts.specs.extend(self.transition_system_models[1].specs.iter().cloned());
             let bad: Vec<_> = self.model
-                .specs
+                .invariants
                 .iter()
                 .filter_map(|s| {
                     if !s.invariant().eval(&state) {
@@ -287,7 +287,7 @@ impl TransitionPlanner {
                 // try to find a way out of this situation by temporarily relaxing the specs
                 // and instead planning to a new state where the specs holds.
                 temp_ts
-                    .specs
+                    .invariants
                     .retain(|spec| !bad.iter().any(|b| b.path() == spec.path()));
                 let goals = bad
                     .iter()
@@ -486,8 +486,8 @@ impl TransitionPlanner {
                 let mut tts = self.model.clone();
                 if !no_change_specs.is_empty() {
                     let no_change_pred = Predicate::AND(no_change_specs);
-                    tts.specs
-                        .push(Spec::new("monotonicity_constraints", no_change_pred, false));
+                    tts.invariants
+                        .push(Specification::new_transition_invariant("monotonicity_constraints", no_change_pred));
                 }
 
                 // skip heuristic for the low level (cannot use cache if we dont serialize the extra invariants)
@@ -636,12 +636,20 @@ impl TransitionPlanner {
         // refine invariants
         println!("refining model invariants");
         let tsm = ts_model.clone();
-        ts_model.specs.par_iter_mut().for_each(|s| {
-            s.invariant = refine_invariant(tsm.clone(), s.invariant.clone())
-                .expect("crash in refine sp-fm");
+        let mut new_invariants = ts_model.invariants.clone();
+        new_invariants.par_iter_mut().for_each(|i| {
+            let orig_name = i.path().leaf();
+            let new_name = format!("{}_refined", orig_name);
+            let new_path = i.path().parent().add_child(&new_name);
+            let new_invariant = Specification {
+                path: new_path,
+                type_: SpecificationType::TransitionInvariant(refine_invariant(tsm.clone(), i.invariant().clone()).expect("crash in refine sp-fm"))
+            };
+            *i = new_invariant;
             println!("spec done...");
         });
         println!("refining invariants done");
+        ts_model.invariants.extend(new_invariants);
 
         let operations = model.operations.clone();
 

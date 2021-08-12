@@ -10,7 +10,7 @@ pub struct Model {
     pub operations: Vec<Operation>,
     pub resources: Vec<Resource>,
 
-    pub global_specs: Vec<Spec>,
+    pub global_specs: Vec<Specification>,
     pub global_variables: Vec<Variable>,
     pub global_transitions: Vec<Transition>,
 }
@@ -65,14 +65,14 @@ impl Model {
     }
 
     pub fn add_invar(&mut self, name: &str, invariant: &Predicate) -> SPPath {
-        let mut spec = Spec::new(name, invariant.clone(), false);
+        let mut spec = Specification::new_transition_invariant(name, invariant.clone());
         let path = spec.path.add_parent_path_mut(&self.path);
         self.global_specs.push(spec);
         path
     }
 
     pub fn add_product_invar(&mut self, name: &str, invariant: &Predicate) -> SPPath {
-        let mut spec = Spec::new(name, invariant.clone(), true);
+        let mut spec = Specification::new_operation_invariant(name, invariant.clone());
         let path = spec.path.add_parent_path_mut(&self.path);
         self.global_specs.push(spec);
         path
@@ -124,11 +124,11 @@ impl Model {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Resource {
     pub path: SPPath,
     pub transitions: Vec<Transition>,
-    pub specs: Vec<Spec>,
+    pub specifications: Vec<Specification>,
     pub variables: Vec<Variable>,
     pub messages: Vec<Message>,
 }
@@ -138,7 +138,10 @@ impl Resource {
         let path = SPPath::from_string(name);
         Resource {
             path,
-            ..Resource::default()
+            transitions: vec![],
+            specifications: vec![],
+            variables: vec![],
+            messages: vec![],
         }
     }
 
@@ -146,9 +149,9 @@ impl Resource {
         self.messages.as_slice()
     }
 
-    pub fn add_spec(&mut self, mut spec: Spec) -> SPPath {
+    pub fn add_specification(&mut self, mut spec: Specification) -> SPPath {
         let path = spec.path.add_parent_path_mut(&self.path);
-        self.specs.push(spec);
+        self.specifications.push(spec);
         path
     }
 
@@ -627,7 +630,7 @@ impl Operation {
         }
     }
 
-    pub fn make_replan_specs(&self) -> Vec<Spec> {
+    pub fn make_replan_specs(&self) -> Vec<Specification> {
         let mut specs = vec![];
         for (effects, goal, actions) in self.effects_goals_actions.iter() {
             let pre = Predicate::AND(vec![self.guard.clone(), (*goal).clone()]);
@@ -639,7 +642,7 @@ impl Operation {
                     // the goals of the high level when we are in this state
                     // or any other state from which this state can
                     // uncontrollably be reached. so we also create a spec here
-                    let mut spec = Spec::new("replan_spec", Predicate::NOT(Box::new(pre.clone())), false);
+                    let mut spec = Specification::new_transition_invariant("replan_spec", Predicate::NOT(Box::new(pre.clone())));
                     spec.path.add_parent_path_mut(&self.path);
                     specs.push(spec);
                 }
@@ -818,23 +821,33 @@ impl Operation {
     }
 }
 
-/// Specs are used to define global constraints
-/// TODO: should we allow ltl expressions?
-/// For now its just simple forbidden states
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
-pub struct Spec {
-    pub path: SPPath,
-    pub invariant: Predicate,
-    pub is_product_spec: bool
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum SpecificationType {
+    TransitionInvariant(Predicate),
+    OperationInvariant(Predicate),
 }
 
-impl Spec {
-    pub fn new(name: &str, invariant: Predicate, is_product_spec: bool) -> Spec {
+/// Specs are used to define global constraints
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct Specification {
+    pub path: SPPath,
+    pub type_: SpecificationType,
+}
+
+impl Specification {
+    pub fn new_transition_invariant(name: &str, invariant: Predicate) -> Self {
         let path = SPPath::from_string(name);
-        Spec { path, invariant, is_product_spec }
+        Specification { path, type_: SpecificationType::TransitionInvariant(invariant) }
+    }
+    pub fn new_operation_invariant(name: &str, invariant: Predicate) -> Self {
+        let path = SPPath::from_string(name);
+        Specification { path, type_: SpecificationType::OperationInvariant(invariant) }
     }
     pub fn invariant(&self) -> &Predicate {
-        &self.invariant
+        match &self.type_ {
+            SpecificationType::TransitionInvariant(inv) => inv,
+            SpecificationType::OperationInvariant(inv) => inv,
+        }
     }
 
     pub fn path(&self) -> &SPPath {

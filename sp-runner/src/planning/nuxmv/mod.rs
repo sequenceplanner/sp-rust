@@ -583,7 +583,7 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     // perhaps later we should have different kinds of specifications in the
     // model instead.
     // for now we actually do this instead of GE.
-    add_global_specifications(&mut lines, &model.specs);
+    add_global_specifications(&mut lines, &model.invariants);
 
     return lines;
 }
@@ -739,7 +739,7 @@ fn add_initial_states(lines: &mut String, initial: &Predicate) {
     lines.push_str("\n\n");
 }
 
-fn add_global_specifications(lines: &mut String, specs: &[Spec]) {
+fn add_global_specifications(lines: &mut String, specs: &[Specification]) {
     // now put in the specs as invariants to refine the model.
 
     // if we do guard extraction, the specs leading to these do not

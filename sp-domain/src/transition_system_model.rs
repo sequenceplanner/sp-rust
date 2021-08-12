@@ -9,7 +9,7 @@ pub struct TransitionSystemModel {
     pub vars: Vec<Variable>,
     pub state_predicates: Vec<Variable>,
     pub transitions: Vec<Transition>,
-    pub specs: Vec<Spec>,
+    pub invariants: Vec<Specification>,
 }
 
 impl TransitionSystemModel {
@@ -62,13 +62,26 @@ impl TransitionSystemModel {
             .flat_map(|r| r.get_state_predicates())
             .collect();
 
-        let mut specs: Vec<Spec> = model.resources
+        let mut invariants: Vec<_> = model.resources
             .iter()
-            .flat_map(|r| r.specs.clone())
+            .map(|r| r.specifications.iter().flat_map(|s| {
+                if let SpecificationType::TransitionInvariant(_) = &s.type_ {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            }))
+            .flatten()
             .collect();
-        let global_specs: Vec<Spec> = model.global_specs.clone();
+        let global_invariants: Vec<_> = model.global_specs.iter().flat_map(|s| {
+            if let SpecificationType::TransitionInvariant(_) = &s.type_ {
+                Some(s.clone())
+            } else {
+                None
+            }
+        }).collect();
 
-        specs.extend(global_specs);
+        invariants.extend(global_invariants);
 
         // recursively collect sub-models
 
@@ -131,7 +144,7 @@ impl TransitionSystemModel {
             vars,
             state_predicates,
             transitions,
-            specs,
+            invariants,
         };
 
         // MD 2020-08-20: Moved "magic" from runner model helper to here.
@@ -171,16 +184,15 @@ impl TransitionSystemModel {
             .flatten()
             .collect();
 
-        let global_specs: Vec<Spec> = model
+        let global_invariants: Vec<_> = model
             .global_specs
             .iter()
             .flat_map(|s|
-                      if s.is_product_spec {
-                          Some(s.clone())
-                      } else {
-                          None
-                      }
-            )
+                if let SpecificationType::OperationInvariant(_) = &s.type_ {
+                    Some(s.clone())
+                } else {
+                    None
+                })
             .collect();
 
         TransitionSystemModel {
@@ -188,12 +200,12 @@ impl TransitionSystemModel {
             vars,
             state_predicates: vec![],
             transitions,
-            specs: global_specs,
+            invariants: global_invariants,
         }
     }
 
     pub fn bad_state(&self, state: &SPState) -> bool {
-        self.specs.iter().any(|s| !s.invariant().eval(state))
+        self.invariants.iter().any(|i| !i.invariant().eval(state))
     }
 
     /// Return a list of all paths used in states, e.g. the ones for
