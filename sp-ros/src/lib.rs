@@ -84,17 +84,12 @@ mod ros {
 mod ros {
     use std::collections::{HashSet};
     use std::sync::{Arc, Mutex};
+    use r2r::ServiceRequest;
     use sp_domain::*;
     use futures::*;
 
     const SP_NODE_NAME: &str = "sp";
 
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct RosMessage {
-        pub state: SPState,
-        pub resource: SPPath,
-        pub time_stamp: std::time::Instant,
-    }
 
     pub fn log_debug(msg: &str, file: &str, line: u32) {
         r2r::log(msg, SP_NODE_NAME, file, line, r2r::LogSeverity::Debug);
@@ -178,10 +173,177 @@ mod ros {
             Ok(())
     }
 
+    pub struct RosComm {
+        spin_handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+        sp_comm: SPComm,
+        resources: Vec<ResourceComm>,
+    }
+
+    struct ResourceComm {
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+        resource: Resource,
+        state_from_runner: tokio::sync::watch::Receiver<SPState>,
+        state_to_runner: tokio::sync::mpsc::Sender<SPState>,
+        comms: Vec<Comm>,
+    }
+
+    enum Comm {
+        Subscriber(SubscriberComm),
+        Publisher(PublisherComm),
+        ServiceClient(ServiceClientComm),
+        ActionClient(ActionClientComm)
+    }
+    struct SubscriberComm{
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+    }
+    struct PublisherComm{
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+
+    }
+    struct ServiceClientComm{
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+    }
+    struct ActionClientComm{
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+    }
+
+    
+
+    struct SPComm {
+        state_service: SPStateService,
+        model_service: SPModelService,
+        control_service: SPControlService,
+    }
+
+    pub struct SPStateService {
+        arc_node: Arc<Mutex<r2r::Node>>,
+        state_from_runner: tokio::sync::watch::Receiver<SPState>,
+        state_to_runner: tokio::sync::mpsc::Sender<SPState>,
+        handle: Option<tokio::task::JoinHandle<()>>,
+    }
+
+    struct SPModelService {
+        arc_node: Arc<Mutex<r2r::Node>>,
+        state_from_runner: tokio::sync::watch::Receiver<SPState>,
+        state_to_runner: tokio::sync::mpsc::Sender<SPState>,
+        current_model: tokio::sync::watch::Sender<Model>,
+        model_watcher: tokio::sync::watch::Receiver<Model>,
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+    }
+
+    struct SPControlService {
+        arc_node: Arc<Mutex<r2r::Node>>,
+        state_from_runner: tokio::sync::watch::Receiver<SPState>,
+        state_to_runner: tokio::sync::mpsc::Sender<SPState>,
+        handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
+    }
 
 
+    impl SPStateService {
+        pub async fn new(
+            arc_node: Arc<Mutex<r2r::Node>>,
+            state_from_runner: tokio::sync::watch::Receiver<SPState>,
+            state_to_runner: tokio::sync::mpsc::Sender<SPState>,
+        ) -> Result<SPStateService, SPError> {
+                let mut x = SPStateService{
+                    arc_node,
+                    state_from_runner,
+                    state_to_runner,
+                    handle: None,
+                };
+                x.launch_services().await?;
+                Ok(x)
+        }
 
+        async fn launch_services(&mut self) -> Result<(), SPError> {
+            let mut node = self.arc_node.lock().unwrap();
+            let set_state_srv = 
+                node
+                .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/set_state", SP_NODE_NAME})
+                .map_err(SPError::from_any)?;
+            let get_state_srv = 
+                node
+                .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/get_state", SP_NODE_NAME})
+                .map_err(SPError::from_any)?;
+            
+            let tx = self.state_to_runner.clone();
+            let rx = self.state_from_runner.clone();
+            let handle = tokio::spawn(async move {
+                tokio::spawn(async move {
+                    SPStateService::set_service(set_state_srv, tx).await;
+                });
+                tokio::spawn(async move {
+                    SPStateService::get_service(get_state_srv, rx).await;
+                });
+            });
 
+            self.handle = Some(handle);
+
+            Ok(())
+        }
+
+        pub async fn abort(self) -> Result<(), tokio::task::JoinError>  {
+            if let Some(h) = self.handle {
+                h.abort();
+                h.await?;
+            }
+            Ok(())
+        }
+
+        async fn set_service(
+            mut service: impl Stream<Item = ServiceRequest<r2r::sp_messages::srv::Json::Service>> + Unpin,
+            state_to_runner: tokio::sync::mpsc::Sender<SPState>,
+        ) {
+            loop {
+                if let Some(request) = service.next().await {
+                    let state_json = serde_json::from_str(&request.message.json).and_then(SPStateJson::from_json);
+                    let r = match state_json {
+                        Ok(sj) => { 
+                            let mut state = sj.to_state();
+                            state.add_variable(SPPath::from_string("/sp/set-state/timestamp"), SPValue::now());
+                            state_to_runner.send(state).await.expect("The state channel should always work!");
+                            "ok".to_string()
+                            
+                        },
+                        Err(e) => {
+                            let error = format!(
+                                "The set state service request {} is not a json: {}",
+                                &request.message.json,
+                                &e
+                            );
+                            log_error!("{}", &error);
+                            error
+                        }
+                    };
+                    let resp = serde_json::json!({
+                        "response": r,
+                        "time_stamp": std::time::SystemTime::now(),
+                    });
+                    let msg = r2r::sp_messages::srv::Json::Response{json: resp.to_string()};
+                    
+                    request.respond(msg);
+                }
+            }
+        }
+
+        async fn get_service(
+            mut service: impl Stream<Item = ServiceRequest<r2r::sp_messages::srv::Json::Service>> + Unpin,
+            state_from_runner: tokio::sync::watch::Receiver<SPState>,
+        ) {
+            loop {
+                if let Some(request) = service.next().await {
+                   let s = SPStateJson::from_state_recursive(&state_from_runner.borrow());
+                    let resp = serde_json::json!({
+                        "response": serde_json::to_string(&s).unwrap(),
+                        "time_stamp": std::time::SystemTime::now(),
+                    });
+                    let msg = r2r::sp_messages::srv::Json::Response{json: resp.to_string()};
+                    
+                    request.respond(msg);
+                }
+            }
+        }
+    }
 
 
     
@@ -518,345 +680,98 @@ mod ros {
         Ok(msg)
 
     }
-    
 
-    // fn handle_incoming(msg: r2r::Result<serde_json::Value>, tx: channel::Sender<SPState>,
-    //                    r_path: SPPath, m: Message, topic_cb: String) {
-    //     let json = msg.unwrap();
-    //     let json_s = SPStateJson::from_json(json);
-    //     if let Err(e) = json_s {
-    //         log_info!(
-    //             "Could not convert incoming message on {}, error: {:?}",
-    //             &topic_cb,
-    //             e
-    //         );
-    //     } else {
-    //         let x = json_s.unwrap();
-    //         let mut msg_state = x.to_state();
-    //         if m.message_type == MessageType::Json
-    //             || m.message_type == MessageType::JsonFlat
-    //         {
-    //             msg_state.unprefix_paths(&SPPath::from_string("data"));
-    //         }
+}
 
-    //         let map: Vec<(SPPath, Option<&SPValue>)> = m
-    //             .variables
-    //             .iter()
-    //             .map(|v| {
-    //                 let p = if v.relative_path {
-    //                     r_path.add_child_path(&v.path)
-    //                 } else {
-    //                     v.path.clone()
-    //                 };
-    //                 let value = msg_state.sp_value_from_path(&v.name);
-    //                 if value.is_none() {
-    //                     log_info!(
-    //                         "Not in msg: Name {}, path: {}, state: {}",
-    //                         &v.name,
-    //                         &p,
-    //                         SPStateJson::from_state_flat(&msg_state).to_json()
-    //                     );
-    //                 }
-    //                 (p, value)
-    //             })
-    //             .collect();
-    //         for (_, y) in map.iter() {
-    //             if y.is_none() {
-    //                 return;
-    //             }
-    //         }
-    //         let mut map: Vec<(SPPath, SPValue)> = map
-    //             .into_iter()
-    //             .map(|(x, y)| (x, y.unwrap().clone()))
-    //             .collect();
+#[cfg(test)]
+mod ros_tests {
+    use super::*;
+    use sp_domain::*;
+    use tokio::sync::{mpsc, watch};
+    use std::{sync::{Arc, Mutex}};
 
-    //         map.push((r_path.add_child("timestamp"), SPValue::now()));
+    fn create_node(name: &str) -> (Arc<Mutex<r2r::Node>>, Arc<Mutex<bool>>) {
+        let ctx = r2r::Context::create().map_err(SPError::from_any).unwrap();
+        let node = r2r::Node::create(ctx, name, "").map_err(SPError::from_any).unwrap();
+        let arc = Arc::new(Mutex::new(node));
+        let kill = Arc::new(Mutex::new(false));
 
-    //         let state = SPState::new_from_values(&map);
-    //         let time_stamp = std::time::Instant::now();
-    //         let m = RosMessage {
-    //             state,
-    //             resource: r_path.clone(),
-    //             time_stamp,
-    //         };
-    //         tx.send(m).unwrap();
-    //     }
-    // }
-
-    // pub fn roscomm_setup(
-    //     node: &mut RosNode, model: &Model, tx_in: channel::Sender<SPState>,
-    // ) -> Result<channel::Sender<SPState>, Error> {
-    //     let mut ros_pubs = Vec::new();
-
-    //     let rcs = model.all_resources();
-
-    //     for r in rcs {
-    //         for m in &r.messages {
-    //             println!("WE HAVE A NEW MESSAGE IN A RESOURCE: {:?}", m);
-    //             let topic = if m.relative_topic {
-    //                 r.path().add_child_path(&m.topic).drop_root() // TODO. Change the path of resources so that this is not needed. Or send it in as input?
-    //             } else {
-    //                 m.topic.clone()
-    //             };
-    //             let topic_message_type = match &m.message_type {
-    //                 MessageType::Ros(x) => x.clone(),
-    //                 _ => "std_msgs/msg/String".to_string(),
-    //             };
-    //             let topic_str = topic.to_string();
-    //             let resource_path = r.path().clone();
-    //             match m.category {
-    //                 MessageCategory::OutGoing => {
-    //                     println!("setting up publishing to topic NEW: {}", topic);
-
-    //                     let rp = node
-    //                         .0
-    //                         .create_publisher_untyped(&topic_str, &topic_message_type)?;
-
-    //                     let m = m.clone();
-    //                     let cb = move |state: SPState| {
-    //                         let res: Vec<(SPPath, Option<&SPValue>)> = m.variables.iter().map(|v| {
-    //                                 let name = v.name.clone();
-    //                                 let path = resource_path.add_child_path(&v.path.clone());
-    //                                 let value = state.sp_value_from_path(&path);
-    //                                 // if value.is_none() {
-    //                                 //     log_info!("Not in state: Name {}, resource: {}, path: {}, state: {}", &name, &resource_path, &path, SPStateJson::from_state_flat(&state).to_json());
-    //                                 // }
-    //                                 (name, value)
-    //                             }).collect();
-
-    //                         for (_, y) in res.iter() {
-    //                             if y.is_none() {
-    //                                 return;
-    //                             }
-    //                         }
-    //                         let res: Vec<(SPPath, SPValue)> = res
-    //                             .into_iter()
-    //                             .map(|(x, y)| (x, y.unwrap().clone()))
-    //                             .collect();
-
-    //                         let msg = match m.message_type {
-    //                             MessageType::JsonFlat => {
-    //                                 let json = SPStateJson::from_state_flat(
-    //                                     &SPState::new_from_values(&res),
-    //                                 );
-    //                                 let json = serde_json::to_string(&json).unwrap();
-    //                                 let mut map = serde_json::Map::new();
-    //                                 map.insert("data".to_string(), serde_json::Value::String(json));
-    //                                 serde_json::Value::Object(map)
-    //                             }
-    //                             MessageType::Json => {
-    //                                 let json = SPStateJson::from_state_recursive(
-    //                                     &SPState::new_from_values(&res),
-    //                                 );
-    //                                 let json = serde_json::to_string(&json).unwrap();
-    //                                 let mut map = serde_json::Map::new();
-    //                                 map.insert("data".to_string(), serde_json::Value::String(json));
-    //                                 serde_json::Value::Object(map)
-    //                             }
-    //                             MessageType::Ros(_) => {
-    //                                 let json = SPStateJson::from_state_recursive(
-    //                                     &SPState::new_from_values(&res),
-    //                                 );
-    //                                 serde_json::to_value(&json).unwrap()
-    //                             }
-    //                         };
-    //                         let res = rp.publish(msg.clone());
-    //                         if res.is_err() {
-    //                             log_info!(
-    //                                 "RosComm not working for {}, error: {:?}, msg: {}, state: {}",
-    //                                 &topic_str,
-    //                                 res,
-    //                                 msg,
-    //                                 SPStateJson::from_state_flat(&state).to_json()
-    //                             );
-    //                         }
-    //                     };
-    //                     ros_pubs.push(cb);
-    //                 }
-    //                 MessageCategory::Incoming => {
-    //                     let tx = tx_in.clone();
-    //                     let r_path = r.path().clone();
-    //                     let m = m.clone();
-    //                     let topic_cb = topic_str.clone();
-
-    //                     println!("setting up subscription to topic: {}", topic);
-    //                     let sub = node.0.subscribe_untyped(&topic_str,&topic_message_type)?;
-
-    //                     tokio::task::spawn(async move {
-    //                         sub.for_each(move |msg| {
-    //                             let tx = tx.clone();
-    //                             let r_path = r_path.clone();
-    //                             let m = m.clone();
-    //                             let topic_cb = topic_cb.clone();
-    //                             handle_incoming(msg, tx, r_path, m, topic_cb);
-    //                             future::ready(())
-    //                         }).await
-    //                     });
-    //                 },
-    //                 _ => panic!("NOT IMPLEMENTED SERVICES AND ACTIONS YET")
-    //             }
-    //         }
-    //     }
-
-    //     let (tx_out, rx_out): (channel::Sender<SPState>, channel::Receiver<SPState>) =
-    //         channel::unbounded();
-    //     thread::spawn(move || loop {
-    //         match rx_out.recv() {
-    //             Ok(state) => {
-    //                 for rp in &ros_pubs {
-    //                     (rp)(state.clone());
-    //                 }
-    //             }
-    //             Err(e) => {
-    //                 println!("RosComm out did not work: {:?}", e);
-    //                 break;
-    //             }
-    //         }
-    //     });
-
-    //     Ok(tx_out)
-    // }
-
-    // pub fn roscomm_setup_misc(
-    //     node: &mut RosNode, tx_in: channel::Sender<SPState>,
-    // ) -> Result<channel::Sender<SPState>, Error> {
-    //     let set_state_topic = format! {"{}/set_state", SP_NODE_NAME};
+        let a = arc.clone();
+        let k = kill.clone();
+        tokio::task::spawn_blocking( move || {
+            loop {
+                println!("Spin");
+                {
+                    let mut node = a.lock().unwrap();
+                    node.spin_once(std::time::Duration::from_millis(1000));
+                }
+                {
+                    if *k.lock().unwrap() {
+                        break;
+                    }
+                }
+            }
+        });
 
 
-    //     println!("setting up subscription to topic: {}", set_state_topic);
-    //     let sub = node.0.subscribe(&set_state_topic)?;
-
-    //     let tx_in = tx_in.clone();
-    //     tokio::task::spawn(async move {
-    //         sub.for_each(|msg: r2r::std_msgs::msg::String| {
-    //             let json: Result<serde_json::Value, serde_json::Error> =
-    //                 serde_json::from_str(&msg.data);
-    //             let json_s = json.and_then(|x| SPStateJson::from_json(x));
-    //             if let Err(e) = json_s {
-    //                 log_info!(
-    //                     "Could not convert incoming runner command, msg: {:?}, error: {}",
-    //                     msg, e
-    //                 );
-    //             } else {
-    //                 let new_state = json_s.unwrap().to_state();
-    //                 tx_in
-    //                     .send(new_state)
-    //                     .expect("Can not send runner commmands. Threads are dead?");
-    //             }
-    //             future::ready(())
-    //         }).await
-    //     });
-
-    //     let state_topic = &format! {"{}/state", SP_NODE_NAME};
-    //     let state_flat_topic = &format! {"{}/state_flat", SP_NODE_NAME};
-    //     println!("setting up publishing to topic: {}", state_topic);
-    //     let rp = node
-    //         .0
-    //         .create_publisher::<r2r::std_msgs::msg::String>(state_topic)?;
-    //     let rp_flat = node
-    //         .0
-    //         .create_publisher::<r2r::std_msgs::msg::String>(state_flat_topic)?;
-
-    //     let info_cb = move |state: &SPState| {
-    //         let state_json = SPStateJson::from_state_recursive(state);
-    //         let state_flat = SPStateJson::from_state_flat(state);
-    //         let json = state_json.to_json().to_string();
-    //         let json_flat = state_flat.to_json().to_string();
-    //         let msg = r2r::std_msgs::msg::String { data: json };
-    //         let msg_flat = r2r::std_msgs::msg::String { data: json_flat };
-    //         rp.publish(&msg).unwrap();
-    //         rp_flat.publish(&msg_flat).unwrap();
-    //     };
-
-    //     let resource_topic = format! {"{}/resources", SP_NODE_NAME};
-    //     let path = SPPath::from_string("registered_resources");
-    //     let rp = node
-    //         .0
-    //         .create_publisher::<r2r::sp_messages::msg::Resources>(&resource_topic)?;
-    //     let send_resource_list = move |s: &SPState| {
-    //         if let Some(SPValue::Array(SPValueType::Path, xs)) = s.sp_value_from_path(&path) {
-    //             let resources: Vec<String> = xs
-    //                 .iter()
-    //                 .map(|x| {
-    //                     if let SPValue::Path(p) = x {
-    //                         p.drop_root().to_string()
-    //                     } else {
-    //                         x.to_json().to_string()
-    //                     }
-    //                 })
-    //                 .collect();
-    //             let msg = r2r::sp_messages::msg::Resources { resources };
-    //             let res = rp.publish(&msg);
-    //             if res.is_err() {
-    //                 println!(
-    //                     "RosComm resources not working for {}, error: {:?}",
-    //                     &resource_topic, res
-    //                 );
-    //             }
-    //         }
-    //     };
-
-    //     let (tx_out, rx_out) = channel::unbounded();
-    //     thread::spawn(move || loop {
-    //         match rx_out.recv() {
-    //             Ok(x) => {
-    //                 (info_cb)(&x);
-    //                 (send_resource_list)(&x);
-    //             }
-    //             Err(e) => {
-    //                 println!("RosMisc out did not work: {:?}", e);
-    //                 break;
-    //             }
-    //         }
-    //     });
-
-    //     Ok(tx_out)
-    // }
-
-    // pub fn ros_resource_comm_setup(
-    //     node: &mut RosNode, tx_to_runner: channel::Sender<ROSResource>, prefix_path: &SPPath,
-    // ) -> Result<(), Error> {
-    //     let resource_topic = "sp/resource";
-    //     let prefix_path = prefix_path.clone();
-
-    //     println!("setting up subscription to topic: {}", resource_topic);
-    //     let sub = node.0.subscribe(resource_topic)?;
-    //     let tx_in = tx_to_runner.clone();
-    //     tokio::task::spawn(async move {
-    //         sub.for_each(|msg: r2r::sp_messages::msg::RegisterResource| {
-    //             let mut p = SPPath::from_string(&msg.path);
-    //             p.add_parent_path_mut(&prefix_path);
-    //             let model: Result<SPItem, _> = serde_json::from_str(&msg.model);
-    //             let last_goal_from_sp: Result<SPStateJson, _> =
-    //                 serde_json::from_str(&msg.last_goal_from_sp);
-    //             println!("GOT A RESOURCE: {:?}, {:?}", &msg, &last_goal_from_sp);
-    //             let last = last_goal_from_sp.map(|x| {
-    //                 let mut s = x.to_state();
-    //                 let mut goal_path = p.clone();
-    //                 goal_path.add_child_path_mut(&SPPath::from_string("goal"));
-    //                 s.prefix_paths(&goal_path);
-    //                 s
-    //             });
-    //             let resource = ROSResource {
-    //                 path: p,
-    //                 model: model.ok(),
-    //                 last_goal_from_sp: last.ok(),
-    //             };
-
-    //             tx_in
-    //                 .send(resource)
-    //                 .expect("Can not send the ROSResource. Threads are dead?");
-    //             future::ready(())
-    //         }).await
-    //     });
-
-    //     Ok(())
-    // }
-
-    #[cfg(test)]
-    mod ros_tests {
-        use super::*;
+        (arc, kill)
     }
+
+    fn init_state() -> SPState {
+        state!(["a", "b"] => 2, ["a", "c"] => true, ["k", "l"] => true)
+    }
+
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn sp_state_services() {
+
+            let (mut tx_watch, rx_watch) = tokio::sync::watch::channel(init_state());
+            let (tx_mpsc, mut rx_mpsc) = mpsc::channel(2);
+
+            let (arc_node, kill) = create_node("test_service");
+
+            let x = SPStateService::new(
+                arc_node.clone(), 
+                rx_watch.clone(), 
+                tx_mpsc.clone(),
+            ).await.unwrap();
+
+            let reply = tokio::spawn(async move {
+                let k = rx_mpsc.recv().await.unwrap();
+                println!("We got {}", &k);
+                //assert!(k.projection() == init_state().projection());
+            });
+
+                println!("in client");
+                let client = {
+                    let mut node = arc_node.lock().unwrap();
+                    let c = node.create_client::<r2r::sp_messages::srv::Json::Service>("/sp/set_state").unwrap();
+                    println!("waiting for service...");
+
+                    while !node.service_available(&c).unwrap() {
+                        std::thread::sleep(std::time::Duration::from_millis(1000));
+                    };
+                    println!("service available.");
+                    c
+                };
+
+                let req = r2r::sp_messages::srv::Json::Request { json: serde_json::to_string_pretty(&init_state()).unwrap() };
+                let res = client.request(&req).unwrap();
+                let res = res.await.unwrap();
+
+                println!("I GOT: {:?}", res);
+
+
+                *kill.lock().unwrap() = false;
+                reply.await.unwrap();
+        
+    }
+
 }
 
 pub use ros::*;
+    
+
+   
+
+
