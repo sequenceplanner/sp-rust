@@ -49,37 +49,39 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     let (tx_runner, rx_runner) = tokio::sync::mpsc::channel(2);
     let (tx_new_state, rx_new_state) = tokio::sync::mpsc::channel(2);
     let (tx_runner_state, rx_runner_state) = tokio::sync::watch::channel(initial_state.clone());
-    let (tx_model, mut rx_model) = tokio::sync::watch::channel(model.clone());
+    let (tx_model,  rx_model) = tokio::sync::watch::channel(model.clone());
     let (tx_to_planners, rx_for_planners) = tokio::sync::watch::channel(RunnerOutput::default());
     
-    sp_ros::launch_ros_comm(rx_runner_state, tx_new_state, tx_model, rx_model.clone())?;
+    sp_ros::launch_ros_comm(rx_runner_state.clone(), tx_new_state, tx_model, rx_model.clone())?;
     
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
     tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
 
+    // Create runner and planners and then handle when new models comes
     let handle = tokio::spawn(async move {
+        log_info!("Spawn runner");
         // let (runner_out_tx, runner_out_rx) = watch::channel(RunnerOutput::default());
         //let runner_out = Arc::new(Mutex::new(RunnerOutput::default()));
-        rx_model.changed().await.expect("The model channel should always work!");
+        //rx_model.changed().await.expect("The model channel should always work!");
         let model = rx_model.borrow();
         let m = model.clone();
-        let runner = tokio::spawn(
+        let runner = tokio::spawn( async move { 
             runner(
                 m,
                 initial_state,
                 rx_runner,
                 tx_runner_state,
                 tx_to_planners
-            )
-        );
+            ).await;
+        });
         let m = model.clone();
-        let runner = tokio::spawn(
+        let planners = tokio::spawn( async move { 
             planner(
                 m, 
                 tx_runner.clone(), 
                 rx_for_planners
-            )
-        );
+            ).await;
+        });
 
         // TODO update planner when we get new models...
 
@@ -154,6 +156,7 @@ async fn runner(
     tx_state_out: tokio::sync::watch::Sender<SPState>,
     runner_out: tokio::sync::watch::Sender<RunnerOutput>,
 ) {
+    log_info!("Runner start");
     let mut runner = SPRunner::from(&model, initial_state);
 
     // TODO: move planner specific setup to the respective planner...
@@ -186,11 +189,14 @@ async fn runner(
         if elapsed_ms > 1000 {
             log_debug!("RUNNER TICK TIME: {}ms", elapsed_ms);
         }
+        log_info!("Runner loooop");
+        log_info!("channel: {:?}", rx_input);
         let input = rx_input.recv().await.expect("The runner channel should always work!");
         let mut state_has_probably_changed = false;
         let mut ticked = false;
         let mut last_fired_transitions = vec![];
 
+        log_info!("Runner got: {:?}", &input);
         match input {
             SPRunnerInput::StateChange(s) => {
                 if !runner.state().are_new_values_the_same(&s) {
@@ -242,9 +248,9 @@ async fn runner(
             !disabled.iter().any(|d| p.is_child_of(d)) && v.current_value() != &SPValue::Unknown
         });
         let disabled_states = enabled_state.state.len() < l1;
-        tx_state_out
-            .send(enabled_state.clone_state())
-            .expect("tx_state:out");
+        if let Err(e) = tx_state_out.send(enabled_state.clone_state()) {
+            log_info!("Can not send runner state to resources in runner??");
+        }
 
         // send out runner info.
         // let mut runner_modes = vec![];
@@ -270,7 +276,9 @@ async fn runner(
         };
 
         println!("sending out runner state...");
-        runner_out.send(output);
+        if let Err(e) = runner_out.send(output) {
+            log_info!("Can not send runner state to planners??");
+        }
 
         if disabled_states {
             println!("still waiting... do nothing");
@@ -356,6 +364,7 @@ async fn ticker_async(freq: Duration, tx_runner: tokio::sync::mpsc::Sender<SPRun
     let mut ticker = tokio::time::interval(freq);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
+        log_info!("Ticker");
         ticker.tick().await;
         tx_runner.send(SPRunnerInput::Tick).await;
     }
