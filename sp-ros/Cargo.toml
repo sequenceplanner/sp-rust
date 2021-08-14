@@ -17,3 +17,4 @@ sp-domain = { path = "../sp-domain/" }
 
 [dev-dependencies]
 tokio-test = "*"
+serial_test = "0.5"

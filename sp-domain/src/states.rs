@@ -705,6 +705,20 @@ impl fmt::Display for SPState {
     }
 }
 
+impl<'a> fmt::Display for StateProjection<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Sort keys by name.
+        let mut proj = self.clone();
+        proj.sort();
+        let mut buf = Vec::new();
+        for (p, val) in proj.state {
+            let current = val.current.to_string();
+            buf.push(format!("{}: {}", p, current));
+        }
+        write!(f, "\n{}", buf.join("\n"))
+    }
+}
+
 /// helping making states with a macro
 #[macro_export]
 macro_rules! state {
