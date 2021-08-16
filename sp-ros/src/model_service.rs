@@ -12,7 +12,8 @@ pub(crate) struct SPModelService {
     state_from_runner: tokio::sync::watch::Receiver<SPState>,
     state_to_runner: tokio::sync::mpsc::Sender<SPState>,
     model_watcher: tokio::sync::watch::Receiver<Model>,
-    handle: Option<tokio::task::JoinHandle<()>>,
+    handle_set: Option<tokio::task::JoinHandle<()>>,
+    handle_get: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl SPModelService {
@@ -28,7 +29,8 @@ impl SPModelService {
             state_from_runner,
             state_to_runner,
             model_watcher,
-            handle: None
+            handle_set: None,
+            handle_get: None
         };
 
         ms.launch_services(current_model).await?;
@@ -36,10 +38,22 @@ impl SPModelService {
         Ok(ms)
     }
 
-    pub async fn abort(self) -> Result<(), tokio::task::JoinError>  {
-        if let Some(h) = self.handle {
+    pub fn abort(&self)  {
+        if let Some(h) = &self.handle_set {
             h.abort();
-            h.await?;
+        }
+        if let Some(h) = &self.handle_get {
+            h.abort();
+        }
+    }
+
+    pub async fn abort_and_await(&mut self) -> Result<(), SPError> {
+        self.abort();
+        if let Some(h) = self.handle_set.take() {
+            h.await.map_err(SPError::from_any)?
+        }
+        if let Some(h) = self.handle_get.take() {
+            h.await.map_err(SPError::from_any)?
         }
         Ok(())
     }
@@ -64,21 +78,15 @@ impl SPModelService {
         
         
         let rx = self.model_watcher.clone();
-        let handle = tokio::spawn(async move {
-            let x = tokio::spawn(async move {
-                SPModelService::set_service(set_srv, current_model).await;
-            });
-            let y = tokio::spawn(async move {
-                SPModelService::get_service(get_srv, rx).await;
-            });
-
-            let err = try_join! {x, y};
-            log_error!("The sp model service has stopped working. Should never happen!: {:?}", &err);
-            panic!("The sp model service has stopped working. Should never happen!: {:?}", err);
-
+        let handle_set = tokio::spawn(async move {
+            SPModelService::set_service(set_srv, current_model).await;
+        });
+        let handle_get = tokio::spawn(async move {
+            SPModelService::get_service(get_srv, rx).await;
         });
 
-        self.handle = Some(handle);
+        self.handle_set = Some(handle_set);
+        self.handle_get = Some(handle_get);
 
         Ok(())
     }
@@ -126,6 +134,12 @@ impl SPModelService {
                  request.respond(msg);
              }
         }
+    }
+}
+
+impl Drop for SPModelService {
+    fn drop(&mut self) {
+        self.abort();
     }
 }
 
@@ -178,7 +192,7 @@ mod sp_comm_tests {
 
         let (arc_node, kill) = create_node("test_model_set");
 
-        let model_service = SPModelService::new(
+        let mut model_service = SPModelService::new(
             arc_node.clone(), 
             rx_watch.clone(), 
             tx_mpsc.clone(),
@@ -229,7 +243,8 @@ mod sp_comm_tests {
         }
 
         reply.await.unwrap();
-        model_service.abort().await;
+        let res = model_service.abort_and_await().await;
+        println!("I got when abort and await: {:?}", res);
         
     }
 
@@ -241,7 +256,7 @@ mod sp_comm_tests {
 
         let (arc_node, kill) = create_node("test_service");
 
-        let model_service = SPModelService::new(
+        let mut model_service = SPModelService::new(
             arc_node.clone(), 
             rx_watch.clone(), 
             tx_mpsc.clone(),
@@ -276,7 +291,8 @@ mod sp_comm_tests {
             *k = true;
         }
 
-        model_service.abort().await;
+        let res = model_service.abort_and_await().await;
+        println!("I got when abort and await: {:?}", res);
         
     }
 

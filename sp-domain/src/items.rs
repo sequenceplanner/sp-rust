@@ -249,8 +249,7 @@ impl Resource {
             }
         }).map(|p| MessageVariable {
             name: p.leaf_as_path(),
-            path: p.clone(),
-            relative_path: false,
+            path: p.clone()
         }).collect::<Vec<_>>();
 
         let command_msg = Message {
@@ -259,6 +258,7 @@ impl Resource {
             category: MessageCategory::OutGoing,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: cmd_vars,
+            send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
         };
         self.add_message(command_msg);
     }
@@ -274,7 +274,6 @@ impl Resource {
         }).map(|p| MessageVariable {
             name: p.leaf_as_path(),
             path: p.clone(),
-            relative_path: false,
         }).collect::<Vec<_>>();
 
         let incoming_msg = Message {
@@ -283,6 +282,7 @@ impl Resource {
             category: MessageCategory::Incoming,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: measured_vars,
+            send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
         };
         self.add_message(incoming_msg);
     }
@@ -309,6 +309,7 @@ pub struct Message {
     pub category: MessageCategory,
     pub message_type: MessageType,
     pub variables: Vec<MessageVariable>,
+    pub send_predicate: Predicate,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -340,7 +341,6 @@ impl Default for MessageType {
 pub struct MessageVariable {
     pub name: SPPath,
     pub path: SPPath,
-    pub relative_path: bool,
 }
 
 impl MessageVariable {
@@ -348,7 +348,6 @@ impl MessageVariable {
         MessageVariable {
             name: name.clone(),
             path: path.clone(),
-            relative_path: true,
         }
     }
 }

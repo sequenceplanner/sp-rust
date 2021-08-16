@@ -38,74 +38,56 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     println!("********");
 
     log_info!("startar SP!");
-
-    let resource_list_path = SPPath::from_string("registered_resources");
-    initial_state.add_variable(
-        resource_list_path,
-        SPValue::Array(SPValueType::Path, vec![]),
-    );
-
     
     let (tx_runner, rx_runner) = tokio::sync::mpsc::channel(2);
     let (tx_new_state, rx_new_state) = tokio::sync::mpsc::channel(2);
     let (tx_runner_state, rx_runner_state) = tokio::sync::watch::channel(initial_state.clone());
-    let (tx_model,  rx_model) = tokio::sync::watch::channel(model.clone());
-    let (tx_to_planners, rx_for_planners) = tokio::sync::watch::channel(RunnerOutput::default());
     
-    sp_ros::launch_ros_comm(rx_runner_state.clone(), tx_new_state, tx_model, rx_model.clone())?;
+    let ros_comm = sp_ros::RosComm::new(
+        rx_runner_state.clone(), 
+        tx_new_state.clone(), 
+        model.clone(),
+    ).await?;
+
     
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
     tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
+    
 
-    // Create runner and planners and then handle when new models comes
-    let handle = tokio::spawn(async move {
-        log_info!("Spawn runner");
-        // let (runner_out_tx, runner_out_rx) = watch::channel(RunnerOutput::default());
-        //let runner_out = Arc::new(Mutex::new(RunnerOutput::default()));
-        //rx_model.changed().await.expect("The model channel should always work!");
-        let model = rx_model.borrow();
-        let m = model.clone();
-        let runner = tokio::spawn( async move { 
-            runner(
-                m,
-                initial_state,
-                rx_runner,
-                tx_runner_state,
-                tx_to_planners
-            ).await;
-        });
-        let m = model.clone();
-        let planners = tokio::spawn( async move { 
-            planner(
-                m, 
-                tx_runner.clone(), 
-                rx_for_planners
-            ).await;
-        });
-
-        // TODO update planner when we get new models...
-
+    let model_watcher = ros_comm.model_watcher();
+    let runner_handle = tokio::spawn(async move {
+        runner(
+            model_watcher,
+            initial_state,
+            rx_runner,
+            tx_runner_state,
+        ).await;
     });
 
-    let x = handle.await;
-    println!("Handle: {:?}", x);
+    let model_watcher = ros_comm.model_watcher();
+    let planner_handle = tokio::spawn(async move {
+        planner(
+            model_watcher, 
+            tx_runner.clone(),
+            rx_runner_state.clone()
+        ).await;
+    });
+
+    let err = tokio::try_join!(runner_handle, planner_handle);
+
+    println!("The runner terminated!: {:?}", err);
+    log_error!("The SP runner terminated: {:?}", err);
     Ok(())
 
 }
 
-/// For the time being, this is what the runner emits.
-/// This is then picked up by the various tasks that need access to the state.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct RunnerOutput {
-    pub state: SPState,
-    pub disabled_paths: Vec<SPPath>
-}
 
 async fn planner(
-    model: Model, 
+    model_watcher: tokio::sync::watch::Receiver<Model>, 
     tx_input: tokio::sync::mpsc::Sender<SPRunnerInput>,
-    runner_out: tokio::sync::watch::Receiver<RunnerOutput>
+    runner_out: tokio::sync::watch::Receiver<SPState>
 ) {
+    let model = model_watcher.borrow().clone();
     let compiled_model = CompiledModel::from(model); // TODO: temporarily created here
     let mut transition_planner = TransitionPlanner::from(&compiled_model);
     let mut operation_planner = OperationPlanner::from(&compiled_model);
@@ -120,7 +102,7 @@ async fn planner(
         loop {
             t_runner_out.changed().await;
             let ro = t_runner_out.borrow().clone();
-            let x = transition_planner.compute_new_plan(ro.state, ro.disabled_paths);
+            let x = transition_planner.compute_new_plan(ro);
             if let Some(plan) = x {
                 println!("new plan computed");
                 let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), plan);
@@ -138,8 +120,8 @@ async fn planner(
         o_tx_input.send(cmd).await;
         loop {
             o_runner_out.changed().await;
-            let ro = o_runner_out.borrow().clone();
-            if let Some(plan) = operation_planner.compute_new_plan(ro.state, ro.disabled_paths) {
+            let s = o_runner_out.borrow().clone();
+            if let Some(plan) = operation_planner.compute_new_plan(s) {
                 println!("new plan computed");
                 let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
                 o_tx_input.send(cmd);
@@ -150,13 +132,13 @@ async fn planner(
 }
 
 async fn runner(
-    model: Model, 
+    mut model_watcher: tokio::sync::watch::Receiver<Model>, 
     initial_state: SPState, 
     mut rx_input: tokio::sync::mpsc::Receiver<SPRunnerInput>,
-    tx_state_out: tokio::sync::watch::Sender<SPState>,
-    runner_out: tokio::sync::watch::Sender<RunnerOutput>,
+    tx_state_out: tokio::sync::watch::Sender<SPState>
 ) {
     log_info!("Runner start");
+    let model = model_watcher.borrow().clone();
     let mut runner = SPRunner::from(&model, initial_state);
 
     // TODO: move planner specific setup to the respective planner...
@@ -191,7 +173,15 @@ async fn runner(
         }
         log_info!("Runner loooop");
         log_info!("channel: {:?}", rx_input);
-        let input = rx_input.recv().await.expect("The runner channel should always work!");
+
+        let input = tokio::select! {
+            Some(input) = rx_input.recv() => {input},
+            Ok(_) = model_watcher.changed() => {
+                let m = model_watcher.borrow().clone();
+                SPRunnerInput::ModelChange(m)
+            }
+        };
+
         let mut state_has_probably_changed = false;
         let mut ticked = false;
         let mut last_fired_transitions = vec![];
@@ -219,18 +209,13 @@ async fn runner(
             SPRunnerInput::NewPlan(plan_name, plan) => {
                 runner.set_plan(plan_name, plan);
             }
+            SPRunnerInput::ModelChange(m) => {
+                println!("A new model TODO");
+                log_info!("A new model in the runner. TODO");
+            }
         }
 
         now = Instant::now();
-
-        //println!("tick: {} ms", timer.elapsed().as_millis());
-
-        if !last_fired_transitions.is_empty() {
-            println!("fired:");
-            last_fired_transitions
-                .iter()
-                .for_each(|x| println!("{:?}", x));
-        }
 
         // if there's nothing to do in this cycle, continue
         if !state_has_probably_changed && last_fired_transitions.is_empty() && !ticked {
@@ -241,49 +226,26 @@ async fn runner(
             // println!("ticked? {}", ticked);
         }
 
-        let disabled = runner.disabled_paths();
-        let mut enabled_state = runner.state().projection();
-        let l1 = enabled_state.state.len();
-        enabled_state.state.retain(|(p, v)| {
-            !disabled.iter().any(|d| p.is_child_of(d)) && v.current_value() != &SPValue::Unknown
-        });
-        let disabled_states = enabled_state.state.len() < l1;
-        if let Err(e) = tx_state_out.send(enabled_state.clone_state()) {
-            log_info!("Can not send runner state to resources in runner??");
+        let mut s = runner.ticker.state.clone();
+        
+        if !last_fired_transitions.is_empty() {
+            let f = last_fired_transitions.iter().fold(String::new(), |a, t| {
+                if a.is_empty() {
+                    t.to_string()
+                } else {
+                    format!{"{}, {}", a, t}
+                }
+            });
+            s.add_variable(SPPath::from_string("sp/fired"), f.to_spvalue());
+            println!("fired:");
+            last_fired_transitions
+                .iter()
+                .for_each(|x| println!("{:?}", x));
         }
 
-        // send out runner info.
-        // let mut runner_modes = vec![];
-        // if disabled_states {
-        //     runner_modes.push("resource(s) offline".to_spvalue());
-        // }
-        // // if planning_state.bad_state {
-        // //     runner_modes.push("bad state".to_spvalue());
-        // // }
-        // runner.ticker.state.add_variable(
-        //     SPPath::from_string("mode"),
-        //     SPValue::Array(SPValueType::String, runner_modes),
-        // );
-        // let runner_info = runner.state().clone();
+        
+        tx_state_out.send(s);
 
-        // tx_runner_info.send(runner_info).expect("tx_runner_info");
-
-
-        // send out the state to the planning task
-        let output = RunnerOutput {
-            state: runner.state().clone(),
-            disabled_paths: runner.disabled_paths().clone()
-        };
-
-        println!("sending out runner state...");
-        if let Err(e) = runner_out.send(output) {
-            log_info!("Can not send runner state to planners??");
-        }
-
-        if disabled_states {
-            println!("still waiting... do nothing");
-            continue;
-        }
     }
 }
 

@@ -21,7 +21,6 @@ pub struct SPTicker {
     pub transitions: Vec<Transition>,
     pub specs: Vec<TransitionSpec>,
     pub predicates: Vec<RunnerPredicate>,
-    pub disabled_paths: Vec<SPPath>,
 }
 
 impl SPTicker {
@@ -31,7 +30,6 @@ impl SPTicker {
             transitions: vec![],
             specs: vec![],
             predicates: vec![],
-            disabled_paths: vec![],
         }
     }
 
@@ -40,7 +38,7 @@ impl SPTicker {
     ///
     pub fn tick_transitions(&mut self) -> Vec<SPPath> {
         let temp_transition_map =
-            SPTicker::create_transition_map(&self.transitions, &self.specs, &self.disabled_paths);
+            SPTicker::create_transition_map(&self.transitions, &self.specs);
 
         let mut fired = Vec::new();
         let mut counter = 0;
@@ -72,7 +70,6 @@ impl SPTicker {
                 fired.extend(f);
             }
         }
-
         fired
     }
 
@@ -100,7 +97,7 @@ impl SPTicker {
     /// with the correct transitions. This is used internally to simplify the runner before each tick. A spec is often generated
     /// by the planner or optimizer
     pub fn create_transition_map<'a>(
-        ts: &'a [Transition], specs: &'a [TransitionSpec], disabled_paths: &[SPPath],
+        ts: &'a [Transition], specs: &'a [TransitionSpec]
     ) -> Vec<Vec<&'a Transition>> {
         let mut temp_xs: Vec<(Vec<&SPPath>, Vec<&Transition>)> = specs
             .iter()
@@ -111,7 +108,6 @@ impl SPTicker {
             .collect();
         for t in ts
             .iter()
-            .filter(|t| !t.path().is_child_of_any(disabled_paths))
         {
             let mut found = false;
             // let t: &Transition = t;  // Keeping these to show how to help the rust-analyzer find the types
@@ -256,7 +252,7 @@ mod test_new_ticker {
             ),
         ];
 
-        let res = SPTicker::create_transition_map(&ts, &specs, &vec![]);
+        let res = SPTicker::create_transition_map(&ts, &specs);
         println!("t1: {}", t1.path());
         println!("Creating ts map:");
         for xs in res.iter() {

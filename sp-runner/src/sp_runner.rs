@@ -21,6 +21,7 @@ pub struct SPRunner {
 pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
+    ModelChange(Model),
     NodeChange(SPState),
     NewPlan(String, SPPlan),
 }
@@ -128,7 +129,6 @@ impl SPRunner {
         ticker.transitions = transitions;
         ticker.predicates = runner_predicates;
         ticker.reload_state_paths();
-        ticker.disabled_paths = resource_paths.clone();
 
         // initially block all controlled transitions until
         // we have seen them in an external plan.
@@ -235,14 +235,8 @@ impl SPRunner {
         self.reload_state_paths();
     }
 
-    pub fn disabled_paths(&self) -> Vec<SPPath> {
-        self.ticker.disabled_paths.clone()
-    }
 
     pub fn take_a_tick(&mut self, state: SPState, check_resources: bool) -> Vec<SPPath> {
-        if check_resources {
-            self.check_resources();
-        }
         self.update_state_variables(state);
 
         // TODO! At some point we don't udate the state paths
@@ -269,50 +263,46 @@ impl SPRunner {
         });
     }
 
-    fn check_resources(&mut self) {
-        let old_id = self.ticker.state.id();
-        self.upd_resource_enabled();
-        let all_resources = self.resources.clone();
-        let missing_resources: Vec<SPPath> = all_resources
-            .iter()
-            .filter(|r| {
-                let r = r.clone();
-                let is_not_enabled = Predicate::NEQ(
-                    PredicateValue::path(r.clone()),
-                    PredicateValue::value(SPValue::Bool(true)),
-                );
-                is_not_enabled.eval(&self.ticker.state)
-            })
-            .cloned()
-            .collect();
+    // fn check_resources(&mut self) {
+    //     let old_id = self.ticker.state.id();
+    //     self.upd_resource_enabled();
+    //     let all_resources = self.resources.clone();
+    //     let missing_resources: Vec<SPPath> = all_resources
+    //         .iter()
+    //         .filter(|r| {
+    //             let r = r.clone();
+    //             let is_not_enabled = Predicate::NEQ(
+    //                 PredicateValue::path(r.clone()),
+    //                 PredicateValue::value(SPValue::Bool(true)),
+    //             );
+    //             is_not_enabled.eval(&self.ticker.state)
+    //         })
+    //         .cloned()
+    //         .collect();
 
-        self.ticker.disabled_paths = missing_resources;
-        if !self.ticker.disabled_paths.is_empty() {
-            println!("Disabled paths: {:?}", self.ticker.disabled_paths);
-        }
-        if old_id != self.ticker.state.id() {
-            self.reload_state_paths();
-        }
-    }
 
-    fn upd_resource_enabled(&mut self) {
-        // TODO: Move these to transitions into each resource
-        let rs = self.resources.clone();
-        let registered = SPPath::from_string("registered_resources");
-        rs.iter().for_each(|r| {
-            let is_member = Predicate::MEMBER(
-                PredicateValue::SPValue(r.to_spvalue()),
-                PredicateValue::path(registered.clone()),
-            );
-            let toff = Predicate::TOFF(
-                PredicateValue::path(r.clone().add_child("timestamp")),
-                PredicateValue::SPValue(SPValue::Int32(10000)),
-            ); // Hardcoded 5 seconds
-            let enabled_pred = Predicate::AND(vec![is_member.clone(), toff.clone()]);
-            let enabled = enabled_pred.eval(&self.ticker.state);
-            self.ticker
-                .state
-                .add_variable(r.clone(), SPValue::Bool(enabled));
-        });
-    }
+    //     if old_id != self.ticker.state.id() {
+    //         self.reload_state_paths();
+    //     }
+    // }
+
+    // fn upd_resource_enabled(&mut self) {
+    //     // TODO: Move these to transitions into each resource
+    //     let rs = self.resources.clone();
+    //     rs.iter().for_each(|r| {
+    //         let is_member = Predicate::MEMBER(
+    //             PredicateValue::SPValue(r.to_spvalue()),
+    //             PredicateValue::path(registered.clone()),
+    //         );
+    //         let toff = Predicate::TOFF(
+    //             PredicateValue::path(r.clone().add_child("timestamp")),
+    //             PredicateValue::SPValue(SPValue::Int32(10000)),
+    //         ); // Hardcoded 5 seconds
+    //         let enabled_pred = Predicate::AND(vec![is_member.clone(), toff.clone()]);
+    //         let enabled = enabled_pred.eval(&self.ticker.state);
+    //         self.ticker
+    //             .state
+    //             .add_variable(r.clone(), SPValue::Bool(enabled));
+    //     });
+    // }
 }

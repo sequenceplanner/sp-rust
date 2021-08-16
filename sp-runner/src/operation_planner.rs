@@ -54,7 +54,7 @@ fn update_predicates(state: &mut SPState, predicates: &[Variable]) {
 /// We only care about reaching the end goal.
 pub fn check_goals_op_model(
     s: &SPState, goal_invs: &[(Predicate, Option<Predicate>)], plan: &SPPlan,
-    ts_model: &TransitionSystemModel, disabled_paths: &[SPPath],
+    ts_model: &TransitionSystemModel,
     operations: &[Operation]
 ) -> bool {
     println!("CHECKING OP GOALS - {}", goal_invs.iter().map(|(g, _)| format!("{}",g)).collect::<Vec<String>>().join(" && "));
@@ -206,7 +206,7 @@ pub fn check_goals_op_model(
             .collect();
 
         let tm =
-            SPTicker::create_transition_map(&trans, &plan.plan, disabled_paths);
+            SPTicker::create_transition_map(&trans, &plan.plan);
 
         // create
 
@@ -338,8 +338,7 @@ impl OperationPlanner {
 
     pub fn compute_new_plan(
         &mut self, 
-        state: SPState, 
-        disabled_paths: Vec<SPPath>) -> Option<SPPlan> {
+        state: SPState) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -463,7 +462,6 @@ impl OperationPlanner {
                     &goals,
                     &self.plan,
                     &self.model,
-                    &disabled_paths,
                     &self.operations,
                 )
             };

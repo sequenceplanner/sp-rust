@@ -9,7 +9,9 @@ pub(crate) struct SPStateService {
     arc_node: Arc<Mutex<r2r::Node>>,
     state_from_runner: tokio::sync::watch::Receiver<SPState>,
     state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-    handle: Option<tokio::task::JoinHandle<()>>,
+    handle_set: Option<tokio::task::JoinHandle<()>>,
+    handle_get: Option<tokio::task::JoinHandle<()>>,
+    handle_pub: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl SPStateService {
@@ -22,16 +24,36 @@ impl SPStateService {
                 arc_node,
                 state_from_runner,
                 state_to_runner,
-                handle: None,
+                handle_set: None,
+                handle_get: None,
+                handle_pub: None,
             };
             x.launch_services().await?;
             Ok(x)
     }
 
-    pub async fn abort(self) -> Result<(), tokio::task::JoinError>  {
-        if let Some(h) = self.handle {
+    pub fn abort(&self)  {
+        if let Some(h) = &self.handle_set {
             h.abort();
-            h.await?;
+        }
+        if let Some(h) = &self.handle_get {
+            h.abort();
+        }
+        if let Some(h) = &self.handle_pub {
+            h.abort();
+        }
+    }
+
+    pub async fn abort_and_await(&mut self) -> Result<(), SPError> {
+        self.abort();
+        if let Some(h) = self.handle_set.take() {
+            h.await.map_err(SPError::from_any)?
+        }
+        if let Some(h) = self.handle_get.take() {
+            h.await.map_err(SPError::from_any)?
+        }
+        if let Some(h) = self.handle_pub.take() {
+            h.await.map_err(SPError::from_any)?
         }
         Ok(())
     }
@@ -46,23 +68,32 @@ impl SPStateService {
             node
             .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/get_state", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
+        let pub_state = 
+            node
+            .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state", SP_NODE_NAME})
+            .map_err(SPError::from_any)?;
+        let pub_state_flat = 
+            node
+            .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state_flat", SP_NODE_NAME})
+            .map_err(SPError::from_any)?;
         
         let tx = self.state_to_runner.clone();
         let rx = self.state_from_runner.clone();
-        let handle = tokio::spawn(async move {
-            let x = tokio::spawn(async move {
-                SPStateService::set_service(set_state_srv, tx).await;
-            });
-            let y = tokio::spawn(async move {
-                SPStateService::get_service(get_state_srv, rx).await;
-            });
-
-            let err = try_join! {x, y};
-            log_error!("The sp state service has stopped working. Should never happen!: {:?}", &err);
-            panic!("The sp state service has stopped working. Should never happen!: {:?}", err);
+        let handle_set = tokio::spawn(async move {
+            SPStateService::set_service(set_state_srv, tx).await;
         });
-
-        self.handle = Some(handle);
+        let rx = self.state_from_runner.clone();
+        let handle_get = tokio::spawn(async move {
+            SPStateService::get_service(get_state_srv, rx).await;
+        });
+        let rx = self.state_from_runner.clone();
+        let handle_pub = tokio::spawn(async move {
+            SPStateService::publish_state(rx,pub_state, pub_state_flat).await;
+        });
+        
+        self.handle_set = Some(handle_set);
+        self.handle_get = Some(handle_get);
+        self.handle_pub = Some(handle_pub);
 
         Ok(())
     }
@@ -113,6 +144,30 @@ impl SPStateService {
                 request.respond(msg);
             }
         }
+    }
+
+    async fn publish_state(
+        mut state_from_runner: tokio::sync::watch::Receiver<SPState>,
+        pub_state: r2r::Publisher<r2r::std_msgs::msg::String>,
+        pub_flat_state: r2r::Publisher<r2r::std_msgs::msg::String>,
+    ) {
+        loop {
+            if let Ok(request) = state_from_runner.changed().await {
+                let s = state_from_runner.borrow();
+                let s_json = SPStateJson::from_state_recursive(&s);
+                let s_json_flat = SPStateJson::from_state_flat(&s);
+                let msg = r2r::std_msgs::msg::String{data: serde_json::to_string_pretty(&s_json).unwrap()};
+                let msg_flat = r2r::std_msgs::msg::String{data: serde_json::to_string_pretty(&s_json_flat).unwrap()};
+                pub_state.publish(&msg).unwrap(); 
+                pub_flat_state.publish(&msg_flat).unwrap(); 
+            }
+        }
+    }
+}
+
+impl Drop for SPStateService {
+    fn drop(&mut self) {
+        self.abort();
     }
 }
 
@@ -166,7 +221,7 @@ mod sp_comm_tests {
 
         let (arc_node, kill) = create_node("test_service");
 
-        let state_service = SPStateService::new(
+        let mut state_service = SPStateService::new(
             arc_node.clone(), 
             rx_watch.clone(), 
             tx_mpsc.clone(),
@@ -212,7 +267,9 @@ mod sp_comm_tests {
         }
 
         reply.await.unwrap();
-        state_service.abort().await;
+
+        let res = state_service.abort_and_await().await;
+        println!("I got when abort and await: {:?}", res);
         
     }
 
@@ -228,7 +285,7 @@ mod sp_comm_tests {
 
         let (arc_node, kill) = create_node("test_service");
 
-        let state_service = SPStateService::new(
+        let mut state_service = SPStateService::new(
             arc_node.clone(), 
             rx_watch.clone(), 
             tx_mpsc.clone(),
@@ -264,7 +321,8 @@ mod sp_comm_tests {
             *k = true;
         }
 
-        state_service.abort().await;
+        let res = state_service.abort_and_await().await;
+        println!("I got when abort and await: {:?}", res);
         
     }
 
