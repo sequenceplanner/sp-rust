@@ -293,7 +293,7 @@ impl Resource {
 
     /// Setup ros service communication
     pub fn setup_ros_service(&mut self, topic: &str, msg_type: &str, request: &[&SPPath], response: &[&SPPath]) {
-        let measured_vars = self.variables.iter().flat_map(|v| {
+        let cmd_vars = self.variables.iter().flat_map(|v| {
             if request.contains(&v.path()) {
                 Some(v.path())
             } else {
@@ -304,7 +304,7 @@ impl Resource {
             path: p.clone(),
         }).collect::<Vec<_>>();
 
-        let cmd_vars = self.variables.iter().flat_map(|v| {
+        let measured_vars = self.variables.iter().flat_map(|v| {
             if response.contains(&v.path()) {
                 Some(v.path())
             } else {

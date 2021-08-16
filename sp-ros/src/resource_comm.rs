@@ -642,7 +642,7 @@ fn state_to_ros(
     vars: &Vec<MessageVariable>,
 ) -> Result<serde_json::Value, SPError> {
     let res: Vec<(SPPath, SPValue)>  = 
-        m.variables.iter().flat_map(|v| {
+        vars.iter().flat_map(|v| {
             let name = v.name.clone();
             let value = state.sp_value_from_path(&v.path);
             if value.is_none() {
