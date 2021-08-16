@@ -137,7 +137,7 @@ async fn planner(
                 if let Some(plan) = plan {
                     println!("new plan computed");
                     let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
-                    o_tx_input.send(cmd);
+                    o_tx_input.send(cmd).await;
                 }
             }
         }
