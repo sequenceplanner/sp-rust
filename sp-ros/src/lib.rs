@@ -88,7 +88,6 @@ mod ros {
 #[cfg(feature = "ros")]
 #[macro_use]
 mod ros {
-    use std::collections::{HashSet};
     use std::sync::{Arc, Mutex};
     use sp_domain::*;
     use futures::*;

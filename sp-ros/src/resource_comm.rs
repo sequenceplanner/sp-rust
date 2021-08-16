@@ -106,8 +106,8 @@ impl Comm {
         match res {
             Ok(x) => Ok(x),
             Err(e) => {
-                log_warn!("The resource communiation couln't be created: {:?}", &e);
-                println!("The resource communiation couln't be created: {:?}", &e);
+                log_warn!("The resource communiation couldn't be created: {:?}", &e);
+                println!("The resource communiation couldn't be created: {:?}", &e);
                 Err(e)
             }
         }
@@ -190,10 +190,11 @@ impl SubscriberComm {
     }
 
     async fn launch(&mut self) -> Result<(), SPError> {
-        let mut node = self.arc_node.lock().unwrap();
-        let subscriber = 
+        let subscriber = {
+            let mut node = self.arc_node.lock().unwrap();
             node
-            .subscribe_untyped(&self.mess.topic.to_string(), &topic_message_type(&self.mess));
+            .subscribe_untyped(&self.mess.topic.to_string(), &topic_message_type(&self.mess))
+        };
 
         match subscriber {
             Err(e) => {
@@ -212,7 +213,7 @@ impl SubscriberComm {
                             
                         match msg {
                             Some(Ok(v)) => {
-                                match ros_to_state(v, &resource_path, &mess).map_err(SPError::from_any) {
+                                match ros_to_state(v, &resource_path, &mess, &mess.variables).map_err(SPError::from_any) {
                                     Ok(s) => {sender.send(s).await;},
                                     Err(e) => {
                                         println!("ros_to_state didnt work: {:?}", e);
@@ -297,13 +298,20 @@ impl PublisherComm {
     }
 
     async fn launch(&mut self) -> Result<(), SPError> {
-        let mut node = self.arc_node.lock().unwrap();
-        let publisher = 
+        let publisher = {
+            let mut node = self.arc_node.lock().unwrap();
             node
             .create_publisher_untyped(
                 &self.mess.topic.to_string(), 
                 &topic_message_type(&self.mess)
-            ).map_err(SPError::from_any)?;
+            ).map_err(SPError::from_any)
+        };
+
+        if let Err(e) = publisher {
+            log_error!("the publisher {} did not start: {:?}", &self.mess.topic.to_string(), e);
+            return Err(SPError::from_any(e))
+        }
+        let publisher = publisher.unwrap();
 
         let mut receiver = self.state_from_runner.clone();
         let resource_path = self.resource_path.clone();
@@ -315,9 +323,14 @@ impl PublisherComm {
                 let msg = state_to_ros(
                     &m, 
                     state, 
-                    &resource_path)?;
+                    &m.variables);
+                let x = msg.and_then(|m| {
+                    Ok(publisher.publish(m).map_err(SPError::from_any)?)
+                });
+                if let Err(e) = x {
+                    log_warn!("The publisher {} failed: {:?}", m.topic.to_string(), e);
+                };
 
-                publisher.publish(msg).map_err(SPError::from_any)?;
             }
         });
 
@@ -367,6 +380,8 @@ impl ServiceClientComm {
             handle: None
         };
 
+        println!("YYY");
+
         sc.launch().await?;
 
         Ok(sc)
@@ -386,24 +401,77 @@ impl ServiceClientComm {
     }
 
     async fn launch(&mut self) -> Result<(), SPError> {
-        let mut node = self.arc_node.clone();
-        let mut state_from_runner = self.state_from_runner.clone();
         let mess = self.mess.clone();
-
+        let client = {
+            let mut n = self.arc_node.lock().unwrap();
+            let c = n.create_client_untyped(
+                &mess.topic.to_string(), 
+                &topic_message_type(&mess)
+            );
+            if let Err(e) = c {
+                log_error!("the service client {} did not start: {:?}", &self.mess.topic.to_string(), e);
+                return Err(SPError::from_any(e))
+            }
+            let c = c.unwrap();
+            println!("YYY STARTAR SERVICE: {:?}", &mess);
+            // while !n.service_available_untyped(&c).unwrap() {
+            //     tokio::time::sleep(std::time::Duration::from_millis(100));
+            // }
+            println!("YYY Startade: {:?}", &mess);
+            c
+        };
+        
+        let mut state_from_runner = self.state_from_runner.clone();
+        let mut state_to_runner = self.state_to_runner.clone();
+        let resource_path = self.resource_path.clone();
         let handle = tokio::task::spawn(async move { 
             loop {
+                println!("YYY Waiting: {:?}", &mess);
                 state_from_runner.changed().await;
-                let x = state_from_runner.borrow();
-                let client = {
-                    let mut n = node.lock().unwrap();
-                    n.create_client_untyped(
-                    &mess.topic.to_string(), 
-                    &topic_message_type(&mess)
-                    ).map_err(SPError::from_any)?
+                let msg = state_to_ros(
+                    &mess, 
+                    state_from_runner.borrow(), 
+                    &mess.variables
+                );
+
+                println!("YYY VI FICK state: {:?}", &msg);
+
+                if let Err(e) = msg {
+                    log_warn!("The service client {} failed: {:?}", mess.topic.to_string(), e);
+                    continue;
                 };
 
-
-
+                let msg = msg.unwrap();
+                let request = client.request(msg);
+                if let Err(e) = request {
+                    log_warn!("The service client request {} failed: {:?}", mess.topic.to_string(), e);
+                    // TODO: Maybe write to state?
+                    continue;
+                };
+                let result = request.unwrap().await;
+                println!("YYY VI FICK response: {:?}", &result);
+                let result = result.and_then(|x| x).and_then(|x| Ok(x));
+                if let Err(e) = result {
+                    log_warn!("The service client response {} failed: {:?}", mess.topic.to_string(), e);
+                    // TODO: Maybe write to state?
+                    continue;
+                };
+                let result = result.unwrap();
+                let x = ros_to_state(
+                    result, 
+                    &resource_path, 
+                    &mess, 
+                    &mess.variables_response
+                );
+                match x {
+                    Ok(s) => {
+                        state_to_runner.send(s).await.unwrap();
+                    },
+                    Err(e) => {
+                        println!("ros_to_state didnt work: {:?}", e);
+                        log_warn!("ros_to_state didnt work: {:?}", e);
+                    } 
+                }   
             }
         });
 
@@ -411,6 +479,8 @@ impl ServiceClientComm {
 
         Ok(())
     }
+
+    //fn extract_request(mess: &Message, state: &SPState) -> Vec<SPPath>
 }
 
 impl Drop for ServiceClientComm {
@@ -520,6 +590,7 @@ fn ros_to_state(
     msg: serde_json::Value,
     resource_path: &SPPath,
     m: &Message,
+    vars: &Vec<MessageVariable>,
 ) -> Result<SPState, SPError> {
 
     let msg = SPStateJson::from_json(msg)?;
@@ -530,10 +601,9 @@ fn ros_to_state(
         msg_state.unprefix_paths(&SPPath::from_string("data"));
     };
 
-    let map: Vec<(SPPath, Option<&SPValue>)> = m
-        .variables
-    .iter()
-    .map(|v| {
+    let mut map: Vec<(SPPath, SPValue)> = vars
+        .iter()
+        .flat_map(|v| {
         let p =  v.path.clone();
         let value = msg_state.sp_value_from_path(&v.name);
         if value.is_none() {
@@ -544,16 +614,10 @@ fn ros_to_state(
                 SPStateJson::from_state_flat(&msg_state).to_json()
             );
         }
-        (p, value)
+        value.map(|v|(p, v.clone()))
     })
     .collect();
         
-    let mut map: Vec<(SPPath, SPValue)> = map
-        .into_iter()
-        .filter(|(_, y)| y.is_some())
-        .map(|(x, y)| (x, y.unwrap().clone()))
-        .collect();
-
     map.push((resource_path.add_child("timestamp"), SPValue::now()));
 
     let state = SPState::new_from_values(&map);
@@ -564,16 +628,15 @@ fn ros_to_state(
 fn state_to_ros(
     m: &Message,
     state: tokio::sync::watch::Ref<SPState>,
-    resource_path: &SPPath,
+    vars: &Vec<MessageVariable>,
 ) -> Result<serde_json::Value, SPError> {
     let res: Vec<(SPPath, SPValue)>  = 
         m.variables.iter().flat_map(|v| {
             let name = v.name.clone();
-            let path = resource_path.add_child_path(&v.path.clone());
-            let value = state.sp_value_from_path(&v.path.clone());
+            let value = state.sp_value_from_path(&v.path);
             if value.is_none() {
-                log_info!("Not in state: Name {}, resource: {}, path: {}, state: {}", 
-                    &name, &resource_path, &path, SPStateJson::from_state_flat(&state).to_json());
+                log_info!("Not in state: Name {}, path: {}, state: {}", 
+                    &name,  &v.path, SPStateJson::from_state_flat(&state).to_json());
             } 
             value.map(|v| (name, v.clone()))
         }).collect();

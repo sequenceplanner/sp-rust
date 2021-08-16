@@ -258,6 +258,8 @@ impl Resource {
             category: MessageCategory::OutGoing,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: cmd_vars,
+            variables_response: vec!(),
+            variables_feedback: vec!(),
             send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
         };
         self.add_message(command_msg);
@@ -282,9 +284,48 @@ impl Resource {
             category: MessageCategory::Incoming,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: measured_vars,
+            variables_response: vec!(),
+            variables_feedback: vec!(),
             send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
         };
         self.add_message(incoming_msg);
+    }
+
+    /// Setup ros service communication
+    pub fn setup_ros_service(&mut self, topic: &str, msg_type: &str, request: &[&SPPath], response: &[&SPPath]) {
+        let measured_vars = self.variables.iter().flat_map(|v| {
+            if request.contains(&v.path()) {
+                Some(v.path())
+            } else {
+                None
+            }
+        }).map(|p| MessageVariable {
+            name: p.leaf_as_path(),
+            path: p.clone(),
+        }).collect::<Vec<_>>();
+
+        let cmd_vars = self.variables.iter().flat_map(|v| {
+            if response.contains(&v.path()) {
+                Some(v.path())
+            } else {
+                None
+            }
+        }).map(|p| MessageVariable {
+            name: p.leaf_as_path(),
+            path: p.clone()
+        }).collect::<Vec<_>>();
+
+        let service_msg = Message {
+            topic: SPPath::from_string(topic),
+            relative_topic: false,
+            category: MessageCategory::Service,
+            message_type: MessageType::Ros(msg_type.to_string()),
+            variables: cmd_vars,
+            variables_response: measured_vars,
+            variables_feedback: vec!(),
+            send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
+        };
+        self.add_message(service_msg);
     }
 
     /// Take a transition out from the resource in order to synchronize it with something else.
@@ -309,6 +350,8 @@ pub struct Message {
     pub category: MessageCategory,
     pub message_type: MessageType,
     pub variables: Vec<MessageVariable>,
+    pub variables_response: Vec<MessageVariable>,
+    pub variables_feedback: Vec<MessageVariable>,
     pub send_predicate: Predicate,
 }
 

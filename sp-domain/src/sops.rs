@@ -214,7 +214,7 @@ mod test_sops {
             SOP::Operation(p4.clone()),
         ));
         let mut m = HashMap::new();
-        let res = SOP::insert_preds(&seq, &mut m, "i".to_spvalue(), "f".to_spvalue());
+        SOP::insert_preds(&seq, &mut m, "i".to_spvalue(), "f".to_spvalue());
         m.iter().for_each(|kv| println!("map {:?}", kv));
         assert_eq!(m.get(&p1), None);
         assert_eq!(m.get(&p2), Some(&SOP::make_op_pred(&[&p1], &"f".to_spvalue())));
@@ -228,7 +228,7 @@ mod test_sops {
             SOP::Operation(p4.clone()),
         ));
         let mut m = HashMap::new();
-        let res = SOP::insert_preds(&alt, &mut m, "i".to_spvalue(), "f".to_spvalue());
+        SOP::insert_preds(&alt, &mut m, "i".to_spvalue(), "f".to_spvalue());
         m.iter().for_each(|kv| println!("map {:?}", kv));
         assert_eq!(m.get(&p1), Some(&vec!(Predicate::AND(SOP::make_op_pred(&[&p1, &p2, &p3, &p4], &"i".to_spvalue())))));
         assert_eq!(m.get(&p2), Some(&vec!(Predicate::AND(SOP::make_op_pred(&[&p1, &p2, &p3, &p4], &"i".to_spvalue())))));
@@ -242,7 +242,7 @@ mod test_sops {
             SOP::Operation(p4.clone()),
         ));
         let mut m = HashMap::new();
-        let res = SOP::insert_preds(&par, &mut m, "i".to_spvalue(), "f".to_spvalue());
+        SOP::insert_preds(&par, &mut m, "i".to_spvalue(), "f".to_spvalue());
         assert_eq!(m.get(&p1), None);
         assert_eq!(m.get(&p2), None);
         assert_eq!(m.get(&p3), None);
@@ -255,7 +255,7 @@ mod test_sops {
             SOP::Operation(p4.clone()),
         ));
         let mut m = HashMap::new();
-        let res = SOP::insert_preds(&arb, &mut m, "i".to_spvalue(), "f".to_spvalue());
+        SOP::insert_preds(&arb, &mut m, "i".to_spvalue(), "f".to_spvalue());
         m.iter().for_each(|kv| println!("map {:?}", kv));
         assert_eq!(m.get(&p1), Some(&vec!(
             Predicate::AND(vec!(
@@ -283,7 +283,7 @@ mod test_sops {
             SOP::Operation(p5.clone())
         ));
         let mut m = HashMap::new();
-        let res = SOP::insert_preds(&sop, &mut m, "i".to_spvalue(), "f".to_spvalue());
+        SOP::insert_preds(&sop, &mut m, "i".to_spvalue(), "f".to_spvalue());
         m.iter().for_each(|kv| println!("last map {:?}", kv));
         assert_eq!(m.get(&p5), Some(&vec!(Predicate::OR(SOP::make_op_pred(&[&p1, &p2, &p3, &p4], &"f".to_spvalue())))));
 
