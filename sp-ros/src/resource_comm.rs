@@ -216,18 +216,15 @@ impl SubscriberComm {
                                 match ros_to_state(v, &resource_path, &mess, &mess.variables).map_err(SPError::from_any) {
                                     Ok(s) => {sender.send(s).await;},
                                     Err(e) => {
-                                        println!("ros_to_state didnt work: {:?}", e);
                                         log_warn!("ros_to_state didnt work: {:?}", e);
                                     } 
                                 }
                             },
                             Some(Err(e)) => {
-                                println!("subscriber didnt work: {:?}", e);
                                 log_warn!("subscriber didnt work: {:?}", e);
                             }
                             _ => {
-                                println!("subscriber got none");
-                                log_warn!("subscriber didnt none");
+                                log_warn!("subscriber is none");
                             }
                         }
         
@@ -313,22 +310,28 @@ impl PublisherComm {
         }
         let publisher = publisher.unwrap();
 
-        let mut receiver = self.state_from_runner.clone();
+        let mut state_from_runner = self.state_from_runner.clone();
         let resource_path = self.resource_path.clone();
-        let m = self.mess.clone();
+        let mess = self.mess.clone();
         let handle = tokio::task::spawn(async move { 
             loop {
-                receiver.changed().await;
-                let state = receiver.borrow();
+                state_from_runner.changed().await;
+                let state = state_from_runner.borrow();
+
+                if !mess.send_predicate.eval(&state_from_runner.borrow()) {
+                    println!("YYY Send_predicate says no: {:?}", &mess);
+                    continue;
+                }
+
                 let msg = state_to_ros(
-                    &m, 
+                    &mess, 
                     state, 
-                    &m.variables);
+                    &mess.variables);
                 let x = msg.and_then(|m| {
                     Ok(publisher.publish(m).map_err(SPError::from_any)?)
                 });
                 if let Err(e) = x {
-                    log_warn!("The publisher {} failed: {:?}", m.topic.to_string(), e);
+                    log_warn!("The publisher {} failed: {:?}", mess.topic.to_string(), e);
                 };
 
             }
@@ -414,6 +417,7 @@ impl ServiceClientComm {
             }
             let c = c.unwrap();
             println!("YYY STARTAR SERVICE: {:?}", &mess);
+            // Did not work??
             // while !n.service_available_untyped(&c).unwrap() {
             //     tokio::time::sleep(std::time::Duration::from_millis(100));
             // }
@@ -422,12 +426,19 @@ impl ServiceClientComm {
         };
         
         let mut state_from_runner = self.state_from_runner.clone();
-        let mut state_to_runner = self.state_to_runner.clone();
+        let state_to_runner = self.state_to_runner.clone();
         let resource_path = self.resource_path.clone();
         let handle = tokio::task::spawn(async move { 
             loop {
                 println!("YYY Waiting: {:?}", &mess);
                 state_from_runner.changed().await;
+
+                if !mess.send_predicate.eval(&state_from_runner.borrow()) {
+                    println!("YYY Send_predicate says no: {:?}", &mess);
+                    continue;
+                }
+                
+
                 let msg = state_to_ros(
                     &mess, 
                     state_from_runner.borrow(), 
@@ -671,6 +682,14 @@ fn state_to_ros(
 
     Ok(msg)
 
+}
+
+
+fn send_predicate (
+    m: &Message,
+    state: tokio::sync::watch::Ref<SPState>,
+) -> bool {
+    m.send_predicate.eval(&state)
 }
 
 
