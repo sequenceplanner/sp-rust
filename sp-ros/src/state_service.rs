@@ -156,8 +156,8 @@ impl SPStateService {
                 let s = state_from_runner.borrow();
                 let s_json = SPStateJson::from_state_recursive(&s);
                 let s_json_flat = SPStateJson::from_state_flat(&s);
-                let msg = r2r::std_msgs::msg::String{data: serde_json::to_string_pretty(&s_json).unwrap()};
-                let msg_flat = r2r::std_msgs::msg::String{data: serde_json::to_string_pretty(&s_json_flat).unwrap()};
+                let msg = r2r::std_msgs::msg::String{data: serde_json::to_string(&s_json).unwrap()};
+                let msg_flat = r2r::std_msgs::msg::String{data: serde_json::to_string(&s_json_flat).unwrap()};
                 pub_state.publish(&msg).unwrap(); 
                 pub_flat_state.publish(&msg_flat).unwrap(); 
             }
