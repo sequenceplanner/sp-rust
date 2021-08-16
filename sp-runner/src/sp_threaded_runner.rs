@@ -64,13 +64,13 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     });
 
     let model_watcher = ros_comm.model_watcher();
-    // let planner_handle = tokio::spawn(async move {
-    //     planner(
-    //         model_watcher, 
-    //         tx_runner.clone(),
-    //         rx_runner_state.clone()
-    //     ).await;
-    // });
+    let planner_handle = tokio::spawn(async move {
+        planner(
+            model_watcher, 
+            tx_runner.clone(),
+            rx_runner_state.clone()
+        ).await;
+    });
 
     let err = runner_handle.await; //let err = tokio::try_join!(runner_handle, planner_handle);
 
