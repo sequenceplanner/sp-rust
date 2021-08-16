@@ -42,17 +42,16 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     let (tx_runner, rx_runner) = tokio::sync::mpsc::channel(2);
     let (tx_new_state, rx_new_state) = tokio::sync::mpsc::channel(2);
     let (tx_runner_state, rx_runner_state) = tokio::sync::watch::channel(initial_state.clone());
+
+    
+    tokio::spawn(merger(rx_new_state, tx_runner.clone()));
+    tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
     
     let ros_comm = sp_ros::RosComm::new(
         rx_runner_state.clone(), 
         tx_new_state.clone(), 
         model.clone(),
     ).await?;
-
-    
-    tokio::spawn(merger(rx_new_state, tx_runner.clone()));
-    tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
-    
 
     let model_watcher = ros_comm.model_watcher();
     let runner_handle = tokio::spawn(async move {
@@ -65,15 +64,15 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     });
 
     let model_watcher = ros_comm.model_watcher();
-    let planner_handle = tokio::spawn(async move {
-        planner(
-            model_watcher, 
-            tx_runner.clone(),
-            rx_runner_state.clone()
-        ).await;
-    });
+    // let planner_handle = tokio::spawn(async move {
+    //     planner(
+    //         model_watcher, 
+    //         tx_runner.clone(),
+    //         rx_runner_state.clone()
+    //     ).await;
+    // });
 
-    let err = tokio::try_join!(runner_handle, planner_handle);
+    let err = runner_handle.await; //let err = tokio::try_join!(runner_handle, planner_handle);
 
     println!("The runner terminated!: {:?}", err);
     log_error!("The SP runner terminated: {:?}", err);
@@ -171,9 +170,7 @@ async fn runner(
         if elapsed_ms > 1000 {
             log_debug!("RUNNER TICK TIME: {}ms", elapsed_ms);
         }
-        log_info!("Runner loooop");
-        log_info!("channel: {:?}", rx_input);
-
+        
         let input = tokio::select! {
             Some(input) = rx_input.recv() => {input},
             Ok(_) = model_watcher.changed() => {

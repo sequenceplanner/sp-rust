@@ -191,30 +191,57 @@ impl SubscriberComm {
 
     async fn launch(&mut self) -> Result<(), SPError> {
         let mut node = self.arc_node.lock().unwrap();
-        let mut subscriber = 
+        let subscriber = 
             node
-            .subscribe_untyped(&self.mess.topic.to_string(), &topic_message_type(&self.mess))
-            .expect("Could not create a subscriber");
+            .subscribe_untyped(&self.mess.topic.to_string(), &topic_message_type(&self.mess));
+
+        match subscriber {
+            Err(e) => {
+                log_error!("the subscriber {} did not start: {:?}", &self.mess.topic.to_string(), e);
+                Err(SPError::from_any(e))
+            },
+            Ok(mut sub) => {
+                let sender = self.state_to_runner.clone();
+                let resource_path = self.resource_path.clone();
+                let mess = self.mess.clone();
+                let handle = tokio::task::spawn(async move { 
+                    loop {
+                        let msg = sub
+                            .next()
+                            .await;
+                            
+                        match msg {
+                            Some(Ok(v)) => {
+                                match ros_to_state(v, &resource_path, &mess).map_err(SPError::from_any) {
+                                    Ok(s) => {sender.send(s).await;},
+                                    Err(e) => {
+                                        println!("ros_to_state didnt work: {:?}", e);
+                                        log_warn!("ros_to_state didnt work: {:?}", e);
+                                    } 
+                                }
+                            },
+                            Some(Err(e)) => {
+                                println!("subscriber didnt work: {:?}", e);
+                                log_warn!("subscriber didnt work: {:?}", e);
+                            }
+                            _ => {
+                                println!("subscriber got none");
+                                log_warn!("subscriber didnt none");
+                            }
+                        }
         
-        let sender = self.state_to_runner.clone();
-        let resource_path = self.resource_path.clone();
-        let mess = self.mess.clone();
-        let handle = tokio::task::spawn(async move { 
-            loop {
-                let msg = subscriber
-                    .next()
-                    .await
-                    .ok_or(SPError::No(format!("The subscriber stream for {}, on incoming is getting None! SHOULD NOT HAPPEN!!",&resource_path)))?
-                    .map_err(SPError::from_any)?;
-    
-                let rm = ros_to_state(msg, &resource_path, &mess).map_err(SPError::from_any)?;
-                sender.send(rm).await.map_err(SPError::from_any)?;
+                        
+                    }
+                });
+        
+                self.handle = Some(handle);
+        
+                Ok(())
             }
-        });
+        }
 
-        self.handle = Some(handle);
-
-        Ok(())
+        
+        
     }
 }
 
@@ -578,8 +605,6 @@ fn state_to_ros(
             serde_json::to_value(&json).unwrap()
         }
     };
-
-    println!("HEJ HEJ: {:?}", &msg);
 
     Ok(msg)
 

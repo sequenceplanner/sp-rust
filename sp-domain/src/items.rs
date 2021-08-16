@@ -721,7 +721,7 @@ impl Operation {
             TransitionType::Auto,
         );
         runner_finish.path.add_parent_path_mut(&self.path);
-        println!("FINISH TRANSITION FOR {}: {:#?}", runner_finish.path(), runner_finish);
+        //println!("FINISH TRANSITION FOR {}: {:#?}", runner_finish.path(), runner_finish);
 
         vec![runner_start, runner_finish]
     }

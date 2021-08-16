@@ -192,10 +192,7 @@ mod ros {
             ).await?;
 
             let arc = arc_node.clone();
-            let spin_handle = tokio::task::spawn_blocking( move || {
-                let mut node = arc.lock().unwrap();
-                node.spin_once(std::time::Duration::from_millis(100));
-            });
+            
 
             let model_watcher = sp_model.model_watcher();
             let resources_handle = RosComm::launch_resources(
@@ -205,6 +202,18 @@ mod ros {
                 state_to_runner.clone(), 
                 model_watcher.clone(),
             ).await;
+
+            let spin_handle = tokio::task::spawn_blocking( move || {
+                std::thread::sleep(std::time::Duration::from_millis(3000));
+                loop {
+                    {
+                        let mut node = arc.lock().unwrap();
+                        node.spin_once(std::time::Duration::from_millis(10));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+
+                }
+            });
 
             let rc = RosComm {
                 arc_node,
@@ -269,6 +278,7 @@ mod ros {
                             !map.contains(r.path())
                         }).cloned().collect()
                     };
+                    new_res.iter().for_each(|r| println!("XXX RESOURCES: {:?}", r.path()));
                     for r in new_res {
                         let rc =  ResourceComm::new(
                             arc_node.clone(), 
