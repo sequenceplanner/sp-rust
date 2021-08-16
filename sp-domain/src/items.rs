@@ -292,7 +292,13 @@ impl Resource {
     }
 
     /// Setup ros service communication
-    pub fn setup_ros_service(&mut self, topic: &str, msg_type: &str, request: &[&SPPath], response: &[&SPPath]) {
+    pub fn setup_ros_service(
+        &mut self, 
+        topic: &str, 
+        msg_type: &str, 
+        send_predicate: Predicate,
+        request: &[&SPPath], 
+        response: &[&SPPath]) {
         let cmd_vars = self.variables.iter().flat_map(|v| {
             if request.contains(&v.path()) {
                 Some(v.path())
@@ -323,7 +329,7 @@ impl Resource {
             variables: cmd_vars,
             variables_response: measured_vars,
             variables_feedback: vec!(),
-            send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
+            send_predicate: send_predicate,
         };
         self.add_message(service_msg);
     }
