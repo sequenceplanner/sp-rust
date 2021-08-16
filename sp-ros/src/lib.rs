@@ -203,7 +203,7 @@ mod ros {
             ).await;
 
             let spin_handle = tokio::task::spawn_blocking( move || {
-                std::thread::sleep(std::time::Duration::from_millis(3000));
+                std::thread::sleep(std::time::Duration::from_millis(100));
                 loop {
                     {
                         let mut node = arc.lock().unwrap();
