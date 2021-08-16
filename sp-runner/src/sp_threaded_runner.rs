@@ -38,18 +38,18 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     println!("********");
 
     log_info!("startar SP!");
-    
+
     let (tx_runner, rx_runner) = tokio::sync::mpsc::channel(2);
     let (tx_new_state, rx_new_state) = tokio::sync::mpsc::channel(2);
     let (tx_runner_state, rx_runner_state) = tokio::sync::watch::channel(initial_state.clone());
 
-    
+
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
     tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
-    
+
     let ros_comm = sp_ros::RosComm::new(
-        rx_runner_state.clone(), 
-        tx_new_state.clone(), 
+        rx_runner_state.clone(),
+        tx_new_state.clone(),
         model.clone(),
     ).await?;
 
@@ -66,7 +66,7 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     let model_watcher = ros_comm.model_watcher();
     let planner_handle = tokio::spawn(async move {
         planner(
-            model_watcher, 
+            model_watcher,
             tx_runner.clone(),
             rx_runner_state.clone()
         ).await;
@@ -82,7 +82,7 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
 
 
 async fn planner(
-    model_watcher: tokio::sync::watch::Receiver<Model>, 
+    model_watcher: tokio::sync::watch::Receiver<Model>,
     tx_input: tokio::sync::mpsc::Sender<SPRunnerInput>,
     runner_out: tokio::sync::watch::Receiver<SPState>
 ) {
@@ -101,11 +101,18 @@ async fn planner(
         loop {
             t_runner_out.changed().await;
             let ro = t_runner_out.borrow().clone();
-            let x = transition_planner.compute_new_plan(ro);
-            if let Some(plan) = x {
-                println!("new plan computed");
-                let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), plan);
-                t_tx_input.send(cmd).await;
+            let mut tpc = transition_planner.clone();
+            let x = tokio::task::spawn_blocking(move || {
+                let plan = tpc.compute_new_plan(ro);
+                (plan, tpc)
+            }).await;
+            if let Ok((plan, tpc)) = x {
+                transition_planner = tpc;
+                if let Some(plan) = plan {
+                    println!("new plan computed");
+                    let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), plan);
+                    t_tx_input.send(cmd).await;
+                }
             }
         }
     });
@@ -120,10 +127,18 @@ async fn planner(
         loop {
             o_runner_out.changed().await;
             let s = o_runner_out.borrow().clone();
-            if let Some(plan) = operation_planner.compute_new_plan(s) {
-                println!("new plan computed");
-                let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
-                o_tx_input.send(cmd);
+            let mut opc = operation_planner.clone();
+            let x = tokio::task::spawn_blocking(move || {
+                let plan = opc.compute_new_plan(s);
+                (plan, opc)
+            }).await;
+            if let Ok((plan, opc)) = x {
+                operation_planner = opc;
+                if let Some(plan) = plan {
+                    println!("new plan computed");
+                    let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
+                    o_tx_input.send(cmd);
+                }
             }
         }
     });
@@ -131,8 +146,8 @@ async fn planner(
 }
 
 async fn runner(
-    mut model_watcher: tokio::sync::watch::Receiver<Model>, 
-    initial_state: SPState, 
+    mut model_watcher: tokio::sync::watch::Receiver<Model>,
+    initial_state: SPState,
     mut rx_input: tokio::sync::mpsc::Receiver<SPRunnerInput>,
     tx_state_out: tokio::sync::watch::Sender<SPState>
 ) {
@@ -170,7 +185,7 @@ async fn runner(
         if elapsed_ms > 1000 {
             log_debug!("RUNNER TICK TIME: {}ms", elapsed_ms);
         }
-        
+
         let input = tokio::select! {
             Some(input) = rx_input.recv() => {input},
             Ok(_) = model_watcher.changed() => {
@@ -183,7 +198,7 @@ async fn runner(
         let mut ticked = false;
         let mut last_fired_transitions = vec![];
 
-        log_info!("Runner got: {:?}", &input);
+        // log_info!("Runner got: {:?}", &input);
         match input {
             SPRunnerInput::StateChange(s) => {
                 if !runner.state().are_new_values_the_same(&s) {
@@ -224,7 +239,7 @@ async fn runner(
         }
 
         let mut s = runner.ticker.state.clone();
-        
+
         if !last_fired_transitions.is_empty() {
             let f = last_fired_transitions.iter().fold(String::new(), |a, t| {
                 if a.is_empty() {
@@ -240,7 +255,7 @@ async fn runner(
                 .for_each(|x| println!("{:?}", x));
         }
 
-        
+
         tx_state_out.send(s);
 
     }
@@ -263,7 +278,7 @@ async fn merger(
 ) {
     let (tx, mut rx) = tokio::sync::watch::channel(false);
     let ms_arc = Arc::new(Mutex::new(MergedState::new()));
-    
+
     let ms_in = ms_arc.clone();
     tokio::spawn(async move {
         loop {
@@ -328,6 +343,3 @@ async fn ticker_async(freq: Duration, tx_runner: tokio::sync::mpsc::Sender<SPRun
         tx_runner.send(SPRunnerInput::Tick).await;
     }
 }
-
-
-
