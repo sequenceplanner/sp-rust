@@ -249,8 +249,7 @@ impl Resource {
             }
         }).map(|p| MessageVariable {
             name: p.leaf_as_path(),
-            path: p.clone(),
-            relative_path: false,
+            path: p.clone()
         }).collect::<Vec<_>>();
 
         let command_msg = Message {
@@ -259,6 +258,9 @@ impl Resource {
             category: MessageCategory::OutGoing,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: cmd_vars,
+            variables_response: vec!(),
+            variables_feedback: vec!(),
+            send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
         };
         self.add_message(command_msg);
     }
@@ -274,7 +276,6 @@ impl Resource {
         }).map(|p| MessageVariable {
             name: p.leaf_as_path(),
             path: p.clone(),
-            relative_path: false,
         }).collect::<Vec<_>>();
 
         let incoming_msg = Message {
@@ -283,8 +284,54 @@ impl Resource {
             category: MessageCategory::Incoming,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: measured_vars,
+            variables_response: vec!(),
+            variables_feedback: vec!(),
+            send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
         };
         self.add_message(incoming_msg);
+    }
+
+    /// Setup ros service communication
+    pub fn setup_ros_service(
+        &mut self, 
+        topic: &str, 
+        msg_type: &str, 
+        send_predicate: Predicate,
+        request: &[&SPPath], 
+        response: &[&SPPath]) {
+        let cmd_vars = self.variables.iter().flat_map(|v| {
+            if request.contains(&v.path()) {
+                Some(v.path())
+            } else {
+                None
+            }
+        }).map(|p| MessageVariable {
+            name: p.leaf_as_path(),
+            path: p.clone(),
+        }).collect::<Vec<_>>();
+
+        let measured_vars = self.variables.iter().flat_map(|v| {
+            if response.contains(&v.path()) {
+                Some(v.path())
+            } else {
+                None
+            }
+        }).map(|p| MessageVariable {
+            name: p.leaf_as_path(),
+            path: p.clone()
+        }).collect::<Vec<_>>();
+
+        let service_msg = Message {
+            topic: SPPath::from_string(topic),
+            relative_topic: false,
+            category: MessageCategory::Service,
+            message_type: MessageType::Ros(msg_type.to_string()),
+            variables: cmd_vars,
+            variables_response: measured_vars,
+            variables_feedback: vec!(),
+            send_predicate: send_predicate,
+        };
+        self.add_message(service_msg);
     }
 
     /// Take a transition out from the resource in order to synchronize it with something else.
@@ -309,6 +356,9 @@ pub struct Message {
     pub category: MessageCategory,
     pub message_type: MessageType,
     pub variables: Vec<MessageVariable>,
+    pub variables_response: Vec<MessageVariable>,
+    pub variables_feedback: Vec<MessageVariable>,
+    pub send_predicate: Predicate,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -340,7 +390,6 @@ impl Default for MessageType {
 pub struct MessageVariable {
     pub name: SPPath,
     pub path: SPPath,
-    pub relative_path: bool,
 }
 
 impl MessageVariable {
@@ -348,7 +397,6 @@ impl MessageVariable {
         MessageVariable {
             name: name.clone(),
             path: path.clone(),
-            relative_path: true,
         }
     }
 }
@@ -722,7 +770,7 @@ impl Operation {
             TransitionType::Auto,
         );
         runner_finish.path.add_parent_path_mut(&self.path);
-        println!("FINISH TRANSITION FOR {}: {:#?}", runner_finish.path(), runner_finish);
+        //println!("FINISH TRANSITION FOR {}: {:#?}", runner_finish.path(), runner_finish);
 
         vec![runner_start, runner_finish]
     }

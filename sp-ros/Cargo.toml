@@ -10,10 +10,12 @@ ros = ["r2r"]
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-crossbeam = "0.7"
-r2r = { git = "https://github.com/sequenceplanner/r2r", version = "0.2.0", optional = true }
+#r2r = {path = "/Users/kristofer/sw/r2r", optional = true}
+r2r = { git = "https://github.com/sequenceplanner/r2r", branch = "untyped_services", optional = true }
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.15"
 sp-domain = { path = "../sp-domain/" }
-failure = "0.1.5"
-failure_derive = "0.1.5"
+
+[dev-dependencies]
+tokio-test = "*"
+serial_test = "0.5"

@@ -47,8 +47,7 @@ fn update_predicates(state: &mut SPState, predicates: &[Variable]) {
 /// can fail if the plan contains two "choices" involving the same
 /// transitions. Then the "wrong" one might be taken first.
 fn check_goals_fast(
-    s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel,
-    disabled_paths: &[SPPath]
+    s: &SPState, goals: &[&Predicate], plan: &SPPlan, ts_model: &TransitionSystemModel
 ) -> bool {
     if goals.iter().all(|g| g.eval(s)) {
         return true;
@@ -61,7 +60,7 @@ fn check_goals_fast(
         .cloned()
         .collect();
 
-    let tm = SPTicker::create_transition_map(&trans, &plan.plan, disabled_paths);
+    let tm = SPTicker::create_transition_map(&trans, &plan.plan);
 
     // we need to make sure goals can be ticked off when reached.
     let mut goals = goals.to_vec();
@@ -156,7 +155,7 @@ fn check_goals_complete(
         .cloned()
         .collect();
 
-    let tm = SPTicker::create_transition_map(&trans, &plan.plan, &disabled_paths);
+    let tm = SPTicker::create_transition_map(&trans, &plan.plan);
 
     fn rec<'a>(
         state: &SPState, goals: &[&Predicate], tm: &Vec<Vec<&'a Transition>>,
@@ -252,7 +251,9 @@ impl TransitionPlanner {
         state.filter_by_paths(&to_keep)
     }
 
-    pub fn compute_new_plan(&mut self, mut state: SPState, disabled_paths: &[SPPath]) -> Option<SPPlan> {
+    pub fn compute_new_plan(
+        &mut self, 
+        mut state: SPState) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
         // nothing has changed, no need to do anything.
@@ -420,7 +421,6 @@ impl TransitionPlanner {
                     &gr,
                     &self.plan,
                     &tsm,
-                    disabled_paths,
                 )
             };
 

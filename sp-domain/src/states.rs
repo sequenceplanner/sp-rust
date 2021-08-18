@@ -670,24 +670,6 @@ impl SPState {
         self.add_state_variables(p);
     }
 
-    /// Tries to extend the state only if the state does not contain the same
-    /// path or if that path has the same value, else the other_state will be
-    /// returned and self will not be extended
-    pub fn try_extend(&mut self, other_state: SPState) -> Option<SPState> {
-        let can_extend = other_state.projection().state.iter().all(|(p, v)| {
-            let self_v = self.sp_value_from_path(p);
-            // MD 2021-01-06: hack to update the timestamps when merging.
-            // TODO: This fix should be local to the merger.
-            p.leaf() == "timestamp" || self_v.map(|x| x == v.value()).unwrap_or(true)
-        });
-        if can_extend {
-            self.extend(other_state);
-            None
-        } else {
-            Some(other_state)
-        }
-    }
-
     /// Given a list of paths, consume this state and return a new
     /// state that only contain the exact paths given.
     pub fn filter_by_paths(self, paths: &[SPPath]) -> SPState {
@@ -720,6 +702,20 @@ impl fmt::Display for SPState {
             buf.push(format!("{}: {} {} {}", p, current, next, prev));
         }
         write!(f, "{}", buf.join("\n"))
+    }
+}
+
+impl<'a> fmt::Display for StateProjection<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Sort keys by name.
+        let mut proj = self.clone();
+        proj.sort();
+        let mut buf = Vec::new();
+        for (p, val) in proj.state {
+            let current = val.current.to_string();
+            buf.push(format!("{}: {}", p, current));
+        }
+        write!(f, "\n{}", buf.join("\n"))
     }
 }
 
