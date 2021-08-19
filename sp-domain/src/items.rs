@@ -289,38 +289,38 @@ impl Resource {
 
     /// Setup ros service communication
     pub fn setup_ros_service(
-        &mut self, 
+        &mut self,
         name: &str,
-        topic: &str, 
-        msg_type: &str, 
+        topic: &str,
+        msg_type: &str,
         send_predicate: Predicate,
-        request: &[MessageVariable], 
+        request: &[MessageVariable],
         response: &[MessageVariable]) -> SPPath {
 
         let service_state = self.add_variable(Variable::new(
-            &format!("{}/service", name), 
-            VariableType::Measured, 
+            &format!("{}/service", name),
+            VariableType::Measured,
             SPValueType::String,
             vec!("ok".to_spvalue(), "req".to_spvalue(), "done".to_spvalue())
         ));
 
         self.add_transition(
             Transition::new(
-                &format!("{}_send_effect", name), 
-                p!([pp: send_predicate] && [p: service_state == "ok"]), 
-                vec![ a!( p: service_state = "done")], 
+                &format!("{}_send_effect", name),
+                p!([pp: send_predicate] && [p: service_state == "ok"]),
+                vec![ a!( p: service_state = "done")],
                 TransitionType::Effect
             )
         );
         self.add_transition(
             Transition::new(
                 &format!("{}_reset_effect", name),
-                p!([!pp: send_predicate] && [p: service_state == "done"]), 
-                vec![ a!( p: service_state = "ok")], 
+                p!([!pp: send_predicate] && [p: service_state == "done"]),
+                vec![ a!( p: service_state = "ok")],
                 TransitionType::Effect
             )
         );
-        
+
 
 
         let service_msg = Message {
@@ -335,6 +335,61 @@ impl Resource {
         };
         self.add_message(service_msg);
         service_state
+    }
+
+    /// Setup ros action communication
+    pub fn setup_ros_action(
+        &mut self,
+        name: &str,
+        topic: &str,
+        msg_type: &str,
+        send_predicate: Predicate,
+        request: &[MessageVariable],
+        feedback: &[MessageVariable],
+        response: &[MessageVariable]) -> SPPath {
+
+        let action_state = self.add_variable(Variable::new(
+            &format!("{}/action", name),
+            VariableType::Measured,
+            SPValueType::String,
+            vec!("init".to_spvalue(), "requesting".to_spvalue(),
+                 "accepted".to_spvalue(), "rejected".to_spvalue(),
+                 "succeeded".to_spvalue(), "aborted".to_spvalue(),
+                 "requesting_cancel".to_spvalue(),
+                 "cancelling".to_spvalue(),
+                 "cancel_rejected".to_spvalue(),
+            )
+        ));
+
+        self.add_transition(
+            Transition::new(
+                &format!("{}_send_effect", name),
+                p!([pp: send_predicate] && [p: action_state == "init"]),
+                vec![ a!( p: action_state = "succeeded")],
+                TransitionType::Effect
+            )
+        );
+        self.add_transition(
+            Transition::new(
+                &format!("{}_reset_effect", name),
+                p!([!pp: send_predicate] && [p: action_state == "succeeded"]),
+                vec![ a!( p: action_state = "init")],
+                TransitionType::Effect
+            )
+        );
+
+        let action_msg = Message {
+            name: SPPath::from_string(name).add_parent_path_mut(&self.path),
+            topic: SPPath::from_string(topic),
+            category: MessageCategory::Action,
+            message_type: MessageType::Ros(msg_type.to_string()),
+            variables: request.to_vec(),
+            variables_response: response.to_vec(),
+            variables_feedback: feedback.to_vec(),
+            send_predicate: send_predicate,
+        };
+        self.add_message(action_msg);
+        action_state
     }
 
     /// Take a transition out from the resource in order to synchronize it with something else.
