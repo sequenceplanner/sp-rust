@@ -418,7 +418,7 @@ impl ServiceClientComm {
         let state_to_runner = self.state_to_runner.clone();
         let mut state = "ok".to_spvalue();
         let handle = tokio::task::spawn(async move { 
-            let service_state_path = mess.name.add_child("state");
+            let service_state_path = mess.name.add_child("service");
             let mut service_state = "ok".to_spvalue();
             ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
             log_info!("Starting service: {}", &mess.topic);
@@ -433,8 +433,6 @@ impl ServiceClientComm {
 
                 if &service_state != &"ok".to_spvalue() {
                     continue;
-                } else {
-                    println!("Time to send: {:?}", &state_from_runner.borrow().sp_value_from_path(&service_state_path))
                 }
 
                 let msg = state_to_ros(
@@ -559,30 +557,189 @@ impl ActionClientComm {
     }
 
     async fn launch(&mut self) -> Result<(), SPError> {
-        let mut node = self.arc_node.clone();
-        let mut state_from_runner = self.state_from_runner.clone();
         let mess = self.mess.clone();
-
+        let client = {
+            let mut n = self.arc_node.lock().unwrap();
+            let c = n.create_action_client_untyped(
+                &mess.topic.to_string(), 
+                &topic_message_type(&mess)
+            );
+            if let Err(e) = c {
+                log_error!("the action client {} did not start: {:?}", &self.mess.topic.to_string(), e);
+                return Err(SPError::from_any(e))
+            }
+            let c = c.unwrap();
+            c
+        };
+        
+        let mut state_from_runner = self.state_from_runner.clone();
+        let state_to_runner = self.state_to_runner.clone();
+        
         let handle = tokio::task::spawn(async move { 
+            let action_state_path = mess.name.add_child("action");
+            log_info!("Starting action: {}", &mess.topic);
+            
+            let init = "init".to_spvalue();
+            let requesting =  "requesting".to_spvalue();
+            let accepted = "accepted".to_spvalue();
+            let rejected = "rejected".to_spvalue();
+            let succeeded = "succeeded".to_spvalue();
+            let aborted = "aborted".to_spvalue();
+            let requesting_cancel = "requesting_cancel".to_spvalue();
+            let cancelling = "cancelling".to_spvalue();
+            let cancel_rejected = "cancel_rejected".to_spvalue();
+            
+            let mut action_state = &init;
+            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+
+            let mut client_goal: Option<r2r::ClientGoalUntyped> = None;
+            let mut action_handle: Option<tokio::task::JoinHandle<()>> = None;
+            
             loop {
                 state_from_runner.changed().await;
-                let x = state_from_runner.borrow();
-                let client = {
-                    let mut n = node.lock().unwrap();
-                    n.create_client_untyped(
-                    &mess.topic.to_string(), 
-                    &topic_message_type(&mess)
-                    ).map_err(SPError::from_any)?
-                };
+
+                if !mess.send_predicate.eval(&state_from_runner.borrow()) {
+                    
+                    if let Some(c) = client_goal.take() {
+                        c.cancel();
+                    }
+                    client_goal = None;
+                    if let Some(h) = action_handle.take() {
+                        h.abort();
+                    }
+
+                    action_state = &init;
+                    ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                    continue;
+                }
+
+                if action_handle.is_none() && action_state == &init {
+                    action_state = &requesting;
+                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+
+                    let msg = state_to_ros(
+                        &mess, 
+                        state_from_runner.borrow(), 
+                        &mess.variables
+                    );
+
+                    if let Err(e) = msg {
+                        log_warn!("The message for {} could not be created?: {:?}", mess.topic.to_string(), e);
+                        continue;
+                    };
+
+                    let msg = msg.unwrap();
+
+                    let x = client.send_goal_request(msg).expect("The action client failed!!!!!!!!");
+                    let x =  x.await;
+                    if let Err(e) = x {
+                        log_warn!("The action server rejected the request! {:?}", e);
+                        action_state = &rejected;
+                        ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                        continue;
+                    }
+
+                    action_state = &accepted;
+                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+
+                    let (cg, result_future, feedback) = x.unwrap();
+                    client_goal = Some(cg);
+
+                    
+                    action_handle = Some(tokio::spawn(async move { 
+                        // fixa att spawna och lyssna på feedback
+                    }));
+                    
+                    // todo spawn also here
+                    let temp = result_future.await;
+                    
+                    match temp {
+                        Err(e) => {
+                            log_warn!("The action client did not work {:?}", e);
+                            action_state = &rejected;
+                            //ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                            continue;
+                        },
+                        Ok((status, Ok(res))) => {
+                            let x = ros_to_state(
+                                res, 
+                                &mess, 
+                                &mess.variables_response
+                            );
+                            match status {
+                                r2r::GoalStatus::Succeeded => {action_state = &succeeded;},
+                                _ => {action_state = &aborted;},
+                            }
+                            match x {
+                                Ok(mut s) => {
+                                    s.add_variable(action_state_path.clone(), action_state.clone());
+                                    //state_to_runner.send(s).await;
+                                },
+                                Err(e) => {
+                                    log_error!("ros_to_state didnt work in action: {:?}", e);
+                                } 
+                            }   
+
+                        },
+                        e => {
+                            log_warn!("The action client did not work {:?}", e);
+                            action_state = &aborted;
+                            //ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                            continue;
+                        }
+                    }
+                }
 
                 
 
+
+    
+
+                // let msg = msg.unwrap();
+                // let request = client.request(msg);
+                // if let Err(e) = request {
+                //     log_warn!("The service client request {} failed: {:?}", mess.topic.to_string(), e);
+                //     // TODO: Maybe write to state?
+                //     continue;
+                // };
+                // let result = request.unwrap().await;
+                // let result = result.and_then(|x| x).and_then(|x| Ok(x));
+                // if let Err(e) = result {
+                //     log_warn!("The service client response {} failed: {:?}", mess.topic.to_string(), e);
+                //     // TODO: Maybe write to state?
+                //     continue;
+                // };
+                // let result = result.unwrap();
+                // let x = ros_to_state(
+                //     result, 
+                //     &mess, 
+                //     &mess.variables_response
+                // );
+                // match x {
+                //     Ok(mut s) => {
+                //         action_state = "done".to_spvalue();
+                //         s.add_variable(action_state_path.clone(), action_state.clone());
+                //         state_to_runner.send(s).await;
+                //     },
+                //     Err(e) => {
+                //         println!("ros_to_state didnt work: {:?}", e);
+                //         log_warn!("ros_to_state didnt work: {:?}", e);
+                //     } 
+                // }   
             }
         });
 
         self.handle = Some(handle);
 
         Ok(())
+    }
+
+    async fn send_action_state(
+        state_to_runner: &tokio::sync::mpsc::Sender<SPState>,
+        path: &SPPath,
+        state: &SPValue
+    ) {
+        state_to_runner.send(SPState::new_from_values(&[(path.clone(), state.clone())])).await;
     }
 }
 
