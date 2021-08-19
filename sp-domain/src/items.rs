@@ -295,7 +295,33 @@ impl Resource {
         msg_type: &str, 
         send_predicate: Predicate,
         request: &[MessageVariable], 
-        response: &[MessageVariable]) {
+        response: &[MessageVariable]) -> SPPath {
+
+        let service_state = self.add_variable(Variable::new(
+            &format!("{}/service", name), 
+            VariableType::Measured, 
+            SPValueType::String,
+            vec!("ok".to_spvalue(), "req".to_spvalue(), "done".to_spvalue())
+        ));
+
+        self.add_transition(
+            Transition::new(
+                &format!("{}_send_effect", name), 
+                p!([pp: send_predicate] && [p: service_state == "ok"]), 
+                vec![ a!( p: service_state = "done")], 
+                TransitionType::Effect
+            )
+        );
+        self.add_transition(
+            Transition::new(
+                &format!("{}_reset_effect", name),
+                p!([!pp: send_predicate] && [p: service_state == "done"]), 
+                vec![ a!( p: service_state = "ok")], 
+                TransitionType::Effect
+            )
+        );
+        
+
 
         let service_msg = Message {
             name: SPPath::from_string(name).add_parent_path_mut(&self.path),
@@ -308,6 +334,7 @@ impl Resource {
             send_predicate: send_predicate,
         };
         self.add_message(service_msg);
+        service_state
     }
 
     /// Take a transition out from the resource in order to synchronize it with something else.
