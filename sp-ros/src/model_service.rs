@@ -69,11 +69,11 @@ impl SPModelService {
         let mut node = self.arc_node.lock().unwrap();
         let set_srv = 
             node
-            .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/set_model", SP_NODE_NAME})
+            .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/set_model", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
         let get_srv = 
             node
-            .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/get_model", SP_NODE_NAME})
+            .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/get_model", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
         
         
@@ -92,7 +92,7 @@ impl SPModelService {
     }
 
     async fn set_service(
-        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_messages::srv::Json::Service>> + Unpin,
+        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
         mut current_model: tokio::sync::watch::Sender<Model>,
     ) {
         loop {
@@ -115,21 +115,21 @@ impl SPModelService {
                         error
                     }
                 };
-                let msg = r2r::sp_messages::srv::Json::Response{json: r};
+                let msg = r2r::sp_msgs::srv::Json::Response{json: r};
                 request.respond(msg);
             }
         }
     }
 
     async fn get_service(
-        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_messages::srv::Json::Service>> + Unpin,
+        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
         watch_model: tokio::sync::watch::Receiver<Model>,
     ) {
         loop {
             if let Some(request) = service.next().await {
                 let x = watch_model.borrow().clone();
                  let resp = serde_json::to_string(&x).unwrap();
-                 let msg = r2r::sp_messages::srv::Json::Response{json: resp};
+                 let msg = r2r::sp_msgs::srv::Json::Response{json: resp};
                  
                  request.respond(msg);
              }
@@ -213,25 +213,23 @@ mod sp_comm_tests {
 
         let client = {
             let mut node = arc_node.lock().unwrap();
-            let c = node.create_client::<r2r::sp_messages::srv::Json::Service>("/sp/set_model").unwrap();
+            let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/set_model").unwrap();
             println!("waiting for service...");
 
-            while !node.service_available(&c).unwrap() {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            };
+            node.is_available(&c).unwrap().await;
             println!("service available.");
             c
         };
 
         let model = Model::new("new");
-        let req = r2r::sp_messages::srv::Json::Request { json: serde_json::to_string_pretty(&model).unwrap() };
+        let req = r2r::sp_msgs::srv::Json::Request { json: serde_json::to_string_pretty(&model).unwrap() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         println!("response from server: {:?}", &res.json);
         assert!(res.json == "ok");
 
         // bad request
-        let req = r2r::sp_messages::srv::Json::Request { json: "no model".to_string() };
+        let req = r2r::sp_msgs::srv::Json::Request { json: "no model".to_string() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         println!("error response from server: {:?}", &res.json);
@@ -265,17 +263,15 @@ mod sp_comm_tests {
 
         let client = {
             let mut node = arc_node.lock().unwrap();
-            let c = node.create_client::<r2r::sp_messages::srv::Json::Service>("/sp/get_model").unwrap();
+            let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/get_model").unwrap();
             println!("waiting for service...");
 
-            while !node.service_available(&c).unwrap() {
-                std::thread::sleep(std::time::Duration::from_millis(1000));
-            };
+            node.is_available(&c).unwrap().await;
             println!("service available.");
             c
         };
 
-        let req = r2r::sp_messages::srv::Json::Request { json: "{}".to_string() };
+        let req = r2r::sp_msgs::srv::Json::Request { json: "{}".to_string() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         let m: Model = serde_json::from_str(&res.json).unwrap();

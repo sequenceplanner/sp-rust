@@ -62,11 +62,11 @@ impl SPStateService {
         let mut node = self.arc_node.lock().unwrap();
         let set_state_srv = 
             node
-            .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/set_state", super::ros::SP_NODE_NAME})
+            .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/set_state", super::ros::SP_NODE_NAME})
             .map_err(SPError::from_any)?;
         let get_state_srv = 
             node
-            .create_service::<r2r::sp_messages::srv::Json::Service>(&format! {"{}/get_state", SP_NODE_NAME})
+            .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/get_state", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
         let pub_state = 
             node
@@ -101,12 +101,15 @@ impl SPStateService {
     
 
     async fn set_service(
-        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_messages::srv::Json::Service>> + Unpin,
+        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
     ) {
+        log_info!("SET SERVICE STARTING");
         loop {
+            log_info!("SET SERVICE Waiting");
             if let Some(request) = service.next().await {
                 let state_json: Result<SPStateJson, _> = serde_json::from_str(&request.message.json);
+                log_info!("SET SERVICE GOT: {:?}", &state_json);
                 let r = match state_json {
                     Ok(sj) => { 
                         let mut state = sj.to_state();
@@ -125,21 +128,21 @@ impl SPStateService {
                         error
                     }
                 };
-                let msg = r2r::sp_messages::srv::Json::Response{json: r};
+                let msg = r2r::sp_msgs::srv::Json::Response{json: r};
                 request.respond(msg);
             }
         }
     }
 
     async fn get_service(
-        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_messages::srv::Json::Service>> + Unpin,
+        mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
     ) {
         loop {
             if let Some(request) = service.next().await {
                let s = SPStateJson::from_state_recursive(&state_from_runner.borrow());
                 let resp = serde_json::to_string(&s).unwrap();
-                let msg = r2r::sp_messages::srv::Json::Response{json: resp};
+                let msg = r2r::sp_msgs::srv::Json::Response{json: resp};
                 
                 request.respond(msg);
             }
@@ -236,25 +239,23 @@ mod sp_comm_tests {
 
         let client = {
             let mut node = arc_node.lock().unwrap();
-            let c = node.create_client::<r2r::sp_messages::srv::Json::Service>("/sp/set_state").unwrap();
+            let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/set_state").unwrap();
             println!("waiting for service...");
 
-            while !node.service_available(&c).unwrap() {
-                std::thread::sleep(std::time::Duration::from_millis(1000));
-            };
+            //node.is_available(&c).unwrap().await;
             println!("service available.");
             c
         };
 
         let state_json = SPStateJson::from_state_recursive(&init_state);
-        let req = r2r::sp_messages::srv::Json::Request { json: serde_json::to_string_pretty(&state_json).unwrap() };
+        let req = r2r::sp_msgs::srv::Json::Request { json: serde_json::to_string_pretty(&state_json).unwrap() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         println!("response from server: {:?}", &res.json);
         assert!(res.json == "ok");
 
         // bad request
-        let req = r2r::sp_messages::srv::Json::Request { json: "no state".to_string() };
+        let req = r2r::sp_msgs::srv::Json::Request { json: "no state".to_string() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         println!("error response from server: {:?}", &res.json);
@@ -293,18 +294,16 @@ mod sp_comm_tests {
 
         let client = {
             let mut node = arc_node.lock().unwrap();
-            let c = node.create_client::<r2r::sp_messages::srv::Json::Service>("/sp/get_state").unwrap();
+            let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/get_state").unwrap();
             println!("waiting for service...");
 
-            while !node.service_available(&c).unwrap() {
-                std::thread::sleep(std::time::Duration::from_millis(1000));
-            };
+            node.is_available(&c).unwrap().await;
             println!("service available.");
             c
         };
 
         let state_json = SPStateJson::from_state_recursive(&init_state);
-        let req = r2r::sp_messages::srv::Json::Request { json: "{}".to_string() };
+        let req = r2r::sp_msgs::srv::Json::Request { json: "{}".to_string() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         let json: SPStateJson = serde_json::from_str(&res.json).unwrap();

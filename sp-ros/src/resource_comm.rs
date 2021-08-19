@@ -95,7 +95,7 @@ impl Comm {
                 x.map(Comm::Subscriber)
             },
             MessageCategory::Service => {
-                let x = ServiceClientComm::new(arc_node, mess, resource_path, state_from_runner, state_to_runner).await;
+                let x = ServiceClientComm::new(arc_node, mess, state_from_runner, state_to_runner).await;
                 x.map(Comm::ServiceClient)
             },
             MessageCategory::Action => {
@@ -213,7 +213,7 @@ impl SubscriberComm {
                             
                         match msg {
                             Some(Ok(v)) => {
-                                match ros_to_state(v, &resource_path, &mess, &mess.variables).map_err(SPError::from_any) {
+                                match ros_to_state(v, &mess, &mess.variables).map_err(SPError::from_any) {
                                     Ok(s) => {sender.send(s).await;},
                                     Err(e) => {
                                         log_warn!("ros_to_state didnt work: {:?}", e);
@@ -319,7 +319,6 @@ impl PublisherComm {
                 let state = state_from_runner.borrow();
 
                 if !mess.send_predicate.eval(&state_from_runner.borrow()) {
-                    println!("YYY Send_predicate says no: {:?}", &mess);
                     continue;
                 }
 
@@ -360,7 +359,6 @@ impl Drop for PublisherComm {
 struct ServiceClientComm{
     arc_node: Arc<Mutex<r2r::Node>>,
     mess: Message,
-    resource_path: SPPath,
     state_from_runner: tokio::sync::watch::Receiver<SPState>,
     state_to_runner: tokio::sync::mpsc::Sender<SPState>,
     handle: Option<tokio::task::JoinHandle<Result<(), SPError>>>,
@@ -370,20 +368,17 @@ impl ServiceClientComm {
     async fn new(
         arc_node: Arc<Mutex<r2r::Node>>,
         mess: Message,
-        resource_path: SPPath,
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
     ) -> Result<ServiceClientComm, SPError> { 
         let mut sc = ServiceClientComm {
             arc_node,
             mess,
-            resource_path,
             state_from_runner,
             state_to_runner,
             handle: None
         };
 
-        println!("YYY");
 
         sc.launch().await?;
 
@@ -416,28 +411,31 @@ impl ServiceClientComm {
                 return Err(SPError::from_any(e))
             }
             let c = c.unwrap();
-            println!("YYY STARTAR SERVICE: {:?}", &mess);
-            // Did not work??
-            // while !n.service_available_untyped(&c).unwrap() {
-            //     tokio::time::sleep(std::time::Duration::from_millis(100));
-            // }
-            println!("YYY Startade: {:?}", &mess);
             c
         };
         
         let mut state_from_runner = self.state_from_runner.clone();
         let state_to_runner = self.state_to_runner.clone();
-        let resource_path = self.resource_path.clone();
+        let mut state = "ok".to_spvalue();
         let handle = tokio::task::spawn(async move { 
+            let service_state_path = mess.topic.add_child("state");
+            let mut service_state = "ok".to_spvalue();
+            ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
+            log_info!("Starting service: {}", &mess.topic);
             loop {
-                println!("YYY Waiting: {:?}", &mess);
                 state_from_runner.changed().await;
 
                 if !mess.send_predicate.eval(&state_from_runner.borrow()) {
-                    println!("YYY Send_predicate says no: {:?}", &mess);
+                    service_state = "ok".to_spvalue();
+                    ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
                     continue;
                 }
-                
+
+                if &service_state != &"ok".to_spvalue() {
+                    continue;
+                } else {
+                    println!("Time to send: {:?}", &state_from_runner.borrow().sp_value_from_path(&service_state_path))
+                }
 
                 let msg = state_to_ros(
                     &mess, 
@@ -445,12 +443,14 @@ impl ServiceClientComm {
                     &mess.variables
                 );
 
-                println!("YYY VI FICK state: {:?}", &msg);
 
                 if let Err(e) = msg {
-                    log_warn!("The service client {} failed: {:?}", mess.topic.to_string(), e);
+                    log_warn!("The message for {} could not be created?: {:?}", mess.topic.to_string(), e);
                     continue;
                 };
+
+                service_state = "req".to_spvalue();
+                ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
 
                 let msg = msg.unwrap();
                 let request = client.request(msg);
@@ -460,7 +460,6 @@ impl ServiceClientComm {
                     continue;
                 };
                 let result = request.unwrap().await;
-                println!("YYY VI FICK response: {:?}", &result);
                 let result = result.and_then(|x| x).and_then(|x| Ok(x));
                 if let Err(e) = result {
                     log_warn!("The service client response {} failed: {:?}", mess.topic.to_string(), e);
@@ -470,13 +469,14 @@ impl ServiceClientComm {
                 let result = result.unwrap();
                 let x = ros_to_state(
                     result, 
-                    &resource_path, 
                     &mess, 
                     &mess.variables_response
                 );
                 match x {
-                    Ok(s) => {
-                        state_to_runner.send(s).await.unwrap();
+                    Ok(mut s) => {
+                        service_state = "done".to_spvalue();
+                        s.add_variable(service_state_path.clone(), service_state.clone());
+                        state_to_runner.send(s).await;
                     },
                     Err(e) => {
                         println!("ros_to_state didnt work: {:?}", e);
@@ -489,6 +489,14 @@ impl ServiceClientComm {
         self.handle = Some(handle);
 
         Ok(())
+    }
+
+    async fn send_service_state(
+        state_to_runner: &tokio::sync::mpsc::Sender<SPState>,
+        path: &SPPath,
+        state: &SPValue
+    ) {
+        state_to_runner.send(SPState::new_from_values(&[(path.clone(), state.clone())])).await;
     }
 
     //fn extract_request(mess: &Message, state: &SPState) -> Vec<SPPath>
@@ -599,16 +607,13 @@ fn topic_message_type(mess: &Message) -> String {
 
 fn ros_to_state(
     msg: serde_json::Value,
-    resource_path: &SPPath,
     m: &Message,
     vars: &Vec<MessageVariable>,
 ) -> Result<SPState, SPError> {
 
     let msg = SPStateJson::from_json(msg)?;
     let mut msg_state = msg.to_state();
-    if m.message_type == MessageType::Json
-        || m.message_type == MessageType::JsonFlat 
-        {
+    if m.message_type == MessageType::Json || m.message_type == MessageType::JsonFlat {
         msg_state.unprefix_paths(&SPPath::from_string("data"));
     };
 
@@ -616,11 +621,11 @@ fn ros_to_state(
         .iter()
         .flat_map(|v| {
         let p =  v.path.clone();
-        let value = msg_state.sp_value_from_path(&v.name);
+        let value = msg_state.sp_value_from_path(&v.ros_path);
         if value.is_none() {
             log_error!(
                 "Not in msg: Name {}, path: {}, state: {}",
-                &v.name,
+                &v.ros_path,
                 &p,
                 SPStateJson::from_state_flat(&msg_state).to_json()
             );
@@ -629,7 +634,7 @@ fn ros_to_state(
     })
     .collect();
         
-    map.push((resource_path.add_child("timestamp"), SPValue::now()));
+    map.push((m.topic.add_child("timestamp"), SPValue::now()));
 
     let state = SPState::new_from_values(&map);
     Ok(state)
@@ -643,7 +648,7 @@ fn state_to_ros(
 ) -> Result<serde_json::Value, SPError> {
     let res: Vec<(SPPath, SPValue)>  = 
         vars.iter().flat_map(|v| {
-            let name = v.name.clone();
+            let name = v.ros_path.clone();
             let value = state.sp_value_from_path(&v.path);
             if value.is_none() {
                 log_info!("Not in state: Name {}, path: {}, state: {}", 

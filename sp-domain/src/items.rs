@@ -196,12 +196,7 @@ impl Resource {
     /// Get the message in the command topic. For now this is hardcoded
     pub fn get_message_for_topic(&self, topic: &SPPath) -> Option<Message> {
         for m in &self.messages {
-            let t = if m.relative_topic {
-                self.path().clone().add_child_path(&m.topic)
-            } else {
-                m.topic.clone()
-            };
-            if &t == topic {
+            if &m.topic == topic {
                 return Some(m.clone());
             }
         }
@@ -248,13 +243,12 @@ impl Resource {
                 None
             }
         }).map(|p| MessageVariable {
-            name: p.leaf_as_path(),
+            ros_path: p.leaf_as_path(),
             path: p.clone()
         }).collect::<Vec<_>>();
 
         let command_msg = Message {
             topic: SPPath::from_string(topic),
-            relative_topic: false,
             category: MessageCategory::OutGoing,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: cmd_vars,
@@ -274,13 +268,12 @@ impl Resource {
                 None
             }
         }).map(|p| MessageVariable {
-            name: p.leaf_as_path(),
+            ros_path: p.leaf_as_path(),
             path: p.clone(),
         }).collect::<Vec<_>>();
 
         let incoming_msg = Message {
             topic: SPPath::from_string(topic),
-            relative_topic: false,
             category: MessageCategory::Incoming,
             message_type: MessageType::Ros(msg_type.to_string()),
             variables: measured_vars,
@@ -291,43 +284,22 @@ impl Resource {
         self.add_message(incoming_msg);
     }
 
+
     /// Setup ros service communication
     pub fn setup_ros_service(
         &mut self, 
         topic: &str, 
         msg_type: &str, 
         send_predicate: Predicate,
-        request: &[&SPPath], 
-        response: &[&SPPath]) {
-        let cmd_vars = self.variables.iter().flat_map(|v| {
-            if request.contains(&v.path()) {
-                Some(v.path())
-            } else {
-                None
-            }
-        }).map(|p| MessageVariable {
-            name: p.leaf_as_path(),
-            path: p.clone(),
-        }).collect::<Vec<_>>();
-
-        let measured_vars = self.variables.iter().flat_map(|v| {
-            if response.contains(&v.path()) {
-                Some(v.path())
-            } else {
-                None
-            }
-        }).map(|p| MessageVariable {
-            name: p.leaf_as_path(),
-            path: p.clone()
-        }).collect::<Vec<_>>();
+        request: &[MessageVariable], 
+        response: &[MessageVariable]) {
 
         let service_msg = Message {
             topic: SPPath::from_string(topic),
-            relative_topic: false,
             category: MessageCategory::Service,
             message_type: MessageType::Ros(msg_type.to_string()),
-            variables: cmd_vars,
-            variables_response: measured_vars,
+            variables: request.to_vec(),
+            variables_response: response.to_vec(),
             variables_feedback: vec!(),
             send_predicate: send_predicate,
         };
@@ -352,7 +324,6 @@ impl Resource {
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub topic: SPPath,
-    pub relative_topic: bool,
     pub category: MessageCategory,
     pub message_type: MessageType,
     pub variables: Vec<MessageVariable>,
@@ -388,14 +359,14 @@ impl Default for MessageType {
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct MessageVariable {
-    pub name: SPPath,
+    pub ros_path: SPPath,
     pub path: SPPath,
 }
 
 impl MessageVariable {
-    pub fn new(name: &SPPath, path: &SPPath) -> Self {
+    pub fn new(path: &SPPath, ros_path: &str) -> Self {
         MessageVariable {
-            name: name.clone(),
+            ros_path: SPPath::from_string(ros_path),
             path: path.clone(),
         }
     }
@@ -457,6 +428,13 @@ impl Variable {
 
     pub fn path(&self) -> &SPPath {
         &self.path
+    }
+
+    pub fn to_message_variable(&self, ros_path: SPPath) -> MessageVariable {
+        MessageVariable {
+            ros_path,
+            path: self.path().clone()
+        }
     }
 }
 
