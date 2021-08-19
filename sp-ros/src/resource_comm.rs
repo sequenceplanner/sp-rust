@@ -579,7 +579,7 @@ impl ActionClientComm {
             let action_state_path = mess.name.add_child("action");
             log_info!("Starting action: {}", &mess.topic);
             
-            let init = "init".to_spvalue();
+            let ok = "ok".to_spvalue();
             let requesting =  "requesting".to_spvalue();
             let accepted = "accepted".to_spvalue();
             let rejected = "rejected".to_spvalue();
@@ -589,7 +589,7 @@ impl ActionClientComm {
             let cancelling = "cancelling".to_spvalue();
             let cancel_rejected = "cancel_rejected".to_spvalue();
             
-            let mut action_state = &init;
+            let mut action_state = &ok;
             ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
 
             let mut client_goal: Option<r2r::ClientGoalUntyped> = None;
@@ -608,12 +608,12 @@ impl ActionClientComm {
                         h.abort();
                     }
 
-                    action_state = &init;
+                    action_state = &ok;
                     ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
                     continue;
                 }
 
-                if action_handle.is_none() && action_state == &init {
+                if action_handle.is_none() && action_state == &ok {
                     action_state = &requesting;
                     ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
 
@@ -646,34 +646,38 @@ impl ActionClientComm {
                     client_goal = Some(cg);
 
                     
-                    action_handle = Some(tokio::spawn(async move { 
-                        // fixa att spawna och lyssna på feedback
-                    }));
+                    // action_handle = Some(tokio::spawn(async move { 
+                    //     // fixa att spawna och lyssna på feedback
+                    // }));
                     
                     // todo spawn also here
-                    let temp = result_future.await;
                     
-                    match temp {
+                    match result_future.await {
                         Err(e) => {
                             log_warn!("The action client did not work {:?}", e);
                             action_state = &rejected;
-                            //ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                            ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
                             continue;
                         },
                         Ok((status, Ok(res))) => {
+                            log_info!("XXX message: {:?}", &mess );
+                            log_info!("XXX response: {:?}", &res );
+                            log_info!("XXX status {:?}", &status );
                             let x = ros_to_state(
                                 res, 
                                 &mess, 
                                 &mess.variables_response
                             );
                             match status {
-                                r2r::GoalStatus::Succeeded => {action_state = &succeeded;},
+                                r2r::GoalStatus::Succeeded => {
+                                    action_state = &succeeded;
+                                },
                                 _ => {action_state = &aborted;},
                             }
                             match x {
                                 Ok(mut s) => {
                                     s.add_variable(action_state_path.clone(), action_state.clone());
-                                    //state_to_runner.send(s).await;
+                                    state_to_runner.send(s).await;
                                 },
                                 Err(e) => {
                                     log_error!("ros_to_state didnt work in action: {:?}", e);
@@ -684,7 +688,7 @@ impl ActionClientComm {
                         e => {
                             log_warn!("The action client did not work {:?}", e);
                             action_state = &aborted;
-                            //ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                            ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
                             continue;
                         }
                     }

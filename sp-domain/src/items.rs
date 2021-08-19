@@ -235,24 +235,13 @@ impl Resource {
     }
 
     /// Setup ros outgoing communication
-    pub fn setup_ros_outgoing(&mut self, name: &str, topic: &str, msg_type: &str) {
-        let cmd_vars = self.variables.iter().flat_map(|v| {
-            if let VariableType::Command = v.variable_type() {
-                Some(v.path())
-            } else {
-                None
-            }
-        }).map(|p| MessageVariable {
-            ros_path: p.leaf_as_path(),
-            path: p.clone()
-        }).collect::<Vec<_>>();
-
+    pub fn setup_ros_outgoing(&mut self, name: &str, topic: &str, msg_type: &str, variables: &[MessageVariable]) {
         let command_msg = Message {
             name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::OutGoing,
             message_type: MessageType::Ros(msg_type.to_string()),
-            variables: cmd_vars,
+            variables: variables.to_vec(),
             variables_response: vec!(),
             variables_feedback: vec!(),
             send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
@@ -261,24 +250,13 @@ impl Resource {
     }
 
     /// Setup ros incoming communication
-    pub fn setup_ros_incoming(&mut self, name: &str, topic: &str, msg_type: &str) {
-        let measured_vars = self.variables.iter().flat_map(|v| {
-            if let VariableType::Measured = v.variable_type() {
-                Some(v.path())
-            } else {
-                None
-            }
-        }).map(|p| MessageVariable {
-            ros_path: p.leaf_as_path(),
-            path: p.clone(),
-        }).collect::<Vec<_>>();
-
+    pub fn setup_ros_incoming(&mut self, name: &str, topic: &str, msg_type: &str, variables: &[MessageVariable]) {
         let incoming_msg = Message {
             name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::Incoming,
             message_type: MessageType::Ros(msg_type.to_string()),
-            variables: measured_vars,
+            variables: variables.to_vec(),
             variables_response: vec!(),
             variables_feedback: vec!(),
             send_predicate: Predicate::TRUE // TODO: FIX predicates for outgoing
@@ -352,7 +330,7 @@ impl Resource {
             &format!("{}/action", name),
             VariableType::Measured,
             SPValueType::String,
-            vec!("init".to_spvalue(), "requesting".to_spvalue(),
+            vec!("ok".to_spvalue(), "requesting".to_spvalue(),
                  "accepted".to_spvalue(), "rejected".to_spvalue(),
                  "succeeded".to_spvalue(), "aborted".to_spvalue(),
                  "requesting_cancel".to_spvalue(),
@@ -364,7 +342,7 @@ impl Resource {
         self.add_transition(
             Transition::new(
                 &format!("{}_send_effect", name),
-                p!([pp: send_predicate] && [p: action_state == "init"]),
+                p!([pp: send_predicate] && [p: action_state == "ok"]),
                 vec![ a!( p: action_state = "succeeded")],
                 TransitionType::Effect
             )
@@ -373,7 +351,7 @@ impl Resource {
             Transition::new(
                 &format!("{}_reset_effect", name),
                 p!([!pp: send_predicate] && [p: action_state == "succeeded"]),
-                vec![ a!( p: action_state = "init")],
+                vec![ a!( p: action_state = "ok")],
                 TransitionType::Effect
             )
         );
