@@ -235,7 +235,7 @@ impl Resource {
     }
 
     /// Setup ros outgoing communication
-    pub fn setup_ros_outgoing(&mut self, topic: &str, msg_type: &str) {
+    pub fn setup_ros_outgoing(&mut self, name: &str, topic: &str, msg_type: &str) {
         let cmd_vars = self.variables.iter().flat_map(|v| {
             if let VariableType::Command = v.variable_type() {
                 Some(v.path())
@@ -248,6 +248,7 @@ impl Resource {
         }).collect::<Vec<_>>();
 
         let command_msg = Message {
+            name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::OutGoing,
             message_type: MessageType::Ros(msg_type.to_string()),
@@ -260,7 +261,7 @@ impl Resource {
     }
 
     /// Setup ros incoming communication
-    pub fn setup_ros_incoming(&mut self, topic: &str, msg_type: &str) {
+    pub fn setup_ros_incoming(&mut self, name: &str, topic: &str, msg_type: &str) {
         let measured_vars = self.variables.iter().flat_map(|v| {
             if let VariableType::Measured = v.variable_type() {
                 Some(v.path())
@@ -273,6 +274,7 @@ impl Resource {
         }).collect::<Vec<_>>();
 
         let incoming_msg = Message {
+            name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::Incoming,
             message_type: MessageType::Ros(msg_type.to_string()),
@@ -288,6 +290,7 @@ impl Resource {
     /// Setup ros service communication
     pub fn setup_ros_service(
         &mut self, 
+        name: &str,
         topic: &str, 
         msg_type: &str, 
         send_predicate: Predicate,
@@ -295,6 +298,7 @@ impl Resource {
         response: &[MessageVariable]) {
 
         let service_msg = Message {
+            name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::Service,
             message_type: MessageType::Ros(msg_type.to_string()),
@@ -314,6 +318,14 @@ impl Resource {
             panic!("could not find transition {} in resource {}", name, self.path());
         }
     }
+
+    pub fn initial_state(&self) -> SPState {
+        let x:Vec<(SPPath, SPValue)> = self.variables.iter().map(|v| {
+            let x = v.domain.first().unwrap_or_else(|| &SPValue::Unknown);
+            (v.path().clone(), x.clone())
+        }).collect();
+        SPState::new_from_values(&x)
+    }
 }
 
 /// Defines a message for a resource. It can only inlcude variables local to the
@@ -323,6 +335,7 @@ impl Resource {
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Message {
+    pub name: SPPath,
     pub topic: SPPath,
     pub category: MessageCategory,
     pub message_type: MessageType,

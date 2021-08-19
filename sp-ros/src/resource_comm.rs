@@ -418,7 +418,7 @@ impl ServiceClientComm {
         let state_to_runner = self.state_to_runner.clone();
         let mut state = "ok".to_spvalue();
         let handle = tokio::task::spawn(async move { 
-            let service_state_path = mess.topic.add_child("state");
+            let service_state_path = mess.name.add_child("state");
             let mut service_state = "ok".to_spvalue();
             ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
             log_info!("Starting service: {}", &mess.topic);
@@ -634,7 +634,7 @@ fn ros_to_state(
     })
     .collect();
         
-    map.push((m.topic.add_child("timestamp"), SPValue::now()));
+    map.push((m.name.add_child("timestamp"), SPValue::now()));
 
     let state = SPState::new_from_values(&map);
     Ok(state)

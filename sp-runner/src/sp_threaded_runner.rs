@@ -338,7 +338,7 @@ async fn ticker_async(freq: Duration, tx_runner: tokio::sync::mpsc::Sender<SPRun
     let mut ticker = tokio::time::interval(freq);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
-        log_info!("Ticker");
+        //log_info!("Ticker");
         ticker.tick().await;
         tx_runner.send(SPRunnerInput::Tick).await;
     }
