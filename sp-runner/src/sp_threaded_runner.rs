@@ -1,6 +1,7 @@
 use super::sp_runner::*;
 use super::transition_planner::*;
 use super::operation_planner::*;
+use crossbeam::select;
 use sp_domain::*;
 use sp_formal::CompiledModel;
 use sp_ros::*;
@@ -8,7 +9,7 @@ use std::panic;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<(), SPError> {
+pub async fn launch_model(model: Model, initial_state: SPState) -> Result<(), SPError> {
     // we use this as the main entry point for SP.
     // so here we register our panic handler to send out
     // fatal messages to ROS
@@ -47,10 +48,12 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
     tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
 
+    let compiled_model = CompiledModel::from(model); // TODO. Should be done before this 
+
     let ros_comm = sp_ros::RosComm::new(
         rx_runner_state.clone(),
         tx_new_state.clone(),
-        model.clone(),
+        compiled_model,
     ).await?;
 
     let model_watcher = ros_comm.model_watcher();
@@ -82,62 +85,95 @@ pub async fn launch_model(model: Model, mut initial_state: SPState) -> Result<()
 
 
 async fn planner(
-    model_watcher: tokio::sync::watch::Receiver<Model>,
+    model_watcher: tokio::sync::watch::Receiver<RunnerModel>,
     tx_input: tokio::sync::mpsc::Sender<SPRunnerInput>,
     runner_out: tokio::sync::watch::Receiver<SPState>
 ) {
-    let model = model_watcher.borrow().clone();
-    let compiled_model = CompiledModel::from(model); // TODO: temporarily created here
-    let mut transition_planner = TransitionPlanner::from(&compiled_model);
-    let mut operation_planner = OperationPlanner::from(&compiled_model);
-
     let mut t_runner_out = runner_out.clone();
     let t_tx_input = tx_input.clone();
+    let mut rm = model_watcher.clone();
     tokio::spawn(async move {
+        let mut transition_planner = TransitionPlanner::from(&rm.borrow().compiled_model.clone());
+
         // Initiall block all our transitions.
         let block_transition_plan = transition_planner.block_all();
         let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), block_transition_plan);
         t_tx_input.send(cmd).await;
+
         loop {
-            t_runner_out.changed().await;
-            let ro = t_runner_out.borrow().clone();
-            let mut tpc = transition_planner.clone();
-            let x = tokio::task::spawn_blocking(move || {
-                let plan = tpc.compute_new_plan(ro);
-                (plan, tpc)
-            }).await;
-            if let Ok((plan, tpc)) = x {
-                transition_planner = tpc;
-                if let Some(plan) = plan {
-                    println!("new plan computed");
-                    let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), plan);
-                    t_tx_input.send(cmd).await;
+            tokio::select! {
+                _ = t_runner_out.changed() => {
+                    let ro = t_runner_out.borrow().clone();
+                    let mut tpc = transition_planner.clone();
+                    let x = tokio::task::spawn_blocking(move || {
+                        let plan = tpc.compute_new_plan(ro);
+                        (plan, tpc)
+                    }).await;
+                    if let Ok((plan, tpc)) = x {
+                        transition_planner = tpc;
+                        if let Some(plan) = plan {
+                            println!("new plan computed");
+                            let cmd = SPRunnerInput::NewPlan("transition_planner".to_string(), plan);
+                            t_tx_input.send(cmd).await;
+                        }
+                    }
+                },
+                _ = rm.changed() => {
+                    let m = rm.borrow().clone();
+                    match m.changes {
+                        Some(_) => {
+                            // do nothing
+                        },
+                        None => {
+                            transition_planner = TransitionPlanner::from(&rm.borrow().compiled_model.clone()); 
+                        }
+                    } 
+                    
                 }
             }
+            
         }
     });
-
+    
     let mut o_runner_out = runner_out.clone();
     let o_tx_input = tx_input.clone();
+    let mut rm = model_watcher.clone();
     tokio::spawn(async move {
+        let mut operation_planner = OperationPlanner::from(&rm.borrow().compiled_model.clone());
+
         // Initiall block all our transitions.
         let block_operation_plan = operation_planner.block_all();
         let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), block_operation_plan);
         o_tx_input.send(cmd).await;
+
         loop {
-            o_runner_out.changed().await;
-            let s = o_runner_out.borrow().clone();
-            let mut opc = operation_planner.clone();
-            let x = tokio::task::spawn_blocking(move || {
-                let plan = opc.compute_new_plan(s);
-                (plan, opc)
-            }).await;
-            if let Ok((plan, opc)) = x {
-                operation_planner = opc;
-                if let Some(plan) = plan {
-                    println!("new plan computed");
-                    let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
-                    o_tx_input.send(cmd).await;
+            tokio::select! {
+                _ = o_runner_out.changed() => {
+                    let s = o_runner_out.borrow().clone();
+                    let mut opc = operation_planner.clone();
+                    let x = tokio::task::spawn_blocking(move || {
+                        let plan = opc.compute_new_plan(s);
+                        (plan, opc)
+                    }).await;
+                    if let Ok((plan, opc)) = x {
+                        operation_planner = opc;
+                        if let Some(plan) = plan {
+                            println!("new plan computed");
+                            let cmd = SPRunnerInput::NewPlan("operation_planner".to_string(), plan);
+                            o_tx_input.send(cmd).await;
+                        }
+                    }
+                },
+                _ = rm.changed() => {
+                    let m = rm.borrow().clone();
+                    match m.changes {
+                        Some(_) => {
+                            operation_planner.intentions = m.compiled_model.model.intentions.clone();
+                        },
+                        None => {
+                            operation_planner = OperationPlanner::from(&rm.borrow().compiled_model.clone()); 
+                        }
+                    } 
                 }
             }
         }
@@ -146,14 +182,14 @@ async fn planner(
 }
 
 async fn runner(
-    mut model_watcher: tokio::sync::watch::Receiver<Model>,
+    mut model_watcher: tokio::sync::watch::Receiver<RunnerModel>,
     initial_state: SPState,
     mut rx_input: tokio::sync::mpsc::Receiver<SPRunnerInput>,
     tx_state_out: tokio::sync::watch::Sender<SPState>
 ) {
     log_info!("Runner start");
     let model = model_watcher.borrow().clone();
-    let mut runner = SPRunner::from(&model, initial_state);
+    let mut runner = SPRunner::from(&model.compiled_model, initial_state);
 
     // TODO: move planner specific setup to the respective planner...
 
@@ -187,7 +223,9 @@ async fn runner(
         }
 
         let input = tokio::select! {
-            Some(input) = rx_input.recv() => {input},
+            Some(input) = rx_input.recv() => {
+                input
+            },
             Ok(_) = model_watcher.changed() => {
                 let m = model_watcher.borrow().clone();
                 SPRunnerInput::ModelChange(m)
@@ -207,24 +245,17 @@ async fn runner(
                 } else {
                     runner.update_state_variables(s);
                 }
-            }
-            SPRunnerInput::NodeChange(s) => {
-                if !runner.state().are_new_values_the_same(&s) {
-                    last_fired_transitions = runner.take_a_tick(s, true);
-                    state_has_probably_changed = true;
-                }
-            }
+            },
             SPRunnerInput::Tick => {
                 last_fired_transitions = runner.take_a_tick(SPState::new(), true);
                 ticked = true;
-            }
+            },
             SPRunnerInput::NewPlan(plan_name, plan) => {
                 runner.set_plan(plan_name, plan);
-            }
+            },
             SPRunnerInput::ModelChange(m) => {
-                println!("A new model TODO");
-                log_info!("A new model in the runner. TODO");
-            }
+                runner = SPRunner::from(&m.compiled_model, runner.state().clone());
+            },
         }
 
         now = Instant::now();
@@ -334,6 +365,7 @@ fn try_extend(state: &mut SPState, other_state: SPState) -> Option<SPState> {
     }
 }
 
+/// The ticker that sends a tick to the runner at an interval defined by ´freq´
 async fn ticker_async(freq: Duration, tx_runner: tokio::sync::mpsc::Sender<SPRunnerInput>) {
     let mut ticker = tokio::time::interval(freq);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
