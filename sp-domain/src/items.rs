@@ -222,11 +222,14 @@ impl Resource {
     }
 
     pub fn get_variable(&self, name: &str) -> SPPath {
+        let name_as_path = SPPath::from_string(name);
         for v in &self.variables {
             if let VariableType::Predicate(_) = v.variable_type() {
                 continue;
             } else {
-                if v.path().leaf() == name {
+                let mut variable_path = v.path().clone();
+                variable_path.drop_parent(self.path()).expect("could not drop parent");
+                if variable_path == name_as_path {
                     return v.path().clone();
                 }
             }
@@ -285,7 +288,7 @@ impl Resource {
         self.add_transition(
             Transition::new(
                 &format!("{}_send_effect", name),
-                p!([pp: send_predicate] && [p: service_state == "ok"]),
+                p!([pp: send_predicate] && [[p: service_state == "ok"] || [p: service_state == "req"]]),
                 vec![ a!( p: service_state = "done")],
                 TransitionType::Effect
             )
@@ -342,7 +345,10 @@ impl Resource {
         self.add_transition(
             Transition::new(
                 &format!("{}_send_effect", name),
-                p!([pp: send_predicate] && [p: action_state == "ok"]),
+                p!([pp: send_predicate] && [
+                    [p: action_state == "ok"] ||
+                        [p: action_state == "requesting"] ||
+                        [p: action_state == "accepted"]]),
                 vec![ a!( p: action_state = "succeeded")],
                 TransitionType::Effect
             )
