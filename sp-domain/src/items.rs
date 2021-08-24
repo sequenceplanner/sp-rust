@@ -282,7 +282,7 @@ impl Resource {
             &format!("{}/service", name),
             VariableType::Measured,
             SPValueType::String,
-            vec!("ok".to_spvalue(), "req".to_spvalue(), "done".to_spvalue())
+            vec!("ok".to_spvalue(), "req".to_spvalue(), "done".to_spvalue(), "timeout".to_spvalue())
         ));
 
         self.add_transition(
@@ -339,6 +339,7 @@ impl Resource {
                  "requesting_cancel".to_spvalue(),
                  "cancelling".to_spvalue(),
                  "cancel_rejected".to_spvalue(),
+                 "timeout".to_spvalue(),
             )
         ));
 

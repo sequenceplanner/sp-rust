@@ -457,11 +457,19 @@ impl ServiceClientComm {
                     // TODO: Maybe write to state?
                     continue;
                 };
-                let result = request.unwrap().await;
-                let result = result.and_then(|x| x).and_then(|x| Ok(x));
+                let result = tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    request.unwrap()
+                ).await;
+                if let Err(e) = result {
+                    log_warn!("The service client timed out: {} failed: {:?}", mess.topic.to_string(), e);
+                    service_state = "timeout".to_spvalue();
+                    ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
+                    continue;
+                }
+                let result = result.unwrap().and_then(|x| x).and_then(|x| Ok(x));
                 if let Err(e) = result {
                     log_warn!("The service client response {} failed: {:?}", mess.topic.to_string(), e);
-                    // TODO: Maybe write to state?
                     continue;
                 };
                 let result = result.unwrap();
@@ -588,6 +596,7 @@ impl ActionClientComm {
             let requesting_cancel = "requesting_cancel".to_spvalue();
             let cancelling = "cancelling".to_spvalue();
             let cancel_rejected = "cancel_rejected".to_spvalue();
+            let timeout = "timeout".to_spvalue();
             
             let mut action_state = &ok;
             ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
@@ -609,7 +618,7 @@ impl ActionClientComm {
                     }
 
                     action_state = &ok;
-                    ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
                     continue;
                 }
 
@@ -624,31 +633,62 @@ impl ActionClientComm {
                     );
 
                     if let Err(e) = msg {
-                        log_warn!("The message for {} could not be created?: {:?}", mess.topic.to_string(), e);
+                        log_warn!("The message for {} could not be created?: {:?}", &mess.topic.to_string(), e);
                         continue;
                     };
 
                     let msg = msg.unwrap();
 
                     let x = client.send_goal_request(msg).expect("The action client failed!!!!!!!!");
-                    let x =  x.await;
+                    let x =  tokio::time::timeout(
+                        std::time::Duration::from_secs(10),
+                        x
+                    ).await;
+                    if let Err(e) = x {
+                        log_warn!("The action client timed out: {} failed: {:?}", &mess.topic.to_string(), e);
+                        action_state = &timeout;
+                        ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
+                        continue;
+                    }
+                    let x = x.unwrap();
                     if let Err(e) = x {
                         log_warn!("The action server rejected the request! {:?}", e);
                         action_state = &rejected;
-                        ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                        ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
                         continue;
                     }
 
                     action_state = &accepted;
                     ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
 
-                    let (cg, result_future, feedback) = x.unwrap();
+                    let (cg, 
+                        result_future, 
+                        mut feedback) = x.unwrap();
                     client_goal = Some(cg);
 
                     
-                    // action_handle = Some(tokio::spawn(async move { 
-                    //     // fixa att spawna och lyssna på feedback
-                    // }));
+                    let s_t_r = state_to_runner.clone();
+                    let mess_f = mess.clone();
+                    action_handle = Some(tokio::spawn(async move { 
+                        loop {
+                            let x = feedback.next().await;
+                            match x {
+                                Some(Ok(res)) => {
+                                    let x = ros_to_state(
+                                        res, 
+                                        &mess_f, 
+                                        &mess_f.variables_feedback
+                                    );
+                                    if let Ok(s) = x {
+                                        s_t_r.send(s).await;
+                                    }
+                                },
+                                _ => {
+                                    break;
+                                }
+                            }
+                        }
+                    }));
                     
                     // todo spawn also here
                     
@@ -656,13 +696,10 @@ impl ActionClientComm {
                         Err(e) => {
                             log_warn!("The action client did not work {:?}", e);
                             action_state = &rejected;
-                            ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
                             continue;
                         },
                         Ok((status, Ok(res))) => {
-                            log_info!("XXX message: {:?}", &mess );
-                            log_info!("XXX response: {:?}", &res );
-                            log_info!("XXX status {:?}", &status );
                             let x = ros_to_state(
                                 res, 
                                 &mess, 
@@ -672,7 +709,9 @@ impl ActionClientComm {
                                 r2r::GoalStatus::Succeeded => {
                                     action_state = &succeeded;
                                 },
-                                _ => {action_state = &aborted;},
+                                _ => {
+                                    action_state = &aborted;
+                                },
                             }
                             match x {
                                 Ok(mut s) => {
@@ -688,48 +727,12 @@ impl ActionClientComm {
                         e => {
                             log_warn!("The action client did not work {:?}", e);
                             action_state = &aborted;
-                            ServiceClientComm::send_service_state(&state_to_runner, &action_state_path, action_state).await;
+                            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
                             continue;
                         }
                     }
                 }
 
-                
-
-
-    
-
-                // let msg = msg.unwrap();
-                // let request = client.request(msg);
-                // if let Err(e) = request {
-                //     log_warn!("The service client request {} failed: {:?}", mess.topic.to_string(), e);
-                //     // TODO: Maybe write to state?
-                //     continue;
-                // };
-                // let result = request.unwrap().await;
-                // let result = result.and_then(|x| x).and_then(|x| Ok(x));
-                // if let Err(e) = result {
-                //     log_warn!("The service client response {} failed: {:?}", mess.topic.to_string(), e);
-                //     // TODO: Maybe write to state?
-                //     continue;
-                // };
-                // let result = result.unwrap();
-                // let x = ros_to_state(
-                //     result, 
-                //     &mess, 
-                //     &mess.variables_response
-                // );
-                // match x {
-                //     Ok(mut s) => {
-                //         action_state = "done".to_spvalue();
-                //         s.add_variable(action_state_path.clone(), action_state.clone());
-                //         state_to_runner.send(s).await;
-                //     },
-                //     Err(e) => {
-                //         println!("ros_to_state didnt work: {:?}", e);
-                //         log_warn!("ros_to_state didnt work: {:?}", e);
-                //     } 
-                // }   
             }
         });
 

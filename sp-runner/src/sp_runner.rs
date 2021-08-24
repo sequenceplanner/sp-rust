@@ -1,5 +1,7 @@
 use super::sp_ticker::{RunnerPredicate, SPTicker};
 use sp_domain::*;
+use sp_formal::CompiledModel;
+use sp_ros::RunnerModel;
 use std::collections::HashMap;
 
 /// The SPRunner that keep tracks of the state and the transition execution
@@ -9,11 +11,7 @@ use std::collections::HashMap;
 pub struct SPRunner {
     pub name: String,
     pub ticker: SPTicker,
-
     pub plans: HashMap<String, SPPlan>,
-
-    // TODO: create a resource handler task?
-    pub resources: Vec<SPPath>,
 }
 
 /// The input to the runner.
@@ -21,8 +19,7 @@ pub struct SPRunner {
 pub enum SPRunnerInput {
     Tick,
     StateChange(SPState),
-    ModelChange(Model),
-    NodeChange(SPState),
+    ModelChange(RunnerModel),
     NewPlan(String, SPPlan),
 }
 
@@ -34,33 +31,33 @@ pub struct SPPlan {
 }
 
 impl SPRunner {
-    pub fn from(model: &Model, initial_state: SPState) -> Self {
+    pub fn from(compiled_model: &CompiledModel, initial_state: SPState) -> Self {
         // collect all transitions from the model
-        let mut transitions: Vec<_> = model.resources.iter()
+        let mut transitions: Vec<_> = compiled_model.model.resources.iter()
             .map(|r| r.get_transitions())
             .flatten()
             .filter(|t| t.type_ != TransitionType::Effect)
             .collect();
 
-        let global_transitions: Vec<_> = model.global_transitions.iter()
+        let global_transitions: Vec<_> = compiled_model.model.global_transitions.iter()
             .filter(|t| t.type_ != TransitionType::Effect)
             .cloned()
             .collect();
 
-        let operations: Vec<Operation> = model.operations.clone();
+        let operations: Vec<Operation> = compiled_model.model.operations.clone();
         let operation_transitions: Vec<_> = operations
             .iter()
             .map(|o| o.make_runner_transitions())
             .flatten()
             .collect();
 
-        let operation_lowlevel_transitions: Vec<_> = model.operations
+        let operation_lowlevel_transitions: Vec<_> = compiled_model.model.operations
             .iter()
             .map(|o|o.make_lowlevel_transitions())
             .flatten()
             .collect();
 
-        let intentions = model.intentions.clone();
+        let intentions = compiled_model.model.intentions.clone();
         let intention_transitions: Vec<_> = intentions
             .iter()
             .map(|i| i.make_runner_transitions())
@@ -72,13 +69,13 @@ impl SPRunner {
         transitions.extend(operation_lowlevel_transitions);
         transitions.extend(intention_transitions);
 
-        // collect all variables from the model.
-        let mut all_variables: Vec<_> = model.resources.iter()
+        // collect all variables from the model.model.
+        let mut all_variables: Vec<_> = compiled_model.model.resources.iter()
             .map(|r| r.get_variables())
             .flatten()
             .collect();
 
-        all_variables.extend(model.global_variables.clone());
+        all_variables.extend(compiled_model.model.global_variables.clone());
 
         // separate variables into variables and predicates and set them initially to unknown
         let mut variables = vec![];
@@ -100,7 +97,7 @@ impl SPRunner {
 
         // add extra operation goal variables to the initial state.
         let mut op_goal_state = SPState::new();
-        for o in &model.operations {
+        for o in &compiled_model.model.operations {
             let op = o.path().clone();
             o.get_goal_state_paths().iter().for_each(|p| {
                 let np = op.add_child_path(p);
@@ -118,7 +115,7 @@ impl SPRunner {
         // TODO: move this to respective planner.
 
         // TODO: remove disabled paths.
-        let resource_paths: Vec<_> = model
+        let resource_paths: Vec<_> = compiled_model.model
             .resources
             .iter()
             .map(|r| r.path().clone())
@@ -153,10 +150,9 @@ impl SPRunner {
         plans.insert("internal".to_string(), initial_plan_blocked);
 
         let mut runner = SPRunner {
-            name: model.path.to_string(),
+            name: compiled_model.model.path.to_string(),
             ticker,
             plans,
-            resources: resource_paths,
         };
         runner.load_plans();
         runner.reload_state_paths();
@@ -164,12 +160,12 @@ impl SPRunner {
 
         // experiment with timeout on effects...
         let mut all_effects = vec![];
-        let resource_effects: Vec<_> = model.resources.iter()
+        let resource_effects: Vec<_> = compiled_model.model.resources.iter()
             .map(|r| r.get_transitions())
             .flatten()
             .filter(|t| t.type_ == TransitionType::Effect)
             .collect();
-        let global_effects: Vec<_> = model.global_transitions.iter()
+        let global_effects: Vec<_> = compiled_model.model.global_transitions.iter()
             .filter(|t| t.type_ == TransitionType::Effect)
             .cloned()
             .collect();

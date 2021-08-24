@@ -1,5 +1,7 @@
 use std::{borrow::Borrow, sync::{Arc, Mutex}};
 use sp_domain::*;
+use sp_formal::CompiledModel;
+use super::RunnerModel;
 use futures::*;
 
 use crate::ros::*;
@@ -11,9 +13,10 @@ pub(crate) struct SPModelService {
     arc_node: Arc<Mutex<r2r::Node>>,
     state_from_runner: tokio::sync::watch::Receiver<SPState>,
     state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-    model_watcher: tokio::sync::watch::Receiver<Model>,
+    model_watcher: tokio::sync::watch::Receiver<RunnerModel>,
     handle_set: Option<tokio::task::JoinHandle<()>>,
     handle_get: Option<tokio::task::JoinHandle<()>>,
+    handle_change: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl SPModelService {
@@ -21,16 +24,18 @@ impl SPModelService {
         arc_node: Arc<Mutex<r2r::Node>>,
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-        initial_model: Model,
+        initial_model: sp_formal::CompiledModel,
     ) -> Result<SPModelService, SPError> { 
-        let (current_model, model_watcher) = tokio::sync::watch::channel(initial_model);
+        let init = RunnerModel::new(initial_model);
+        let (current_model, model_watcher) = tokio::sync::watch::channel(init);
         let mut ms = SPModelService {
             arc_node,
             state_from_runner,
             state_to_runner,
             model_watcher,
             handle_set: None,
-            handle_get: None
+            handle_get: None,
+            handle_change: None
         };
 
         ms.launch_services(current_model).await?;
@@ -58,13 +63,13 @@ impl SPModelService {
         Ok(())
     }
 
-    pub fn model_watcher(&self) -> tokio::sync::watch::Receiver<Model> {
+    pub fn model_watcher(&self) -> tokio::sync::watch::Receiver<RunnerModel> {
         self.model_watcher.clone()
     }
 
     async fn launch_services(
         &mut self, 
-        current_model: tokio::sync::watch::Sender<Model>
+        current_model: tokio::sync::watch::Sender<RunnerModel>
     ) -> Result<(), SPError> {
         let mut node = self.arc_node.lock().unwrap();
         let set_srv = 
@@ -76,11 +81,12 @@ impl SPModelService {
             .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/get_model", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
         
-        
-        let rx = self.model_watcher.clone();
+    
         let handle_set = tokio::spawn(async move {
             SPModelService::set_service(set_srv, current_model).await;
         });
+
+        let rx = self.model_watcher.clone();
         let handle_get = tokio::spawn(async move {
             SPModelService::get_service(get_srv, rx).await;
         });
@@ -93,23 +99,35 @@ impl SPModelService {
 
     async fn set_service(
         mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
-        mut current_model: tokio::sync::watch::Sender<Model>,
+        current_model: tokio::sync::watch::Sender<RunnerModel>,
     ) {
         loop {
             if let Some(request) = service.next().await {
-                let state_json: Result<Model, _> = serde_json::from_str(&request.message.json);
-                let r = match state_json {
-                    Ok(m) => { 
-                        match current_model.send(m) {
+                let compiled_model: Result<CompiledModel, _> = serde_json::from_str(&request.message.json);
+                let model_change: Result<Model, _> = serde_json::from_str(&request.message.json);
+                let r = match (compiled_model, model_change) {
+                    (Ok(m), _) => { 
+                        let rm = RunnerModel::new(m);
+                        match current_model.send(rm) {
                             Ok(_) => "ok".to_string(),
                             Err(e) => e.to_string(),
                         }
                     },
-                    Err(e) => {
+                    (_ , Ok(m)) => {
+                        let mut cm = current_model.borrow().clone();
+                        cm.compiled_model.model.intentions = m.intentions.clone();
+                        cm.changes = Some(m);
+                        match current_model.send(cm) {
+                            Ok(_) => "ok".to_string(),
+                            Err(e) => e.to_string(),
+                        }
+                    }
+                    (Err(e1), Err(e2)) => {
                         let error = format!(
-                            "The set model service request {} is not a model: {}",
+                            "The set model service request {} is not a compiled model: {}, or a change: {}",
                             &request.message.json,
-                            &e
+                            &e1,
+                            &e2
                         );
                         log_error!("{}", &error);
                         error
@@ -123,7 +141,7 @@ impl SPModelService {
 
     async fn get_service(
         mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
-        watch_model: tokio::sync::watch::Receiver<Model>,
+        watch_model: tokio::sync::watch::Receiver<RunnerModel>,
     ) {
         loop {
             if let Some(request) = service.next().await {
@@ -196,7 +214,7 @@ mod sp_comm_tests {
             arc_node.clone(), 
             rx_watch.clone(), 
             tx_mpsc.clone(),
-            Model::new("hej")
+            CompiledModel::from(Model::new("hej"))
         ).await.unwrap();
 
         let mut watch = model_service.model_watcher();
@@ -205,7 +223,7 @@ mod sp_comm_tests {
                 watch.changed().await.unwrap();
                 let m = watch.borrow();
                 println!("We got model: {:?}", m);
-                if m.path() == &SPPath::from_string("new") {
+                if m.compiled_model.model.path() == &SPPath::from_string("new") {
                     break;
                 }
             }
@@ -258,7 +276,7 @@ mod sp_comm_tests {
             arc_node.clone(), 
             rx_watch.clone(), 
             tx_mpsc.clone(),
-            Model::new("hej")
+            CompiledModel::from(Model::new("hej"))
         ).await.unwrap();
 
         let client = {

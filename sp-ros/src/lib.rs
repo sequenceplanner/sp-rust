@@ -9,11 +9,16 @@ mod ros {
 
     }
 
+    pub struct Runner_model {
+        pub model: sp_formal::CompiledModel,
+        pub changes: Option<sp_domain::Model>,
+    }
+
     impl RosComm {
         pub async fn new(
             state_from_runner: tokio::sync::watch::Receiver<SPState>,
             state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-            initial_model: Model,
+            initial_model: CompiledModel,
         ) -> Result<RosComm, SPError> {
             panic!("You need ros to run ros. Enable the ros feature")
         }
@@ -91,6 +96,7 @@ mod ros {
     use std::sync::{Arc, Mutex};
     use sp_domain::*;
     use futures::*;
+    use serde::{Serialize, Deserialize};
     use crate::model_service::SPModelService;
     use crate::state_service::SPStateService;
 
@@ -155,6 +161,21 @@ mod ros {
         }}
     }
 
+    #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+    pub struct RunnerModel {
+        pub compiled_model: sp_formal::CompiledModel,
+        pub changes: Option<sp_domain::Model>,
+    }
+
+    impl RunnerModel {
+        pub fn new(init: sp_formal::CompiledModel) -> RunnerModel {
+            RunnerModel {
+                compiled_model: init,
+                changes: None,
+            }
+        }
+    }
+
 
     pub struct RosComm {
         arc_node: Arc<Mutex<r2r::Node>>,
@@ -163,14 +184,14 @@ mod ros {
         sp_state: SPStateService,
         sp_model: SPModelService,
         resources: Arc<Mutex<Vec<ResourceComm>>>,
-        model_watcher: tokio::sync::watch::Receiver<Model>
+        model_watcher: tokio::sync::watch::Receiver<RunnerModel>
     }
 
     impl RosComm {
         pub async fn new(
             state_from_runner: tokio::sync::watch::Receiver<SPState>,
             state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-            initial_model: Model,
+            initial_model: sp_formal::CompiledModel,
         ) -> Result<RosComm, SPError> {
             let ctx = r2r::Context::create().map_err(SPError::from_any)?;
             let node = r2r::Node::create(ctx, SP_NODE_NAME, "").map_err(SPError::from_any)?;
@@ -229,7 +250,7 @@ mod ros {
 
         }
 
-        pub fn model_watcher(&self) -> tokio::sync::watch::Receiver<Model> {
+        pub fn model_watcher(&self) -> tokio::sync::watch::Receiver<RunnerModel> {
             self.sp_model.model_watcher()
         }
 
@@ -258,7 +279,7 @@ mod ros {
             resources: Arc<Mutex<Vec<ResourceComm>>>,
             state_from_runner: tokio::sync::watch::Receiver<SPState>,
             state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-            mut model_watcher: tokio::sync::watch::Receiver<Model>,
+            mut model_watcher: tokio::sync::watch::Receiver<RunnerModel>,
         ) -> tokio::task::JoinHandle<()> {
 
             tokio::spawn(async move {
@@ -273,7 +294,7 @@ mod ros {
                         let map: Vec<SPPath> = res.iter().map(|r| {
                             r.resource().path().clone()
                         }).collect();
-                        model.resources.iter().filter(|r| {
+                        model.compiled_model.model.resources.iter().filter(|r| {
                             !map.contains(r.path())
                         }).cloned().collect()
                     };
