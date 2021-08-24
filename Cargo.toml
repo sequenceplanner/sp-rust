@@ -5,5 +5,4 @@ members = [
     "sp-ros",
     "sp-fm",
     "sp-formal",
-    "sp"
 ]

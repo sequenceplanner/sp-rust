@@ -34,9 +34,9 @@ pub async fn launch_model(model: Model, initial_state: SPState) -> Result<(), SP
         std::process::exit(1);
     }));
 
-    println!("Model");
+    //println!("Model");
     //println!("{}", serde_json::to_string_pretty(&model).unwrap());
-    println!("********");
+    //println!("********");
 
     log_info!("startar SP!");
 
@@ -48,7 +48,7 @@ pub async fn launch_model(model: Model, initial_state: SPState) -> Result<(), SP
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
     tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
 
-    let compiled_model = CompiledModel::from(model); // TODO. Should be done before this 
+    let compiled_model = CompiledModel::from(model); // TODO. Should be done before this
 
     let ros_comm = sp_ros::RosComm::new(
         rx_runner_state.clone(),
@@ -125,16 +125,16 @@ async fn planner(
                             // do nothing
                         },
                         None => {
-                            transition_planner = TransitionPlanner::from(&rm.borrow().compiled_model.clone()); 
+                            transition_planner = TransitionPlanner::from(&rm.borrow().compiled_model.clone());
                         }
-                    } 
-                    
+                    }
+
                 }
             }
-            
+
         }
     });
-    
+
     let mut o_runner_out = runner_out.clone();
     let o_tx_input = tx_input.clone();
     let mut rm = model_watcher.clone();
@@ -171,9 +171,9 @@ async fn planner(
                             operation_planner.intentions = m.compiled_model.model.intentions.clone();
                         },
                         None => {
-                            operation_planner = OperationPlanner::from(&rm.borrow().compiled_model.clone()); 
+                            operation_planner = OperationPlanner::from(&rm.borrow().compiled_model.clone());
                         }
-                    } 
+                    }
                 }
             }
         }
