@@ -516,7 +516,35 @@ impl Drop for ServiceClientComm {
 
 
 
+enum ActionState {
+        Ok,
+        Requesting,
+        Accepted,
+        Rejected,
+        Succeeded,
+        Aborted,
+        RequestingCancel,
+        Cancelling,
+        CancelRejected,
+        Timeout,
+}
 
+impl ActionState {
+    fn to_spvalue(&self) -> SPValue {
+        match self {
+            ActionState::Ok =>   "ok".to_spvalue(),
+            ActionState::Requesting =>  "requesting".to_spvalue(),
+            ActionState::Accepted =>  "accepted".to_spvalue(),
+            ActionState::Rejected =>  "rejected".to_spvalue(),
+            ActionState::Succeeded =>  "succeeded".to_spvalue(),
+            ActionState::Aborted =>  "aborted".to_spvalue(),
+            ActionState::RequestingCancel =>  "requesting_cancel".to_spvalue(),
+            ActionState::Cancelling =>  "cancelling".to_spvalue(),
+            ActionState::CancelRejected =>  "cancel_rejected".to_spvalue(),
+            ActionState::Timeout =>  "timeout".to_spvalue(),   
+        }
+    }
+}
 
 
 
@@ -587,22 +615,12 @@ impl ActionClientComm {
             let action_state_path = mess.name.add_child("action");
             log_info!("Starting action: {}", &mess.topic);
             
-            let ok = "ok".to_spvalue();
-            let requesting =  "requesting".to_spvalue();
-            let accepted = "accepted".to_spvalue();
-            let rejected = "rejected".to_spvalue();
-            let succeeded = "succeeded".to_spvalue();
-            let aborted = "aborted".to_spvalue();
-            let requesting_cancel = "requesting_cancel".to_spvalue();
-            let cancelling = "cancelling".to_spvalue();
-            let cancel_rejected = "cancel_rejected".to_spvalue();
-            let timeout = "timeout".to_spvalue();
-            
-            let mut action_state = &ok;
-            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+            let mut action_state = Arc::new(Mutex::new(ActionState::Ok));
+            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
             let mut client_goal: Option<r2r::ClientGoalUntyped> = None;
             let mut action_handle: Option<tokio::task::JoinHandle<()>> = None;
+            let mut feedback_handle: Option<tokio::task::JoinHandle<()>> = None;
             
             loop {
                 state_from_runner.changed().await;
@@ -616,15 +634,18 @@ impl ActionClientComm {
                     if let Some(h) = action_handle.take() {
                         h.abort();
                     }
+                    if let Some(h) = feedback_handle.take() {
+                        h.abort();
+                    }
 
-                    action_state = &ok;
-                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+                    ActionClientComm::set_action_state(ActionState::Ok, &action_state);
+                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
                     continue;
                 }
 
-                if action_handle.is_none() && action_state == &ok {
-                    action_state = &requesting;
-                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+                if action_handle.is_none() && action_state.lock().unwrap().to_spvalue() == ActionState::Ok.to_spvalue() {
+                    ActionClientComm::set_action_state(ActionState::Requesting, &action_state);
+                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
                     let msg = state_to_ros(
                         &mess, 
@@ -639,27 +660,33 @@ impl ActionClientComm {
 
                     let msg = msg.unwrap();
 
-                    let x = client.send_goal_request(msg).expect("The action client failed!!!!!!!!");
+                    let x = client.send_goal_request(msg);
+                    if let Err(e) = x {
+                        log_error!("The action client failed: {:?}", e);
+                        continue;
+                    };
+                    let x = x.unwrap();
+
                     let x =  tokio::time::timeout(
-                        std::time::Duration::from_secs(10),
+                        std::time::Duration::from_secs(5),
                         x
                     ).await;
                     if let Err(e) = x {
-                        log_warn!("The action client timed out: {} failed: {:?}", &mess.topic.to_string(), e);
-                        action_state = &timeout;
+                        log_warn!("The action client {} timed out on initial request: failed: {:?}", &mess.topic.to_string(), e);
+                        ActionClientComm::set_action_state(ActionState::Timeout, &action_state);
                         ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
                         continue;
                     }
                     let x = x.unwrap();
                     if let Err(e) = x {
                         log_warn!("The action server rejected the request! {:?}", e);
-                        action_state = &rejected;
-                        ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+                        ActionClientComm::set_action_state(ActionState::Rejected, &action_state);
+                        ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
                         continue;
                     }
 
-                    action_state = &accepted;
-                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
+                    ActionClientComm::set_action_state(ActionState::Accepted, &action_state);
+                    ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
                     let (cg, 
                         result_future, 
@@ -669,7 +696,7 @@ impl ActionClientComm {
                     
                     let s_t_r = state_to_runner.clone();
                     let mess_f = mess.clone();
-                    action_handle = Some(tokio::spawn(async move { 
+                    feedback_handle = Some(tokio::spawn(async move { 
                         loop {
                             let x = feedback.next().await;
                             match x {
@@ -690,47 +717,59 @@ impl ActionClientComm {
                         }
                     }));
                     
-                    // todo spawn also here
-                    
-                    match result_future.await {
-                        Err(e) => {
-                            log_warn!("The action client did not work {:?}", e);
-                            action_state = &rejected;
-                            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
-                            continue;
-                        },
-                        Ok((status, Ok(res))) => {
-                            let x = ros_to_state(
-                                res, 
-                                &mess, 
-                                &mess.variables_response
-                            );
-                            match status {
-                                r2r::GoalStatus::Succeeded => {
-                                    action_state = &succeeded;
-                                },
-                                _ => {
-                                    action_state = &aborted;
-                                },
+                    let mut act_st = action_state.clone();
+                    let m = mess.clone();
+                    let str = state_to_runner.clone();
+                    let asp = action_state_path.clone();
+                    action_handle = Some(tokio::spawn(async move {
+                        match result_future.await {
+                            Err(e) => {
+                                log_warn!("The action client did not work {:?}", e);
+                                ActionClientComm::set_action_state(ActionState::Rejected, &act_st);
+                                ActionClientComm::send_action_state(&str, &asp, &act_st).await;
+                            },
+                            Ok((status, Ok(res))) => {
+                                let x = ros_to_state(
+                                    res, 
+                                    &m, 
+                                    &m.variables_response
+                                );
+                                match status {
+                                    r2r::GoalStatus::Succeeded => {
+                                        ActionClientComm::set_action_state(ActionState::Succeeded, &act_st);
+                                    },
+                                    r2r::GoalStatus::Canceling => {
+                                        ActionClientComm::set_action_state(ActionState::Cancelling, &act_st);
+                                    },
+                                    r2r::GoalStatus::Canceled => {
+                                        ActionClientComm::set_action_state(ActionState::Aborted, &act_st);
+                                    },
+                                    r2r::GoalStatus::Aborted => {
+                                        ActionClientComm::set_action_state(ActionState::Aborted, &act_st);
+                                    },
+                                    _ => {
+                                        ActionClientComm::set_action_state(ActionState::Aborted, &act_st);
+                                    },
+                                }
+                                match x {
+                                    Ok(mut s) => {
+                                        let x = act_st.lock().unwrap().to_spvalue();
+                                        s.add_variable(asp.clone(), x);
+                                        str.send(s).await;
+                                    },
+                                    Err(e) => {
+                                        log_error!("ros_to_state didnt work in action: {:?}", e);
+                                    } 
+                                }   
+    
+                            },
+                            e => {
+                                log_error!("The action client did not work {:?}", e);
+                                ActionClientComm::set_action_state(ActionState::Aborted, &act_st);
+                                ActionClientComm::send_action_state(&str, &asp, &act_st).await;
                             }
-                            match x {
-                                Ok(mut s) => {
-                                    s.add_variable(action_state_path.clone(), action_state.clone());
-                                    state_to_runner.send(s).await;
-                                },
-                                Err(e) => {
-                                    log_error!("ros_to_state didnt work in action: {:?}", e);
-                                } 
-                            }   
-
-                        },
-                        e => {
-                            log_warn!("The action client did not work {:?}", e);
-                            action_state = &aborted;
-                            ActionClientComm::send_action_state(&state_to_runner, &action_state_path, action_state).await;
-                            continue;
                         }
-                    }
+                     }));
                 }
 
             }
@@ -744,9 +783,18 @@ impl ActionClientComm {
     async fn send_action_state(
         state_to_runner: &tokio::sync::mpsc::Sender<SPState>,
         path: &SPPath,
-        state: &SPValue
+        state: &Arc<Mutex<ActionState>>
     ) {
-        state_to_runner.send(SPState::new_from_values(&[(path.clone(), state.clone())])).await;
+        let x = state.lock().unwrap().to_spvalue();
+        state_to_runner.send(SPState::new_from_values(&[(path.clone(), x)])).await;
+    }
+
+    fn set_action_state(
+        v: ActionState,
+        state: &Arc<Mutex<ActionState>>
+    ) {
+        let mut x = state.lock().unwrap();
+        *x = v
     }
 }
 
