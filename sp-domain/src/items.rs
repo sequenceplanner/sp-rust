@@ -32,6 +32,17 @@ impl Model {
         self.resources.iter_mut().find(|r| r.path() == resource_path).expect("resource not found")
     }
 
+    pub fn add_product_bool(&mut self, name: &str) -> SPPath {
+        let mut v = Variable::new_boolean(
+            name,
+            VariableType::Product,
+        );
+        let product_state_path = self.path().add_child("product_state"); // TODO: fixme
+        let path = v.path.add_parent_path_mut(&product_state_path);
+        self.global_variables.push(v);
+        path
+    }
+
     pub fn add_product_domain(&mut self, name: &str, domain: &[SPValue]) -> SPPath {
         let mut v = Variable::new(
             name,
@@ -41,6 +52,20 @@ impl Model {
         );
         let product_state_path = self.path().add_child("product_state"); // TODO: fixme
         let path = v.path.add_parent_path_mut(&product_state_path);
+        self.global_variables.push(v);
+        path
+    }
+
+    pub fn add_runner_bool(&mut self, name: &str) -> SPPath {
+        let mut v = Variable::new_boolean(name, VariableType::Runner);
+        let path = v.path.add_parent_path_mut(&self.path);
+        self.global_variables.push(v);
+        path
+    }
+
+    pub fn add_runner_string(&mut self, name: &str) -> SPPath {
+        let mut v = Variable::new(name, VariableType::Runner, SPValueType::String, vec![]);
+        let path = v.path.add_parent_path_mut(&self.path);
         self.global_variables.push(v);
         path
     }

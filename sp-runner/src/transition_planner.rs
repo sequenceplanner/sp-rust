@@ -8,7 +8,7 @@ use super::sp_runner::*;
 use std::collections::HashSet;
 
 // some planning constants
-const LVL0_MAX_STEPS: u32 = 25;
+const LVL0_MAX_STEPS: u32 = 40;
 
 #[derive(Debug, Clone)]
 pub struct TransitionPlanner {
@@ -252,7 +252,7 @@ impl TransitionPlanner {
     }
 
     pub fn compute_new_plan(
-        &mut self, 
+        &mut self,
         mut state: SPState) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 

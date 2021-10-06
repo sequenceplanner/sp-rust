@@ -337,7 +337,7 @@ impl OperationPlanner {
     }
 
     pub fn compute_new_plan(
-        &mut self, 
+        &mut self,
         state: SPState) -> Option<SPPlan> {
         let new_state = self.filter_state(state.clone());
 
@@ -505,12 +505,14 @@ impl OperationPlanner {
 
             let plan_p = SPPath::from_slice(&["runner", "plans", "1"]);
 
-            let (tr, s) =
-                planning::convert_planning_result_with_packing_heuristic(
-                    &ts,
-                    &planner_result,
-                    &plan_p
-                );
+            // this needs more work.
+            // let (tr, s) =
+            //     planning::convert_planning_result_with_packing_heuristic(
+            //         &ts,
+            //         &planner_result,
+            //         &plan_p
+            //     );
+            let (tr, s) = planning::convert_planning_result(&self.model, &planner_result, &plan_p);
 
             let trans: Vec<_> = planner_result
                 .trace
