@@ -263,12 +263,12 @@ impl Resource {
     }
 
     /// Setup ros outgoing communication
-    pub fn setup_ros_outgoing(&mut self, name: &str, topic: &str, msg_type: &str, variables: &[MessageVariable]) {
+    pub fn setup_ros_outgoing(&mut self, name: &str, topic: &str, msg_type: MessageType, variables: &[MessageVariable]) {
         let command_msg = Message {
             name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::OutGoing,
-            message_type: MessageType::Ros(msg_type.to_string()),
+            message_type: msg_type,
             variables: variables.to_vec(),
             variables_response: vec!(),
             variables_feedback: vec!(),
@@ -278,12 +278,12 @@ impl Resource {
     }
 
     /// Setup ros incoming communication
-    pub fn setup_ros_incoming(&mut self, name: &str, topic: &str, msg_type: &str, variables: &[MessageVariable]) {
+    pub fn setup_ros_incoming(&mut self, name: &str, topic: &str, msg_type: MessageType, variables: &[MessageVariable]) {
         let incoming_msg = Message {
             name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
             category: MessageCategory::Incoming,
-            message_type: MessageType::Ros(msg_type.to_string()),
+            message_type: msg_type,
             variables: variables.to_vec(),
             variables_response: vec!(),
             variables_feedback: vec!(),

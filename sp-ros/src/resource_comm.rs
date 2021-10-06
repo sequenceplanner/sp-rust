@@ -22,11 +22,11 @@ impl ResourceComm {
         let mut comms = vec!();
         for mess in resource.messages() {
             let x = Comm::new(
-                arc_node.clone(), 
+                arc_node.clone(),
                 &resource,
-                mess.clone(), 
-                state_from_runner.clone(), 
-                state_to_runner.clone(), 
+                mess.clone(),
+                state_from_runner.clone(),
+                state_to_runner.clone(),
                 None)
                 .await?;
             comms.push(x);
@@ -101,7 +101,7 @@ impl Comm {
             MessageCategory::Action => {
                 let x = ActionClientComm::new(arc_node, mess, resource_path, state_from_runner, state_to_runner).await;
                 x.map(Comm::ActionClient)
-            }  
+            }
         };
         match res {
             Ok(x) => Ok(x),
@@ -162,7 +162,7 @@ impl SubscriberComm {
         mess: Message,
         resource_path: SPPath,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-    ) -> Result<SubscriberComm, SPError> { 
+    ) -> Result<SubscriberComm, SPError> {
         let mut sc = SubscriberComm{
             arc_node,
             mess,
@@ -205,19 +205,19 @@ impl SubscriberComm {
                 let sender = self.state_to_runner.clone();
                 let resource_path = self.resource_path.clone();
                 let mess = self.mess.clone();
-                let handle = tokio::task::spawn(async move { 
+                let handle = tokio::task::spawn(async move {
                     loop {
                         let msg = sub
                             .next()
                             .await;
-                            
+
                         match msg {
                             Some(Ok(v)) => {
                                 match ros_to_state(v, &mess, &mess.variables).map_err(SPError::from_any) {
                                     Ok(s) => {sender.send(s).await;},
                                     Err(e) => {
                                         log_warn!("ros_to_state didnt work: {:?}", e);
-                                    } 
+                                    }
                                 }
                             },
                             Some(Err(e)) => {
@@ -227,19 +227,19 @@ impl SubscriberComm {
                                 log_warn!("subscriber is none");
                             }
                         }
-        
-                        
+
+
                     }
                 });
-        
+
                 self.handle = Some(handle);
-        
+
                 Ok(())
             }
         }
 
-        
-        
+
+
     }
 }
 
@@ -267,7 +267,7 @@ impl PublisherComm {
         mess: Message,
         resource_path: SPPath,
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
-    ) -> Result<PublisherComm, SPError> { 
+    ) -> Result<PublisherComm, SPError> {
         let mut sc = PublisherComm {
             arc_node,
             mess,
@@ -299,7 +299,7 @@ impl PublisherComm {
             let mut node = self.arc_node.lock().unwrap();
             node
             .create_publisher_untyped(
-                &self.mess.topic.to_string(), 
+                &self.mess.topic.to_string(),
                 &topic_message_type(&self.mess)
             ).map_err(SPError::from_any)
         };
@@ -313,7 +313,7 @@ impl PublisherComm {
         let mut state_from_runner = self.state_from_runner.clone();
         let resource_path = self.resource_path.clone();
         let mess = self.mess.clone();
-        let handle = tokio::task::spawn(async move { 
+        let handle = tokio::task::spawn(async move {
             loop {
                 state_from_runner.changed().await;
                 let state = state_from_runner.borrow();
@@ -323,8 +323,8 @@ impl PublisherComm {
                 }
 
                 let msg = state_to_ros(
-                    &mess, 
-                    state, 
+                    &mess,
+                    state,
                     &mess.variables);
                 let x = msg.and_then(|m| {
                     Ok(publisher.publish(m).map_err(SPError::from_any)?)
@@ -370,7 +370,7 @@ impl ServiceClientComm {
         mess: Message,
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-    ) -> Result<ServiceClientComm, SPError> { 
+    ) -> Result<ServiceClientComm, SPError> {
         let mut sc = ServiceClientComm {
             arc_node,
             mess,
@@ -403,7 +403,7 @@ impl ServiceClientComm {
         let client = {
             let mut n = self.arc_node.lock().unwrap();
             let c = n.create_client_untyped(
-                &mess.topic.to_string(), 
+                &mess.topic.to_string(),
                 &topic_message_type(&mess)
             );
             if let Err(e) = c {
@@ -413,11 +413,11 @@ impl ServiceClientComm {
             let c = c.unwrap();
             c
         };
-        
+
         let mut state_from_runner = self.state_from_runner.clone();
         let state_to_runner = self.state_to_runner.clone();
         let mut state = "ok".to_spvalue();
-        let handle = tokio::task::spawn(async move { 
+        let handle = tokio::task::spawn(async move {
             let service_state_path = mess.name.add_child("service");
             let mut service_state = "ok".to_spvalue();
             ServiceClientComm::send_service_state(&state_to_runner, &service_state_path, &service_state).await;
@@ -436,8 +436,8 @@ impl ServiceClientComm {
                 }
 
                 let msg = state_to_ros(
-                    &mess, 
-                    state_from_runner.borrow(), 
+                    &mess,
+                    state_from_runner.borrow(),
                     &mess.variables
                 );
 
@@ -474,8 +474,8 @@ impl ServiceClientComm {
                 };
                 let result = result.unwrap();
                 let x = ros_to_state(
-                    result, 
-                    &mess, 
+                    result,
+                    &mess,
                     &mess.variables_response
                 );
                 match x {
@@ -487,8 +487,8 @@ impl ServiceClientComm {
                     Err(e) => {
                         println!("ros_to_state didnt work: {:?}", e);
                         log_warn!("ros_to_state didnt work: {:?}", e);
-                    } 
-                }   
+                    }
+                }
             }
         });
 
@@ -541,7 +541,7 @@ impl ActionState {
             ActionState::RequestingCancel =>  "requesting_cancel".to_spvalue(),
             ActionState::Cancelling =>  "cancelling".to_spvalue(),
             ActionState::CancelRejected =>  "cancel_rejected".to_spvalue(),
-            ActionState::Timeout =>  "timeout".to_spvalue(),   
+            ActionState::Timeout =>  "timeout".to_spvalue(),
         }
     }
 }
@@ -564,7 +564,7 @@ impl ActionClientComm {
         resource_path: SPPath,
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
-    ) -> Result<ActionClientComm, SPError> { 
+    ) -> Result<ActionClientComm, SPError> {
         let mut sc = ActionClientComm {
             arc_node,
             mess,
@@ -597,7 +597,7 @@ impl ActionClientComm {
         let client = {
             let mut n = self.arc_node.lock().unwrap();
             let c = n.create_action_client_untyped(
-                &mess.topic.to_string(), 
+                &mess.topic.to_string(),
                 &topic_message_type(&mess)
             );
             if let Err(e) = c {
@@ -607,26 +607,26 @@ impl ActionClientComm {
             let c = c.unwrap();
             c
         };
-        
+
         let mut state_from_runner = self.state_from_runner.clone();
         let state_to_runner = self.state_to_runner.clone();
-        
-        let handle = tokio::task::spawn(async move { 
+
+        let handle = tokio::task::spawn(async move {
             let action_state_path = mess.name.add_child("action");
             log_info!("Starting action: {}", &mess.topic);
-            
+
             let mut action_state = Arc::new(Mutex::new(ActionState::Ok));
             ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
             let mut client_goal: Option<r2r::ClientGoalUntyped> = None;
             let mut action_handle: Option<tokio::task::JoinHandle<()>> = None;
             let mut feedback_handle: Option<tokio::task::JoinHandle<()>> = None;
-            
+
             loop {
                 state_from_runner.changed().await;
 
                 if !mess.send_predicate.eval(&state_from_runner.borrow()) {
-                    
+
                     if let Some(c) = client_goal.take() {
                         c.cancel();
                     }
@@ -648,8 +648,8 @@ impl ActionClientComm {
                     ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
                     let msg = state_to_ros(
-                        &mess, 
-                        state_from_runner.borrow(), 
+                        &mess,
+                        state_from_runner.borrow(),
                         &mess.variables
                     );
 
@@ -688,22 +688,22 @@ impl ActionClientComm {
                     ActionClientComm::set_action_state(ActionState::Accepted, &action_state);
                     ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
-                    let (cg, 
-                        result_future, 
+                    let (cg,
+                        result_future,
                         mut feedback) = x.unwrap();
                     client_goal = Some(cg);
 
-                    
+
                     let s_t_r = state_to_runner.clone();
                     let mess_f = mess.clone();
-                    feedback_handle = Some(tokio::spawn(async move { 
+                    feedback_handle = Some(tokio::spawn(async move {
                         loop {
                             let x = feedback.next().await;
                             match x {
                                 Some(Ok(res)) => {
                                     let x = ros_to_state(
-                                        res, 
-                                        &mess_f, 
+                                        res,
+                                        &mess_f,
                                         &mess_f.variables_feedback
                                     );
                                     if let Ok(s) = x {
@@ -716,7 +716,7 @@ impl ActionClientComm {
                             }
                         }
                     }));
-                    
+
                     let mut act_st = action_state.clone();
                     let m = mess.clone();
                     let str = state_to_runner.clone();
@@ -730,8 +730,8 @@ impl ActionClientComm {
                             },
                             Ok((status, Ok(res))) => {
                                 let x = ros_to_state(
-                                    res, 
-                                    &m, 
+                                    res,
+                                    &m,
                                     &m.variables_response
                                 );
                                 match status {
@@ -759,9 +759,9 @@ impl ActionClientComm {
                                     },
                                     Err(e) => {
                                         log_error!("ros_to_state didnt work in action: {:?}", e);
-                                    } 
-                                }   
-    
+                                    }
+                                }
+
                             },
                             e => {
                                 log_error!("The action client did not work {:?}", e);
@@ -822,12 +822,17 @@ fn ros_to_state(
     m: &Message,
     vars: &Vec<MessageVariable>,
 ) -> Result<SPState, SPError> {
-
-    let msg = SPStateJson::from_json(msg)?;
-    let mut msg_state = msg.to_state();
-    if m.message_type == MessageType::Json || m.message_type == MessageType::JsonFlat {
-        msg_state.unprefix_paths(&SPPath::from_string("data"));
-    };
+    let msg_state =
+        if m.message_type == MessageType::Json || m.message_type == MessageType::JsonFlat {
+            msg.get("data").and_then(|d| d.as_str()).and_then(|s| {
+                let json: serde_json::Value = serde_json::from_str(s).unwrap_or(serde_json::Value::Null);
+                SPStateJson::from_json(json).ok()
+            }).map(|s|s.to_state())
+                .unwrap_or(SPState::new())
+        } else {
+            let msg = SPStateJson::from_json(msg)?;
+            msg.to_state()
+        };
 
     let mut map: Vec<(SPPath, SPValue)> = vars
         .iter()
@@ -836,21 +841,21 @@ fn ros_to_state(
         let value = msg_state.sp_value_from_path(&v.ros_path);
         if value.is_none() {
             log_error!(
-                "Not in msg: Name {}, path: {}, state: {}",
+                "Not in msg: Name {:?}, path: {}, state: {:?}",
                 &v.ros_path,
                 &p,
-                SPStateJson::from_state_flat(&msg_state).to_json()
+                &msg_state
             );
         }
         value.map(|v|(p, v.clone()))
     })
     .collect();
-        
+
     map.push((m.name.add_child("timestamp"), SPValue::now()));
 
     let state = SPState::new_from_values(&map);
     Ok(state)
-        
+
 }
 
 fn state_to_ros(
@@ -858,17 +863,17 @@ fn state_to_ros(
     state: tokio::sync::watch::Ref<SPState>,
     vars: &Vec<MessageVariable>,
 ) -> Result<serde_json::Value, SPError> {
-    let res: Vec<(SPPath, SPValue)>  = 
+    let res: Vec<(SPPath, SPValue)>  =
         vars.iter().flat_map(|v| {
             let name = v.ros_path.clone();
             let value = state.sp_value_from_path(&v.path);
             if value.is_none() {
-                log_info!("Not in state: Name {}, path: {}, state: {}", 
+                log_info!("Not in state: Name {}, path: {}, state: {}",
                     &name,  &v.path, SPStateJson::from_state_flat(&state).to_json());
-            } 
+            }
             value.map(|v| (name, v.clone()))
         }).collect();
-    
+
 
     let msg = match m.message_type {
         MessageType::JsonFlat => {
@@ -954,11 +959,26 @@ mod sp_comm_tests {
     async fn set_model_services() {
         let mut m = Model::new("test");
 
-        
-        
-        
+
+
+
+    }
+
+    #[test]
+    fn json_state() {
+        let state = SPState::new_from_values(&[
+            (SPPath::from_string("ns=4;i=26"), true.to_spvalue()),
+            (SPPath::from_string("ns=4;i=94"), 1000.0.to_spvalue()),
+            ]);
+        let s = SPStateJson::from_state_flat(&state).to_json();
+        println!("toflat: {}", s);
+
+        let s = SPStateJson::from_state_recursive(&state).to_json();
+        println!("torec: {}", s);
+
+        let ss = SPStateJson::from_json(s);
+        println!("torec: {:?}", ss);
     }
 
 
 }
-
