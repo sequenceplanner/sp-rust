@@ -202,7 +202,7 @@ fn postprocess_nuxmv_problem(
             if model
                 .transitions
                 .iter()
-                .find(|t| (t.node().path()) == &path)
+                .find(|t| (t.path()) == &path)
                 .is_some()
             {
                 if val == &"TRUE" {
@@ -214,7 +214,7 @@ fn postprocess_nuxmv_problem(
                 let spt = if model
                     .state_predicates
                     .iter()
-                    .find(|p| (p.node().path()) == &path)
+                    .find(|p| (p.path()) == &path)
                     .is_some()
                 {
                     SPValueType::Bool
@@ -520,7 +520,7 @@ impl Planner for NuXmvPlanner {
                 }
             }
             Err(e) => {
-                panic!("Something went wrong when invoking planner.");
+                panic!("Something went wrong when invoking planner: {}", e);
             }
         };
         // if res.plan_found {
@@ -583,7 +583,7 @@ fn make_base_problem(model: &TransitionSystemModel) -> String {
     // perhaps later we should have different kinds of specifications in the
     // model instead.
     // for now we actually do this instead of GE.
-    add_global_specifications(&mut lines, &model.specs);
+    add_global_specifications(&mut lines, &model.invariants);
 
     return lines;
 }
@@ -654,7 +654,7 @@ fn add_ivars(lines: &mut String, transitions: &[Transition]) {
 
     // add a control variable for each transition
     for t in transitions {
-        let path = NuXMVPath(t.node().path());
+        let path = NuXMVPath(t.path());
         lines.push_str(&format!("{i}{v} : boolean;\n", i = indent(2), v = path));
     }
     lines.push_str("\n\n");
@@ -665,7 +665,7 @@ fn add_statepreds(lines: &mut String, predicates: &[Variable]) {
     lines.push_str("DEFINE\n\n");
 
     for sp in predicates {
-        let path = NuXMVPath(sp.node().path());
+        let path = NuXMVPath(sp.path());
         match sp.variable_type() {
             VariableType::Predicate(p) => {
                 let p = NuXMVPredicate(&p);
@@ -721,7 +721,7 @@ fn add_transitions(lines: &mut String, all_vars: &HashSet<SPPath>, transitions: 
         let updates_s = updates.join(" & ");
 
         // tracking variable
-        let ivar = NuXMVPath(t.node().path());
+        let ivar = NuXMVPath(t.path());
 
         trans.push(format!("{i} & {g} & {u}", i = ivar, g = g, u = updates_s));
     }
@@ -739,7 +739,7 @@ fn add_initial_states(lines: &mut String, initial: &Predicate) {
     lines.push_str("\n\n");
 }
 
-fn add_global_specifications(lines: &mut String, specs: &[Spec]) {
+fn add_global_specifications(lines: &mut String, specs: &[Specification]) {
     // now put in the specs as invariants to refine the model.
 
     // if we do guard extraction, the specs leading to these do not

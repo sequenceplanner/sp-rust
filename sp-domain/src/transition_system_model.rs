@@ -9,32 +9,26 @@ pub struct TransitionSystemModel {
     pub vars: Vec<Variable>,
     pub state_predicates: Vec<Variable>,
     pub transitions: Vec<Transition>,
-    pub specs: Vec<Spec>,
+    pub invariants: Vec<Specification>,
 }
 
 impl TransitionSystemModel {
     pub fn from(model: &Model) -> Self {
         let mut vars: Vec<Variable> = model
-            .resources()
+            .resources
             .iter()
             .flat_map(|r| r.get_variables())
             .filter(|v| !v.is_predicate())
             .collect();
 
-        model.resources().iter().for_each(|r| {
+        model.resources.iter().for_each(|r| {
             let resource_active = Variable::new_boolean(&r.path().to_string(),
                                                         VariableType::Estimated);
             vars.push(resource_active);
         });
 
-        let global_vars: Vec<Variable> = model
-            .items()
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Variable(s) => Some(s.clone()),
-                _ => None,
-            })
-            .collect();
+        let global_vars: Vec<Variable> = model.global_variables.clone();
+
         vars.extend(global_vars.iter().cloned());
 
         vars.retain(|v| match v.type_ {
@@ -42,16 +36,12 @@ impl TransitionSystemModel {
             _ => true,
         });
 
-        let mut transitions: Vec<Transition> = model
-            .resources()
+        let mut transitions: Vec<Transition> = model.resources
             .iter()
             .flat_map(|r| r.transitions.clone())
             .collect();
 
-        let global_transitions = model.items().iter().flat_map(|i| match i {
-            SPItem::Transition(t) => Some(t.clone()),
-            _ => None,
-        });
+        let global_transitions = model.global_transitions.clone();
         transitions.extend(global_transitions);
 
         transitions.retain(|t| match t.type_ {
@@ -59,73 +49,41 @@ impl TransitionSystemModel {
             _ => false, // for now this is just runner transitions but there may be more in the future.
         });
 
-        let op_trans: Vec<_> = model
-            .find_item("operations", &[])
-            .and_then(|m| {
-                m.as_model().map(|m| {
-                    m.items()
-                        .iter()
-                        .flat_map(|i| match i {
-                            SPItem::Operation(o) => Some(o.make_lowlevel_transitions()),
-                            _ => None,
-                        })
-                        .flatten()
-                        .collect()
-                })
-            })
-            .unwrap_or(vec![]);
+        let op_trans: Vec<Transition> = model.operations
+            .iter()
+            .map(|o|o.make_lowlevel_transitions())
+            .flatten()
+            .collect();
 
         transitions.extend(op_trans);
 
-        let mut state_predicates: Vec<Variable> = model
-            .resources()
+        let mut state_predicates: Vec<Variable> = model.resources
             .iter()
             .flat_map(|r| r.get_state_predicates())
             .collect();
 
-        let mut specs: Vec<Spec> = model
-            .resources()
+        let mut invariants: Vec<_> = model.resources
             .iter()
-            .flat_map(|r| r.specs.clone())
+            .map(|r| r.specifications.iter().flat_map(|s| {
+                if let SpecificationType::TransitionInvariant(_) = &s.type_ {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            }))
+            .flatten()
             .collect();
-        let global_specs: Vec<Spec> = model
-            .items()
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Spec(s) => Some(s.clone()),
-                // unsure if we should include these.
-                // they always become very big expressions and are not needed
-                // as long as we don't run only on the low level with mono = false.
-                // perhaps its better to activate them when we need to in the runner
-                // this allows us to start faster as they take some time to compute. TODO.
-                // SPItem::ProductSpec(s) => {
-                //     // convert "product spec" to "spec"
-                //     let mut ns = Spec::new(s.name(), s.invariant.clone());
-                //     ns.node_mut().update_path(&s.path().parent());
-                //     Some(ns)
-                // },
-                _ => None,
-            })
-            .collect();
+        let global_invariants: Vec<_> = model.global_specs.iter().flat_map(|s| {
+            if let SpecificationType::TransitionInvariant(_) = &s.type_ {
+                Some(s.clone())
+            } else {
+                None
+            }
+        }).collect();
 
-        specs.extend(global_specs);
+        invariants.extend(global_invariants);
 
         // recursively collect sub-models
-        model
-            .items
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::Model(m) if m.name() != "operations" => {
-                    Some(TransitionSystemModel::from(&m))
-                }
-                _ => None,
-            })
-            .for_each(|tsm| {
-                vars.extend(tsm.vars);
-                state_predicates.extend(tsm.state_predicates);
-                transitions.extend(tsm.transitions);
-                specs.extend(tsm.specs);
-            });
 
         // EXPERIMENT:
 
@@ -182,94 +140,58 @@ impl TransitionSystemModel {
         }
 
         let mut ts_model = TransitionSystemModel {
-            name: model.name().into(),
+            name: model.path.leaf(),
             vars,
             state_predicates,
             transitions,
-            specs,
+            invariants,
         };
-
-        // MD 2020-08-20: Moved "magic" from runner model helper to here.
-
-        // MD 2020-09-04: Removed guard extraction completely.
-        // let mut new_specs = Vec::new();
-        // let mut longest_refining = std::time::Duration::default();
-        // for s in &ts_model.specs {
-        //     println!("refining invariant {}", s.path());
-        //     let now = std::time::Instant::now();
-        //     let ri = refine_invariant(&ts_model, s.invariant());
-        //     let dur = now.elapsed();
-        //     if dur > longest_refining {
-        //         longest_refining = dur;
-        //     }
-        //     let mut ns = s.clone();
-        //     ns.invariant = ri;
-        //     new_specs.push(ns);
-        // }
-        // ts_model.specs = new_specs;
-
-        // println!("LONGEST_REFINEMENT_TIME: {}ms", longest_refining.as_millis());
 
         ts_model
     }
 
     pub fn from_op(model: &Model) -> Self {
-        let vars: Vec<Variable> = model
-            .find_item("product_state", &[])
-            .and_then(|m| {
-                m.as_model().map(|m| {
-                    m.items
-                        .iter()
-                        .flat_map(|i| match i {
-                            SPItem::Variable(s) => Some(s.clone()),
-                            _ => None,
-                        })
-                        .collect()
-                })
-            })
-            .unwrap_or(vec![]);
-
-        let transitions: Vec<Transition> = model
-            .find_item("operations", &[])
-            .and_then(|m| {
-                m.as_model().map(|m| {
-                    m.items()
-                        .iter()
-                        .flat_map(|i| match i {
-                            // operations represented by a single transition
-                            SPItem::Operation(o) => Some(o.make_planning_trans()),
-                            _ => None,
-                        })
-                        .flatten()
-                        .collect()
-                })
-            })
-            .unwrap_or(vec![]);
-
-        let global_specs: Vec<Spec> = model
-            .items()
-            .iter()
-            .flat_map(|i| match i {
-                SPItem::ProductSpec(s) => {
-                    // convert "product spec" to "spec"
-                    let mut ns = Spec::new(&(s.name()), s.invariant.clone());
-                    ns.node_mut().update_path(&s.path().parent());
-                    Some(ns)
-                }
+        let vars: Vec<Variable> = model.global_variables.iter()
+            .flat_map(|i| match i.type_ {
+                VariableType::Product => Some(i.clone()),
                 _ => None,
             })
             .collect();
 
+        let transitions: Vec<Transition> = model.operations.iter()
+            .map(|o| o.make_planning_trans())
+            .flatten()
+            .collect();
+
+        let global_invariants: Vec<_> = model
+            .global_specs
+            .iter()
+            .flat_map(|s|
+                if let SpecificationType::OperationInvariant(_) = &s.type_ {
+                    Some(s.clone())
+                } else {
+                    None
+                })
+            .collect();
+
         TransitionSystemModel {
-            name: format!("op_model_{}", model.name()),
+            name: format!("op_model_{}", model.path.leaf()),
             vars,
             state_predicates: vec![],
             transitions,
-            specs: global_specs,
+            invariants: global_invariants,
         }
     }
 
     pub fn bad_state(&self, state: &SPState) -> bool {
-        self.specs.iter().any(|s| !s.invariant().eval(state))
+        self.invariants.iter().any(|i| !i.invariant().eval(state))
+    }
+
+    /// Return a list of all paths used in states, e.g. the ones for
+    /// variables and state predicates.
+    pub fn get_state_paths(&self) -> Vec<SPPath> {
+        let mut paths: Vec<_> = self.vars.iter().map(|p| p.path().clone()).collect();
+        paths.extend(self.state_predicates.iter().map(|p| p.path().clone()).collect::<Vec<_>>());
+        paths
     }
 }

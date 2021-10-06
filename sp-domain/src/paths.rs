@@ -28,7 +28,7 @@ impl SPPath {
         SPPath { path: xs }
     }
     pub fn from_string(s: &str) -> SPPath {
-        let res: Vec<&str> = s.trim_start_matches('/').split('/').collect();
+        let res: Vec<&str> = s.trim_start_matches('/').trim_end_matches('/').split('/').collect();
         SPPath::from_slice(&res)
     }
     pub fn add_child(&self, sub: &str) -> Self {
@@ -50,10 +50,11 @@ impl SPPath {
     pub fn add_child_path_mut(&mut self, sub: &SPPath) {
         self.path.append(&mut sub.path.clone())
     }
-    pub fn add_parent_path_mut(&mut self, root: &SPPath) {
+    pub fn add_parent_path_mut(&mut self, root: &SPPath) -> SPPath {
         let mut new_path = root.path.clone();
         new_path.append(&mut self.path);
         self.path = new_path;
+        self.clone()
     }
     pub fn add_child_path(&self, sub: &SPPath) -> SPPath {
         let mut p = self.path.clone();
@@ -119,6 +120,15 @@ impl SPPath {
         } else {
             self.path[self.path.len() - 1].clone()
         }
+    }
+
+    pub fn leaf_as_path(&self) -> SPPath {
+        let leaf = if self.path.is_empty() {
+            "".to_string()
+        } else {
+            self.path[self.path.len() - 1].clone()
+        };
+        SPPath { path: vec![leaf] }
     }
 
     pub fn drop_leaf(&mut self) -> String {

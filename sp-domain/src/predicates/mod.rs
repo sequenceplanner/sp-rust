@@ -44,6 +44,7 @@ pub enum Compute {
     PredicateValue(PredicateValue),
     Predicate(Predicate), // used for boolean actions
     Function(Vec<(Predicate, PredicateValue)>),
+    // TODO: AddMember och RemoveMember
     TimeStamp,
     Any, // Free variable, can take on any value after this action.
          // If we need more advanced functions we can add them here

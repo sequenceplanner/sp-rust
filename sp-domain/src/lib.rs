@@ -15,9 +15,6 @@ pub use states::*;
 pub mod paths;
 pub use paths::*;
 
-pub mod node;
-pub use node::*;
-
 pub mod items;
 pub use items::*;
 
@@ -30,6 +27,7 @@ pub use transition_system_model::*;
 use serde::{Deserialize, Serialize};
 use std::error;
 use std::fmt;
+use std::fmt::Display;
 
 #[macro_export]
 macro_rules! hashmap {
@@ -46,6 +44,18 @@ type SPResult<T> = std::result::Result<T, SPError>;
 pub enum SPError {
     No(String),
     Undefined,
+}
+
+impl std::convert::From<serde_json::Error>  for SPError {
+    fn from(e: serde_json::Error) -> Self {
+        SPError::from_any(e)
+    }
+}
+
+impl SPError {
+    pub fn from_any<T: Display>(x: T) -> SPError {
+        SPError::No(format!("{}", x))
+    }
 }
 
 impl fmt::Display for SPError {

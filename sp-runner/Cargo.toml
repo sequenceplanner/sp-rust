@@ -13,13 +13,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 crossbeam = "0.7"
 sp-domain = { path = "../sp-domain/" }
-sp-ros = { path = "../sp-ros/"}
+sp-formal = { path = "../sp-formal/" }
+sp-ros = { path = "../sp-ros/", features = ["ros"]}
+# sp-ros = { path = "../sp-ros/", features = []}
 failure = "0.1.6"
 failure_derive = "0.1.6"
 chrono = { version = "0.4.9", features = ["serde"] }
 indoc = "0.3"
 tokio = { version = "1", features = ["full"] }
-futures = "0.3"
+futures = "0.3.15"
 rayon = "1.5"
 which = "4.1.0"
 snap = "1"
