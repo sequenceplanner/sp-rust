@@ -618,7 +618,7 @@ impl ActionClientComm {
             let mut action_state = Arc::new(Mutex::new(ActionState::Ok));
             ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
-            let mut client_goal: Option<r2r::ClientGoalUntyped> = None;
+            let mut client_goal: Option<r2r::ActionClientGoalUntyped> = None;
             let mut action_handle: Option<tokio::task::JoinHandle<()>> = None;
             let mut feedback_handle: Option<tokio::task::JoinHandle<()>> = None;
 
