@@ -60,23 +60,23 @@ impl SPStateService {
 
     async fn launch_services(&mut self) -> Result<(), SPError> {
         let mut node = self.arc_node.lock().unwrap();
-        let set_state_srv = 
+        let set_state_srv =
             node
             .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/set_state", super::ros::SP_NODE_NAME})
             .map_err(SPError::from_any)?;
-        let get_state_srv = 
+        let get_state_srv =
             node
             .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/get_state", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
-        let pub_state = 
+        let pub_state =
             node
             .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
-        let pub_state_flat = 
+        let pub_state_flat =
             node
             .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state_flat", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
-        
+
         let tx = self.state_to_runner.clone();
         let rx = self.state_from_runner.clone();
         let handle_set = tokio::spawn(async move {
@@ -90,7 +90,7 @@ impl SPStateService {
         let handle_pub = tokio::spawn(async move {
             SPStateService::publish_state(rx,pub_state, pub_state_flat).await;
         });
-        
+
         self.handle_set = Some(handle_set);
         self.handle_get = Some(handle_get);
         self.handle_pub = Some(handle_pub);
@@ -98,25 +98,25 @@ impl SPStateService {
         Ok(())
     }
 
-    
+
 
     async fn set_service(
         mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
     ) {
-        log_info!("SET SERVICE STARTING");
+        // log_info!("SET SERVICE STARTING");
         loop {
-            log_info!("SET SERVICE Waiting");
+            // log_info!("SET SERVICE Waiting");
             if let Some(request) = service.next().await {
                 let state_json: Result<SPStateJson, _> = serde_json::from_str(&request.message.json);
-                log_info!("SET SERVICE GOT: {:?}", &state_json);
+                // log_info!("SET SERVICE GOT: {:?}", &state_json);
                 let r = match state_json {
-                    Ok(sj) => { 
+                    Ok(sj) => {
                         let mut state = sj.to_state();
                         state.add_variable(SPPath::from_string("/sp/set-state/timestamp"), SPValue::now());
                         state_to_runner.send(state).await.expect("The state channel should always work!");
                         "ok".to_string()
-                        
+
                     },
                     Err(e) => {
                         let error = format!(
@@ -143,7 +143,7 @@ impl SPStateService {
                let s = SPStateJson::from_state_recursive(&state_from_runner.borrow());
                 let resp = serde_json::to_string(&s).unwrap();
                 let msg = r2r::sp_msgs::srv::Json::Response{json: resp};
-                
+
                 request.respond(msg);
             }
         }
@@ -161,8 +161,8 @@ impl SPStateService {
                 let s_json_flat = SPStateJson::from_state_flat(&s);
                 let msg = r2r::std_msgs::msg::String{data: serde_json::to_string(&s_json).unwrap()};
                 let msg_flat = r2r::std_msgs::msg::String{data: serde_json::to_string(&s_json_flat).unwrap()};
-                pub_state.publish(&msg).unwrap(); 
-                pub_flat_state.publish(&msg_flat).unwrap(); 
+                pub_state.publish(&msg).unwrap();
+                pub_flat_state.publish(&msg_flat).unwrap();
             }
         }
     }
@@ -225,8 +225,8 @@ mod sp_comm_tests {
         let (arc_node, kill) = create_node("test_service");
 
         let mut state_service = SPStateService::new(
-            arc_node.clone(), 
-            rx_watch.clone(), 
+            arc_node.clone(),
+            rx_watch.clone(),
             tx_mpsc.clone(),
         ).await.unwrap();
 
@@ -271,7 +271,7 @@ mod sp_comm_tests {
 
         let res = state_service.abort_and_await().await;
         println!("I got when abort and await: {:?}", res);
-        
+
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -287,8 +287,8 @@ mod sp_comm_tests {
         let (arc_node, kill) = create_node("test_service");
 
         let mut state_service = SPStateService::new(
-            arc_node.clone(), 
-            rx_watch.clone(), 
+            arc_node.clone(),
+            rx_watch.clone(),
             tx_mpsc.clone(),
         ).await.unwrap();
 
@@ -307,7 +307,7 @@ mod sp_comm_tests {
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         let json: SPStateJson = serde_json::from_str(&res.json).unwrap();
-        
+
 
         println!("response from server: {}", json.to_state().projection());
 
@@ -322,7 +322,7 @@ mod sp_comm_tests {
 
         let res = state_service.abort_and_await().await;
         println!("I got when abort and await: {:?}", res);
-        
+
     }
 
 }

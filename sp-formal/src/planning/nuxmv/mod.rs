@@ -277,6 +277,13 @@ pub fn plan_async(
 
             println!("async_result: {} {}", trace.len()-1, duration.as_millis());
 
+            if !plan_found {
+                std::fs::copy(
+                    filename_last_plan,
+                    "./last_failed_async_planning_request.bmc",
+                ).expect("file copy failed");
+            }
+
             PlanningResult {
                 plan_found,
                 plan_length: trace.len() as u32 - 1, // hack :)
@@ -509,6 +516,13 @@ impl Planner for NuXmvPlanner {
                         state: state.clone(),
                     }]
                 });
+
+                if !plan_found {
+                    std::fs::copy(
+                        filename_last_plan,
+                        "./last_failed_planning_request.bmc",
+                    ).expect("file copy failed");
+                }
 
                 PlanningResult {
                     plan_found,

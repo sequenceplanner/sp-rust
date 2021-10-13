@@ -87,7 +87,7 @@ mod ros {
         }}
     }
 
-    
+
 }
 
 #[cfg(feature = "ros")]
@@ -95,7 +95,6 @@ mod ros {
 mod ros {
     use std::sync::{Arc, Mutex};
     use sp_domain::*;
-    use futures::*;
     use serde::{Serialize, Deserialize};
     use crate::model_service::SPModelService;
     use crate::state_service::SPStateService;
@@ -199,27 +198,27 @@ mod ros {
             let resources =  Arc::new(Mutex::new(vec!()));
 
             let sp_state = SPStateService::new(
-                arc_node.clone(), 
-                state_from_runner.clone(), 
+                arc_node.clone(),
+                state_from_runner.clone(),
                 state_to_runner.clone()
             ).await?;
 
             let sp_model = SPModelService::new(
-                arc_node.clone(), 
-                state_from_runner.clone(), 
+                arc_node.clone(),
+                state_from_runner.clone(),
                 state_to_runner.clone(),
                 initial_model.clone()
             ).await?;
 
             let arc = arc_node.clone();
-            
+
 
             let model_watcher = sp_model.model_watcher();
             let resources_handle = RosComm::launch_resources(
-                arc_node.clone(), 
-                resources.clone(), 
-                state_from_runner.clone(), 
-                state_to_runner.clone(), 
+                arc_node.clone(),
+                resources.clone(),
+                state_from_runner.clone(),
+                state_to_runner.clone(),
                 model_watcher.clone(),
             ).await;
 
@@ -301,9 +300,9 @@ mod ros {
                     new_res.iter().for_each(|r| println!("XXX RESOURCES: {:?}", r.path()));
                     for r in new_res {
                         let rc =  ResourceComm::new(
-                            arc_node.clone(), 
-                            r.clone(), 
-                            state_from_runner.clone(), 
+                            arc_node.clone(),
+                            r.clone(),
+                            state_from_runner.clone(),
                             state_to_runner.clone()
                         );
                         match rc.await {
@@ -318,7 +317,7 @@ mod ros {
 
                     }
 
-                    
+
                     model_watcher.changed().await;
                     model = model_watcher.borrow().clone();
                 }
@@ -344,7 +343,3 @@ mod state_service;
 
 #[cfg(feature = "ros")]
 mod model_service;
-
-   
-
-
