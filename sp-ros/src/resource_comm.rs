@@ -458,7 +458,7 @@ impl ServiceClientComm {
                     continue;
                 };
                 let result = tokio::time::timeout(
-                    std::time::Duration::from_secs(10),
+                    std::time::Duration::from_secs(15),
                     request.unwrap()
                 ).await;
                 if let Err(e) = result {

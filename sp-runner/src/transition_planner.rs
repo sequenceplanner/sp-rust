@@ -8,7 +8,7 @@ use super::sp_runner::*;
 use std::collections::HashSet;
 
 // some planning constants
-const LVL0_MAX_STEPS: u32 = 40;
+const LVL0_MAX_STEPS: u32 = 100;
 
 #[derive(Debug, Clone)]
 pub struct TransitionPlanner {
@@ -74,7 +74,9 @@ fn check_goals_fast(
             .flat_map(|ts| {
                 if ts.iter().all(|t| {
                     let x = t.eval(&state);
-                    // println!("for {}: eval: {}, trans: {}", t.path(), x, t);
+                    if !t.path().to_string().contains("Blocked") {
+                        // println!("for {}: eval: {}, trans: {}", t.path(), x, t);
+                    }
                     x
                 }) {
                     // transitions enabled.
@@ -104,6 +106,7 @@ fn check_goals_fast(
                     //println!("THE STATE\n{}", state);
 
                     if bad_state(&state, ts_model) {
+                        // println!("for {}: eval: {}, trans: {}", t.path(), x, t);
                         None
                     } else {
                         Some(changed)
@@ -131,7 +134,7 @@ fn check_goals_fast(
             //
             // actually this becomes quite expensive... for now just replan
 
-            println!("NOT CHECKING GOALS COMPLETE, replan instead.");
+            // println!("NOT CHECKING GOALS COMPLETE, replan instead.");
             // return self.check_goals_complete(s, &goals, plan, ts_model);
             return false; // think about how we want to do it...
         }

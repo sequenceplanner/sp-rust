@@ -2,6 +2,7 @@ use super::*;
 use serde::{Deserialize, Serialize};
 /// In this file both predicates and actions are defined
 use std::collections::HashMap;
+use rand::prelude::*;
 
 mod parser;
 
@@ -46,6 +47,7 @@ pub enum Compute {
     Function(Vec<(Predicate, PredicateValue)>),
     // TODO: AddMember och RemoveMember
     TimeStamp,
+    Random(i32), // random number 0 < x < n
     Any, // Free variable, can take on any value after this action.
          // If we need more advanced functions we can add them here
          //TakeNext(SPValue, Vec<SPValue>), // to be impl when needed
@@ -339,7 +341,8 @@ impl Action {
                     p.replace_variable_path(mapping);
                     v.replace_variable_path(mapping);
                 });
-            }
+            },
+            Compute::Random(_) => {},
             Compute::TimeStamp | Compute::Any => {}
         }
     }
@@ -390,6 +393,7 @@ impl Action {
                 format!("{}[if {} then {}]", acc, p, v)
             }),
             Compute::Any => "?".to_string(),
+            Compute::Random(n) => format!("rnd({})", n),
             Compute::TimeStamp => "T".to_string(),
         }
     }
@@ -576,7 +580,8 @@ impl NextAction for Action {
                         )));
                     }
                 }
-            }
+            },
+            Compute::Random(n) => Some(SPValue::Int32(rand::thread_rng().gen_range(0..*n))),
             Compute::TimeStamp => Some(SPValue::Time(std::time::SystemTime::now())),
             Compute::Any => None,
         };

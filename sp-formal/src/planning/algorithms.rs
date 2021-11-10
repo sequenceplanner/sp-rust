@@ -343,7 +343,11 @@ fn rebuild_planning_trace(plan: &[Transition], initial: &SPState) -> Vec<Plannin
 
     for t in plan {
         t.actions.iter().for_each(|a| {
-            a.next(&mut state).unwrap();
+            let result = a.next(&mut state);
+            if result.is_err() {
+                // when you have a double assign in the actions
+                println!("WARNING: could not take transition for {} ({:?})", t.path(), result);
+            }
         });
         state.take_transition();
 

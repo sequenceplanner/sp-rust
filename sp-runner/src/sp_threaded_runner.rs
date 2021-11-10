@@ -46,7 +46,7 @@ pub async fn launch_model(model: Model, initial_state: SPState) -> Result<(), SP
 
 
     tokio::spawn(merger(rx_new_state, tx_runner.clone()));
-    tokio::spawn(ticker_async(std::time::Duration::from_millis(1000), tx_runner.clone()));
+    tokio::spawn(ticker_async(std::time::Duration::from_millis(200), tx_runner.clone()));
 
     let compiled_model = CompiledModel::from(model); // TODO. Should be done before this
 
