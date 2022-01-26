@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, sync::{Arc, Mutex}};
+use std::sync::{Arc, Mutex};
 use sp_domain::*;
 use sp_formal::CompiledModel;
 use super::RunnerModel;
@@ -8,7 +8,7 @@ use crate::ros::*;
 
 /// The SPModelService wrapps the set and get model services in SP. By calling the /sp/set_model, a new model can be
 /// loaded by SP. The /sp/get_model just returns the current loaded model.
-/// Maybe TODO: use the state to return ok from the set_model service when the new model have been loaded. 
+/// Maybe TODO: use the state to return ok from the set_model service when the new model have been loaded.
 pub(crate) struct SPModelService {
     arc_node: Arc<Mutex<r2r::Node>>,
     state_from_runner: tokio::sync::watch::Receiver<SPState>,
@@ -25,7 +25,7 @@ impl SPModelService {
         state_from_runner: tokio::sync::watch::Receiver<SPState>,
         state_to_runner: tokio::sync::mpsc::Sender<SPState>,
         initial_model: sp_formal::CompiledModel,
-    ) -> Result<SPModelService, SPError> { 
+    ) -> Result<SPModelService, SPError> {
         let init = RunnerModel::new(initial_model);
         let (current_model, model_watcher) = tokio::sync::watch::channel(init);
         let mut ms = SPModelService {
@@ -68,20 +68,20 @@ impl SPModelService {
     }
 
     async fn launch_services(
-        &mut self, 
+        &mut self,
         current_model: tokio::sync::watch::Sender<RunnerModel>
     ) -> Result<(), SPError> {
         let mut node = self.arc_node.lock().unwrap();
-        let set_srv = 
+        let set_srv =
             node
             .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/set_model", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
-        let get_srv = 
+        let get_srv =
             node
             .create_service::<r2r::sp_msgs::srv::Json::Service>(&format! {"{}/get_model", SP_NODE_NAME})
             .map_err(SPError::from_any)?;
-        
-    
+
+
         let handle_set = tokio::spawn(async move {
             SPModelService::set_service(set_srv, current_model).await;
         });
@@ -106,7 +106,7 @@ impl SPModelService {
                 let compiled_model: Result<CompiledModel, _> = serde_json::from_str(&request.message.json);
                 let model_change: Result<Model, _> = serde_json::from_str(&request.message.json);
                 let r = match (compiled_model, model_change) {
-                    (Ok(m), _) => { 
+                    (Ok(m), _) => {
                         let rm = RunnerModel::new(m);
                         match current_model.send(rm) {
                             Ok(_) => "ok".to_string(),
@@ -148,7 +148,7 @@ impl SPModelService {
                 let x = watch_model.borrow().clone();
                  let resp = serde_json::to_string(&x).unwrap();
                  let msg = r2r::sp_msgs::srv::Json::Response{json: resp};
-                 
+
                  request.respond(msg);
              }
         }
@@ -211,8 +211,8 @@ mod sp_comm_tests {
         let (arc_node, kill) = create_node("test_model_set");
 
         let mut model_service = SPModelService::new(
-            arc_node.clone(), 
-            rx_watch.clone(), 
+            arc_node.clone(),
+            rx_watch.clone(),
             tx_mpsc.clone(),
             CompiledModel::from(Model::new("hej"))
         ).await.unwrap();
@@ -261,7 +261,7 @@ mod sp_comm_tests {
         reply.await.unwrap();
         let res = model_service.abort_and_await().await;
         println!("I got when abort and await: {:?}", res);
-        
+
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -273,8 +273,8 @@ mod sp_comm_tests {
         let (arc_node, kill) = create_node("test_service");
 
         let mut model_service = SPModelService::new(
-            arc_node.clone(), 
-            rx_watch.clone(), 
+            arc_node.clone(),
+            rx_watch.clone(),
             tx_mpsc.clone(),
             CompiledModel::from(Model::new("hej"))
         ).await.unwrap();
@@ -293,7 +293,7 @@ mod sp_comm_tests {
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
         let m: Model = serde_json::from_str(&res.json).unwrap();
-        
+
 
         println!("response from server: {:?}", m);
 
@@ -307,7 +307,7 @@ mod sp_comm_tests {
 
         let res = model_service.abort_and_await().await;
         println!("I got when abort and await: {:?}", res);
-        
+
     }
 
 }

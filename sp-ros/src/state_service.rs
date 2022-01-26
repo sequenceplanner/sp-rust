@@ -70,11 +70,11 @@ impl SPStateService {
             .map_err(SPError::from_any)?;
         let pub_state =
             node
-            .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state", SP_NODE_NAME})
+            .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state", SP_NODE_NAME}, r2r::QosProfile::default())
             .map_err(SPError::from_any)?;
         let pub_state_flat =
             node
-            .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state_flat", SP_NODE_NAME})
+            .create_publisher::<r2r::std_msgs::msg::String>(&format! {"{}/state_flat", SP_NODE_NAME}, r2r::QosProfile::default())
             .map_err(SPError::from_any)?;
 
         let tx = self.state_to_runner.clone();

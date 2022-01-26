@@ -193,7 +193,7 @@ impl SubscriberComm {
         let subscriber = {
             let mut node = self.arc_node.lock().unwrap();
             node
-            .subscribe_untyped(&self.mess.topic.to_string(), &topic_message_type(&self.mess))
+            .subscribe_untyped(&self.mess.topic.to_string(), &topic_message_type(&self.mess), r2r::QosProfile::default())
         };
 
         match subscriber {
@@ -300,7 +300,8 @@ impl PublisherComm {
             node
             .create_publisher_untyped(
                 &self.mess.topic.to_string(),
-                &topic_message_type(&self.mess)
+                &topic_message_type(&self.mess),
+                r2r::QosProfile::default()
             ).map_err(SPError::from_any)
         };
 
@@ -416,7 +417,7 @@ impl ServiceClientComm {
 
         let mut state_from_runner = self.state_from_runner.clone();
         let state_to_runner = self.state_to_runner.clone();
-        let mut state = "ok".to_spvalue();
+        let state = "ok".to_spvalue();
         let handle = tokio::task::spawn(async move {
             let service_state_path = mess.name.add_child("service");
             let mut service_state = "ok".to_spvalue();
@@ -615,7 +616,7 @@ impl ActionClientComm {
             let action_state_path = mess.name.add_child("action");
             log_info!("Starting action: {}", &mess.topic);
 
-            let mut action_state = Arc::new(Mutex::new(ActionState::Ok));
+            let action_state = Arc::new(Mutex::new(ActionState::Ok));
             ActionClientComm::send_action_state(&state_to_runner, &action_state_path, &action_state).await;
 
             let mut client_goal: Option<r2r::ActionClientGoalUntyped> = None;
@@ -717,7 +718,7 @@ impl ActionClientComm {
                         }
                     }));
 
-                    let mut act_st = action_state.clone();
+                    let act_st = action_state.clone();
                     let m = mess.clone();
                     let str = state_to_runner.clone();
                     let asp = action_state_path.clone();
