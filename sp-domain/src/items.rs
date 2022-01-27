@@ -315,6 +315,7 @@ impl Resource {
                 &format!("{}_send_effect", name),
                 p!([pp: send_predicate] && [[p: service_state == "ok"] || [p: service_state == "req"]]),
                 vec![ a!( p: service_state = "done")],
+                vec![],
                 TransitionType::Effect
             )
         );
@@ -323,6 +324,7 @@ impl Resource {
                 &format!("{}_reset_effect", name),
                 p!([!pp: send_predicate] && [p: service_state == "done"]),
                 vec![ a!( p: service_state = "ok")],
+                vec![],
                 TransitionType::Effect
             )
         );
@@ -356,7 +358,7 @@ impl Resource {
 
         let action_state = self.add_variable(Variable::new(
             &format!("{}/action", name),
-            VariableType::Measured,
+            VariableType::Runner,
             SPValueType::String,
             vec!("ok".to_spvalue(), "requesting".to_spvalue(),
                  "accepted".to_spvalue(), "rejected".to_spvalue(),
@@ -396,7 +398,7 @@ impl Resource {
             variables: request.to_vec(),
             variables_response: response.to_vec(),
             variables_feedback: feedback.to_vec(),
-            send_predicate: send_predicate,
+            send_predicate,
         };
         self.add_message(action_msg);
         action_state
@@ -575,16 +577,21 @@ pub struct Transition {
     pub path: SPPath,
     pub guard: Predicate,
     pub actions: Vec<Action>,
+    pub runner_actions: Vec<Action>,
     pub type_: TransitionType,
 }
 
 impl Transition {
-    pub fn new(name: &str, guard: Predicate, actions: Vec<Action>, type_: TransitionType) -> Self {
+    pub fn new(name: &str, guard: Predicate,
+               actions: Vec<Action>,
+               runner_actions: Vec<Action>,
+               type_: TransitionType) -> Self {
         let path = SPPath::from_string(name);
         Transition {
             path,
             guard,
             actions,
+            runner_actions,
             type_,
         }
     }
@@ -599,13 +606,20 @@ impl Transition {
     pub fn actions(&self) -> &[Action] {
         self.actions.as_slice()
     }
+    pub fn runner_actions(&self) -> &[Action] {
+        self.actions.as_slice()
+    }
     pub fn upd_state_path(&mut self, state: &SPState) {
         self.guard.upd_state_path(state);
         self.actions
             .iter_mut()
             .for_each(|a| a.upd_state_path(state));
+        self.runner_actions
+            .iter_mut()
+            .for_each(|a| a.upd_state_path(state));
     }
 
+    // TODO: think about if this should include runner actions.
     pub fn modifies(&self) -> HashSet<SPPath> {
         let mut r = HashSet::new();
 
@@ -618,6 +632,7 @@ impl Transition {
     }
 
     // modeling stuff
+    // TODO: runner actions
     pub fn synchronize(&self, new_name: &str, guard: Predicate, actions: &[Action]) -> Transition {
         let mut t = self.clone();
         let orig_name = t.path.drop_leaf();
@@ -639,7 +654,8 @@ impl fmt::Display for Transition {
             TransitionType::Runner => "r",
         };
 
-        let s = format!("{}_{}: {}/{:?}", k, self.path(), self.guard, self.actions);
+        let s = format!("{}_{}: {}/{:?}[{:?}]", k, self.path(), self.guard,
+                        self.actions, self.runner_actions);
 
         write!(fmtr, "{}", &s)
     }
@@ -706,6 +722,7 @@ impl Intention {
             "start",
             Predicate::AND(vec![p!(p: state == "i"), self.pre.clone()]),
             vec![a!(p: state = "e")],
+            vec![],
             TransitionType::Controlled,
         );
         runner_start.path.add_parent_path_mut(&self.path);
@@ -719,6 +736,7 @@ impl Intention {
             "finish",
             Predicate::AND(vec![p!(p: state == "e"), self.post.clone()]),
             f_actions,
+            vec![],
             TransitionType::Auto,
         );
         runner_finish.path.add_parent_path_mut(&self.path);
@@ -795,6 +813,7 @@ impl Operation {
                     &name,
                     pre.clone(),
                     act.clone(),
+                    vec![],
                     if self.auto {
                         TransitionType::Auto
                     } else {
@@ -840,6 +859,7 @@ impl Operation {
             "start",
             Predicate::AND(vec![p!(p: state == "i"), self.guard.clone()]),
             actions,
+            vec![],
             TransitionType::Controlled,
         );
         runner_start.path.add_parent_path_mut(&self.path);
@@ -850,6 +870,7 @@ impl Operation {
             "finish",
             post_cond,
             vec![a!(p: state = "i")],
+            vec![],
             TransitionType::Auto,
         );
         runner_finish.path.add_parent_path_mut(&self.path);
@@ -874,6 +895,7 @@ impl Operation {
                     &name,
                     self.guard.clone(),
                     e.to_vec(),
+                    vec![],
                     if is_auto {
                         TransitionType::Auto
                     } else {

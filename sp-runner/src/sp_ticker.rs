@@ -170,9 +170,11 @@ impl SPTicker {
     /// Check if the row of transitions is enabled and fire the actions. Also checks the forbidden state after
     /// the state change, and will revert if we are forbidden.
     fn tick_ts(state: &mut SPState, ts: &[&Transition]) -> Vec<SPPath> {
-        let enabled = ts.iter().all(|t| t.eval(state)) && ts.iter().any(|t| !t.actions.is_empty());
+        let enabled = ts.iter().all(|t| t.eval(state)) &&
+            ts.iter().any(|t| !t.actions.is_empty() || !t.runner_actions.is_empty());
         if enabled && !ts.is_empty() {
-            ts.iter().flat_map(|t| t.actions.iter()).for_each(|a| {
+            ts.iter().flat_map(|t| t.actions.iter()
+                               .chain(t.runner_actions.iter())).for_each(|a| {
                 let _res = a.next(state); // if actions write to the same path, only the first will be used
                 if _res.is_err() {
                     println!("The transitions {:?} could not fire! {:?}", ts, _res);

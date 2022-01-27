@@ -130,7 +130,7 @@ impl SPRunner {
         // initially block all controlled transitions until
         // we have seen them in an external plan.
         let mut restrict_controllable = vec![];
-        let false_trans = Transition::new("empty",Predicate::FALSE,vec![],TransitionType::Controlled);
+        let false_trans = Transition::new("empty",Predicate::FALSE,vec![],vec![],TransitionType::Controlled);
         ticker.transitions.iter().for_each(|t| {
             if t.type_ == TransitionType::Controlled {
                 restrict_controllable.push(TransitionSpec::new(

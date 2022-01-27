@@ -18,6 +18,7 @@ pub fn block_all(model: &TransitionSystemModel) -> Vec<TransitionSpec> {
                 &format!("Blocked {}", p),
                 Predicate::FALSE,
                 vec![],
+                vec![],
                 TransitionType::Controlled,
             );
             TransitionSpec::new(&format!("Blocked {}", p), t, vec![p.clone()])
@@ -107,6 +108,7 @@ pub fn convert_planning_result(
                 &format!("step{:?}", i),
                 guard,
                 actions,
+                vec![],
                 TransitionType::Controlled,
             );
 
@@ -145,6 +147,7 @@ pub fn convert_planning_result(
             let t = Transition::new(
                 &format!("Blocked {}", p),
                 Predicate::FALSE,
+                vec![],
                 vec![],
                 TransitionType::Controlled,
             );
@@ -283,6 +286,7 @@ pub fn convert_planning_result_with_packing_heuristic(
             &format!("hlstep{:?}", idx),
             guard,
             action,
+            vec![],
             TransitionType::Controlled,
         );
 
@@ -310,6 +314,7 @@ pub fn convert_planning_result_with_packing_heuristic(
             let t = Transition::new(
                 &format!("Blocked {}", x.path()),
                 Predicate::FALSE,
+                vec![],
                 vec![],
                 TransitionType::Controlled,
             );
