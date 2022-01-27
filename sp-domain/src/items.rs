@@ -370,26 +370,6 @@ impl Resource {
             )
         ));
 
-        self.add_transition(
-            Transition::new(
-                &format!("{}_send_effect", name),
-                p!([pp: send_predicate] && [
-                    [p: action_state == "ok"] ||
-                        [p: action_state == "requesting"] ||
-                        [p: action_state == "accepted"]]),
-                vec![ a!( p: action_state = "succeeded")],
-                TransitionType::Effect
-            )
-        );
-        self.add_transition(
-            Transition::new(
-                &format!("{}_reset_effect", name),
-                p!([!pp: send_predicate] && [p: action_state == "succeeded"]),
-                vec![ a!( p: action_state = "ok")],
-                TransitionType::Effect
-            )
-        );
-
         let action_msg = Message {
             name: SPPath::from_string(name).add_parent_path_mut(&self.path),
             topic: SPPath::from_string(topic),
