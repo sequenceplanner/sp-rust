@@ -652,6 +652,7 @@ impl fmt::Display for Transition {
 }
 
 impl EvaluatePredicate for Transition {
+    // Note. this only evaluates the formal part of a transition.
     fn eval(&self, state: &SPState) -> bool {
         self.guard.eval(state) && self.actions.iter().all(|a| a.eval(state))
     }
@@ -854,7 +855,7 @@ impl Operation {
             Predicate::TRUE,
             actions,
             vec![],
-            TransitionType::Controlled,
+            TransitionType::Runner,
         );
         runner_start.path.add_parent_path_mut(&self.path);
 
@@ -866,10 +867,9 @@ impl Operation {
             Predicate::TRUE,
             vec![a!(p: state = "i")],
             vec![],
-            TransitionType::Auto,
+            TransitionType::Runner,
         );
         runner_finish.path.add_parent_path_mut(&self.path);
-        //println!("FINISH TRANSITION FOR {}: {:#?}", runner_finish.path(), runner_finish);
 
         vec![runner_start, runner_finish]
     }
