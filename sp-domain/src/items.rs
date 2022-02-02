@@ -314,6 +314,7 @@ impl Resource {
             Transition::new(
                 &format!("{}_send_effect", name),
                 p!([pp: send_predicate] && [[p: service_state == "ok"] || [p: service_state == "req"]]),
+                Predicate::TRUE,
                 vec![ a!( p: service_state = "done")],
                 vec![],
                 TransitionType::Effect
@@ -323,6 +324,7 @@ impl Resource {
             Transition::new(
                 &format!("{}_reset_effect", name),
                 p!([!pp: send_predicate] && [p: service_state == "done"]),
+                Predicate::TRUE,
                 vec![ a!( p: service_state = "ok")],
                 vec![],
                 TransitionType::Effect
@@ -555,14 +557,21 @@ pub enum TransitionType {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transition {
     pub path: SPPath,
+    // formal model guards
     pub guard: Predicate,
+    // non-formal guards
+    pub runner_guard: Predicate,
+    // formal actions
     pub actions: Vec<Action>,
+    // non-formal actions
     pub runner_actions: Vec<Action>,
     pub type_: TransitionType,
 }
 
 impl Transition {
-    pub fn new(name: &str, guard: Predicate,
+    pub fn new(name: &str,
+               guard: Predicate,
+               runner_guard: Predicate,
                actions: Vec<Action>,
                runner_actions: Vec<Action>,
                type_: TransitionType) -> Self {
@@ -570,6 +579,7 @@ impl Transition {
         Transition {
             path,
             guard,
+            runner_guard,
             actions,
             runner_actions,
             type_,
@@ -701,9 +711,10 @@ impl Intention {
         let mut runner_start = Transition::new(
             "start",
             Predicate::AND(vec![p!(p: state == "i"), self.pre.clone()]),
+            Predicate::TRUE,
             vec![a!(p: state = "e")],
             vec![],
-            TransitionType::Controlled,
+            TransitionType::Runner,
         );
         runner_start.path.add_parent_path_mut(&self.path);
         let mut f_actions = if self.resets {
@@ -715,9 +726,10 @@ impl Intention {
         let mut runner_finish = Transition::new(
             "finish",
             Predicate::AND(vec![p!(p: state == "e"), self.post.clone()]),
+            Predicate::TRUE,
             f_actions,
             vec![],
-            TransitionType::Auto,
+            TransitionType::Runner,
         );
         runner_finish.path.add_parent_path_mut(&self.path);
 
@@ -792,6 +804,7 @@ impl Operation {
                 let mut t = Transition::new(
                     &name,
                     pre.clone(),
+                    Predicate::TRUE,
                     act.clone(),
                     vec![],
                     if self.auto {
@@ -838,6 +851,7 @@ impl Operation {
         let mut runner_start = Transition::new(
             "start",
             Predicate::AND(vec![p!(p: state == "i"), self.guard.clone()]),
+            Predicate::TRUE,
             actions,
             vec![],
             TransitionType::Controlled,
@@ -849,6 +863,7 @@ impl Operation {
         let mut runner_finish = Transition::new(
             "finish",
             post_cond,
+            Predicate::TRUE,
             vec![a!(p: state = "i")],
             vec![],
             TransitionType::Auto,
@@ -874,6 +889,7 @@ impl Operation {
                 let mut t = Transition::new(
                     &name,
                     self.guard.clone(),
+                    Predicate::TRUE,
                     e.to_vec(),
                     vec![],
                     if is_auto {
@@ -1030,9 +1046,9 @@ mod test_items {
         let b = a!(p:ab <- p:kl);
         let c = a!(p:xy ? p);
 
-        let mut t1 = Transition::new("t1", p!(p: ac), vec![a], TransitionType::Auto);
-        let mut t2 = Transition::new("t2", p!(!p: ac), vec![b], TransitionType::Auto);
-        let mut t3 = Transition::new("t3", Predicate::TRUE, vec![c], TransitionType::Auto);
+        let mut t1 = Transition::new("t1", p!(p: ac), Predicate::TRUE, vec![a], TransitionType::Auto);
+        let mut t2 = Transition::new("t2", p!(!p: ac), Predicate::TRUE, vec![b], TransitionType::Auto);
+        let mut t3 = Transition::new("t3", Predicate::TRUE, Predicate::TRUE, vec![c], TransitionType::Auto);
 
         let res = t1.eval(&s);
         println!("t1.eval: {:?}", res);
