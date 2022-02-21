@@ -304,23 +304,24 @@ impl TransitionPlanner {
                     .iter()
                     .map(|b| (b.invariant().clone(), None))
                     .collect::<Vec<_>>();
-                let pr = planning::plan(&temp_ts, goals.as_slice(), &state, LVL0_MAX_STEPS);
+                if let Ok(pr) = planning::plan(&temp_ts, goals.as_slice(),
+                                               &state, LVL0_MAX_STEPS) {
+                    let plan = pr
+                        .trace
+                        .iter()
+                        .map(|x| x.transition.to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n");
 
-                let plan = pr
-                    .trace
-                    .iter()
-                    .map(|x| x.transition.to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                    let spec_names = bad
+                        .iter()
+                        .map(|b| b.path().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    log_error!("We are in a forbidden state! Spec(s) {} are violated. A way to get out could be \n{}", spec_names, plan);
 
-                let spec_names = bad
-                    .iter()
-                    .map(|b| b.path().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                log_error!("We are in a forbidden state! Spec(s) {} are violated. A way to get out could be \n{}", spec_names, plan);
-
-                self.bad_state = true; // TODO: should not be needed
+                    self.bad_state = true; // TODO: should not be needed
+                }
             }
         } else {
             self.bad_state = bad_state(&state, &self.model);
@@ -369,12 +370,16 @@ impl TransitionPlanner {
                     LVL0_MAX_STEPS,
                 );
 
-                if !pr.plan_found {
-                    println!("operation still problematic...");
-                    None
+                if let Ok(pr) = &pr {
+                    if !pr.plan_found {
+                        println!("operation still problematic...");
+                        None
+                    } else {
+                        println!("operation fixed! {}", p);
+                        Some(p)
+                    }
                 } else {
-                    println!("operation fixed! {}", p);
-                    Some(p)
+                    None // syntax error
                 }
             }).cloned().collect();
 
@@ -514,26 +519,41 @@ impl TransitionPlanner {
                 planning::plan(&self.model, &goals, &state, 2 * LVL0_MAX_STEPS)
             };
 
-            planning::bubble_up_delibs(&self.model, &gr, &mut pr);
+            if let Ok(ref mut pr) = pr {
+                planning::bubble_up_delibs(&self.model, &gr, pr);
+            }
             pr
         };
 
         let plan_p = SPPath::from_slice(&["runner", "plans", "0"]);
 
-        let (tr, s) = planning::convert_planning_result(&self.model, &planner_result, &plan_p);
-
-        let trans: Vec<_> = planner_result
-            .trace
-            .iter()
-            .filter_map(|f| {
-                if f.transition.is_empty() {
-                    None
-                } else {
-                    Some(f.transition.clone())
+        let mut no_plan = true;
+        let mut time_to_solve = 0;
+        let (tr, s, trans) = match planner_result {
+            Ok(planner_result) => {
+                if planner_result.plan_found {
+                    no_plan = false;
                 }
-            })
-            .collect();
-
+                time_to_solve = planner_result.time_to_solve.as_millis();
+                let (tr, s) = planning::convert_planning_result(&self.model, &planner_result, &plan_p);
+                let trans: Vec<_> = planner_result
+                    .trace
+                    .iter()
+                    .filter_map(|f| {
+                        if f.transition.is_empty() {
+                            None
+                        } else {
+                            Some(f.transition.clone())
+                        }
+                    })
+                    .collect();
+                (tr, s, trans)
+            },
+            Err(err) => {
+                log_warn!("planner error: {}", err);
+                (planning::block_all(&self.model), SPState::new(), vec![])
+            }
+        };
 
         let mut plan = SPPlan {
             plan: tr,
@@ -558,8 +578,6 @@ impl TransitionPlanner {
                 }
             }).collect();
         plan.state_change.add_variables(filtered_state);
-
-        let no_plan = !planner_result.plan_found;
 
         if no_plan {
             // temp
@@ -600,12 +618,14 @@ impl TransitionPlanner {
                     &state,
                     LVL0_MAX_STEPS,
                 );
-                if !pr.plan_found {
-                    println!("offending low level operation: {}", op_path);
-                    log_warn!("offending low level operation: {}", op_path);
-                    // TODO, verify that this works
-                    plan.state_change.add_variable(op_path.clone(), "error".to_spvalue());
-                    return Some(plan);
+                if let Ok(pr) = &pr {
+                    if !pr.plan_found {
+                        println!("offending low level operation: {}", op_path);
+                        log_warn!("offending low level operation: {}", op_path);
+                        // TODO, verify that this works
+                        plan.state_change.add_variable(op_path.clone(), "error".to_spvalue());
+                        return Some(plan);
+                    }
                 }
             }
             if disabled_operations.is_empty() {
@@ -619,13 +639,13 @@ impl TransitionPlanner {
         if no_plan {
             log_warn!(
                 "No plan was found for transition planner! time to fail {}ms",
-                planner_result.time_to_solve.as_millis()
+                time_to_solve,
             );
             self.prev_goals.clear();
         } else {
             log_info!(
                 "New plan was found for transition planner! time to solve {}ms",
-                planner_result.time_to_solve.as_millis()
+                time_to_solve
             );
             self.prev_goals = goals.clone();
         }

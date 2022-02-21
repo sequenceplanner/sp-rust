@@ -289,8 +289,6 @@ pub fn plan_async(
                 plan_length: trace.len() as u32 - 1, // hack :)
                 trace,
                 time_to_solve: duration,
-                raw_output: raw.to_owned(),
-                raw_error_output: raw_error.to_owned(),
             }
         }
         Err(e) => PlanningResult {
@@ -298,8 +296,6 @@ pub fn plan_async(
             plan_length: 0,
             trace: Vec::new(),
             time_to_solve: duration,
-            raw_output: "".into(),
-            raw_error_output: e.to_string(),
         },
     };
 
@@ -467,7 +463,7 @@ pub fn plan_async_with_cache(
             }
         }
         let result = plan(&t_model, &t_goals, &t_state, max_steps);
-        {
+        if let Ok(result) = result {
             let mut store = t_store.lock().unwrap();
             store.cache.insert(t_key, Some(result.clone()));
             println!("Added new state/goal pair to async plan store. Current async plan count {}. time to solve: {}ms", store.cache.len(), result.time_to_solve.as_millis());
@@ -483,7 +479,7 @@ impl Planner for NuXmvPlanner {
     fn plan(
         model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
         max_steps: u32,
-    ) -> PlanningResult {
+    ) -> Result<PlanningResult, String> {
         let lines = create_nuxmv_problem(&model, &goals, &state);
 
         //let datetime: DateTime<Local> = SystemTime::now().into();
@@ -494,7 +490,7 @@ impl Planner for NuXmvPlanner {
         //write!(f, "{}", lines).unwrap();
         let filename_last_plan = "./last_planning_request.bmc";
         let mut f = File::create(filename_last_plan).unwrap();
-        write!(f, "{}", lines).unwrap();
+        write!(f, "{}", lines.clone()).unwrap();
 
         let start = Instant::now();
         let result = call_nuxmv(max_steps, filename_last_plan);
@@ -503,10 +499,24 @@ impl Planner for NuXmvPlanner {
         let res = match result {
             Ok((raw, raw_error)) => {
                 if raw_error.len() > 0
-                    && !raw_error.contains("There are no traces currently available.")
+                    // && !raw_error.contains("There are no traces currently available.")
                 {
                     // just to more easily find syntax errors
-                    panic!("{}", raw_error);
+
+                    // try to get the line number
+                    let mut error_msg = raw_error.clone();
+                    let line_str = ": line ";
+                    if let Some(idx) = raw_error.find(line_str) {
+                        let idx = idx + line_str.len();
+                        let new_error = &raw_error[idx..];
+                        if let Some(idx) = new_error.find(":") {
+                            let line = &new_error[..idx];
+                            let line_nbr: usize = line.parse().unwrap();
+                            let err_line = lines.lines().nth(line_nbr-1).unwrap();
+                            error_msg = format!("No plan found, syntax problem at line {}:\n{}", line_nbr, err_line);
+                        }
+                    }
+                    return Err(error_msg);
                 }
                 let plan = postprocess_nuxmv_problem(&model, &raw);
                 let plan_found = plan.is_some();
@@ -529,8 +539,6 @@ impl Planner for NuXmvPlanner {
                     plan_length: trace.len() as u32 - 1, // hack :)
                     trace,
                     time_to_solve: duration,
-                    raw_output: raw.to_owned(),
-                    raw_error_output: raw_error.to_owned(),
                 }
             }
             Err(e) => {
@@ -541,7 +549,7 @@ impl Planner for NuXmvPlanner {
         //     // usually dont care to debug these
         //     let _ = std::fs::remove_file(filename);
         // }
-        res
+        Ok(res)
     }
 }
 

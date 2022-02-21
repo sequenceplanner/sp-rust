@@ -8,8 +8,6 @@ pub struct PlanningResult {
     pub plan_length: u32,
     pub trace: Vec<PlanningFrame>,
     pub time_to_solve: std::time::Duration,
-    pub raw_output: String,
-    pub raw_error_output: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -24,7 +22,7 @@ pub trait Planner {
     fn plan(
         model: &TransitionSystemModel, goal: &[(Predicate, Option<Predicate>)], state: &SPState,
         max_steps: u32,
-    ) -> PlanningResult;
+    ) -> Result<PlanningResult, String>;
 }
 
 mod nuxmv;
@@ -49,7 +47,7 @@ pub struct PlanningStore {
 pub fn plan_with_cache(
     model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
     max_steps: u32, store: &mut PlanningStore,
-) -> PlanningResult {
+) -> Result<PlanningResult, String> {
     let now = std::time::Instant::now();
     // filter the state based on the ts model and serialize it to make it hashable
     let state_str = state
@@ -91,7 +89,7 @@ pub fn plan_with_cache(
             ((100 * store.hits) / store.lookups),
             now.elapsed().as_millis()
         );
-        return plan.clone();
+        return Ok(plan.clone());
     } else {
         println!(
             "Did not use cached plan! Current plan count {}, hit% {}, lookup time {} ms",
@@ -102,17 +100,20 @@ pub fn plan_with_cache(
     }
 
     let result = NuXmvPlanner::plan(model, &goals, state, max_steps);
-    if result.plan_found {
-        // assert_eq!(result.plan_length, result2.plan_length);
-        println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
-        println!("we have a plan of length {}", result.plan_length);
-        println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+
+    if let Ok(result) = &result {
+        if result.plan_found {
+            // assert_eq!(result.plan_length, result2.plan_length);
+            println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
+            println!("we have a plan of length {}", result.plan_length);
+            println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+        }
+        store.cache.insert(key, result.clone());
+        println!(
+            "Added new state/goal pair to plan store. Current plan count {}",
+            store.cache.len()
+        );
     }
-    store.cache.insert(key, result.clone());
-    println!(
-        "Added new state/goal pair to plan store. Current plan count {}",
-        store.cache.len()
-    );
 
     result
 }
@@ -120,7 +121,7 @@ pub fn plan_with_cache(
 pub fn plan(
     model: &TransitionSystemModel, goals: &[(Predicate, Option<Predicate>)], state: &SPState,
     max_steps: u32,
-) -> PlanningResult {
+) -> Result<PlanningResult, String> {
     // if we have an invariant for our goal, express it as inv U (inv
     // & goal) e.g. we make sure that the invariant also holds in the
     // post state. consider for example the two robots that cannot be
@@ -148,11 +149,13 @@ pub fn plan(
 
     // }
 
-    if result.plan_found {
-        // assert_eq!(result.plan_length, result2.plan_length);
-        println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
-        println!("we have a plan of length {}", result.plan_length);
-        println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+    if let Ok(result) = &result {
+        if result.plan_found {
+            // assert_eq!(result.plan_length, result2.plan_length);
+            println!("plan_result: {} {}", result.plan_length, result.time_to_solve.as_millis());
+            println!("we have a plan of length {}", result.plan_length);
+            println!("nuxmv time: {}ms", result.time_to_solve.as_millis());
+        }
     }
 
     result

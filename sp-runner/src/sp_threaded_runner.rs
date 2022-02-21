@@ -1,7 +1,6 @@
 use super::sp_runner::*;
 use super::transition_planner::*;
 use super::operation_planner::*;
-use crossbeam::select;
 use sp_domain::*;
 use sp_formal::CompiledModel;
 use sp_ros::*;
