@@ -113,7 +113,13 @@ async fn search_heuristic(
                 c,
                 now.elapsed().as_millis()
             );
-            remaining.retain(|f| f.get_ref().max_steps > c); // stop looking for shorter plans
+            // stop looking for shorter plans, except for the cutoff
+            // point. the reason for keeping the cutoff point is to
+            // handle the case the only valid plan is short. then it
+            // could otherwise happen that a longer plan is found
+            // unsat faster than the shorter plan is found, and the
+            // shorter task is discarded.
+            remaining.retain(|f| f.get_ref().max_steps > c || f.get_ref().max_steps == cutoff);
             if remaining.is_empty() {
                 return None;
             }
