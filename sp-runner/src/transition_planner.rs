@@ -594,7 +594,7 @@ impl TransitionPlanner {
             let executing_ops: Vec<&Operation> =
                 self.operations.iter()
                 .filter(|o| o.is_executing(&state)).collect();
-            for o in executing_ops {
+            for o in &executing_ops {
                 let op_path = o.path();
                 let goal = o.get_goal(Some(&state));
                 println!("checking low level operation: {} -- {:?}", op_path, goal);
@@ -618,17 +618,31 @@ impl TransitionPlanner {
                     &state,
                     LVL0_MAX_STEPS,
                 );
-                if let Ok(pr) = &pr {
-                    if !pr.plan_found {
-                        println!("offending low level operation: {}", op_path);
-                        log_warn!("offending low level operation: {}", op_path);
-                        // TODO, verify that this works
-                        plan.state_change.add_variable(op_path.clone(), "error".to_spvalue());
-                        return Some(plan);
-                    }
+                let set_error =
+                    match pr {
+                        Ok(pr) => {
+                            if !pr.plan_found {
+                                println!("offending low level operation: {}", op_path);
+                                log_warn!("offending low level operation: {}", op_path);
+                                // TODO, verify that this works
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                        Err(e) => {
+                            println!("offending low level operation: {}, syntax error: {}", op_path, e);
+                            log_warn!("offending low level operation: {}, syntax error: {}", op_path, e);
+                            true
+                        }
+                    };
+                if set_error {
+                    plan.state_change
+                        .add_variable(op_path.clone(), "error".to_spvalue());
+                    return Some(plan);
                 }
             }
-            if disabled_operations.is_empty() {
+            if !executing_ops.is_empty() && disabled_operations.is_empty() {
                 // panic!("NO PLAN FOUND BUT ALSO NOW OFFENDING OPS");
                 log_error!("NO PLAN FOUND BUT ALSO NO OFFENDING OPS.\n\
                             It could be that the planning horizon needs to be increased.");

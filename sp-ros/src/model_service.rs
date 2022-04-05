@@ -82,8 +82,10 @@ impl SPModelService {
             .map_err(SPError::from_any)?;
 
 
+        let state_to_runner = self.state_to_runner.clone();
         let handle_set = tokio::spawn(async move {
-            SPModelService::set_service(set_srv, current_model).await;
+            SPModelService::set_service(set_srv, current_model,
+                                        state_to_runner).await;
         });
 
         let rx = self.model_watcher.clone();
@@ -100,6 +102,7 @@ impl SPModelService {
     async fn set_service(
         mut service: impl Stream<Item = r2r::ServiceRequest<r2r::sp_msgs::srv::Json::Service>> + Unpin,
         current_model: tokio::sync::watch::Sender<RunnerModel>,
+        state_to_runner: tokio::sync::mpsc::Sender<SPState>,
     ) {
         loop {
             if let Some(request) = service.next().await {
@@ -116,6 +119,15 @@ impl SPModelService {
                     (_ , Ok(m)) => {
                         let mut cm = current_model.borrow().clone();
                         cm.compiled_model.model.intentions = m.intentions.clone();
+                        // reset the state of the new/updated intentions
+                        let new_values: Vec<_> = m.intentions.iter().map(|i| {
+                                (i.path().clone(), "i".to_spvalue())
+                            }).collect();
+                        let new_state = SPState::new_from_values(&new_values);
+                        if let Err(_) = state_to_runner.try_send(new_state) {
+                            println!("could not update intention state");
+                        }
+
                         cm.changes = Some(m);
                         match current_model.send(cm) {
                             Ok(_) => "ok".to_string(),
