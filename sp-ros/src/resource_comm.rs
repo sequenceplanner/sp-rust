@@ -924,7 +924,6 @@ mod sp_comm_tests {
     use sp_domain::*;
     use tokio::sync::{mpsc, watch};
     use std::{sync::{Arc, Mutex}};
-    use serial_test::serial;
 
     fn create_node(name: &str) -> (Arc<Mutex<r2r::Node>>, Arc<Mutex<bool>>) {
         let ctx = r2r::Context::create().map_err(SPError::from_any).unwrap();
@@ -951,18 +950,6 @@ mod sp_comm_tests {
 
 
         (arc, kill)
-    }
-
-
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    #[serial]
-    async fn set_model_services() {
-        let mut m = Model::new("test");
-
-
-
-
     }
 
     #[test]

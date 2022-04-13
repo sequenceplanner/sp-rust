@@ -192,7 +192,9 @@ mod sp_comm_tests {
         let a = arc.clone();
         let k = kill.clone();
         tokio::task::spawn_blocking( move || {
-            for i in 1..20 {
+            let mut i = 0;
+            loop {
+                i+=1;
                 println!("Spin {}", i);
                 {
                     let mut node = a.lock().unwrap();
@@ -241,17 +243,18 @@ mod sp_comm_tests {
             }
         });
 
-        let client = {
+        let (client, ready) = {
             let mut node = arc_node.lock().unwrap();
             let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/set_model").unwrap();
-            println!("waiting for service...");
 
-            node.is_available(&c).unwrap().await;
-            println!("service available.");
-            c
+            let ready = node.is_available(&c).unwrap();
+            (c, ready)
         };
+        println!("waiting for service...");
+        ready.await.expect("could wait for service");
+        println!("service available.");
 
-        let model = Model::new("new");
+        let model = CompiledModel::from(Model::new("new"));
         let req = r2r::sp_msgs::srv::Json::Request { json: serde_json::to_string_pretty(&model).unwrap() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
@@ -291,25 +294,27 @@ mod sp_comm_tests {
             CompiledModel::from(Model::new("hej"))
         ).await.unwrap();
 
-        let client = {
+        let (client, ready) = {
             let mut node = arc_node.lock().unwrap();
             let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/get_model").unwrap();
-            println!("waiting for service...");
 
-            node.is_available(&c).unwrap().await;
-            println!("service available.");
-            c
+            let ready = node.is_available(&c).unwrap();
+            (c, ready)
         };
+
+        println!("waiting for service...");
+        ready.await.expect("failed to complete waiting");
+        println!("service available.");
 
         let req = r2r::sp_msgs::srv::Json::Request { json: "{}".to_string() };
         let res = client.request(&req).unwrap();
         let res = res.await.unwrap();
-        let m: Model = serde_json::from_str(&res.json).unwrap();
+        let m: RunnerModel = serde_json::from_str(&res.json).unwrap();
 
 
         println!("response from server: {:?}", m);
 
-        assert!(m.path() == &SPPath::from_string("hej"));
+        assert!(m.compiled_model.model.path() == &SPPath::from_string("hej"));
 
 
         {

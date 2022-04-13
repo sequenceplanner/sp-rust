@@ -237,15 +237,16 @@ mod sp_comm_tests {
             assert!(k.sp_value_from_path(&p1) == s.sp_value_from_path(&p1));
         });
 
-        let client = {
+        let (client, ready) = {
             let mut node = arc_node.lock().unwrap();
             let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/set_state").unwrap();
-            println!("waiting for service...");
-
-            //node.is_available(&c).unwrap().await;
-            println!("service available.");
-            c
+            let ready = node.is_available(&c).unwrap();
+            (c, ready)
         };
+        println!("waiting for service...");
+        ready.await.expect("could not await future");
+        println!("service available.");
+
 
         let state_json = SPStateJson::from_state_recursive(&init_state);
         let req = r2r::sp_msgs::srv::Json::Request { json: serde_json::to_string_pretty(&state_json).unwrap() };
@@ -292,15 +293,16 @@ mod sp_comm_tests {
             tx_mpsc.clone(),
         ).await.unwrap();
 
-        let client = {
+        let (client, ready) = {
             let mut node = arc_node.lock().unwrap();
             let c = node.create_client::<r2r::sp_msgs::srv::Json::Service>("/sp/get_state").unwrap();
-            println!("waiting for service...");
-
-            node.is_available(&c).unwrap().await;
-            println!("service available.");
-            c
+            let ready = node.is_available(&c).unwrap();
+            (c, ready)
         };
+        println!("waiting for service...");
+        ready.await.expect("could not await future");
+        println!("service available.");
+
 
         let state_json = SPStateJson::from_state_recursive(&init_state);
         let req = r2r::sp_msgs::srv::Json::Request { json: "{}".to_string() };
