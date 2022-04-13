@@ -209,9 +209,21 @@ mod test_new_ticker {
         let b = a!(p:ab <- p:kl);
         let c = a!(p:xy ? p);
 
-        let t1 = Transition::new("t1", p!(p: ac), vec![a], TransitionType::Auto);
-        let t2 = Transition::new("t2", p!(!p: ac), vec![b], TransitionType::Auto);
-        let t3 = Transition::new("t3", Predicate::TRUE, vec![c], TransitionType::Auto);
+        let t1 = Transition::new("t1", p!(p: ac),
+                                 Predicate::TRUE,
+                                 vec![a],
+                                 vec![], TransitionType::Auto);
+        let t2 = Transition::new("t2", p!(!p: ac),
+                                 Predicate::TRUE,
+                                 vec![b],
+                                 vec![],
+                                 TransitionType::Auto);
+        let t3 = Transition::new("t3",
+                                 Predicate::TRUE,
+                                 Predicate::TRUE,
+                                 vec![c],
+                                 vec![],
+                                 TransitionType::Auto);
 
         let sp_pred = s.state_path(&pred).unwrap();
         let pred_ac = p!(p: ac);
@@ -227,32 +239,77 @@ mod test_new_ticker {
     #[test]
     fn creating_transition_map() {
         //create_transition_map<'a>(ts: &'a [Transition], specs: &'a [Spec]) -> Vec<Vec<&'a Transition>> {
-        let t1 = Transition::new("t1", Predicate::TRUE, vec![], TransitionType::Controlled);
-        let t2 = Transition::new("t2", Predicate::TRUE, vec![], TransitionType::Controlled);
-        let t3 = Transition::new("t3", Predicate::TRUE, vec![], TransitionType::Controlled);
-        let t4 = Transition::new("t4", Predicate::TRUE, vec![], TransitionType::Controlled);
-        let t5 = Transition::new("t5", Predicate::TRUE, vec![], TransitionType::Controlled);
+        let t1 = Transition::new("t1",
+                                 Predicate::TRUE,
+                                 Predicate::TRUE,
+                                 vec![],
+                                 vec![],
+                                 TransitionType::Controlled);
+        let t2 = Transition::new("t2",
+                                 Predicate::TRUE,
+                                 Predicate::TRUE,
+                                 vec![],
+                                 vec![],
+                                 TransitionType::Controlled);
+        let t3 = Transition::new("t3",
+                                 Predicate::TRUE,
+                                 Predicate::TRUE,
+                                 vec![],
+                                 vec![],
+                                 TransitionType::Controlled);
+        let t4 = Transition::new("t4",
+                                 Predicate::TRUE,
+                                 Predicate::TRUE,
+                                 vec![],
+                                 vec![],
+                                 TransitionType::Controlled);
+        let t5 = Transition::new("t5",
+                                 Predicate::TRUE,
+                                 Predicate::TRUE,
+                                 vec![],
+                                 vec![],
+                                 TransitionType::Controlled);
         let ts = vec![t1.clone(), t2.clone(), t3.clone(), t4.clone(), t5.clone()];
 
         let specs = vec![
             TransitionSpec::new(
                 "s1",
-                Transition::new("s1", Predicate::TRUE, vec![], TransitionType::Controlled),
+                Transition::new("s1",
+                                Predicate::TRUE,
+                                Predicate::TRUE,
+                                vec![],
+                                vec![],
+                                TransitionType::Controlled),
                 vec![t1.path().clone()],
             ),
             TransitionSpec::new(
                 "s2",
-                Transition::new("s2", Predicate::TRUE, vec![], TransitionType::Controlled),
+                Transition::new("s2",
+                                Predicate::TRUE,
+                                Predicate::TRUE,
+                                vec![],
+                                vec![],
+                                TransitionType::Controlled),
                 vec![t2.path().clone(), t3.path().clone()],
             ),
             TransitionSpec::new(
                 "s3",
-                Transition::new("s3", Predicate::TRUE, vec![], TransitionType::Controlled),
+                Transition::new("s3",
+                                Predicate::TRUE,
+                                Predicate::TRUE,
+                                vec![],
+                                vec![],
+                                TransitionType::Controlled),
                 vec![t1.path().clone()],
             ),
             TransitionSpec::new(
                 "s4",
-                Transition::new("s4", Predicate::TRUE, vec![], TransitionType::Controlled),
+                Transition::new("s4",
+                                Predicate::TRUE,
+                                Predicate::TRUE,
+                                vec![],
+                                vec![],
+                                TransitionType::Controlled),
                 vec![],
             ),
         ];
@@ -268,21 +325,38 @@ mod test_new_ticker {
             res,
             vec!(
                 vec!(
-                    &Transition::new("s1", Predicate::TRUE, vec![], TransitionType::Controlled),
+                    &Transition::new("s1",
+                                     Predicate::TRUE,
+                                     Predicate::TRUE,
+                                     vec![],
+                                     vec![],
+                                     TransitionType::Controlled),
                     &t1
                 ),
                 vec!(
-                    &Transition::new("s2", Predicate::TRUE, vec![], TransitionType::Controlled),
+                    &Transition::new("s2",
+                                     Predicate::TRUE,
+                                     Predicate::TRUE,
+                                     vec![],
+                                     vec![],
+                                     TransitionType::Controlled),
                     &t2,
                     &t3
                 ),
                 vec!(
-                    &Transition::new("s3", Predicate::TRUE, vec![], TransitionType::Controlled),
+                    &Transition::new("s3",
+                                     Predicate::TRUE,
+                                     Predicate::TRUE,
+                                     vec![],
+                                     vec![],
+                                     TransitionType::Controlled),
                     &t1
                 ),
                 vec!(&Transition::new(
                     "s4",
                     Predicate::TRUE,
+                    Predicate::TRUE,
+                    vec![],
                     vec![],
                     TransitionType::Controlled
                 )),
@@ -301,7 +375,9 @@ mod test_new_ticker {
             .map(|i| {
                 let g = p! {plan == i};
                 let a = a!(plan = (i + 1));
-                Transition::new(&format!("t_{}", i), g, vec![a], TransitionType::Auto)
+                let rg = Predicate::TRUE;
+                let ra = vec![];
+                Transition::new(&format!("t_{}", i), g, rg, vec![a], ra, TransitionType::Auto)
             })
             .collect();
 
