@@ -499,10 +499,9 @@ impl Planner for NuXmvPlanner {
         let res = match result {
             Ok((raw, raw_error)) => {
                 if raw_error.len() > 0
-                    // && !raw_error.contains("There are no traces currently available.")
+                    && raw_error.trim() != "There are no traces currently available."
                 {
                     // just to more easily find syntax errors
-
                     // try to get the line number
                     let mut error_msg = raw_error.clone();
                     let line_str = ": line ";
@@ -510,12 +509,19 @@ impl Planner for NuXmvPlanner {
                         let idx = idx + line_str.len();
                         let new_error = &raw_error[idx..];
                         if let Some(idx) = new_error.find(":") {
-                            let line = &new_error[..idx];
+                            let line = &new_error[..idx].trim();
                             let line_nbr: usize = line.parse().unwrap();
+                            let error = &new_error[idx..].lines().nth(0).unwrap().trim();
                             let err_line = lines.lines().nth(line_nbr-1).unwrap();
-                            error_msg = format!("No plan found, syntax problem at line {}:\n{}", line_nbr, err_line);
+                            error_msg = format!("No plan found, syntax problem at line {}: {}\n{}. \n\n", line_nbr, error, err_line);
                         }
                     }
+
+                    std::fs::copy(
+                        filename_last_plan,
+                        "./failed_planning_request_syntax_problem.bmc",
+                    ).expect("file copy failed");
+
                     return Err(error_msg);
                 }
                 let plan = postprocess_nuxmv_problem(&model, &raw);
