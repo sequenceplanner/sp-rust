@@ -72,7 +72,7 @@ pub fn convert_planning_result(
                     .collect();
                 pred.extend(preds);
             }
-            pred.push(p!(p: plan_counter == i));
+            pred.push(p!(plan_counter == i));
             println!("Transition: {:?} {}", i, pf.transition);
             let guard = Predicate::AND(pred);
             println!("A new Guard: {}", guard);
@@ -102,7 +102,7 @@ pub fn convert_planning_result(
                     }
                 })
                 .collect();
-            let mut actions = vec![a!(p: plan_counter = { i + 1 })];
+            let mut actions = vec![a!(plan_counter <- { i + 1 })];
             actions.extend(anys.clone());
 
             let t = Transition::new(
@@ -240,14 +240,14 @@ pub fn convert_planning_result_with_packing_heuristic(
 
     let mut plan_visualization = vec![];
 
-    let mut counter = 0;
+    let mut counter: usize = 0;
     for (idx, high_dep, intersections) in starts {
         let current = &res.trace[idx];
         if !ctrl.contains(&current.transition) {
             continue;
         }
-        let gc = p!(p: plan_counter == counter);
-        let action = vec![a!(p: plan_counter = (counter + 1))];
+        let gc = p!(plan_counter == counter);
+        let action = vec![a!(plan_counter <- (counter + 1))];
 
         let guard = if high_dep > 0 {
             // make guard

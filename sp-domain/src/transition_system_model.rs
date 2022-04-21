@@ -133,7 +133,7 @@ impl TransitionSystemModel {
             transitions.iter_mut().for_each(|t| {
                 if t.type_ == TransitionType::Controlled {
                     let orig = t.guard().clone();
-                    let new = Predicate::AND(vec![orig, p!(p: auto_path)]);
+                    let new = Predicate::AND(vec![orig, p!(auto_path)]);
                     *t.mut_guard() = new;
                 }
             });

@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use rand::prelude::*;
 
-mod parser;
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Predicate {
     AND(Vec<Predicate>),
@@ -35,6 +33,62 @@ pub enum PredicateValue {
     SPValue(SPValue),
     SPPath(SPPath, Option<StatePath>),
 }
+
+/// A trait for converting a path or value to a predicatevalue
+pub trait ToPredicateValue {
+    fn to_predicate_value(&self) -> PredicateValue;
+}
+
+/// Implementation of to_predicate_value for common types
+impl ToPredicateValue for bool {
+    fn to_predicate_value(&self) -> PredicateValue {
+        PredicateValue::SPValue(self.to_spvalue())
+    }
+}
+impl ToPredicateValue for f32 {
+    fn to_predicate_value(&self) -> PredicateValue {
+        PredicateValue::SPValue(self.to_spvalue())
+    }
+}
+impl ToPredicateValue for i32 {
+    fn to_predicate_value(&self) -> PredicateValue {
+        PredicateValue::SPValue(self.to_spvalue())
+    }
+}
+impl ToPredicateValue for usize {
+    fn to_predicate_value(&self) -> PredicateValue {
+        PredicateValue::SPValue(self.to_spvalue())
+    }
+}
+impl ToPredicateValue for String {
+    fn to_predicate_value(&self) -> PredicateValue {
+        if self.starts_with("/") {
+            PredicateValue::SPPath(SPPath::from_string(self), None)
+        } else {
+            PredicateValue::SPValue(self.to_spvalue())
+        }
+    }
+}
+impl ToPredicateValue for &str {
+    fn to_predicate_value(&self) -> PredicateValue {
+        if self.starts_with("/") {
+            PredicateValue::SPPath(SPPath::from_string(self), None)
+        } else {
+            PredicateValue::SPValue(self.to_spvalue())
+        }
+    }
+}
+impl ToPredicateValue for SPPath {
+    fn to_predicate_value(&self) -> PredicateValue {
+        PredicateValue::SPPath(self.clone(),None)
+    }
+}
+impl ToPredicateValue for SPValue {
+    fn to_predicate_value(&self) -> PredicateValue {
+        PredicateValue::SPValue(self.clone())
+    }
+}
+
 
 /// Used in actions to compute a new SPValue.
 /// When using delay and fetching a value from another variable, the current value of that
@@ -173,10 +227,6 @@ impl Default for PredicateValue {
 }
 
 impl Predicate {
-    pub fn from_string(from: &str) -> Option<Self> {
-        parser::pred_parser::pred(from).ok()
-    }
-
     pub fn upd_state_path(&mut self, state: &SPState) {
         match self {
             Predicate::AND(x) | Predicate::OR(x) | Predicate::XOR(x) => {
@@ -656,75 +706,61 @@ macro_rules! p {
         Predicate::OR(vec![Predicate::NOT(Box::new(x)), y])
     }};
 
-    // equals is very limited. can only match on the form path == spvalue
-    (p:$path:ident == $value:tt) => {{
-        // println!("matched p:{} == {}", stringify!($path), stringify!($value));
+    // case with identifier on left side
+    ($left:ident == $($right:tt)+) => {{
+        // println!("matched ident {} == {}", stringify!(left), stringify!(right));
         Predicate::EQ(
-            PredicateValue::SPPath($path.clone(), None),
-            PredicateValue::SPValue($value.to_spvalue()),
+            ($left).to_predicate_value(),
+            ($($right)+).to_predicate_value(),
         )
     }};
 
-    (p:$path:ident != $value:tt) => {{
-        // println!("matched !=");
-        Predicate::NEQ(
-            PredicateValue::SPPath($path.clone(), None),
-            PredicateValue::SPValue($value.to_spvalue()),
-        )
-    }};
-
-    ($path:tt == $value:tt) => {{
-        // println!("matched {} == {}", stringify!($path), stringify!($value));
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+    // case with literal on left side
+    ($left:literal == $($right:tt)+) => {{
+        // println!("matched literal {} == {}", stringify!(left), stringify!(right));
         Predicate::EQ(
-            PredicateValue::SPPath(p, None),
-            PredicateValue::SPValue($value.to_spvalue()),
+            ($left).to_predicate_value(),
+            ($($right)+).to_predicate_value(),
         )
     }};
 
-    // introduce <-> for equality between variables....
-    ($path:tt <-> $other:tt) => {{
-        // println!("matched {} == {}", stringify!($path), stringify!($value));
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
-        let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
+    // general case with anything on left side.
+    // requires parens to work...
+    (($($left:tt)+) == $($right:tt)+) => {{
+        // println!("matched general {} == {}", stringify!(left), stringify!(right));
         Predicate::EQ(
-            PredicateValue::SPPath(p, None),
-            PredicateValue::SPPath(other, None),
-        )
-    }};
-    (p:$path:tt <-> p:$other:tt) => {{
-        Predicate::EQ(
-            PredicateValue::SPPath($path.clone(), None),
-            PredicateValue::SPPath($other.clone(), None),
+            ($($left)+).to_predicate_value(),
+            ($($right)+).to_predicate_value(),
         )
     }};
 
-    // introduce <!> for inequality between variables....
-    ($path:tt <!> $other:tt) => {{
-        // println!("matched {} == {}", stringify!($path), stringify!($value));
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
-        let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
+    // not equal
+
+    // case with identifier on left side
+    ($left:ident != $($right:tt)+) => {{
+        // println!("matched ident {} == {}", stringify!(left), stringify!(right));
         Predicate::NEQ(
-            PredicateValue::SPPath(p, None),
-            PredicateValue::SPPath(other, None),
+            ($left).to_predicate_value(),
+            ($($right)+).to_predicate_value(),
         )
     }};
 
-    // introduce <!> for inequality between variables....
-    (p:$path:ident <!> p:$other:ident) => {{
+    // case with literal on left side
+    ($left:literal != $($right:tt)+) => {{
+        // println!("matched literal {} == {}", stringify!(left), stringify!(right));
         Predicate::NEQ(
-            PredicateValue::SPPath($path.clone(), None),
-            PredicateValue::SPPath($other.clone(), None),
+            ($left).to_predicate_value(),
+            ($($right)+).to_predicate_value(),
         )
     }};
 
-
-    ($path:tt != $value:tt) => {{
-        // println!("matched !=");
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+    // general case with anything on left side.
+    // requires parens to work...
+    (($($left:tt)+) != $($right:tt)+) => {{
+        // println!("matched general {} == {}", stringify!(left), stringify!(right));
         Predicate::NEQ(
-            PredicateValue::SPPath(p, None),
-            PredicateValue::SPValue($value.to_spvalue()),
+            ($($left)+).to_predicate_value(),
+            ($($right)+).to_predicate_value(),
         )
     }};
 
@@ -735,135 +771,93 @@ macro_rules! p {
         Predicate::NOT(Box::new( inner ))
     }};
 
-    // if we already have a predicate we need to prefix it with pp:
-    (pp:$i:expr) => {{
+    // if we already have a predicate we need to prefix it with p:
+    (p:$i:expr) => {{
         // println!("matched base: {}", stringify!($p));
         $i.clone()
     }};
 
-    // if we already have a path reference we need to prefix it with p:
-    (p:$i:ident) => {{
-        // println!("matched base: {}", stringify!($p));
+    // reduced to a single token, we assume we mean to check whether a
+    // boolean variable is true.
+    ($($p:tt)+) => {{
         Predicate::EQ(
-            PredicateValue::SPPath($i.clone(), None),
+            ($($p)+).to_predicate_value(),
             PredicateValue::SPValue(true.to_spvalue()),
         )
     }};
-
-    // reduced to a single token, assume its a path to a boolean variable
-    ($p:tt) => {{
-        // println!("matched base: {}", stringify!($p));
-        let p = SPPath::from_string(&stringify!($p).replace("\"", ""));
-        Predicate::EQ(
-            PredicateValue::SPPath(p, None),
-            PredicateValue::SPValue(true.to_spvalue()),
-        )
-    }};
-
-    // TON predicate where t is the path to the timestamp and d the delay in ms
-    (TON(t:$timer:ident d:$delay:ident)) => {{
-        Predicate::TON(
-            PredicateValue::SPPath($timer.clone(), None),
-            PredicateValue::SPPath($delay.clone(), None),
-        )
-    }};
-    // TOFF predicate where t is the path to the timestamp and d the delay in ms
-    (TOFF(t:$timer:ident d:$delay:ident)) => {{
-        Predicate::TOFF(
-            PredicateValue::SPPath($timer.clone(), None),
-            PredicateValue::SPPath($delay.clone(), None),
-        )
-    }};
-
 }
 
 #[macro_export]
 macro_rules! a {
-    (p:$path:ident = $val:expr) => {{
+    ($path:ident <- $val:expr) => {{
         Action::new(
             $path.clone(),
-            Compute::PredicateValue(PredicateValue::SPValue($val.to_spvalue())),
+            Compute::PredicateValue($val.to_predicate_value())
         )
     }};
-    ($path:tt = $val:expr) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+    ($path:literal <- $val:expr) => {{
+        let p = SPPath::from_string(&$path);
         Action::new(
             p,
-            Compute::PredicateValue(PredicateValue::SPValue($val.to_spvalue())),
+            Compute::PredicateValue($val.to_predicate_value()),
         )
     }};
-    (p:$path:ident <- $other:tt) => {{
-        let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
+    (($($path:tt)+) <- $val:expr) => {{
         Action::new(
-            $path.clone(),
-            Compute::PredicateValue(PredicateValue::SPPath(other, None)),
+            ($($path)+).clone(),
+            Compute::PredicateValue($val.to_predicate_value()),
         )
     }};
-    ($path:tt <- $other:tt) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
-        let other = SPPath::from_string(&stringify!($other).replace("\"", ""));
-        Action::new(
-            p,
-            Compute::PredicateValue(PredicateValue::SPPath(other, None)),
-        )
-    }};
-    (p:$path:ident <- p:$other:expr) => {{
-        Action::new(
-            $path.clone(),
-            Compute::PredicateValue(PredicateValue::SPPath($other.clone(), None)),
-        )
-    }};
-    ($path:tt <- p:$other:expr) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
-        Action::new(
-            p,
-            Compute::PredicateValue(PredicateValue::SPPath($other.clone(), None)),
-        )
-    }};
-    ($path:tt ? $val:expr) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
-        Action::new(p, Compute::Predicate($val.clone()))
-    }};
-    (p:$path:ident ? $val:expr) => {{
-        Action::new($path.clone(), Compute::Predicate($val.clone()))
-    }};
-    ($path:tt ? $val:expr) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
-        Action::new(p, Compute::Predicate($val.clone()))
-    }};
-    (!p:$path:ident) => {{
+    (!$path:ident) => {{
         Action::new(
             $path.clone(),
             Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())),
         )
     }};
-    (!$path:tt) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+    (!$path:literal) => {{
+        let p = SPPath::from_string(&$path);
         Action::new(
             p,
+            Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())),
+        )
+    }};
+    (!$($path:tt)+) => {{
+        Action::new(
+            ($($path)+).clone(),
             Compute::PredicateValue(PredicateValue::SPValue(false.to_spvalue())),
         )
     }};
 
     // syntax for free variables
-    (p:$path:ident ?) => {{
+    ($path:ident ?) => {{
         Action::new($path.clone(), Compute::Any)
     }};
-    ($path:tt ?) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+    ($path:literal ?) => {{
+        let p = SPPath::from_string(&$path);
         Action::new(p, Compute::Any)
     }};
-
-    (p:$path:ident) => {
+    (($($path:tt)+) ?) => {{
+        Action::new(
+            ($($path)+).clone(),
+            Compute::Any,
+        )
+    }};
+    ($path:ident) => {{
         Action::new(
             $path.clone(),
             Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())),
         )
-    };
-    ($path:tt) => {{
-        let p = SPPath::from_string(&stringify!($path).replace("\"", ""));
+    }};
+    ($path:literal) => {{
+        let p = SPPath::from_string(&$path);
         Action::new(
             p,
+            Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())),
+        )
+    }};
+    ($($path:tt)+) => {{
+        Action::new(
+            ($($path)+).clone(),
             Compute::PredicateValue(PredicateValue::SPValue(true.to_spvalue())),
         )
     }};
@@ -877,46 +871,83 @@ mod sp_value_test {
 
     use super::*;
 
-    // we want to make sure that the macro and string parser
-    // have the same semantics. They probably differ a bit a
-    // the moment, especially with deciding what is a path and
-    // what is a value.
     #[test]
-    fn macro_vs_parser() {
+    fn a2_test() {
         let ab = SPPath::from_slice(&["a", "b"]);
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
 
-        let p1 = format!("p:{} && p:{} && p:{}", ab, ac, kl);
-        assert_eq!(
-            Predicate::from_string(&p1).unwrap(),
-            p!([p: ab] && [p: ac] && [p: kl])
-        );
+        struct TestStruct {
+            a: SPPath,
+            b: SPValue,
+        }
 
-        let p1 = format!("(!p:{}) && p:{} && p:{}", ab, ac, kl);
-        assert_eq!(
-            Predicate::from_string(&p1).unwrap(),
-            p!([!p: ab] && [p: ac] && [p: kl])
-        );
+        let test_struct = TestStruct {
+            a: ab.clone(),
+            b: "hej".to_spvalue()
+        };
 
-        let p1 = format!("(!p:{}) && p:{} || p:{}", ab, ac, kl);
-        assert_eq!(
-            Predicate::from_string(&p1).unwrap(),
-            p!([[!p: ab] && [p: ac]] || [p: kl])
-        );
+        let a = a!("/ab" <- 5);
+        println!("{:?}", a);
 
-        let p1 = format!("(!p:{}) && p:{} -> p:{}", ab, ac, kl);
-        assert_eq!(
-            Predicate::from_string(&p1).unwrap(),
-            p!( [[ !p:ab] && [p:ac]] => [p:kl ])
-        );
+        let a = a!( kl <- test_struct.a);
+        println!("{:?}", a);
 
-        // samve expr as above but with whitespaces interspersed
-        let p1 = format!(" ( ( ! p: {} ) && p: {} ) -> ( p:{} ) ", ab, ac, kl);
-        assert_eq!(
-            Predicate::from_string(&p1).unwrap(),
-            p!( [[ !p:ab] && [p:ac]] => [p:kl ])
-        );
+        let a = a!( test_struct.a);
+        println!("{:?}", a);
+
+        let a = a!( !test_struct.a);
+        println!("{:?}", a);
+
+        let a = a!( (test_struct.a) ?);
+        println!("{:?}", a);
+
+        let a = a!((SPPath::from_string("/abc/cde")) <- test_struct.a);
+        println!("{:?}", a);
+    }
+
+    #[test]
+    fn p2_test() {
+        let ab = SPPath::from_slice(&["a", "b"]);
+        let ac = SPPath::from_slice(&["a", "c"]);
+        let kl = SPPath::from_slice(&["k", "l"]);
+
+        struct TestStruct {
+            a: SPPath,
+            b: SPValue,
+        }
+
+        let test_struct = TestStruct {
+            a: ab.clone(),
+            b: "hej".to_spvalue()
+        };
+
+        let p = p!("/ab" == test_struct.b);
+        println!("{:?}", p);
+
+        let p = p!((test_struct.a) == test_struct.b);
+        println!("{:?}", p);
+
+        let p = p!(![5 == test_struct.b]);
+        println!("{:?}", p);
+
+        let p = p!("hello" == test_struct.a);
+        println!("{:?}", p);
+
+        let p = p!("hello" != test_struct.a);
+        println!("{:?}", p);
+
+        let p = p!((test_struct.b) != test_struct.a);
+        println!("{:?}", p);
+
+        let p = p!(! "hej2" != test_struct.b);
+        println!("{:?}", p);
+
+        let complex = p!([!p: p] && [p: p]);
+        println!("{:?}", complex);
+
+        let boolean = p!([! test_struct.b] && ["/hello"]);
+        println!("{:?}", boolean);
     }
 
     #[test]
@@ -925,13 +956,13 @@ mod sp_value_test {
         let ac = SPPath::from_slice(&["a", "c"]);
         let kl = SPPath::from_slice(&["k", "l"]);
 
-        p!([p: ab] && [p: ac] && [p: kl]);
-        p!([!p: ab] && [p: ac] && [p: kl]);
-        p!([[!p: ab] && [p: ac]] || [p: kl]);
-        p!( [[ !p:ab] && [p:ac]] => [p:kl ]);
-        p!( [[ !p:ab] && [p:ac]] => [p:kl ]);
+        p!([ab] && [ac] && [kl]);
+        p!([!ab] && [ac] && [kl]);
+        p!([[!ab] && [ac]] || [kl]);
+        p!( [[ !ab] && [ac]] => [kl ]);
+        p!( [[ !ab] && [ac]] => [kl ]);
 
-        let p = p!(TON(t:ab d:ac));
+        let p = Predicate::TON(ab.to_predicate_value(), ac.to_predicate_value());
         println!("{}", p);
     }
 
@@ -984,7 +1015,7 @@ mod sp_value_test {
         let kl = SPPath::from_slice(&["k", "l"]);
         let xy = SPPath::from_slice(&["x", "y"]);
         let mut s = state!(ab => 2, ac => true, kl => true, xy => false);
-        let p = p!([p: ac] && [p: kl]);
+        let p = p!([ac] && [kl]);
 
         let mut a = Action::new(
             ac.clone(),
@@ -1196,8 +1227,8 @@ mod sp_value_test {
         let kl = SPPath::from_slice(&["k", "l"]);
 
         let mut s = state!(ab => true, ac => false, kl => false);
-        let p1 = p!(p: ab);
-        let p2 = p!(p: ac);
+        let p1 = p!(ab);
+        let p2 = p!(ac);
 
         let a = Action::new(
             kl.clone(),

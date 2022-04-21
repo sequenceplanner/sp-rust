@@ -203,34 +203,28 @@ mod test_new_ticker {
         let pred = SPPath::from_slice(&["pred"]);
 
         let mut s = state!(ab => 2, ac => true, kl => 3, xy => false, pred => false);
-        let p = p! {[!p:ac] && [!p:xy]};
+        let p = p! {[!ac] && [!xy]};
 
-        let a = a!(p: ac = false);
-        let b = a!(p:ab <- p:kl);
-        let c = a!(p:xy ? p);
+        let a = a!(ac <- false);
+        let b = a!(ab <- kl);
 
-        let t1 = Transition::new("t1", p!(p: ac),
+        let t1 = Transition::new("t1", p!(ac),
                                  Predicate::TRUE,
                                  vec![a],
                                  vec![], TransitionType::Auto);
-        let t2 = Transition::new("t2", p!(!p: ac),
+        let t2 = Transition::new("t2", p!(!ac),
                                  Predicate::TRUE,
                                  vec![b],
                                  vec![],
                                  TransitionType::Auto);
-        let t3 = Transition::new("t3",
-                                 Predicate::TRUE,
-                                 Predicate::TRUE,
-                                 vec![c],
-                                 vec![],
-                                 TransitionType::Auto);
+
 
         let sp_pred = s.state_path(&pred).unwrap();
-        let pred_ac = p!(p: ac);
+        let pred_ac = p!(ac);
 
         let rp = RunnerPredicate(sp_pred, pred_ac);
 
-        let ts = vec![vec![&t1], vec![&t2], vec![&t3]];
+        let ts = vec![vec![&t1], vec![&t2]];
         let ps = vec![rp];
         let res = SPTicker::tick(&mut s, &ts, &ps);
         println!("FIRED: {:?}", res);
@@ -374,7 +368,7 @@ mod test_new_ticker {
         let ts: Vec<Transition> = (1..100)
             .map(|i| {
                 let g = p! {plan == i};
-                let a = a!(plan = (i + 1));
+                let a = a!(plan <- (i + 1));
                 let rg = Predicate::TRUE;
                 let ra = vec![];
                 Transition::new(&format!("t_{}", i), g, rg, vec![a], ra, TransitionType::Auto)
