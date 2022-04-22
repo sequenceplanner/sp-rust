@@ -668,6 +668,17 @@ impl TransitionPlanner {
         // not necessarily in sync with the runner
         self.plan = plan.clone();
 
+        // save the paths of the transitions in the plan to the
+        // state for visualization in new gui
+        let plan_p = SPPath::from_slice(&["runner", "transition_plan"]);
+        plan.state_change.add_variable(plan_p,
+                                       plan.included_trans.to_spvalue());
+        // also the current goal
+        let goal_p = SPPath::from_slice(&["runner", "transition_goal"]);
+        let goal_val: String = goals.iter().map(|(g,_)| g.to_string())
+            .collect::<Vec<String>>().join("&&");
+        plan.state_change.add_variable(goal_p, goal_val.to_spvalue());
+
         // rename paths before sending plan to the runner.
         // return early as soon as we have a new plan
         return Some(plan);
