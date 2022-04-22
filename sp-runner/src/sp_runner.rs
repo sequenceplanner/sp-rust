@@ -65,7 +65,7 @@ impl SPRunner {
             .collect();
 
         transitions.extend(global_transitions);
-        transitions.extend(operation_transitions);
+        transitions.extend(operation_transitions.clone());
         transitions.extend(operation_lowlevel_transitions);
         transitions.extend(intention_transitions);
 
@@ -133,6 +133,16 @@ impl SPRunner {
         let false_trans = Transition::new("empty",Predicate::FALSE,Predicate::FALSE,vec![],vec![],TransitionType::Controlled);
         ticker.transitions.iter().for_each(|t| {
             if t.type_ == TransitionType::Controlled {
+                restrict_controllable.push(TransitionSpec::new(
+                    &format!("s_{}_false", t.path()),
+                    false_trans.clone(),
+                    vec![t.path().clone()],
+                ))
+            }
+        });
+
+        operation_transitions.iter().for_each(|t| {
+            if t.path().leaf() == "start" {
                 restrict_controllable.push(TransitionSpec::new(
                     &format!("s_{}_false", t.path()),
                     false_trans.clone(),
