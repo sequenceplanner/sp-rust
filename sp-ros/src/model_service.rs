@@ -118,7 +118,11 @@ impl SPModelService {
                     },
                     (_ , Ok(m)) => {
                         let mut cm = current_model.borrow().clone();
-                        cm.compiled_model.model.intentions = m.intentions.clone();
+                        // update any modified intentions
+                        cm.compiled_model.model.intentions.retain(|i| {
+                            m.intentions.iter().find(|ii| ii.path() == i.path()).is_none()
+                        });
+                        cm.compiled_model.model.intentions.extend(m.intentions.clone());
                         // reset the state of the new/updated intentions
                         let new_values: Vec<_> = m.intentions.iter().map(|i| {
                                 (i.path().clone(), "i".to_spvalue())
